@@ -1,0 +1,16 @@
+# Ignore artifacts:
+build
+coverage
+
+# Ignore all HTML files:
+*.html
+
+# Ignore yaml
+*.yaml
+*.yml
+
+# Ignore json
+*.json
+
+# Ignore venv
+.venv/*
