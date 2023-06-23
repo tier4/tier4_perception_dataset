@@ -1,0 +1,33 @@
+repositories:
+  tier4_autoware_msgs:
+    type: git
+    url: https://github.com/tier4/tier4_autoware_msgs.git
+    version: tier4/universe
+  autoware_msgs:
+    type: git
+    url: https://github.com/autowarefoundation/autoware_msgs.git
+    version: main
+  nebula:
+    type: git
+    url: https://github.com/tier4/nebula.git
+    version: main
+
+  # This repository should eventually be removed. See https://github.com/orgs/autowarefoundation/discussions/3862
+  autoware_auto_msgs:
+    type: git
+    url: https://github.com/tier4/autoware_auto_msgs.git
+    version: tier4/main
+
+  # for Co-MLOps features
+  oxts_ros2_driver:
+    type: git
+    url: https://github.com/tier4/oxts_ros2_driver.git
+    version: feat/data_recording_system
+  pacmod3_msgs:
+    type: git
+    url: https://github.com/astuff/pacmod3_msgs.git
+    version: 1.0.0
+  pacmod_interface:
+    type: git
+    url: https://github.com/tier4/pacmod_interface.git
+    version: feat/comlops_drs

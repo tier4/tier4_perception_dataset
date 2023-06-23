@@ -1,0 +1,25 @@
+task: convert_rosbag2_to_t4
+description:
+  scene: synthetic
+conversion:
+  # path to rosbag dir output by simulator
+  input_base: .data/odaiba_synthetic_with_images/rosbags
+  output_base: .data/odaiba_synthetic_with_images/t4dataset
+  workers_number: 1
+  skip_timestamp: 2.0
+  num_load_frames: 50
+  accept_frame_drop: false # If true, the conversion will continue even if the LiDAR frame is dropped.
+  crop_frames_unit: 1  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
+  object_topic_name: /ground_truth/objects
+  object_msg_type: TrackedObjects
+  world_frame_id: world
+  lidar_sensor:
+    topic: /lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors:  #Keep the same order as each camera exposure timing
+    - topic: /sensing/camera/camera4/image_rect_color
+      channel: CAM_FRONT
+      delay_msec: 0.0
+    - topic: /sensing/camera/camera5/image_rect_color
+      channel: CAM_BACK
+      delay_msec: 0.0

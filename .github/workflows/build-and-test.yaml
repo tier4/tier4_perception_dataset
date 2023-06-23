@@ -1,0 +1,99 @@
+name: build-and-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  # Upload and download actions are used since
+  # gh command is't available in the docker container and
+  # it's hard to setup it in the container.
+  download-test-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download test data
+        run: |
+          gh release download test-data -D tests/data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload data for build-and-test
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-data
+          path: tests/data
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: ros:${{ matrix.rosdistro }}
+    strategy:
+      matrix:
+        rosdistro:
+          - humble
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          apt update -yqq
+          apt install -yqq curl python3-venv python-is-python3 \
+            libgl1-mesa-dev libboost-dev ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap \
+            ros-${ROS_DISTRO}-radar-msgs unzip tree
+
+      - name: Download test data
+        uses: actions/download-artifact@v3
+        with:
+          name: test-data
+          path: tests/data
+
+      - name: Unzip test data
+        run: |
+          unzip 'tests/data/*.zip' -d tests/data/
+
+      - name: Check test data
+        run: |
+          tree tests/data
+
+      - name: Build autoware perception messages
+        uses: autowarefoundation/autoware-github-actions/colcon-build@v1
+        with:
+          rosdistro: ${{ matrix.rosdistro }}
+          target-packages: autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs oxts_msgs vehicle_msgs
+          build-depends-repos: build_depends.repos
+
+      - name: Check python version
+        run: |
+          python -V
+
+      - name: Install poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 - --version 1.4.2
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Check poetry version
+        run: |
+          poetry --version
+
+      - name: Install python packages
+        run: |
+          poetry install
+
+      - name: Test with pytest
+        run: |
+          . /opt/ros/$ROS_DISTRO/setup.sh
+          . ./install/setup.sh
+          poetry run pytest -v

@@ -1,0 +1,7 @@
+task: convert_annotated_t4_tlr_to_deepen
+conversion:
+  label_only: true
+  input_base: ./data/t4_annotated_tlr
+  output_base: ./data/deepen_format
+  camera_position:
+    CAM_TRAFFIC_LIGHT_NEAR: sensor1

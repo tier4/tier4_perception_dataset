@@ -1,0 +1,17 @@
+task: add_2d_attribute
+description:
+  camera_index:
+    CAM_FRONT: 0
+    CAM_FRONT_RIGHT: 1
+    CAM_BACK_RIGHT: 2
+    CAM_BACK: 3
+    CAM_BACK_LEFT: 4
+    CAM_FRONT_LEFT: 5
+conversion:
+  input_base: ./data/input
+  input_anno_base: ./data/deepen_format
+  output_base: ./data/t4_format
+  dataset_corresponding:
+    # original_dataset_name: deepen_label_json_file_name
+    # t4_dataset_1-2: DBv2-0_lamp_1-2.json
+    # t4_dataset_1-4: DBv2-0_lamp_1-4.json

@@ -1,0 +1,15 @@
+task: convert_rosbag2_to_t4
+conversion:
+  input_base: OVERWRITE_IN_TEST
+  output_base: OVERWRITE_IN_TEST
+  skip_timestamp: 0.01
+  workers_number: 1
+  num_load_frames: 10
+  crop_frames_unit: 1
+  object_topic_name: /ground_truth/objects
+  object_msg_type: TrackedObjects
+  world_frame_id: world
+  lidar_sensor:
+    topic: /lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors: [] # synthetic data has no images
