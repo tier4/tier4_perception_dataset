@@ -161,7 +161,9 @@ pcd_data = pcd_data.reshape(-1, 5)
 - Almost equivalent to the [nuScenes format](https://www.nuscenes.org/nuscenes#data-format).
 - The [official tutorial notebook](https://www.nuscenes.org/nuscenes#tutorials) will help you get familiar with it.
 
-![nuscenes-schema.svg](nuscenes-schema.svg) from [the official site](https://www.nuscenes.org/nuscenes#data-format).
+![nuscenes-schema.svg](nuscenes-schema.svg)
+
+from [the official site](https://www.nuscenes.org/nuscenes#data-format).
 
 ### Overview on availability of json files
 
@@ -254,7 +256,7 @@ The item "description" for the category is not implemented for now.
 
 #### Description
 
-> Ego vehicle poses at a particular timestamp. Given with respect to the global coordinate system of the log's map. The ego_pose is the output of a lidar map-based localization algorithm described in [our paper](https://arxiv.org/abs/1903.11027).
+> Ego vehicle poses at a particular timestamp. Given with respect to the global coordinate system of the log's map. The ego_pose is the output of a lidar map-based localization algorithm described in [the paper](https://arxiv.org/abs/1903.11027).
 
 #### Items
 
