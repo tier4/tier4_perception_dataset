@@ -254,7 +254,7 @@ The item "description" for the category is not implemented for now.
 
 #### Description
 
-> Ego vehicle poses at a particular timestamp. Given with respect to the global coordinate system of the log's map. The ego_pose is the output of a lidar map-based localization algorithm described in [our paper](https://arxiv.org/abs/1903.11027).
+> Ego vehicle poses at a particular timestamp. Given with respect to the global coordinate system of the log's map. The ego_pose is the output of a lidar map-based localization algorithm described in [the paper](https://arxiv.org/abs/1903.11027).
 
 #### Items
 
