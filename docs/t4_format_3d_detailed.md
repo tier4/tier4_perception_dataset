@@ -162,6 +162,7 @@ pcd_data = pcd_data.reshape(-1, 5)
 - The [official tutorial notebook](https://www.nuscenes.org/nuscenes#tutorials) will help you get familiar with it.
 
 ![nuscenes-schema.svg](nuscenes-schema.svg)
+
 from [the official site](https://www.nuscenes.org/nuscenes#data-format).
 
 ### Overview on availability of json files
