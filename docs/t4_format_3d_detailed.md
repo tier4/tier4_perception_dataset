@@ -11,11 +11,13 @@
 - (2022.07.26) T4 format ver1.2: Add a topic contained in input_bag.
 
 ## Dataset Sample
+
 You can download one sample dataset manually from [here](https://drive.google.com/file/d/1UjMWZj5Yc55O7BZiGHa0ikZGhwmcfPiS/view).
-For this sample, sample_dataset is coresponding to {T4 dataste ID} described in following section.
+For this sample, sample_dataset is coresponding to T4 dataset ID described in following section.
+
 ## Directory Structure
 
-- {T4 dataste ID}/
+- {T4 dataset ID}/
   - map/
     - lanelet2_map.osm
     - pointcloud_map.pcd
