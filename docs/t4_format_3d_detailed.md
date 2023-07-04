@@ -14,6 +14,7 @@
 
 You can download one sample dataset manually from [here](https://drive.google.com/file/d/1UjMWZj5Yc55O7BZiGHa0ikZGhwmcfPiS/view).  
 For this sample, the directory named "sample_dataset" corresponds to the "T4 dataset ID" described in the following section.
+
 ## Directory Structure
 
 - {T4 dataset ID}/
