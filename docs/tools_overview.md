@@ -15,6 +15,30 @@ source ${ROS_WORKSPACE_WITH_CUSTOM_MESSAGES}/install/setup.bash
 poetry shell
 ```
 
+## rosbag2 pre-process
+
+The bag of t4_dataset must contain the TOPIC below.
+[topics included in t4_dataset bag](t4_format_3d_detailed#input-bag)
+
+The topic with a large size output by autoware, such as concatenated/pointcloud, may not be recorded in acquiring the data.
+If the required topic is not included in the bag, it is necessary to run the simulator and re-record the bag.
+
+input: rosbag2
+
+output: rosbag2
+
+```bash
+# use autoware
+# terminal 1
+source ${AUTOWARE_WORKSPACE}/install/setup.bash
+ros2 launch autoware_launch logging_simulator.launch.xml map_path:=${MAP_PATH} vehicle_model:=${VEHICLE_MODEL} vehicle_id:=${VEHICLE_ID} sensor_model:=${SENSOR_MODEL} vehicle:=true sensing:=true perception:=false planning:=false control:=false map:=true localization:=true rviz:=true
+# terminal 2
+# PLAY_RATE example is 0.2. Higher rates may be possible depending on computer processing power. remap recorded /tf
+ros2 bag play ${BAG_BEFORE_PROCESSING} --remap /tf:=/unused_tf --rate ${PLAY_RATE} --clock 200
+# terminal 3
+ros2 bag record /sensing/camera/camera{CAMERA_ID}/image_rect_color/compressed /sensing/camera/camera{CAMERA_ID}/camera_info /sensing/gnss/{GNSS_VENDOR}/fix_velocity /sensing/gnss/{GNSS_VENDOR}/nav_sat_fix /sensing/gnss/{GNSS_VENDOR}/navpvt /sensing/imu/{IMU_VENDOR}/imu_raw /sensing/lidar/{LIDAR_POSITION}/{LIDAR_VENDOR}_packets /sensing/lidar/concatenated/pointcloud /sensing/radar/{RADAR_POSITION}/objects_raw /{VEHICLE_NAME}/from_can_bus /tf /tf_static /localization/kinematic_state /vehicle/status/velocity_status -o ${BAG_AFTER_PROCESSING} --use-sim-time
+```
+
 ## rosbag2 to T4 non-annotated format data
 
 input: rosbag2
