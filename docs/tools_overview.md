@@ -63,8 +63,6 @@ python -m perception_dataset.convert --config config/convert_deepen_to_t4_sample
 
 ### Synthetic bag to T4 format
 
-see [About Synthetic Data](about_synthetic_data.md)
-
 input: rosbag2
 
 output: T4 format data
