@@ -18,7 +18,7 @@ poetry shell
 ## rosbag2 pre-process
 
 The bag of t4_dataset must contain the TOPIC below.
-[topics included in t4_dataset bag](t4_format_3d_detailed#input-bag)
+[topics included in t4_dataset bag](t4_format_3d_detailed.md#input-bag)
 
 The topic with a large size output by autoware, such as concatenated/pointcloud, may not be recorded in acquiring the data.
 If the required topic is not included in the bag, it is necessary to run the simulator and re-record the bag.
