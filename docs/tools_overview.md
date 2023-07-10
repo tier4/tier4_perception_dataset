@@ -40,7 +40,7 @@ ros2 bag play ${BAG_BEFORE_PROCESSING} --rate ${PLAY_RATE} --clock 200
 ros2 bag record /sensing/camera/camera{CAMERA_ID}/image_rect_color/compressed /sensing/camera/camera{CAMERA_ID}/camera_info /sensing/gnss/{GNSS_VENDOR}/fix_velocity /sensing/gnss/{GNSS_VENDOR}/nav_sat_fix /sensing/gnss/{GNSS_VENDOR}/navpvt /sensing/imu/{IMU_VENDOR}/imu_raw /sensing/lidar/{LIDAR_POSITION}/{LIDAR_VENDOR}_packets /sensing/lidar/concatenated/pointcloud /sensing/radar/{RADAR_POSITION}/objects_raw /{VEHICLE_NAME}/from_can_bus /tf /tf_static /localization/kinematic_state /vehicle/status/velocity_status -o ${BAG_AFTER_PROCESSING} --use-sim-time
 ```
 
-Case 2:  If a map to base_link transform is `not` recorded in /tf topic recorded in input_bag
+Case 2: If a map to base_link transform is `not` recorded in /tf topic recorded in input_bag
 
 ```bash
 # terminal 1
