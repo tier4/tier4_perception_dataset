@@ -1,6 +1,6 @@
 from enum import Enum
-from typing import Dict, List
 import os.path as osp
+from typing import Dict, List
 
 
 class T4_FORMAT_DIRECTORY_NAME(Enum):

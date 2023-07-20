@@ -1,6 +1,7 @@
-from typing import Dict, List, Union
-import yaml
 from abc import ABC
+from typing import Dict, List, Union
+
+import yaml
 
 from perception_dataset.constants import LABEL_PATH_ENUM
 
@@ -36,7 +37,7 @@ class LabelConverter(BaseConverter):
 
         if isinstance(attribute_path, LABEL_PATH_ENUM):
             attribute_path = attribute_path.value
-        self.attribute_map: Dict[str, str] = LabelConverter.__init_attribute_map(attribute_path)
+        self.attribute_map: Dict[str, str] = self.__init_attribute_map(attribute_path)
 
     @staticmethod
     def __init_attribute_map(attribute_path: str) -> Dict[str, str]:
