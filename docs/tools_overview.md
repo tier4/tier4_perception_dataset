@@ -70,7 +70,7 @@ Verify that the following directories have the same number of files
 `CAM_BACK`, `CAM_BACK_LEFT`, `CAM_BACK_RIGHT`, `CAM_FRONT`, `CAM_FRONT_LEFT`, `CAM_FRONT_RIGHT`, and `LIDAR_CONCAT` in `non_annotated_t4_format/${DATASET_NAME}/data`
 
 If the number of files is different, set the `smallest number` of files to the `num_load_frames` in `config/convert_rosbag2_to_non_annotated_t4.yaml`.
-Then delete the data in non_annotated_t4_format and execute the conversion command again.
+Execute the conversion command again with `--overwrite` option.
 
 ![confirm_non_annotated_format](./confirm_non_annotated_format.png)
 
