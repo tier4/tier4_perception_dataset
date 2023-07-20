@@ -94,12 +94,10 @@ Please refer to [the help page](https://help.deepen.ai/deepen-ai-enterprise/data
 
 #### Create dataset profile
 
-Set the categories and attributes for t4_dataset.
-Please refer to [the help page](https://help.deepen.ai/deepen-ai-enterprise/data-management/adding-categories-and-attributes)
+Set the categories for t4_dataset.
+Please refer to [the help page](https://help.deepen.ai/deepen-ai-enterprise/data-management/adding-categories-and-attributes).
 
-以下のように設定する。
-内部使っている設定をexportしてOSSユーザーにも同じ設定にすることってできますか？
-
+Add the items listed in Items in [category.json](t4_format_3d_detailed.md#categoryjson)
 Once you have created a profile, you can just import the profile next time.
 
 ### Annotate with Deepen
