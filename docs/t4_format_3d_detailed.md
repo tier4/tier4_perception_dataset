@@ -259,23 +259,23 @@ The item "description" for the category is not implemented for now.
 
 For t4 format, "name" should be one of the following:
 
-- Car
-- Police_car
-- Fire_truck
-- Ambulance
-- Motorcycle
-- Trailer
-- Truck
-- Bicycle
-- Bus
-- Forklift
-- Pedestrian
-- Construction_worker
-- Personal_mobility
-- Police_officer
-- Stroller
-- Wheelchair
-- Animal
+- car
+- police_car
+- fire_truck
+- ambulance
+- motorcycle
+- trailer
+- truck
+- bicycle
+- bus
+- forklift
+- pedestrian
+- construction_worker
+- personal_mobility
+- police_officer
+- stroller
+- wheelchair
+- animal
 
 ### ego_pose.json
 
