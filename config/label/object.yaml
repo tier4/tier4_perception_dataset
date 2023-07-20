@@ -1,6 +1,6 @@
 # cspell: ignore pushable, pullable, trafficcone
 bicycle: [bicycle, BICYCLE, vehicle.bicycle]
-bus: [bus, BUS, vehicle.bicycle (bendy & rigid), vehicle.bus]
+bus: [bus, BUS, vehicle.bus, vehicle.bus (bendy & rigid)]
 car:
   [
     car,
@@ -10,7 +10,15 @@ car:
     vehicle.emergency (ambulance & police),
     vehicle,
   ]
-motorcycle: [motorbike, MOTORBIKE, vehicle.motorcycle]
+motorcycle:
+  [
+    motorbike,
+    motorcycle,
+    MOTORBIKE,
+    MOTORCYCLE,
+    vehicle.motorbike,
+    vehicle.motorcycle,
+  ]
 pedestrian:
   [
     pedestrian,
@@ -24,20 +32,29 @@ pedestrian:
     pedestrian.police_officer,
   ]
 truck: [truck, TRUCK, vehicle.truck]
-trailer: [trailer, vehicle.trailer]
-ambulance: [ambulance, vehicle.ambulance]
-fire_truck: [fire_truck, vehicle.fire]
-police_car: [police_car, vehicle.police]
+trailer: [trailer, TRAILER, vehicle.trailer]
+ambulance: [ambulance, AMBULANCE, vehicle.ambulance]
+fire_truck: [fire_truck, FIRE_TRUCK, vehicle.fire]
+police_car: [police_car, POLICE_CAR, vehicle.police]
 animal: [animal, ANIMAL]
 unknown: [unknown, UNKNOWN, static_object.bicycle_rack]
-barrier: [barrier, movable_object.barrier]
-debris: [movable_object.debris]
-pushable_pullable: [pushable_pullable, movable_object.pushable_pullable]
-cone: [traffic_cone, movable_object.trafficcone, movable_object.traffic_cone]
-bollard: [bollard, static_object.bollard]
-construction_worker: [construction_worker]
-stroller: [stroller]
-police_officer: [police_officer]
-wheelchair: [wheelchair]
-forklift: [forklift]
-protruding_object: [protruding_object]
+barrier: [barrier, BARRIER, movable_object.barrier]
+debris: [debris, DEBRIS, movable_object.debris]
+pushable_pullable:
+  [pushable_pullable, PUSHABLE_PULLABLE, movable_object.pushable_pullable]
+cone:
+  [
+    traffic_cone,
+    trafficcone,
+    TRAFFIC_CONE,
+    TRAFFICCONE,
+    movable_object.trafficcone,
+    movable_object.traffic_cone,
+  ]
+bollard: [bollard, BOLLARD, static_object.bollard]
+construction_worker: [construction_worker, CONSTRUCTION_WORKER]
+stroller: [stroller, STROLLER]
+police_officer: [police_officer, POLICE_OFFICER]
+wheelchair: [wheelchair, WHEELCHAIR]
+forklift: [forklift, FORKLIFT]
+protruding_object: [protruding_object, PROTRUDING_OBJECT]
