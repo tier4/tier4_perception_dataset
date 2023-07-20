@@ -25,11 +25,6 @@ pedestrian:
     PEDESTRIAN,
     pedestrian.adult,
     pedestrian.child,
-    pedestrian.construction_worker,
-    pedestrian.personal_mobility,
-    pedestrian.police_officer,
-    pedestrian.stroller,
-    pedestrian.police_officer,
   ]
 truck: [truck, TRUCK, vehicle.truck]
 trailer: [trailer, TRAILER, vehicle.trailer]
@@ -37,12 +32,12 @@ ambulance: [ambulance, AMBULANCE, vehicle.ambulance]
 fire_truck: [fire_truck, FIRE_TRUCK, vehicle.fire]
 police_car: [police_car, POLICE_CAR, vehicle.police]
 animal: [animal, ANIMAL]
-unknown: [unknown, UNKNOWN, static_object.bicycle_rack]
+unknown: [unknown, UNKNOWN, static_object.bicycle_rack, static_object.bicycle rack]
 barrier: [barrier, BARRIER, movable_object.barrier]
 debris: [debris, DEBRIS, movable_object.debris]
 pushable_pullable:
   [pushable_pullable, PUSHABLE_PULLABLE, movable_object.pushable_pullable]
-cone:
+traffic_cone:
   [
     traffic_cone,
     trafficcone,
@@ -52,9 +47,9 @@ cone:
     movable_object.traffic_cone,
   ]
 bollard: [bollard, BOLLARD, static_object.bollard]
-construction_worker: [construction_worker, CONSTRUCTION_WORKER]
-stroller: [stroller, STROLLER]
-police_officer: [police_officer, POLICE_OFFICER]
-wheelchair: [wheelchair, WHEELCHAIR]
+construction_worker: [construction_worker, CONSTRUCTION_WORKER, pedestrian.construction_worker]
+personal_mobility: [personal_mobility, PERSONAL_MOBILITY, pedestrian.personal_mobility]
+stroller: [stroller, STROLLER, pedestrian.stroller]
+police_officer: [police_officer, POLICE_OFFICER, pedestrian.police_officer]
+wheelchair: [wheelchair, WHEELCHAIR, pedestrian.wheelchair]
 forklift: [forklift, FORKLIFT]
-protruding_object: [protruding_object, PROTRUDING_OBJECT]
