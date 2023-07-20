@@ -254,8 +254,28 @@ The item "description" for the category is not implemented for now.
 
 - category
   - "token": [str] -- Unique record identifier.
-  - "name": [str] -- Category name. The latest format is "class" (e.g. car, truck), but DBv1.0 and DBv2.0 use "category.class" format (e.g. vehicle.car).
+  - "name": [str] -- Category name. The latest format is "class" (e.g. car, truck), but "category.class" format (e.g. vehicle.car) is also supported.
   - "description": [str] -- Category description. Empty string `""` for now. **(Not available)**
+
+For t4 format, "name" should be one of the following:
+
+- car
+- police_car
+- fire_truck
+- ambulance
+- motorcycle
+- trailer
+- truck
+- bicycle
+- bus
+- forklift
+- pedestrian
+- construction_worker
+- personal_mobility
+- police_officer
+- stroller
+- wheelchair
+- animal
 
 ### ego_pose.json
 
