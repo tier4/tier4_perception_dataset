@@ -1,0 +1,55 @@
+# cspell: ignore pushable, pullable, trafficcone
+bicycle: [bicycle, BICYCLE, vehicle.bicycle]
+bus: [bus, BUS, vehicle.bus, vehicle.bus (bendy & rigid)]
+car:
+  [
+    car,
+    CAR,
+    vehicle.car,
+    vehicle.construction,
+    vehicle.emergency (ambulance & police),
+    vehicle,
+  ]
+motorcycle:
+  [
+    motorbike,
+    motorcycle,
+    MOTORBIKE,
+    MOTORCYCLE,
+    vehicle.motorbike,
+    vehicle.motorcycle,
+  ]
+pedestrian:
+  [
+    pedestrian,
+    PEDESTRIAN,
+    pedestrian.adult,
+    pedestrian.child,
+  ]
+truck: [truck, TRUCK, vehicle.truck]
+trailer: [trailer, TRAILER, vehicle.trailer]
+ambulance: [ambulance, AMBULANCE, vehicle.ambulance]
+fire_truck: [fire_truck, FIRE_TRUCK, vehicle.fire]
+police_car: [police_car, POLICE_CAR, vehicle.police]
+animal: [animal, ANIMAL]
+unknown: [unknown, UNKNOWN, static_object.bicycle_rack, static_object.bicycle rack]
+barrier: [barrier, BARRIER, movable_object.barrier]
+debris: [debris, DEBRIS, movable_object.debris]
+pushable_pullable:
+  [pushable_pullable, PUSHABLE_PULLABLE, movable_object.pushable_pullable]
+traffic_cone:
+  [
+    traffic_cone,
+    trafficcone,
+    TRAFFIC_CONE,
+    TRAFFICCONE,
+    movable_object.trafficcone,
+    movable_object.traffic_cone,
+  ]
+bollard: [bollard, BOLLARD, static_object.bollard]
+construction_worker: [construction_worker, CONSTRUCTION_WORKER, pedestrian.construction_worker]
+personal_mobility: [personal_mobility, PERSONAL_MOBILITY, pedestrian.personal_mobility]
+stroller: [stroller, STROLLER, pedestrian.stroller]
+police_officer: [police_officer, POLICE_OFFICER, pedestrian.police_officer]
+wheelchair: [wheelchair, WHEELCHAIR, pedestrian.wheelchair]
+forklift: [forklift, FORKLIFT]

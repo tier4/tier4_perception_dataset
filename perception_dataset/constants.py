@@ -1,4 +1,5 @@
 from enum import Enum
+import os.path as osp
 from typing import Dict, List
 
 
@@ -113,6 +114,21 @@ class EXTENSION_ENUM(Enum):
     @staticmethod
     def values() -> List[str]:
         return [v.value for v in EXTENSION_ENUM.__members__.values()]
+
+
+class LABEL_PATH_ENUM(Enum):
+    OBJECT_LABEL = osp.join(
+        osp.dirname(osp.dirname(osp.abspath(__file__))),
+        "config/label/object.yaml",
+    )
+    ATTRIBUTE = osp.join(
+        osp.dirname(osp.dirname(osp.abspath(__file__))),
+        "config/label/attribute.yaml",
+    )
+    TRAFFIC_LIGHT_LABEL = osp.join(
+        osp.dirname(osp.dirname(osp.abspath(__file__))),
+        "config/label/traffic_light.yaml",
+    )
 
 
 def constant(f):
