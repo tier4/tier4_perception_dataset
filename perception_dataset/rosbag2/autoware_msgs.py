@@ -147,11 +147,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
                 "y": obj.kinematics.twist_with_covariance.twist.linear.y,
                 "z": obj.kinematics.twist_with_covariance.twist.linear.z,
             }
-            acceleration: Dict[str, Optional[float]] = {
-                "x": None,
-                "y": None,
-                "z": None,
-            }
+            acceleration: Optional[Dict[str, float]] = None
         elif isinstance(obj, TrackedObject):
             obj_uuid = uuid.UUID(bytes=obj.object_id.uuid.tobytes())
             velocity: Dict[str, float] = {
@@ -159,7 +155,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
                 "y": obj.kinematics.twist_with_covariance.twist.linear.y,
                 "z": obj.kinematics.twist_with_covariance.twist.linear.z,
             }
-            acceleration: Dict[str, Optional[float]] = {
+            acceleration: Optional[Dict[str, float]] = {
                 "x": obj.kinematics.acceleration_with_covariance.accel.linear.x,
                 "y": obj.kinematics.acceleration_with_covariance.accel.linear.y,
                 "z": obj.kinematics.acceleration_with_covariance.accel.linear.z,
