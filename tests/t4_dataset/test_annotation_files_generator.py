@@ -12,6 +12,16 @@ def _default_three_d_bbox() -> Dict[str, Dict[str, float]]:
             "y": 2.0,
             "z": 3.0,
         },
+        "velocity": {
+            "x": None,
+            "y": None,
+            "z": None,
+        },
+        "acceleration": {
+            "x": None,
+            "y": None,
+            "z": None,
+        },
         "size": {
             "width": 10.0,
             "length": 20.0,

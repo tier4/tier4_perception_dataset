@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 import uuid
 
 from autoware_auto_perception_msgs.msg import (
@@ -62,6 +62,16 @@ def parse_dynamic_object_array(msg) -> List[Dict[str, Any]]:
             "z": obj.state.pose_covariance.pose.orientation.z,
             "w": obj.state.pose_covariance.pose.orientation.w,
         }
+        velocity: Dict[str, Optional[float]] = {
+            "x": None,
+            "y": None,
+            "z": None,
+        }
+        acceleration: Dict[str, Optional[float]] = {
+            "x": None,
+            "y": None,
+            "z": None,
+        }
         dimension: Dict[str, Any] = {
             "width": obj.shape.dimensions.y,
             "length": obj.shape.dimensions.x,
@@ -73,6 +83,8 @@ def parse_dynamic_object_array(msg) -> List[Dict[str, Any]]:
             "attribute_names": [],  # not available
             "three_d_bbox": {
                 "translation": position,
+                "velocity": velocity,
+                "acceleration": acceleration,
                 "size": dimension,
                 "rotation": orientation,
             },
@@ -130,8 +142,28 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
 
         if isinstance(obj, DetectedObject):
             obj_uuid = uuid.uuid4()  # random uuid
+            velocity: Dict[str, Optional[float]] = {
+                "x": None,
+                "y": None,
+                "z": None,
+            }
+            acceleration: Dict[str, Optional[float]] = {
+                "x": None,
+                "y": None,
+                "z": None,
+            }
         elif isinstance(obj, TrackedObject):
             obj_uuid = uuid.UUID(bytes=obj.object_id.uuid.tobytes())
+            velocity: Dict[str, Optional[float]] = {
+                "x": obj.kinematics.twist_with_covariance.twist.linear.x,
+                "y": obj.kinematics.twist_with_covariance.twist.linear.y,
+                "z": obj.kinematics.twist_with_covariance.twist.linear.z,
+            }
+            acceleration: Dict[str, Optional[float]] = {
+                "x": obj.kinematics.acceleration_with_covariance.accel.linear.x,
+                "y": obj.kinematics.acceleration_with_covariance.accel.linear.y,
+                "z": obj.kinematics.acceleration_with_covariance.accel.linear.z,
+            }
         else:
             raise ValueError(
                 f"Object message is neither DetectedObject nor TrackedObject: {type(obj)}"
@@ -160,6 +192,8 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
             "attribute_names": [],  # not available
             "three_d_bbox": {
                 "translation": position,
+                "velocity": velocity,
+                "acceleration": acceleration,
                 "size": dimension,
                 "rotation": orientation,
             },

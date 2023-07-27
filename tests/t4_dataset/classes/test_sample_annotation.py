@@ -16,6 +16,8 @@ def record_data():
         "attribute_tokens": ["attribute_token_xxxxx", "attribute_token_yyyyy"],
         "visibility_token": "visibility_token_xxxxx",
         "translation": {"x": 1.0, "y": 2.0, "z": 3.0},
+        "velocity": {"x": None, "y": None, "z": None},
+        "acceleration": {"x": None, "y": None, "z": None},
         "size": {"width": 10.0, "length": 20.0, "height": 30.0},
         "rotation": {"w": 100.0, "x": 200.0, "y": 300.0, "z": 400.0},
         "num_lidar_pts": 1000,
@@ -45,6 +47,16 @@ class TestSampleAnnotationRecord:
             record_data["translation"]["y"],
             record_data["translation"]["z"],
         ]
+        velocity_list = [
+            record_data["velocity"]["x"],
+            record_data["velocity"]["y"],
+            record_data["velocity"]["z"],
+        ]
+        acceleration_list = [
+            record_data["acceleration"]["x"],
+            record_data["acceleration"]["y"],
+            record_data["acceleration"]["z"],
+        ]
         size_list = [
             record_data["size"]["width"],
             record_data["size"]["length"],
@@ -68,6 +80,9 @@ class TestSampleAnnotationRecord:
         for key in ["translation", "size", "rotation"]:
             assert isinstance(rec_dict[key], list)
             assert all(isinstance(v, float) for v in rec_dict[key])
+        for key in ("velocity", "acceleration"):
+            assert isinstance(rec_dict[key], list)
+            assert all(isinstance(v, float) or v is None for v in rec_dict[key])
         assert isinstance(rec_dict["num_lidar_pts"], int)
         assert isinstance(rec_dict["num_radar_pts"], int)
 
@@ -76,6 +91,8 @@ class TestSampleAnnotationRecord:
         assert rec_dict["attribute_tokens"] == record_data["attribute_tokens"]
         assert rec_dict["visibility_token"] == record_data["visibility_token"]
         assert rec_dict["translation"] == translation_list
+        assert rec_dict["velocity"] == velocity_list
+        assert rec_dict["acceleration"] == acceleration_list
         assert rec_dict["size"] == size_list
         assert rec_dict["rotation"] == rotation_list
         assert rec_dict["num_lidar_pts"] == record_data["num_lidar_pts"]

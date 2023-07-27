@@ -45,6 +45,8 @@ def calculate_num_points(
                 attribute_tokens=record._attribute_tokens,
                 visibility_token=record._visibility_token,
                 translation=record._translation,
+                velocity=record._velocity,
+                acceleration=record._acceleration,
                 size=record._size,
                 rotation=record._rotation,
                 num_lidar_pts=int(num),
