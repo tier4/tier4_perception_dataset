@@ -11,6 +11,7 @@ import warnings
 import builtin_interfaces.msg
 import cv2
 import numpy as np
+from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CompressedImage, PointCloud2
 
 from perception_dataset.abstract_converter import AbstractConverter
@@ -114,6 +115,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._TIMESTAMP_DIFF = 0.15
 
         self._lidar_sensor: Dict[str, str] = params.lidar_sensor
+        self._radar_sensors: List[Dict[str, str]] = params.radar_sensors
         self._camera_sensors: List[Dict[str, str]] = params.camera_sensors
         self._sensor_enums: List = []
         self._set_sensors()
@@ -164,7 +166,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
 
     def _set_sensors(self):
-        sensors: List[Dict[str, str]] = [self._lidar_sensor] + self._camera_sensors
+        sensors: List[Dict[str, str]] = (
+            [self._lidar_sensor] + self._radar_sensors + self._camera_sensors
+        )
         for sensor in sensors:
             sensor_channel = sensor["channel"]
             if SENSOR_ENUM.has_channel(sensor_channel):
@@ -285,6 +289,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 topic=self._lidar_sensor["topic"],
                 scene_token=scene_token,
             )
+
+            for radar_sensor in self._radar_sensors:
+                radar_sensor_channel = radar_sensor["channel"]
+                sensor_channel_to_sample_data_token_list[
+                    radar_sensor_channel
+                ] = self._convert_radar_tracks(
+                    start_timestamp=start_timestamp,
+                    sensor_channel=radar_sensor_channel,
+                    topic=radar_sensor["topic"],
+                    scene_token=scene_token,
+                )
 
             # Note: Align the loading order of the cameras with the shutter sequence.
             # Note: The timing of lidar scan initiation and the first camera data acquisition is the same, but the camera has a delay due to data transfer and edge processing on the timestamp.
@@ -414,6 +429,85 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
             points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
             points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
+
+            sample_data_token_list.append(sample_data_token)
+            prev_frame_unix_timestamp = unix_timestamp
+            frame_index += 1
+
+        return sample_data_token_list
+
+    def _convert_radar_tracks(
+        self,
+        start_timestamp: float,
+        sensor_channel: str,
+        topic: str,
+        scene_token: str,
+    ) -> List[str]:
+        sample_data_token_list: List[str] = []
+
+        prev_frame_unix_timestamp: float = 0.0
+        frame_index: int = 0
+
+        start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
+        calibrated_sensor_token = self._generate_calibrated_sensor(
+            sensor_channel, start_time_in_time, topic
+        )
+        for radar_tracks_msg in self._bag_reader.read_messages(
+            topics=[topic], start_time=start_time_in_time
+        ):
+            radar_tracks_msg: RadarTracks
+            try:
+                ego_pose_token = self._generate_ego_pose(radar_tracks_msg.header.stamp)
+            except Exception as e:
+                if self._ignore_no_ego_transform_at_rosbag_beginning:
+                    warnings.warn(
+                        f"Skipping frame with header stamp: {radar_tracks_msg.header.stamp}"
+                    )
+                    continue
+                else:
+                    raise e
+
+            if frame_index >= self._num_load_frames:
+                break
+
+            unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(radar_tracks_msg.header.stamp)
+            if frame_index > 0:
+                # NOTE: Message drops are not tolerated.
+                print(
+                    f"frame_index: {frame_index}, unix_timestamp - prev_frame_unix_timestamp: {unix_timestamp - prev_frame_unix_timestamp}"
+                )
+                if (
+                    unix_timestamp - prev_frame_unix_timestamp
+                ) > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp:
+                    raise ValueError(
+                        f"RadarTracks message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
+                    )
+
+            nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(radar_tracks_msg.header.stamp)
+            sample_token = self._sample_table.insert_into_table(
+                timestamp=nusc_timestamp, scene_token=scene_token
+            )
+
+            # TODO(ktro2828): add support of PCD format
+            fileformat = EXTENSION_ENUM.JSON.value[1:]
+            filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
+            sample_data_token = self._sample_data_table.insert_into_table(
+                sample_token=sample_token,
+                ego_pose_token=ego_pose_token,
+                calibrated_sensor_token=calibrated_sensor_token,
+                filename=filename,
+                fileformat=fileformat,
+                timestamp=nusc_timestamp,
+                is_key_frame=False,
+            )
+            sample_data_record: SampleDataRecord = (
+                self._sample_data_table.select_record_from_token(sample_data_token)
+            )
+
+            # TODO(ktro2828): Add support of PCD format.
+            radar_tracks = rosbag2_utils.radar_tracks_msg_to_list(radar_tracks_msg)
+            with open(osp.join(self._output_scene_dir, sample_data_record.filename), "w") as f:
+                json.dump(radar_tracks, f)
 
             sample_data_token_list.append(sample_data_token)
             prev_frame_unix_timestamp = unix_timestamp
