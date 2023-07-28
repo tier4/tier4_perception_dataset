@@ -63,14 +63,14 @@ def parse_dynamic_object_array(msg) -> List[Dict[str, Any]]:
             "w": obj.state.pose_covariance.pose.orientation.w,
         }
         velocity: Dict[str, Optional[float]] = {
-            "x": None,
-            "y": None,
-            "z": None,
+            "x": obj.state.twist_covariance.twist.linear.x,
+            "y": obj.state.twist_covariance.twist.linear.y,
+            "z": obj.state.twist_covariance.twist.linear.z,
         }
         acceleration: Dict[str, Optional[float]] = {
-            "x": None,
-            "y": None,
-            "z": None,
+            "x": obj.state.acceleration_covariance.accel.linear.x,
+            "y": obj.state.acceleration_covariance.accel.linear.y,
+            "z": obj.state.acceleration_covariance.accel.linear.z,
         }
         dimension: Dict[str, Any] = {
             "width": obj.shape.dimensions.y,
@@ -142,10 +142,10 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
 
         if isinstance(obj, DetectedObject):
             obj_uuid = uuid.uuid4()  # random uuid
-            velocity: Dict[str, Optional[float]] = {
-                "x": None,
-                "y": None,
-                "z": None,
+            velocity: Dict[str, float] = {
+                "x": obj.kinematics.twist_with_covariance.twist.linear.x,
+                "y": obj.kinematics.twist_with_covariance.twist.linear.y,
+                "z": obj.kinematics.twist_with_covariance.twist.linear.z,
             }
             acceleration: Dict[str, Optional[float]] = {
                 "x": None,
@@ -154,7 +154,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
             }
         elif isinstance(obj, TrackedObject):
             obj_uuid = uuid.UUID(bytes=obj.object_id.uuid.tobytes())
-            velocity: Dict[str, Optional[float]] = {
+            velocity: Dict[str, float] = {
                 "x": obj.kinematics.twist_with_covariance.twist.linear.x,
                 "y": obj.kinematics.twist_with_covariance.twist.linear.y,
                 "z": obj.kinematics.twist_with_covariance.twist.linear.z,
