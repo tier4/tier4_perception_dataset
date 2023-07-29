@@ -1,13 +1,13 @@
 # Tools Overview
 
-This document is simply written about the script.
+This document provides a brief overview of the scripts used in the Tier4 perception dataset.
 
 ![data_collection_conversion](data_collection_conversion.drawio.svg)
 
 ## Common
 
-Those commands below are asuumed to be run in poetry shell built in [README.md](../README.md)  
-Run this to start a poetry shell.
+The commands below are assumed to be run in the poetry shell, as built in [README.md](../README.md)  
+To start a poetry shell, execute the following:
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.bash
@@ -20,7 +20,7 @@ poetry shell
 The bag of t4_dataset must contain the TOPIC below.
 [topics included in t4_dataset bag](t4_format_3d_detailed.md#input-bag)
 
-The topic with a large size output by autoware, such as concatenated/pointcloud, may not be recorded in acquiring the data.
+The topic with a large size output by Autoware, such as concatenated/pointcloud, may not be recorded when acquiring the data.
 If the required topic is not included in the bag, it is necessary to run the simulator and re-record the bag.
 
 input: rosbag2
@@ -54,6 +54,7 @@ ros2 bag record /sensing/camera/camera{CAMERA_ID}/image_rect_color/compressed /s
 ```
 
 ## rosbag2 to T4 non-annotated format data
+This step converts rosbag2 data to `non-annotated` T4 format.
 
 input: rosbag2
 
@@ -66,7 +67,7 @@ python -m perception_dataset.convert --config config/convert_rosbag2_to_non_anno
 
 ### confirm non-annotated format data
 
-Verify that the following directories have the same number of files
+Verify that the following directories have the same number of files:
 `CAM_BACK`, `CAM_BACK_LEFT`, `CAM_BACK_RIGHT`, `CAM_FRONT`, `CAM_FRONT_LEFT`, `CAM_FRONT_RIGHT`, and `LIDAR_CONCAT` in `non_annotated_t4_format/${DATASET_NAME}/data`
 
 If the number of files is different, set the `smallest number` of files to the `num_load_frames` in `config/convert_rosbag2_to_non_annotated_t4.yaml`.
@@ -77,6 +78,7 @@ Execute the conversion command again with `--overwrite` option.
 ## Deepen
 
 ### T4 format to Deepen format
+Converts T4 format data to Deepen format.
 
 input: T4 format data
 
@@ -157,10 +159,8 @@ python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synth
 
 #### description
 
-This function if for converting pseudo-labeled bag to T4 format.
-The pseudo-labeled bag is a bag that contains either detection output or tracking output from Autoware.
-The detection output is a message of `autoware_auto_perception_msgs/msg/DetectedObjects`.
-The tracking output is a message of `autoware_auto_perception_msgs/msg/TrackedObjects`.
+This function is for converting a pseudo-labeled bag to T4 format.  
+The pseudo-labeled bag contains either detection output or tracking output from Autoware.  The detection output is a message of `autoware_auto_perception_msgs/msg/DetectedObjects`, and the tracking output is a message of `autoware_auto_perception_msgs/msg/TrackedObjects`.
 
 input: rosbag2
 
