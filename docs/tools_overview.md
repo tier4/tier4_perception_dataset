@@ -161,17 +161,17 @@ output: T4 format data
 
 #### Messages
 
-| Topic Name                                                                   | Required | Message Type                                                                                              |
-| ---------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `/perception/object_recognition/detection/apollo/objects` or other any value | o        | `autoware_auto_perception_msgs/msg/TrackedObjects` or `autoware_auto_perception_msgs/msg/DetectedObjects` |
-| `/sensing/lidar/concatenated/pointcloud` or other any value                  | o        | `sensor_msgs/msg/PointCloud2`                                                                             |
-| `/tf`                                                                        | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
-| `/tf_static`                                                                 | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
-| `/sensing/camera/camera{ID}/image_rect_color/compressed`                     |          | `sensor_msgs/msg/CompressedImage`                                                                         |
-| `/sensing/camera/camera{ID}/camera_info`                                     |          | `sensor_msgs/msg/CameraInfo`                                                                              |
+| Topic Name                                                                                                                 | Required | Message Type                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `/perception/object_recognition/detection/objects` or `/perception/object_recognition/tracking/objects` or other any value | o        | `autoware_auto_perception_msgs/msg/TrackedObjects` or `autoware_auto_perception_msgs/msg/DetectedObjects` |
+| `/sensing/lidar/concatenated/pointcloud` or other any value                                                                | o        | `sensor_msgs/msg/PointCloud2`                                                                             |
+| `/tf`                                                                                                                      | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
+| `/tf_static`                                                                                                               | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
+| `/sensing/camera/camera{ID}/image_rect_color/compressed`                                                                   |          | `sensor_msgs/msg/CompressedImage`                                                                         |
+| `/sensing/camera/camera{ID}/camera_info`                                                                                   |          | `sensor_msgs/msg/CameraInfo`                                                                              |
 
 #### script
 
 ```bash
-python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synthetic_data.yaml
+python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_pseudolabel_lidar.yaml
 ```
