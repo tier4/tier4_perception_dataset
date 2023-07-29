@@ -23,8 +23,7 @@ The bag of t4_dataset must contain the TOPIC below.
 The topic with a large size output by Autoware, such as concatenated/pointcloud, may not be recorded when acquiring the data.
 If the required topic is not included in the bag, it is necessary to run the simulator and re-record the bag.
 
-input: rosbag2
-
+input: rosbag2  
 output: rosbag2
 
 Case 1: If a map to base_link transform is recorded in /tf topic in the input_bag
@@ -54,10 +53,10 @@ ros2 bag record /sensing/camera/camera{CAMERA_ID}/image_rect_color/compressed /s
 ```
 
 ## rosbag2 to T4 non-annotated format data
+
 This step converts rosbag2 data to `non-annotated` T4 format.
 
-input: rosbag2
-
+input: rosbag2  
 output: T4 non-annotated format data
 
 ```bash
@@ -78,10 +77,10 @@ Execute the conversion command again with `--overwrite` option.
 ## Deepen
 
 ### T4 format to Deepen format
+
 Converts T4 format data to Deepen format.
 
-input: T4 format data
-
+input: T4 format data  
 output: deepen-format data
 
 ```bash
@@ -122,8 +121,7 @@ python -m perception_dataset.deepen.download_annotations --config config/convert
 
 ### Deepen format to T4 format
 
-input: T4 non-annotated format data + deepen annotations
-
+input: T4 non-annotated format data + deepen annotations  
 output: T4 format data
 
 ```bash
@@ -134,8 +132,7 @@ python -m perception_dataset.convert --config config/convert_deepen_to_t4_sample
 
 ### Synthetic bag to T4 format
 
-input: rosbag2
-
+input: rosbag2  
 output: T4 format data
 
 #### Messages
@@ -157,13 +154,12 @@ python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synth
 
 ### Pseudo-labeled bag to T4 format
 
-#### description
+#### Description
 
 This function is for converting a pseudo-labeled bag to T4 format.  
-The pseudo-labeled bag contains either detection output or tracking output from Autoware.  The detection output is a message of `autoware_auto_perception_msgs/msg/DetectedObjects`, and the tracking output is a message of `autoware_auto_perception_msgs/msg/TrackedObjects`.
+The pseudo-labeled bag contains either detection output or tracking output from Autoware. The detection output is a message of `autoware_auto_perception_msgs/msg/DetectedObjects`, and the tracking output is a message of `autoware_auto_perception_msgs/msg/TrackedObjects`.
 
-input: rosbag2
-
+input: rosbag2  
 output: T4 format data
 
 #### Messages
