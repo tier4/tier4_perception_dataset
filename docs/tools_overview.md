@@ -155,6 +155,13 @@ python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synth
 
 ### Pseudo-labeled bag to T4 format
 
+#### description
+
+This function if for converting pseudo-labeled bag to T4 format.
+The pseudo-labeled bag is a bag that contains either detection output or tracking output from Autoware.
+The detection output is a message of `autoware_auto_perception_msgs/msg/DetectedObjects`.
+The tracking output is a message of `autoware_auto_perception_msgs/msg/TrackedObjects`.
+
 input: rosbag2
 
 output: T4 format data
