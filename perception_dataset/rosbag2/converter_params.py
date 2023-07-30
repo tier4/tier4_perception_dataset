@@ -18,9 +18,11 @@ class Rosbag2ConverterParams(BaseModel):
     input_base: str  # path to the input rosbag2 directory (multiple rosbags in the directory)
     input_bag_path: Optional[str]  # path to the input rosbag2 (a single rosbag)
     output_base: str  # path to the output directory
+    gt_label_base: str = ""  # path to the gt labels directory
     overwrite_mode: bool = False
     without_compress: bool = False
     workers_number: int = 1
+    with_gt_label: bool = False  # whether to use gt labels
 
     # rosbag data type
     data_type: DataType = DataType.REAL  # real or synthetic
@@ -46,6 +48,7 @@ class Rosbag2ConverterParams(BaseModel):
     camera_latency_sec: float = (
         0.0  # camera latency in seconds between the header.stamp and shutter trigger
     )
+    topic_list: list = []  # topic list for input_bag
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False
     generate_frame_every: int = 1  # pick frames out of every this number.
@@ -59,6 +62,7 @@ class Rosbag2ConverterParams(BaseModel):
                 "The config of `camera_sensors` field is empty, so disable to load camera data."
             )
             self.with_camera = False
+        self.with_gt_label = self.gt_label_base != ""
 
     @validator("workers_number")
     def check_workers_number(cls, v):

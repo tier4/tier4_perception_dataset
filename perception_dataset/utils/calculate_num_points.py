@@ -23,7 +23,7 @@ def calculate_num_points(
         points = np.fromfile(lidar_path, dtype=np.float32)
         points = points.reshape(-1, 5)
 
-        # taken from perception_det3d/dataset_converter/t4dataset_converter.py
+        # taken from awml_det3d/dataset_converter/t4dataset_converter.py
         locs = np.array([b.center for b in boxes]).reshape(-1, 3)
         dims = np.array([b.wlh for b in boxes]).reshape(-1, 3)
         rots = np.array([b.orientation.yaw_pitch_roll[0] for b in boxes]).reshape(-1, 1)

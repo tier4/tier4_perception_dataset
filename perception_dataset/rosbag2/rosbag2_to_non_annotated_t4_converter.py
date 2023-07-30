@@ -97,6 +97,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._without_compress: bool = params.without_compress
         self._camera_latency: float = params.camera_latency_sec
         self._start_timestamp: float = params.start_timestamp_sec
+        self._end_timestamp: float = 0
         self._ignore_no_ego_transform_at_rosbag_beginning: bool = (
             params.ignore_no_ego_transform_at_rosbag_beginning
         )
@@ -263,6 +264,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         """
         if self._start_timestamp < sys.float_info.epsilon:
             start_timestamp = self._bag_reader.start_timestamp + self._skip_timestamp
+            self._start_timestamp = start_timestamp
         else:
             start_timestamp = self._start_timestamp
         logger.info(f"set start_timestamp to {start_timestamp}")
@@ -451,6 +453,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 break
 
             image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
+            if self._end_timestamp < image_unix_timestamp:
+                self._end_timestamp = image_unix_timestamp
 
             if not self._camera_only_mode:
                 sample_record: SampleRecord = sample_records[frame_index]
@@ -479,6 +483,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     lidar_unix_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                         sample_record.timestamp
                     )
+                    if self._end_timestamp < lidar_unix_timestamp:
+                        self._end_timestamp = lidar_unix_timestamp
 
                 if (image_unix_timestamp - lidar_unix_timestamp) > (
                     self._camera_latency + self._TIMESTAMP_DIFF
@@ -687,6 +693,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         scene_record.nbr_samples = len(sample_token_list)
         scene_record.first_sample_token = sample_token_list[0]
         scene_record.last_sample_token = sample_token_list[-1]
+
+    def _add_scene_describtion(self, text: str):
+        scene_records: List[SceneRecord] = self._scene_table.to_records()
+        if scene_records[0].description != "":
+            scene_records[0].description += ", "
+        scene_records[0].description += f"{text}"
 
     def _connect_sample_in_scene(self):
         """add prev/next of Sample"""
