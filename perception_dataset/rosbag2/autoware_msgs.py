@@ -71,7 +71,7 @@ def parse_dynamic_object_array(msg) -> List[Dict[str, Any]]:
             "category_name": category_name,
             "instance_id": str(obj_uuid),
             "attribute_names": [],  # not available
-            "three_d_box": {
+            "three_d_bbox": {
                 "translation": position,
                 "size": dimension,
                 "rotation": orientation,
@@ -158,7 +158,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
             "category_name": category_name,
             "instance_id": str(obj_uuid),
             "attribute_names": [],  # not available
-            "three_d_box": {
+            "three_d_bbox": {
                 "translation": position,
                 "size": dimension,
                 "rotation": orientation,
