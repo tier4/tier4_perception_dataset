@@ -1,5 +1,6 @@
 pedestrian_state:
     sitting: [pedestrian_state.sitting_lying_down, pedestrian_state.sitting]
+    lying_down: [pedestrian_state.lying_down]
     standing: [pedestrian_state.standing, pedestrian_state.moving]
 vehicle_state:
     driving:

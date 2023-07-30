@@ -204,9 +204,9 @@ An attribute is a property of an instance that can change while the category rem
 e.g.:
 
 - pedestrian
-  - sitting_lying_down
+  - sitting
   - standing
-  - moving
+  - lying_down
 
 #### Items
 
