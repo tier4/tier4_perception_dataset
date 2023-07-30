@@ -438,6 +438,7 @@ A sensor data e.g. image, point cloud or radar return. For sample_data with is_k
   - "is_key_frame" : [bool] -- True if sample_data is part of key_frame, else False.
   - "next": [str] -- Foreign key. Sample data from the same sensor that follows this in time. Empty if end of scene.
   - "prev": [str] -- Foreign key. Sample data from the same sensor that precedes this in time. Empty if start of scene.
+  - "is_valid": [bool] -- True if the data is valid, else False. Invalid data should be ignored.
 
 ### scene.json
 
