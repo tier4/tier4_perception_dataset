@@ -1,0 +1,28 @@
+pedestrian_state:
+    sitting: [pedestrian_state.sitting_lying_down, pedestrian_state.sitting]
+    lying_down: [pedestrian_state.lying_down]
+    standing: [pedestrian_state.standing, pedestrian_state.moving]
+vehicle_state:
+    driving:
+        [vehicle_state.driving, vehicle_state.moving, vehicle_state.stopped]
+    parked: [vehicle_state.parked]
+occlusion_state:
+    none: [occlusion_state.none]
+    partial: [occlusion_state.partial]
+    most: [occlusion_state.most]
+    full: [occlusion_state.full]
+cycle_state:
+    without_rider: [cycle_state.without_rider]
+    with_rider: [cycle_state.with_rider]
+motorcycle_state:
+    without_rider: [motorcycle_state.without_rider]
+    with_rider: [motorcycle_state.with_rider]
+extremities_state:
+    none: [extremities_state.none]
+    open_door: [extremities_state.open_door]
+    protruding_object: [extremities_state.protruding_object]
+emergency_vehicle_lights_state:
+    on: [emergency_vehicle_lights_state.on]
+    off: [emergency_vehicle_lights_state.off]
+object_state:
+    still: [object_state.still]
