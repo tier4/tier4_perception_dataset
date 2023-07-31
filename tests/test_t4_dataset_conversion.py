@@ -1,4 +1,5 @@
 import json
+import os
 import os.path as osp
 import shutil
 
@@ -75,7 +76,7 @@ def t4_dataset_path(request):
     d2t4_output_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["output_base"])
     dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
     description = config_dict["description"]
-    input_bag_base = config_dict["conversion"]["input_bag_base"]
+    input_bag_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["input_bag_base"])
     topic_list_yaml_path = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["topic_list"])
     ignore_interpolate_label = request.param
     if ignore_interpolate_label:
@@ -393,3 +394,16 @@ def test_visibility_json(t4_dataset_path):
             "none",
         ]
         assert visibility["description"], "description is empty"
+
+
+@pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
+def test_directory_structure(t4_dataset_path):
+    dir_files = os.listdir(t4_dataset_path)
+    assert "annotation" in dir_files, "annotation is not in t4_dataset"
+    assert "data" in dir_files, "data is not in t4_dataset"
+    assert "input_bag" in dir_files, "input_bag is not in t4_dataset"
+    assert "status.json" in dir_files, "status.json is not in t4_dataset"
+
+    intput_bag_files = os.listdir(osp.join(t4_dataset_path, "input_bag"))
+    assert "metadata.yaml" in intput_bag_files, "metadata.yaml is not in input_bag"
+    assert "sample_bag_0.db3" in intput_bag_files, ".db3 is not in input_bag"
