@@ -751,7 +751,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     "z": transform_stamped.transform.rotation.z,
                 }
 
-            if modality == SENSOR_MODALITY_ENUM.LIDAR.value:
+            if modality in (SENSOR_MODALITY_ENUM.LIDAR.value, SENSOR_MODALITY_ENUM.RADAR.value):
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                     sensor_token=sensor_token,
                     translation=translation,
