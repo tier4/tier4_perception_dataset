@@ -1,6 +1,6 @@
 # Tools Overview
 
-This document provides a brief overview of the scripts used in the Tier4 perception dataset.
+This document provides a brief overview of the scripts used in the tier4_perception_dataset.
 
 ![data_collection_conversion](data_collection_conversion.drawio.svg)
 
