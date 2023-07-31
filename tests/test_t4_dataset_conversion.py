@@ -24,7 +24,7 @@ from perception_dataset.t4_dataset.format_validator import (
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def t4_dataset_path(request):
     test_rosbag_name = "sample_bag"
     # before test - convert rosbag2 to t4
@@ -255,11 +255,11 @@ def test_log_json(t4_dataset_path):
 def test_map_json(t4_dataset_path):
     map_json = load_json(t4_dataset_path, "map")
     assert len(map_json) == 1, f"map length is {len(map_json)}, expected 1"
-    for map in map_json:
-        assert map["token"], "token is empty"
-        assert map["log_tokens"], "log_tokens is empty"
-        assert map["category"] == "", "category is empty"
-        assert map["filename"] == "", "filename is empty"
+    for map_ in map_json:
+        assert map_["token"], "token is empty"
+        assert map_["log_tokens"], "log_tokens is empty"
+        assert map_["category"] == "", "category is empty"
+        assert map_["filename"] == "", "filename is empty"
 
 
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
@@ -297,7 +297,7 @@ def test_sample_annotation_json(t4_dataset_path):
 
 
 @pytest.mark.parametrize("t4_dataset_path", [False], indirect=True)
-def test_sample_annotation_json(t4_dataset_path):
+def test_sample_annotation_json_with_interpolate_label(t4_dataset_path):
     sample_annotation = load_json(t4_dataset_path, "sample_annotation")
     assert len(sample_annotation) == 56
     for sample_anno in sample_annotation:
@@ -377,7 +377,7 @@ def test_sensor_json(t4_dataset_path):
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
 def test_surface_ann_json(t4_dataset_path):
     surface_ann_json = load_json(t4_dataset_path, "surface_ann")
-    assert surface_ann_json == [], f"surface_ann is not empty"
+    assert surface_ann_json == [], "surface_ann is not empty"
 
 
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
