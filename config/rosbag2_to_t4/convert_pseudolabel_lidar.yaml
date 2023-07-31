@@ -1,0 +1,15 @@
+task: convert_rosbag2_to_t4
+conversion:
+  # path to rosbag dir output by simulator
+  input_base: ./data/rosbag2_perception
+  output_base: ./data/pseudo_labeling_t4_format
+  skip_timestamp: 2.0
+  num_load_frames: 200
+  # object_topic_name: /perception/object_recognition/tracking/objects
+  # object_msg_type: TrackedObjects
+  object_topic_name: /perception/object_recognition/detection/objects
+  object_msg_type: DetectedObjects
+  lidar_sensor:
+    topic: /sensing/lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors: [] # lidar only pseudolabel config
