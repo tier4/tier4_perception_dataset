@@ -119,9 +119,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._camera_sensors: List[Dict[str, str]] = params.camera_sensors
         self._sensor_enums: List = []
         self._set_sensors()
-        self._camera_only_mode: bool = False
-        if self._lidar_sensor["topic"] == "":
-            self._camera_only_mode = True
+
+        self._camera_only_mode: bool = (
+            True if self._lidar_sensor["topic"] == "" and len(self._radar_sensors) == 0 else False
+        )
+        self._use_lidar: bool = True if self._lidar_sensor["topic"] != "" else False
+        self._use_radar: bool = True if 0 < len(self._radar_sensors) else False
 
         # init directories
         self._bag_name = osp.basename(self._input_bag)
@@ -142,7 +145,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
     def _calc_actual_num_load_frames(self):
         topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
         if not self._camera_only_mode:
-            topic_names.append(self._lidar_sensor["topic"])
+            if self._use_lidar:
+                topic_names.append(self._lidar_sensor["topic"])
+            if self._use_radar:
+                topic_names.extend([radar["topic"] for radar in self._radar_sensors])
 
         num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
         freq = 10
@@ -279,27 +285,33 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._init_tables()
         scene_token = self._convert_static_data()
 
-        if not self._camera_only_mode:
-            lidar_sensor_channel = self._lidar_sensor["channel"]
-            sensor_channel_to_sample_data_token_list[
-                lidar_sensor_channel
-            ] = self._convert_pointcloud(
-                start_timestamp=start_timestamp,
-                sensor_channel=lidar_sensor_channel,
-                topic=self._lidar_sensor["topic"],
-                scene_token=scene_token,
-            )
+        print(f"camera only: {self._camera_only_mode}")
+        print(f"lidar: {self._use_lidar}")
+        print(f"radar: {self._use_radar}")
 
-            for radar_sensor in self._radar_sensors:
-                radar_sensor_channel = radar_sensor["channel"]
+        if not self._camera_only_mode:
+            if self._use_lidar:
+                lidar_sensor_channel = self._lidar_sensor["channel"]
                 sensor_channel_to_sample_data_token_list[
-                    radar_sensor_channel
-                ] = self._convert_radar_tracks(
+                    lidar_sensor_channel
+                ] = self._convert_pointcloud(
                     start_timestamp=start_timestamp,
-                    sensor_channel=radar_sensor_channel,
-                    topic=radar_sensor["topic"],
+                    sensor_channel=lidar_sensor_channel,
+                    topic=self._lidar_sensor["topic"],
                     scene_token=scene_token,
                 )
+
+            if self._use_radar:
+                for radar_sensor in self._radar_sensors:
+                    radar_sensor_channel = radar_sensor["channel"]
+                    sensor_channel_to_sample_data_token_list[
+                        radar_sensor_channel
+                    ] = self._convert_radar_tracks(
+                        start_timestamp=start_timestamp,
+                        sensor_channel=radar_sensor_channel,
+                        topic=radar_sensor["topic"],
+                        scene_token=scene_token,
+                    )
 
             # Note: Align the loading order of the cameras with the shutter sequence.
             # Note: The timing of lidar scan initiation and the first camera data acquisition is the same, but the camera has a delay due to data transfer and edge processing on the timestamp.
@@ -452,6 +464,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
+        print(topic)
         for radar_tracks_msg in self._bag_reader.read_messages(
             topics=[topic], start_time=start_time_in_time
         ):
@@ -512,6 +525,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sample_data_token_list.append(sample_data_token)
             prev_frame_unix_timestamp = unix_timestamp
             frame_index += 1
+
+        print(frame_index)
 
         return sample_data_token_list
 
