@@ -185,15 +185,15 @@ class AnnotationFilesGenerator:
                             "y" (float): y of object location,
                             "z" (float): z of object location,
                         },
-                        "velocity": {
-                            "x" (Optional[float]): x of object velocity,
-                            "y" (Optional[float]): y of object velocity,
-                            "z" (Optional[float]): z of object velocity,
+                        "velocity" (Optional[Dict[str, float]]): {
+                            "x" (float): x of object velocity,
+                            "y" (float): y of object velocity,
+                            "z" (float): z of object velocity,
                         },
-                        "acceleration": {
-                            "x" (Optional[float]): x of object acceleration,
-                            "y" (Optional[float]): y of object acceleration,
-                            "z" (Optional[float]): z of object acceleration,
+                        "acceleration" (Optional[Dict[str, float]]): {
+                            "x" (float): x of object acceleration,
+                            "y" (float): y of object acceleration,
+                            "z" (float): z of object acceleration,
                         },
                         "size": {
                             "width" (float): width of object size,

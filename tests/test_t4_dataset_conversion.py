@@ -52,8 +52,8 @@ def t4_dataset_path(request):
     # before test - convert t4 to deepen
     with open(TEST_CONFIG_ROOT_DIR / "convert_t4_to_deepen.yaml") as f:
         config_dict = yaml.safe_load(f)
-    t42d_input_base = config_dict["conversion"]["input_base"]
-    t42d_output_base = config_dict["conversion"]["output_base"]
+    t42d_input_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["input_base"])
+    t42d_output_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["output_base"])
     camera_sensors = config_dict["conversion"]["camera_sensors"]
     annotation_hz = config_dict["conversion"]["annotation_hz"]
     workers_number = config_dict["conversion"]["workers_number"]
@@ -285,6 +285,7 @@ def test_sample_annotation_json(t4_dataset_path):
         len(sample_annotation) == 30
     ), f"sample_annotation length is {len(sample_annotation)}, expected 30"
     for sample_anno in sample_annotation:
+        sample_anno: dict
         assert sample_anno["token"], "token is empty"
         assert sample_anno["sample_token"], "sample_token is empty"
         assert sample_anno["instance_token"], "instance_token is empty"
@@ -292,6 +293,8 @@ def test_sample_annotation_json(t4_dataset_path):
         assert sample_anno["attribute_tokens"], "attribute_tokens is empty"
         assert sample_anno["visibility_token"], "visibility_token is empty"
         assert sample_anno["translation"], "translation is empty"
+        assert "velocity" in sample_anno.keys(), "sample_annotation must have velocity key"
+        assert "acceleration" in sample_anno.keys(), "sample_annotation must have acceleration key"
         assert sample_anno["size"], "size is empty"
         assert sample_anno["rotation"], "rotation is empty"
         assert sample_anno["num_lidar_pts"] >= 0, "num_lidar_pts is empty"
@@ -303,6 +306,7 @@ def test_sample_annotation_json_with_interpolate_label(t4_dataset_path):
     sample_annotation = load_json(t4_dataset_path, "sample_annotation")
     assert len(sample_annotation) == 56
     for sample_anno in sample_annotation:
+        sample_anno: dict
         assert sample_anno["token"], "token is empty"
         assert sample_anno["sample_token"], "sample_token is empty"
         assert sample_anno["instance_token"], "instance_token is empty"
@@ -310,6 +314,8 @@ def test_sample_annotation_json_with_interpolate_label(t4_dataset_path):
         assert sample_anno["attribute_tokens"], "attribute_tokens is empty"
         assert sample_anno["visibility_token"], "visibility_token is empty"
         assert sample_anno["translation"], "translation is empty"
+        assert "velocity" in sample_anno.keys(), "sample_annotation must have velocity key"
+        assert "acceleration" in sample_anno.keys(), "sample_annotation must have acceleration key"
         assert sample_anno["size"], "size is empty"
         assert sample_anno["rotation"], "rotation is empty"
         assert sample_anno["num_lidar_pts"] >= 0, "num_lidar_pts is empty"

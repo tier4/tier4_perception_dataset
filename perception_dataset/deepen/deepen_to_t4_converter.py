@@ -236,16 +236,8 @@ class DeepenToT4Converter(AbstractConverter):
                                 "y": anno_three_d_bbox["cy"],
                                 "z": anno_three_d_bbox["cz"],
                             },
-                            "velocity": {
-                                "x": None,
-                                "y": None,
-                                "z": None,
-                            },
-                            "acceleration": {
-                                "x": None,
-                                "y": None,
-                                "z": None,
-                            },
+                            "velocity": None,
+                            "acceleration": None,
                             "size": {
                                 "width": anno_three_d_bbox["w"],
                                 "length": anno_three_d_bbox["l"],

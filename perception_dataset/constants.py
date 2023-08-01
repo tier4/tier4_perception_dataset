@@ -67,6 +67,10 @@ class SENSOR_ENUM(Enum):
         "channel": "RADAR_FRONT_LEFT",
         "modality": SENSOR_MODALITY_ENUM.RADAR.value,
     }
+    RADAR_BACK = {
+        "channel": "RADAR_BACK",
+        "modality": SENSOR_MODALITY_ENUM.RADAR.value,
+    }
     RADAR_BACK_LEFT = {
         "channel": "RADAR_BACK_LEFT",
         "modality": SENSOR_MODALITY_ENUM.RADAR.value,

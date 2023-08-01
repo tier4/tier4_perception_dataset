@@ -3,6 +3,7 @@
 import os.path as osp
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import uuid
 
 import builtin_interfaces.msg
 import cv2
@@ -130,10 +131,23 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
     radar_tracks: List[Dict[str, Any]] = []
     for track in radar_tracks_msg.tracks:
         track: RadarTrack
-        translation = (track.position.x, track.position.y, track.position.z)
-        velocity = (track.velocity.x, track.velocity.y, track.velocity.z)
-        acceleration = (track.acceleration.x, track.acceleration.y, track.acceleration.z)
-        size = (track.size.x, track.size.y, track.size.z)
+        translation: Tuple[float, float, float] = (
+            track.position.x,
+            track.position.y,
+            track.position.z,
+        )
+        velocity: Tuple[float, float, float] = (
+            track.velocity.x,
+            track.velocity.y,
+            track.velocity.z,
+        )
+        acceleration: Tuple[float, float, float] = (
+            track.acceleration.x,
+            track.acceleration.y,
+            track.acceleration.z,
+        )
+        size: Tuple[float, float, float] = (track.size.x, track.size.y, track.size.z)
+        obj_uuid: str = str(uuid.UUID(bytes=track.uuid.uuid.tobytes()))
 
         radar_tracks.append(
             {
@@ -141,7 +155,7 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
                 "velocity": velocity,
                 "acceleration": acceleration,
                 "size": size,
-                "uuid": str(track.uuid),
+                "uuid": obj_uuid,
                 "classification": track.classification,
             }
         )
