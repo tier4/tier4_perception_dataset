@@ -688,6 +688,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         scene_record.first_sample_token = sample_token_list[0]
         scene_record.last_sample_token = sample_token_list[-1]
 
+    def _add_scene_description(self, text: str):
+        scene_records: List[SceneRecord] = self._scene_table.to_records()
+        if scene_records[0].description != "":
+            scene_records[0].description += ", "
+        scene_records[0].description += f"{text}"
+
     def _connect_sample_in_scene(self):
         """add prev/next of Sample"""
         sample_token_list: List[str] = [rec.token for rec in self._sample_table.to_records()]
