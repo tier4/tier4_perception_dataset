@@ -102,6 +102,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
         self._generate_frame_every: float = params.generate_frame_every
         self._generate_frame_every_meter: float = params.generate_frame_every_meter
+        self._scene_description: str = params.scene_description
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = "map"

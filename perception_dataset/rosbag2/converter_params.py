@@ -21,6 +21,7 @@ class Rosbag2ConverterParams(BaseModel):
     overwrite_mode: bool = False
     without_compress: bool = False
     workers_number: int = 1
+    scene_description: str = ""  # scene description
 
     # rosbag data type
     data_type: DataType = DataType.REAL  # real or synthetic
