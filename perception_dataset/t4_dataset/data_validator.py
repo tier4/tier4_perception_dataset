@@ -13,7 +13,7 @@ def validate_data_hz(nusc: NuScenes):
         return sample_data_list
 
     for sample_data in get_first_sample_data_list():
-        if not sample_data["is_valid"]:
+        if "is_valid" in sample_data and not sample_data["is_valid"]:
             continue
         first_filename: str = sample_data["filename"]
         first_timestamp: int = sample_data["timestamp"]

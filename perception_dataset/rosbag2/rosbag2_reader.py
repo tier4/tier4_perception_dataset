@@ -127,7 +127,12 @@ class Rosbag2Reader:
 
             if start_time is not None:
                 # FIXME(yukke42): if message is tf, message value is list
-                message_time = Time.from_msg(message.header.stamp)
+                if hasattr(message, "header"):
+                    message_time = Time.from_msg(message.header.stamp)
+                elif hasattr(message, "stamp"):
+                    message_time = Time.from_msg(message.stamp)
+                else:
+                    raise AttributeError()
 
                 if message_time < start_time:
                     continue
