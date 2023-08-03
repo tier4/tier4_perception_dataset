@@ -129,8 +129,6 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         self._save_config()
         self._convert()
         self._convert_objects(start_timestamp)
-        if self._scene_description != "":
-            self._add_scene_description(self._scene_description)
         self._save_tables()
         self._annotation_files_generator.save_tables(self._output_anno_dir)
         # Calculate and overwrite num_lidar_prs in annotations

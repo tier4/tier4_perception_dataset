@@ -321,6 +321,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._set_scene_data()
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
+        self._add_scene_description(self._scene_description)
 
     def _convert_static_data(self):
         # Log, Map
