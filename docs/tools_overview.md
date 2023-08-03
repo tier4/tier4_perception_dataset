@@ -1,13 +1,13 @@
 # Tools Overview
 
-This document is simply written about the script.
+This document provides a brief overview of the scripts used in the tier4_perception_dataset.
 
 ![data_collection_conversion](data_collection_conversion.drawio.svg)
 
 ## Common
 
-Those commands below are asuumed to be run in poetry shell built in [README.md](../README.md)  
-Run this to start a poetry shell.
+The commands below are assumed to be run in the poetry shell, as built in [README.md](../README.md)  
+To start a poetry shell, execute the following:
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.bash
@@ -20,11 +20,10 @@ poetry shell
 The bag of t4_dataset must contain the TOPIC below.
 [topics included in t4_dataset bag](t4_format_3d_detailed.md#input-bag)
 
-The topic with a large size output by autoware, such as concatenated/pointcloud, may not be recorded in acquiring the data.
+The topic with a large size output by Autoware, such as concatenated/pointcloud, may not be recorded when acquiring the data.
 If the required topic is not included in the bag, it is necessary to run the simulator and re-record the bag.
 
-input: rosbag2
-
+input: rosbag2  
 output: rosbag2
 
 Case 1: If a map to base_link transform is recorded in /tf topic in the input_bag
@@ -55,8 +54,9 @@ ros2 bag record /sensing/camera/camera{CAMERA_ID}/image_rect_color/compressed /s
 
 ## rosbag2 to T4 non-annotated format data
 
-input: rosbag2
+This step converts rosbag2 data to `non-annotated` T4 format.
 
+input: rosbag2  
 output: T4 non-annotated format data
 
 ```bash
@@ -66,7 +66,7 @@ python -m perception_dataset.convert --config config/convert_rosbag2_to_non_anno
 
 ### confirm non-annotated format data
 
-Verify that the following directories have the same number of files
+Verify that the following directories have the same number of files:
 `CAM_BACK`, `CAM_BACK_LEFT`, `CAM_BACK_RIGHT`, `CAM_FRONT`, `CAM_FRONT_LEFT`, `CAM_FRONT_RIGHT`, and `LIDAR_CONCAT` in `non_annotated_t4_format/${DATASET_NAME}/data`
 
 If the number of files is different, set the `smallest number` of files to the `num_load_frames` in `config/convert_rosbag2_to_non_annotated_t4.yaml`.
@@ -78,8 +78,9 @@ Execute the conversion command again with `--overwrite` option.
 
 ### T4 format to Deepen format
 
-input: T4 format data
+Converts T4 format data to Deepen format.
 
+input: T4 format data  
 output: deepen-format data
 
 ```bash
@@ -120,8 +121,7 @@ python -m perception_dataset.deepen.download_annotations --config config/convert
 
 ### Deepen format to T4 format
 
-input: T4 non-annotated format data + deepen annotations
-
+input: T4 non-annotated format data + deepen annotations  
 output: T4 format data
 
 ```bash
@@ -132,8 +132,7 @@ python -m perception_dataset.convert --config config/convert_deepen_to_t4_sample
 
 ### Synthetic bag to T4 format
 
-input: rosbag2
-
+input: rosbag2  
 output: T4 format data
 
 #### Messages
@@ -155,23 +154,27 @@ python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synth
 
 ### Pseudo-labeled bag to T4 format
 
-input: rosbag2
+#### Description
 
+This function is for converting a pseudo-labeled bag to T4 format.  
+The pseudo-labeled bag contains either detection output or tracking output from Autoware. The detection output is a message of `autoware_auto_perception_msgs/msg/DetectedObjects`, and the tracking output is a message of `autoware_auto_perception_msgs/msg/TrackedObjects`.
+
+input: rosbag2  
 output: T4 format data
 
 #### Messages
 
-| Topic Name                                                                   | Required | Message Type                                                                                              |
-| ---------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `/perception/object_recognition/detection/apollo/objects` or other any value | o        | `autoware_auto_perception_msgs/msg/TrackedObjects` or `autoware_auto_perception_msgs/msg/DetectedObjects` |
-| `/sensing/lidar/concatenated/pointcloud` or other any value                  | o        | `sensor_msgs/msg/PointCloud2`                                                                             |
-| `/tf`                                                                        | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
-| `/tf_static`                                                                 | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
-| `/sensing/camera/camera{ID}/image_rect_color/compressed`                     |          | `sensor_msgs/msg/CompressedImage`                                                                         |
-| `/sensing/camera/camera{ID}/camera_info`                                     |          | `sensor_msgs/msg/CameraInfo`                                                                              |
+| Topic Name                                                                                                                 | Required | Message Type                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `/perception/object_recognition/detection/objects` or `/perception/object_recognition/tracking/objects` or other any value | o        | `autoware_auto_perception_msgs/msg/TrackedObjects` or `autoware_auto_perception_msgs/msg/DetectedObjects` |
+| `/sensing/lidar/concatenated/pointcloud` or other any value                                                                | o        | `sensor_msgs/msg/PointCloud2`                                                                             |
+| `/tf`                                                                                                                      | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
+| `/tf_static`                                                                                                               | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
+| `/sensing/camera/camera{ID}/image_rect_color/compressed`                                                                   |          | `sensor_msgs/msg/CompressedImage`                                                                         |
+| `/sensing/camera/camera{ID}/camera_info`                                                                                   |          | `sensor_msgs/msg/CameraInfo`                                                                              |
 
 #### script
 
 ```bash
-python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synthetic_data.yaml
+python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_pseudolabel_lidar.yaml
 ```
