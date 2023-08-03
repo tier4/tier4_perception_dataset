@@ -179,7 +179,7 @@ class AnnotationFilesGenerator:
                     "category_name" (str): category name of object,
                     "instance_id" (str): instance id of object,
                     "attribute_names" (List[str]): list of object attributes,
-                    "three_d_box": {
+                    "three_d_bbox": {
                         "translation": {
                             "x" (float): x of object location,
                             "y" (float): y of object location,
@@ -240,8 +240,8 @@ class AnnotationFilesGenerator:
                 )
 
                 # Sample Annotation
-                if "three_d_box" in anno.keys():
-                    anno_three_d_bbox: Dict[str, float] = anno["three_d_box"]
+                if "three_d_bbox" in anno.keys():
+                    anno_three_d_bbox: Dict[str, float] = anno["three_d_bbox"]
                     sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
                         sample_token=frame_index_to_sample_token[frame_index],
                         instance_token=instance_token,
@@ -261,6 +261,8 @@ class AnnotationFilesGenerator:
                 if "two_d_box" in anno.keys():
                     anno_two_d_box: List[float] = anno["two_d_box"]
                     sensor_id: int = int(anno["sensor_id"])
+                    if frame_index not in frame_index_to_sample_data_token[sensor_id]:
+                        continue
                     self._object_ann_table.insert_into_table(
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                         instance_token=instance_token,

@@ -18,7 +18,7 @@ conversion:
   input_anno_file: ./data/deepen_format/lidar_annotations_accepted_deepen.json
   input_bag_base: ./data/rosbag2
   output_base: ./data/t4_format
-  topic_list: ./config/topic_list_sample.yaml
+  topic_list: ./config/topic_list.yaml
   ignore_interpolate_label: True
   dataset_corresponding:
-    Dataset_name: dataset_id_in_Deepen_AI
+    sample_bag: i3BpFG1vXknBto6q2vPZ3M1i

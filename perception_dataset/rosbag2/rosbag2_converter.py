@@ -1,4 +1,6 @@
+import os.path as osp
 import re
+import shutil
 import sys
 from typing import Dict, List, Text
 
@@ -57,8 +59,6 @@ class Rosbag2Converter:
             reader.set_filter(StorageFilter(topics=self._topic_list))
 
         for topic in reader.get_all_topics_and_types():
-            if "traffic_light" not in topic.name:
-                topic.name = topic.name.replace("image_raw", "image_rect_color")
             writer.create_topic(topic)
 
         write_topic_count = 0
@@ -70,8 +70,6 @@ class Rosbag2Converter:
             elif message_time <= self._start_time_sec:
                 continue
             elif message_time <= self._end_time_sec:
-                if "traffic_light" not in topic_name:
-                    topic_name = topic_name.replace("image_raw", "image_rect_color")
                 writer.write(topic_name, data, timestamp)
                 write_topic_count += 1
             else:
@@ -84,3 +82,12 @@ class Rosbag2Converter:
             raise ValueError(
                 "Total topic count in rosbag is 0. The input rosbag timestamp might not match the timestamp in dataset."
             )
+
+    def make_input_bag(self):
+        output_bag_dir_temp: str = osp.join(
+            self._output_bag_dir, osp.basename(self._input_bag_dir)
+        )
+        output_bag_dir: str = osp.join(self._output_bag_dir, "input_bag")
+        self._output_bag_dir = output_bag_dir_temp
+        self.convert()
+        shutil.move(output_bag_dir_temp, output_bag_dir)

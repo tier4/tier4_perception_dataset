@@ -230,7 +230,7 @@ class DeepenToT4Converter(AbstractConverter):
                 anno_three_d_bbox: Dict[str, str] = label_dict["three_d_bbox"]
                 label_t4_dict.update(
                     {
-                        "three_d_box": {
+                        "three_d_bbox": {
                             "translation": {
                                 "x": anno_three_d_bbox["cx"],
                                 "y": anno_three_d_bbox["cy"],
