@@ -38,6 +38,7 @@ def main():
 
         param_args = {
             "task": config_dict["task"],
+            "scene_description": config_dict["description"]["scene"],
             "overwrite_mode": args.overwrite,
             "without_compress": args.without_compress,
             **config_dict["conversion"],
@@ -113,6 +114,7 @@ def main():
 
         param_args = {
             "task": config_dict["task"],
+            "scene_description": config_dict["description"]["scene"],
             "overwrite_mode": args.overwrite,
             **config_dict["conversion"],
         }

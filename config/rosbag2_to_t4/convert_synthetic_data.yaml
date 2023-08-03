@@ -1,4 +1,6 @@
 task: convert_rosbag2_to_t4
+description:
+  scene: synthetic
 conversion:
   # path to rosbag dir output by simulator
   input_base: ./data/rosbag2_synthetic

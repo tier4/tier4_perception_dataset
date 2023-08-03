@@ -103,6 +103,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
         self._generate_frame_every: float = params.generate_frame_every
         self._generate_frame_every_meter: float = params.generate_frame_every_meter
+        self._scene_description: str = params.scene_description
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = "map"
@@ -320,6 +321,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._set_scene_data()
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
+        self._add_scene_description(self._scene_description)
 
     def _convert_static_data(self):
         # Log, Map
@@ -694,7 +696,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         scene_record.first_sample_token = sample_token_list[0]
         scene_record.last_sample_token = sample_token_list[-1]
 
-    def _add_scene_describtion(self, text: str):
+    def _add_scene_description(self, text: str):
         scene_records: List[SceneRecord] = self._scene_table.to_records()
         if scene_records[0].description != "":
             scene_records[0].description += ", "
