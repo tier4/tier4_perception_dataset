@@ -356,7 +356,9 @@ def test_scene_json(t4_dataset_path):
     for scene in scene_json:
         assert scene["token"], "token is empty"
         assert scene["name"], "name is empty"
-        assert scene["description"] == "sample_scene_description", "description is not sample_scene_description"
+        assert (
+            scene["description"] == "sample_scene_description"
+        ), "description is not sample_scene_description"
         assert scene["log_token"], "log_token is empty"
         assert scene["nbr_samples"], "nbr_samples is empty"
         assert scene["first_sample_token"], "first_sample_token is empty"
