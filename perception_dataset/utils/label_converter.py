@@ -9,9 +9,7 @@ from perception_dataset.constants import LABEL_PATH_ENUM
 class BaseConverter(ABC):
     def __init__(self, label_path: Union[str, LABEL_PATH_ENUM]) -> None:
         super().__init__()
-        if isinstance(label_path, LABEL_PATH_ENUM):
-            label_path = label_path.value
-        self.label_map: Dict[str, str] = self.__init_label_map(label_path)
+        self.label_map: Dict[str, str] = self.__init_label_map(str(label_path))
 
     @staticmethod
     def __init_label_map(label_path: str) -> Dict[str, str]:
@@ -34,10 +32,7 @@ class LabelConverter(BaseConverter):
         attribute_path: Union[str, LABEL_PATH_ENUM] = LABEL_PATH_ENUM.ATTRIBUTE,
     ) -> None:
         super().__init__(label_path)
-
-        if isinstance(attribute_path, LABEL_PATH_ENUM):
-            attribute_path = attribute_path.value
-        self.attribute_map: Dict[str, str] = self.__init_attribute_map(attribute_path)
+        self.attribute_map: Dict[str, str] = self.__init_attribute_map(str(attribute_path))
 
     @staticmethod
     def __init_attribute_map(attribute_path: str) -> Dict[str, str]:
