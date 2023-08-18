@@ -766,7 +766,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_distortion=[],
                 )
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
-                cam_info_topic = topic_name.rsplit("/", 2)[0] + "/camera_info"
+                cam_info_topic = os.path.dirname(topic_name) + "/camera_info"
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     continue
