@@ -134,6 +134,9 @@ class LABEL_PATH_ENUM(Enum):
         "config/label/traffic_light.yaml",
     )
 
+    def __str__(self) -> str:
+        return self.value
+
 
 def constant(f):
     def fset(self, value):
