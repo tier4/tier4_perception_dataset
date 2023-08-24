@@ -259,7 +259,7 @@ class AnnotationFilesGenerator:
 
                 # Object Annotation
                 if "two_d_box" in anno.keys():
-                    anno_two_d_box: List[float] = anno["two_d_box"]
+                    anno_two_d_box: List[float] = self._clip_bbox(anno["two_d_box"], mask)
                     sensor_id: int = int(anno["sensor_id"])
                     if frame_index not in frame_index_to_sample_data_token[sensor_id]:
                         continue
@@ -271,6 +271,19 @@ class AnnotationFilesGenerator:
                         bbox=anno_two_d_box,
                         mask=mask[sensor_id][frame_index],
                     )
+
+    def _clip_bbox(self, bbox: List[float], mask: any) -> List[float]:
+        """Clip the bbox to the image size."""
+        try:
+            width, height = list(mask[0].values())[0]["size"]
+            bbox[0] = max(0, bbox[0])
+            bbox[1] = max(0, bbox[1])
+            bbox[2] = min(width, bbox[2])
+            bbox[3] = min(height, bbox[3])
+        except Exception as e:
+            print(e)
+
+        return bbox
 
     def _connect_annotations_in_scene(self):
         """Annotation for Instance and SampleAnnotation. This function adds the relationship between annotations."""
