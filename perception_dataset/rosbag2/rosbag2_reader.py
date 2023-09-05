@@ -62,6 +62,10 @@ class Rosbag2Reader:
                 continue
             msg_stamp = msg_stamp.sec + msg_stamp.nanosec / 1e9
 
+            # check if timestamp in rosbag and header are consistent
+            if abs(timestamp / 1e9 - msg_stamp) > 24*60*60:
+                continue
+
             return msg_stamp
 
     def _set_tf_buffer(self):
