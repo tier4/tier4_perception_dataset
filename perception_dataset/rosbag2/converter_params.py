@@ -33,6 +33,7 @@ class Rosbag2ConverterParams(BaseModel):
         "topic": "",
         "channel": "",
     }  # lidar_sensor, {topic: , channel, }
+    radar_sensors: List[Dict[str, str]] = []  # radar sensors
     camera_sensors: List[Dict[str, str]] = []  # camera sensors,
     object_topic_name: str = ""
     object_msg_type: str = ""
