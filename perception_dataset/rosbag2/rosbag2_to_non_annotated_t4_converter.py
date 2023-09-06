@@ -11,7 +11,11 @@ import warnings
 import builtin_interfaces.msg
 import cv2
 import numpy as np
+<<<<<<< HEAD
 from radar_msgs.msg import RadarTracks
+=======
+from pyquaternion import Quaternion
+>>>>>>> 2af7157 (fix: rotation of cameras' axes)
 from sensor_msgs.msg import CompressedImage, PointCloud2
 
 from perception_dataset.abstract_converter import AbstractConverter
@@ -113,7 +117,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._calibrated_sensor_target_frame: str = "base_link"
 
         # Note: To determine if there is any message dropout, including a delay tolerance of 10Hz.
-        self._TIMESTAMP_DIFF = 0.15
+        # changed from 0.15 to 2.0 - #TODO (mkotynia) check if camera images can be sent in AWSIM with higher frequency
+        self._TIMESTAMP_DIFF = 2.0
 
         self._lidar_sensor: Dict[str, str] = params.lidar_sensor
         self._radar_sensors: List[Dict[str, str]] = params.radar_sensors
@@ -766,6 +771,18 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_distortion=[],
                 )
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
+                # fix of the sequence of camera sensors axes
+                # TODO (mkotynia) check if there is another solution
+                rotation = Quaternion(rotation["w"], rotation["x"], rotation["y"], rotation["z"])
+                axes_fix_rotation = Quaternion(0.5, -0.5, 0.5, -0.5)
+                rotation = rotation * axes_fix_rotation
+
+                rotation = {
+                    "w": rotation.w,
+                    "x": rotation.x,
+                    "y": rotation.y,
+                    "z": rotation.z,
+                }
                 cam_info_topic = os.path.dirname(topic_name) + "/camera_info"
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
