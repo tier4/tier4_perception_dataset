@@ -105,6 +105,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._generate_frame_every: float = params.generate_frame_every
         self._generate_frame_every_meter: float = params.generate_frame_every_meter
         self._scene_description: str = params.scene_description
+        self._accept_frame_drop: bool = params.accept_frame_drop
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = "map"
@@ -398,13 +399,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(pointcloud_msg.header.stamp)
             if frame_index > 0:
-                # Note: Message drops are not tolerated.
+                time_diff = unix_timestamp - prev_frame_unix_timestamp
                 print(
-                    f"frame_index:{frame_index}, unix_timestamp - prev_frame_unix_timestamp: {unix_timestamp - prev_frame_unix_timestamp}"
+                    f"frame_index:{frame_index}: {unix_timestamp}, unix_timestamp - prev_frame_unix_timestamp: {time_diff}"
                 )
-                if (
-                    unix_timestamp - prev_frame_unix_timestamp
-                ) > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp:
+                # Note: LiDAR Message drops are not accepted unless accept_frame_drop is True.
+                if not self._accept_frame_drop and (
+                    time_diff > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp
+                ):
                     raise ValueError(
                         f"PointCloud message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
@@ -585,7 +587,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     if self._end_timestamp < lidar_unix_timestamp:
                         self._end_timestamp = lidar_unix_timestamp
 
-                if (image_unix_timestamp - lidar_unix_timestamp) > (
+                time_diff_from_lidar = image_unix_timestamp - lidar_unix_timestamp
+                if not self._accept_frame_drop and time_diff_from_lidar > (
                     self._camera_latency + self._TIMESTAMP_DIFF
                 ):
                     raise ValueError(
@@ -593,7 +596,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
 
                 print(
-                    f"frame{generated_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {image_unix_timestamp - lidar_unix_timestamp:0.3f} sec"
+                    f"frame{generated_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
                 )
             else:
                 if (frame_index % self._generate_frame_every) == 0:

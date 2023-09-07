@@ -24,6 +24,7 @@ class Rosbag2ConverterParams(BaseModel):
     workers_number: int = 1
     with_gt_label: bool = False  # whether to use gt labels
     scene_description: str = ""  # scene description
+    accept_frame_drop: bool = False  # whether to accept frame drop
 
     # rosbag data type
     data_type: DataType = DataType.REAL  # real or synthetic
