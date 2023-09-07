@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractRecord, AbstractTable
@@ -12,6 +12,8 @@ class SampleAnnotationRecord(AbstractRecord):
         attribute_tokens: List[str],
         visibility_token: str,
         translation: Dict[str, float],
+        velocity: Optional[Dict[str, float]],
+        acceleration: Optional[Dict[str, float]],
         size: Dict[str, float],
         rotation: Dict[str, float],
         num_lidar_pts: int,
@@ -22,12 +24,18 @@ class SampleAnnotationRecord(AbstractRecord):
         assert {"x", "y", "z"} == set(translation.keys())
         assert {"width", "length", "height"} == set(size.keys())
         assert {"w", "x", "y", "z"} == set(rotation.keys())
+        if velocity is not None:
+            assert {"x", "y", "z"} == set(velocity.keys())
+        if acceleration is not None:
+            assert {"x", "y", "z"} == set(acceleration.keys())
 
         self._sample_token: str = sample_token
         self._instance_token: str = instance_token
         self._attribute_tokens: List[str] = attribute_tokens
         self._visibility_token: str = visibility_token
         self._translation: Dict[str, float] = translation
+        self._velocity: Optional[Dict[str, float]] = velocity
+        self._acceleration: Optional[Dict[str, float]] = acceleration
         self._size: Dict[str, float] = size
         self._rotation: Dict[str, float] = rotation
         self._num_lidar_pts: int = num_lidar_pts
@@ -63,6 +71,20 @@ class SampleAnnotationRecord(AbstractRecord):
                 self._translation["y"],
                 self._translation["z"],
             ],
+            "velocity": [
+                self._velocity["x"],
+                self._velocity["y"],
+                self._velocity["z"],
+            ]
+            if self._velocity is not None
+            else self._velocity,
+            "acceleration": [
+                self._acceleration["x"],
+                self._acceleration["y"],
+                self._acceleration["z"],
+            ]
+            if self._acceleration is not None
+            else self._acceleration,
             "size": [
                 self._size["width"],
                 self._size["length"],
@@ -97,6 +119,8 @@ class SampleAnnotationTable(AbstractTable):
         attribute_tokens: str,
         visibility_token: str,
         translation: Dict[str, float],
+        velocity: Optional[Dict[str, float]],
+        acceleration: Optional[Dict[str, float]],
         size: Dict[str, float],
         rotation: Dict[str, float],
         num_lidar_pts: int,
@@ -108,6 +132,8 @@ class SampleAnnotationTable(AbstractTable):
             attribute_tokens=attribute_tokens,
             visibility_token=visibility_token,
             translation=translation,
+            velocity=velocity,
+            acceleration=acceleration,
             size=size,
             rotation=rotation,
             num_lidar_pts=num_lidar_pts,

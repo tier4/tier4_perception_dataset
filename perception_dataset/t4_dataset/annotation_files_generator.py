@@ -185,6 +185,16 @@ class AnnotationFilesGenerator:
                             "y" (float): y of object location,
                             "z" (float): z of object location,
                         },
+                        "velocity" (Optional[Dict[str, float]]): {
+                            "x" (float): x of object velocity,
+                            "y" (float): y of object velocity,
+                            "z" (float): z of object velocity,
+                        },
+                        "acceleration" (Optional[Dict[str, float]]): {
+                            "x" (float): x of object acceleration,
+                            "y" (float): y of object acceleration,
+                            "z" (float): z of object acceleration,
+                        },
                         "size": {
                             "width" (float): width of object size,
                             "length" (float): length of object size,
@@ -248,6 +258,8 @@ class AnnotationFilesGenerator:
                         attribute_tokens=attribute_tokens,
                         visibility_token=visibility_token,
                         translation=anno_three_d_bbox["translation"],
+                        velocity=anno_three_d_bbox["velocity"],
+                        acceleration=anno_three_d_bbox["acceleration"],
                         size=anno_three_d_bbox["size"],
                         rotation=anno_three_d_bbox["rotation"],
                         num_lidar_pts=anno["num_lidar_pts"],

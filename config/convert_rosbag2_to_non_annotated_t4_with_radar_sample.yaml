@@ -1,6 +1,6 @@
 task: convert_rosbag2_to_non_annotated_t4
 description:
-  scene: sample_scene_description
+  scene: ""
 conversion:
   input_base: ./data/rosbag2
   output_base: ./data/non_annotated_t4_format
@@ -11,6 +11,19 @@ conversion:
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
+  radar_sensors:
+    - topic: /sensing/radar/front_center/objects_raw
+      channel: RADAR_FRONT
+    - topic: /sensing/radar/front_left/objects_raw
+      channel: RADAR_FRONT_LEFT
+    - topic: /sensing/radar/front_right/objects_raw
+      channel: RADAR_FRONT_RIGHT
+    - topic: /sensing/radar/rear_center/objects_raw
+      channel: RADAR_BACK
+    - topic: /sensing/radar/rear_left/objects_raw
+      channel: RADAR_BACK_LEFT
+    - topic: /sensing/radar/rear_right/objects_raw
+      channel: RADAR_BACK_RIGHT
   camera_latency_sec: 0.02 # camera latency in seconds between the header.stamp and the exposure trigger
   camera_sensors: #  Keep the same order as each camera exposure timing
     - topic: /sensing/camera/camera3/image_rect_color/compressed
