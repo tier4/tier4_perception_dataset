@@ -33,6 +33,7 @@ class Rosbag2Reader:
 
     def _get_starting_time(self) -> float:
         reader = create_reader(self._bag_dir)
+        first_timestamp = 0
         while reader.has_next():
             topic_name, data, timestamp = reader.read_next()
             topic_type = self._topic_name_to_topic_type[topic_name]
@@ -61,12 +62,14 @@ class Rosbag2Reader:
             if msg_stamp.sec == 0 and msg_stamp.nanosec == 0:
                 continue
             msg_stamp = msg_stamp.sec + msg_stamp.nanosec / 1e9
+            if first_timestamp == 0:
+                first_timestamp = msg_stamp
 
-            # check if timestamp in rosbag and header are consistent
             if abs(timestamp / 1e9 - msg_stamp) > 24 * 60 * 60:
                 continue
 
             return msg_stamp
+        return first_timestamp
 
     def _set_tf_buffer(self):
         """set /tf and /tf_static to tf_buffer"""
