@@ -134,7 +134,8 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         self._annotation_files_generator.save_tables(self._output_anno_dir)
         # Calculate and overwrite num_lidar_prs in annotations
         self._calculate_num_points()
-        self._create_2d_annotations()
+        if len(self._camera_sensors) > 0:
+            self._create_2d_annotations()
 
     def _calculate_num_points(self):
         logger.info("Calculating number of points...")
