@@ -158,6 +158,9 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
             object_ann_table,
             self._annotation_files_generator._instance_table,
         )
+        logger.info(
+            f"object_ann.json created with {len(object_ann_table._token_to_record)} records"
+        )
         object_ann_table.save_json(self._output_anno_dir)
 
     def _convert_objects(self, start_timestamp: float):
