@@ -6,8 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
 import builtin_interfaces.msg
-
-# TODO (mkotynia) cv_bridge to requirements
 from cv_bridge import CvBridge, CvBridgeError
 from nptyping import NDArray
 import numpy as np
