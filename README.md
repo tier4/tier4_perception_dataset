@@ -17,7 +17,7 @@ install and build ros dependencies (this step must be outside of poetry virtuale
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.sh
-sudo apt install -y ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap
+sudo apt install -y ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap ros-${ROS_DISTRO}-radar-msgs
 
 mkdir src -p && vcs import src < build_depends.repos
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-up-to autoware_auto_perception_msgs autoware_perception_msgs
