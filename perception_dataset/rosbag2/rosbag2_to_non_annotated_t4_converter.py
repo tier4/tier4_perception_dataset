@@ -11,11 +11,8 @@ import warnings
 import builtin_interfaces.msg
 import cv2
 import numpy as np
-<<<<<<< HEAD
 from radar_msgs.msg import RadarTracks
-=======
 from pyquaternion import Quaternion
->>>>>>> 2af7157 (fix: rotation of cameras' axes)
 from sensor_msgs.msg import CompressedImage, PointCloud2
 
 from perception_dataset.abstract_converter import AbstractConverter
@@ -117,7 +114,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._calibrated_sensor_target_frame: str = "base_link"
 
         # Note: To determine if there is any message dropout, including a delay tolerance of 10Hz.
-        # changed from 0.15 to 2.0 - #TODO (mkotynia) check if camera images can be sent in AWSIM with higher frequency
+        # changed from 0.15 to 2.0 - a workaround of issue with Unity's step execution
+        # #TODO (mkotynia) should be decreased when the issue with Unity is fixed
         self._TIMESTAMP_DIFF = 2.0
 
         self._lidar_sensor: Dict[str, str] = params.lidar_sensor
@@ -771,8 +769,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_distortion=[],
                 )
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
-                # fix of the sequence of camera sensors axes
-                # TODO (mkotynia) check if there is another solution
+                # fix of the orientation of camera view
                 rotation = Quaternion(rotation["w"], rotation["x"], rotation["y"], rotation["z"])
                 axes_fix_rotation = Quaternion(0.5, -0.5, 0.5, -0.5)
                 rotation = rotation * axes_fix_rotation
