@@ -552,7 +552,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             topics=[topic],
             start_time=start_time_in_time,
         ):
-            image_msg: CompressedImage
+            image_msg
             if generated_frame_index >= self._num_load_frames:
                 break
 
@@ -660,7 +660,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _generate_image_data(
         self,
-        image_msg: CompressedImage,
+        image_msg,
         sample_token: str,
         calibrated_sensor_token: str,
         sensor_channel: str,
