@@ -18,7 +18,7 @@ from rosbag2_py import (
     SequentialWriter,
     StorageOptions,
 )
-from sensor_msgs.msg import CompressedImage, PointCloud2
+from sensor_msgs.msg import PointCloud2
 import sensor_msgs_py.point_cloud2
 import yaml
 
@@ -162,7 +162,7 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
     return radar_tracks
 
 
-def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
+def compressed_msg_to_numpy(compressed_image_msg) -> NDArray:
     bridge = CvBridge()
     try:
         image = bridge.imgmsg_to_cv2(compressed_image_msg, "bgr8")
