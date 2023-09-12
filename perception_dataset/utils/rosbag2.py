@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
 import builtin_interfaces.msg
-from cv_bridge import CvBridge, CvBridgeError
 from nptyping import NDArray
 import numpy as np
 from radar_msgs.msg import RadarTrack, RadarTracks
@@ -18,7 +17,7 @@ from rosbag2_py import (
     SequentialWriter,
     StorageOptions,
 )
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import CompressedImage, PointCloud2
 import sensor_msgs_py.point_cloud2
 import yaml
 
@@ -162,12 +161,13 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
     return radar_tracks
 
 
-def compressed_msg_to_numpy(compressed_image_msg) -> NDArray:
-    bridge = CvBridge()
+def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> np.ndarray:
     try:
-        image = bridge.imgmsg_to_cv2(compressed_image_msg, "bgr8")
-    except CvBridgeError as e:
+        np_arr = np.frombuffer(compressed_image_msg.data, np.uint8)
+        image = np.reshape(np_arr, (compressed_image_msg.height, compressed_image_msg.width, 3))
+    except Exception as e:
         print(e)
+        return None
     return image
 
 
