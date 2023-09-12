@@ -45,7 +45,7 @@ class InstanceTable(AbstractTable):
         return InstanceRecord(category_token=category_token, instance_name=instance_name)
 
     def get_token_from_id(self, instance_id: str, category_token: str, dataset_name: str) -> str:
-        if instance_id in self._id_to_token and False:
+        if instance_id in self._id_to_token:
             token = self._id_to_token[instance_id]
         else:
             token = self.insert_into_table(

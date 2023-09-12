@@ -162,21 +162,23 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
     return radar_tracks
 
 
-# def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> np.ndarray:
-#     try:
-#         np_arr = np.frombuffer(compressed_image_msg.data, np.uint8)
-#         image = np.reshape(np_arr, (compressed_image_msg.height, compressed_image_msg.width, 3))
-#     except Exception as e:
-#         print(e)
-#         return None
-#     return image
-
-
-def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
-    image_buf = np.ndarray(
-        shape=(1, len(compressed_image_msg.data)), dtype=np.uint8, buffer=compressed_image_msg.data
-    )
-    image = cv2.imdecode(image_buf, cv2.IMREAD_ANYCOLOR)
+def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> np.ndarray:
+    if hasattr(compressed_image_msg, "_encoding"):
+        try:
+            np_arr = np.frombuffer(compressed_image_msg.data, np.uint8)
+            image = np.reshape(
+                np_arr, (compressed_image_msg.height, compressed_image_msg.width, 3)
+            )
+        except Exception as e:
+            print(e)
+            return None
+    else:
+        image_buf = np.ndarray(
+            shape=(1, len(compressed_image_msg.data)),
+            dtype=np.uint8,
+            buffer=compressed_image_msg.data,
+        )
+        image = cv2.imdecode(image_buf, cv2.IMREAD_ANYCOLOR)
     return image
 
 

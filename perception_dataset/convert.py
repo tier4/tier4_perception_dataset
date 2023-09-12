@@ -25,6 +25,11 @@ def main():
         action="store_true",
         help="do NOT compress rosbag/non-annotated-t4",
     )
+    parser.add_argument(
+        "--synthetic",
+        action="store_true",
+        help="convert synthetic data",
+    )
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
