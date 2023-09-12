@@ -780,7 +780,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     "y": rotation.y,
                     "z": rotation.z,
                 }
-                cam_info_topic = os.path.dirname(topic_name) + "/camera_info"
+                # cam_info_topic = os.path.dirname(topic_name) + "/camera_info"
+                cam_info_topic = topic_name.rsplit("/", 2)[0] + "/camera_info"
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     continue
