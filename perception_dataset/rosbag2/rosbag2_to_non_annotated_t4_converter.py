@@ -11,6 +11,7 @@ import warnings
 import builtin_interfaces.msg
 import cv2
 import numpy as np
+from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CompressedImage, PointCloud2
 
@@ -21,7 +22,7 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
-from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
+from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
@@ -99,6 +100,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._camera_latency: float = params.camera_latency_sec
         self._start_timestamp: float = params.start_timestamp_sec
         self._end_timestamp: float = 0
+        self._data_type: DataType = params.data_type
         self._ignore_no_ego_transform_at_rosbag_beginning: bool = (
             params.ignore_no_ego_transform_at_rosbag_beginning
         )
@@ -766,7 +768,23 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_distortion=[],
                 )
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
-                cam_info_topic = topic_name.rsplit("/", 2)[0] + "/camera_info"
+                if self._data_type.value == "synthetic":
+                    # fix of the orientation of camera view
+                    rotation = Quaternion(
+                        rotation["w"], rotation["x"], rotation["y"], rotation["z"]
+                    )
+                    axes_fix_rotation = Quaternion(0.5, -0.5, 0.5, -0.5)
+                    rotation = rotation * axes_fix_rotation
+
+                    rotation = {
+                        "w": rotation.w,
+                        "x": rotation.x,
+                        "y": rotation.y,
+                        "z": rotation.z,
+                    }
+
+                topic_name_splitted = topic_name.split("/")
+                cam_info_topic = "/".join(topic_name_splitted[:4]) + "/camera_info"
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     continue
