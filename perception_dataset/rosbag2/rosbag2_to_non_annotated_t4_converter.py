@@ -115,7 +115,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._calibrated_sensor_target_frame: str = "base_link"
 
         # Note: To determine if there is any message dropout, including a delay tolerance of 10Hz.
-        self._TIMESTAMP_DIFF = 0.15
+        # changed from 0.15 to 2.0 - a workaround of issue with Unity's step execution
+        # #TODO (mkotynia) should be decreased when the issue with Unity is fixed
+        self._TIMESTAMP_DIFF = 2.0
 
         self._lidar_sensor: Dict[str, str] = params.lidar_sensor
         self._radar_sensors: List[Dict[str, str]] = params.radar_sensors
