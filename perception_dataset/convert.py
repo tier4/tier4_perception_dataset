@@ -2,7 +2,7 @@ import argparse
 
 import yaml
 
-from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
+from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -124,6 +124,8 @@ def main():
             **config_dict["conversion"],
         }
         converter_params = Rosbag2ConverterParams(**param_args)
+        if args.synthetic:
+            converter_params.data_type = DataType.SYNTHETIC
         converter = Rosbag2ToT4Converter(converter_params)
 
         logger.info("[BEGIN] Converting ros2bag output by simulator --> T4 Format Data")
