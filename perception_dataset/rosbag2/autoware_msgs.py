@@ -8,7 +8,6 @@ from autoware_auto_perception_msgs.msg import (
     TrackedObject,
     TrackedObjects,
 )
-
 from tier4_perception_msgs.msg import (
     TrafficLightElement,
     TrafficLightRoi,
@@ -16,6 +15,7 @@ from tier4_perception_msgs.msg import (
     TrafficSignal,
     TrafficSignalArray,
 )
+
 
 def semantic_type_to_class_name(semantic_type: int) -> str:
     """https://github.com/tier4/tier4_autoware_msgs/blob/tier4/universe/tier4_perception_msgs/msg/object_recognition/Semantic.msg"""
