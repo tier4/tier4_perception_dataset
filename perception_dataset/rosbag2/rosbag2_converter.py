@@ -4,9 +4,17 @@ import shutil
 import sys
 from typing import Dict, List, Text
 
+from rclpy.serialization import deserialize_message
 from rosbag2_py import StorageFilter
+from rosidl_runtime_py.utilities import get_message
 
-from perception_dataset.utils.rosbag2 import create_reader, create_writer, get_topic_count, reindex
+from perception_dataset.utils.rosbag2 import (
+    create_reader,
+    create_writer,
+    get_topic_count,
+    get_topic_type_dict,
+    reindex,
+)
 
 
 class Rosbag2Converter:
@@ -32,6 +40,7 @@ class Rosbag2Converter:
         self._end_time_sec = end_time_sec
         self._mandatory_topics = mandatory_topics
         self._check_topic_count()
+        self._topic_name_to_topic_type = get_topic_type_dict(self._input_bag_dir)
 
     def _check_topic_count(self):
         topic_count: Dict[str, int] = get_topic_count(self._input_bag_dir)
@@ -65,6 +74,25 @@ class Rosbag2Converter:
         while reader.has_next():
             topic_name, data, timestamp = reader.read_next()
             message_time = timestamp * 1e-9
+
+            topic_type = self._topic_name_to_topic_type[topic_name]
+            try:
+                msg_type = get_message(topic_type)
+            except ModuleNotFoundError:
+                continue
+            except AttributeError:
+                print("Sourced message type is differ from the one in rosbag")
+                continue
+
+            msg = deserialize_message(data, msg_type)
+            if hasattr(msg, "header"):
+                message_time: float = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            elif hasattr(msg, "transforms"):
+                message_time: float = (
+                    msg.transforms[0].header.stamp.sec
+                    + msg.transforms[0].header.stamp.nanosec * 1e-9
+                )
+
             if topic_name == "/tf_static":
                 writer.write(topic_name, data, timestamp)
             elif message_time <= self._start_time_sec:
