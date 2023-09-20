@@ -564,6 +564,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             if self._end_timestamp < image_unix_timestamp:
                 self._end_timestamp = image_unix_timestamp
 
+            is_data_found: bool = False
             if not self._camera_only_mode:
                 sample_record: SampleRecord = sample_records[frame_index]
                 sample_token: str = sample_record.token
@@ -605,32 +606,43 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 print(
                     f"frame{generated_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
                 )
+                is_data_found = True
             else:
+                # camera_only_mode
                 if (frame_index % self._generate_frame_every) == 0:
-                    nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(image_msg.header.stamp)
-                    sample_token: str = self._sample_table.insert_into_table(
-                        timestamp=nusc_timestamp, scene_token=scene_token
+                    print(f"generate frame at image stamp: {image_msg.header.stamp}")
+                    try:
+                        ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
+                    except Exception as e:
+                        print(e)
+                        continue
+                    ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
+                        ego_pose_token
                     )
+                    translation: Dict[str, float] = ego_pose.translation
+                    distance = get_move_distance(translation, last_translation)
+                    if distance >= self._generate_frame_every_meter:
+                        last_translation = translation
 
-            if (frame_index % self._generate_frame_every) == 0:
-                ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
-                ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
-                    ego_pose_token
+                        nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(
+                            image_msg.header.stamp
+                        )
+                        sample_token: str = self._sample_table.insert_into_table(
+                            timestamp=nusc_timestamp, scene_token=scene_token
+                        )
+                        is_data_found = True
+
+            if is_data_found:
+                sample_data_token = self._generate_image_data(
+                    image_msg,
+                    sample_token,
+                    calibrated_sensor_token,
+                    sensor_channel,
+                    generated_frame_index,
                 )
-                translation: Dict[str, float] = ego_pose.translation
-                distance = get_move_distance(translation, last_translation)
-                if distance >= self._generate_frame_every_meter:
-                    last_translation = translation
-                    sample_data_token = self._generate_image_data(
-                        image_msg,
-                        sample_token,
-                        calibrated_sensor_token,
-                        sensor_channel,
-                        generated_frame_index,
-                    )
-                    sample_data_token_list.append(sample_data_token)
-                    generated_frame_index += 1
-                prev_frame_unix_timestamp = image_unix_timestamp
+                sample_data_token_list.append(sample_data_token)
+                generated_frame_index += 1
+            prev_frame_unix_timestamp = image_unix_timestamp
             frame_index += 1
 
         assert len(sample_data_token_list) > 0
