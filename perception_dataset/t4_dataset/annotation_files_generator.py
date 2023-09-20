@@ -58,7 +58,7 @@ class AnnotationFilesGenerator:
 
         if with_camera:
             self._camera2idx = description.get("camera_index")
-        self._with_lidar = description.get("with_lidar") or description.get("with_lidar") == None
+        self._with_lidar = description.get("with_lidar", True)
 
     def save_tables(self, anno_dir: str):
         for cls_attr in self.__dict__.values():
