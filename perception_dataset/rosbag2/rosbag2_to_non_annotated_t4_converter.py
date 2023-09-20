@@ -27,7 +27,7 @@ from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
 from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
 from perception_dataset.t4_dataset.classes.category import CategoryTable
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseTable
+from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord, EgoPoseTable
 from perception_dataset.t4_dataset.classes.instance import InstanceTable
 from perception_dataset.t4_dataset.classes.log import LogTable
 from perception_dataset.t4_dataset.classes.map import MapTable
@@ -527,6 +527,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         scene_token: str,
     ):
+        def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
+            dx: float = trans1["x"] - trans2["x"]
+            dy: float = trans1["y"] - trans2["y"]
+            dz: float = trans1["z"] - trans2["z"]
+            return (dx * dx + dy * dy + dz * dz) ** 0.5
+
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
         sample_records: List[SampleRecord] = self._sample_table.to_records()
@@ -545,6 +551,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
+        last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
         for image_msg in self._bag_reader.read_messages(
             topics=[topic],
             start_time=start_time_in_time,
@@ -606,16 +613,24 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
 
             if (frame_index % self._generate_frame_every) == 0:
-                sample_data_token = self._generate_image_data(
-                    image_msg,
-                    sample_token,
-                    calibrated_sensor_token,
-                    sensor_channel,
-                    generated_frame_index,
+                ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
+                ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
+                    ego_pose_token
                 )
-                sample_data_token_list.append(sample_data_token)
-                generated_frame_index += 1
-            prev_frame_unix_timestamp = image_unix_timestamp
+                translation: Dict[str, float] = ego_pose.translation
+                distance = get_move_distance(translation, last_translation)
+                if distance >= self._generate_frame_every_meter:
+                    last_translation = translation
+                    sample_data_token = self._generate_image_data(
+                        image_msg,
+                        sample_token,
+                        calibrated_sensor_token,
+                        sensor_channel,
+                        generated_frame_index,
+                    )
+                    sample_data_token_list.append(sample_data_token)
+                    generated_frame_index += 1
+                prev_frame_unix_timestamp = image_unix_timestamp
             frame_index += 1
 
         assert len(sample_data_token_list) > 0
