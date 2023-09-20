@@ -610,7 +610,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             else:
                 # camera_only_mode
                 if (frame_index % self._generate_frame_every) == 0:
-                    print(f"generate frame at image stamp: {image_msg.header.stamp}")
                     try:
                         ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
                     except Exception as e:
@@ -633,6 +632,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         is_data_found = True
 
             if is_data_found:
+                print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
                 sample_data_token = self._generate_image_data(
                     image_msg,
                     sample_token,
