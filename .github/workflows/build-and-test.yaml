@@ -70,7 +70,7 @@ jobs:
         uses: autowarefoundation/autoware-github-actions/colcon-build@v1
         with:
           rosdistro: ${{ matrix.rosdistro }}
-          target-packages: autoware_auto_perception_msgs autoware_perception_msgs
+          target-packages: autoware_auto_perception_msgs
           build-depends-repos: build_depends.repos
 
       - name: Install dependencies

@@ -24,7 +24,7 @@ from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.rosbag2 as rosbag2_utils
 
-from .autoware_msgs import parse_dynamic_object_array, parse_perception_objects
+from .autoware_msgs import parse_perception_objects
 
 logger = configure_logger(modname=__name__)
 
@@ -152,9 +152,7 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
             topics=[self._object_topic_name],
             start_time=start_time_in_time,
         ):
-            if self._object_msg_type == "DynamicObjectArray":
-                scene_annotation_list = parse_dynamic_object_array(message)
-            elif self._object_msg_type in ("DetectedObjects", "TrackedObjects"):
+            if self._object_msg_type in ("DetectedObjects", "TrackedObjects"):
                 if message.header.frame_id != self._ego_pose_target_frame:
                     transform_stamped = self._bag_reader.get_transform_stamped(
                         target_frame=self._ego_pose_target_frame,

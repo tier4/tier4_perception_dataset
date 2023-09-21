@@ -90,6 +90,6 @@ class Rosbag2ConverterParams(BaseModel):
 
     @validator("object_msg_type")
     def check_object_msg_type(cls, v):
-        if v not in ["DynamicObjectArray", "DetectedObjects", "TrackedObjects", "TrafficLights"]:
+        if v not in ["DetectedObjects", "TrackedObjects", "TrafficLights"]:
             raise ValueError(f"Unexpected object message type: {type(v)}")
         return v
