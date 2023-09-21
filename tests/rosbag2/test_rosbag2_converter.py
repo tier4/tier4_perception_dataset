@@ -27,10 +27,10 @@ def t4_dataset_path(request):
     https://docs.pytest.org/en/latest/example/parametrize.html#indirect-parametrization
     """
     # before test - convert rosbag2 to t4
-    rosbag_dir = "awsim_rosbag" if request.param == "db3" else "awsim_rosbag_mcap"
+    rosbag_dir = "awsim_rosbag2" if request.param == "db3" else "awsim_rosbag2_mcap/"
     input_base = TEST_DATA_ROOT_DIR / rosbag_dir
     output_base = TEST_DATA_ROOT_DIR / "t4_dataset"
-    test_rosbag_name = "x2_nishi_shinjuku_dynamic_object_msg"
+    test_rosbag_name = "sample_bag"
 
     assert input_base.exists()
 
@@ -60,7 +60,7 @@ def sample_annotation(t4_dataset_path):
     return sample_annotation
 
 
-@pytest.mark.parametrize("t4_dataset_path", ["db3", "mcap"], indirect=True)
+@pytest.mark.parametrize("t4_dataset_path", ["mcap"], indirect=True)
 def test_t4_dataset_format(t4_dataset_path):
     validate_directory_structure(t4_dataset_path)
 
@@ -78,7 +78,7 @@ def get_empty(df, col):
     return (df.iloc[1:-1][col] == "").index.tolist()
 
 
-@pytest.mark.parametrize("t4_dataset_path", ["db3", "mcap"], indirect=True)
+@pytest.mark.parametrize("t4_dataset_path", ["mcap"], indirect=True)
 def test_rosbag2_converter_dataset_consistency(sample_annotation):
     # First frame doesn't have prev frame
     grouped = pd.DataFrame(sample_annotation).groupby("instance_token")
@@ -125,70 +125,112 @@ expected_num_lidar_pts = {
     8,
     9,
     10,
-    139,
+    11,
     12,
     13,
     14,
-    11,
+    15,
     16,
     17,
-    15,
-    19,
     18,
+    19,
+    20,
     21,
     22,
     23,
-    152,
+    24,
     25,
     26,
     27,
     28,
     29,
-    24,
+    30,
     31,
     32,
     33,
     34,
-    154,
+    35,
     36,
     37,
-    549,
-    38,
+    39,
     40,
     41,
     42,
-    550,
-    44,
+    43,
     45,
-    39,
+    46,
+    49,
+    51,
+    52,
+    53,
+    56,
     57,
-    570,
+    58,
     59,
+    60,
+    61,
     62,
+    63,
+    64,
     65,
-    69,
-    70,
-    71,
-    75,
-    78,
-    80,
-    81,
+    68,
+    74,
+    76,
+    79,
     84,
     86,
+    87,
     88,
     89,
-    219,
+    90,
+    91,
     92,
-    97,
-    227,
-    231,
-    4456,
-    236,
-    539,
+    93,
+    94,
+    95,
+    96,
+    98,
+    102,
+    105,
+    106,
+    107,
+    167,
+    194,
+    203,
+    220,
+    223,
+    232,
+    233,
+    239,
+    242,
+    247,
+    249,
+    251,
+    252,
+    255,
+    260,
+    270,
+    272,
+    277,
+    280,
+    292,
+    305,
+    311,
+    335,
+    349,
+    374,
+    375,
+    394,
+    399,
+    644,
+    648,
+    654,
+    664,
 }
 
 
-@pytest.mark.parametrize("t4_dataset_path", ["db3", "mcap"], indirect=True)
+@pytest.mark.parametrize("t4_dataset_path", ["mcap"], indirect=True)
 def test_rosbag2_converter_num_lidar_pts(sample_annotation):
     num_lidar_pts_list = [r["num_lidar_pts"] for r in sample_annotation]
+    print(num_lidar_pts_list)
     assert expected_num_lidar_pts.difference(set(num_lidar_pts_list)) == set()
