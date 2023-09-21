@@ -99,7 +99,6 @@ def load_json(t4_dataset_path, file_name):
         return json.load(f)
 
 
-
 def get_empty(df, col):
     return (df.iloc[1:-1][col] == "").index.tolist()
 
@@ -120,7 +119,9 @@ def test_attribute_json(t4_dataset_path, attribute_list):
 
 def test_calibrated_sensor_json(t4_dataset_path):
     calibrated_sensor = load_json(t4_dataset_path, "calibrated_sensor")
-    assert len(calibrated_sensor) == 2, f"calibrated_sensor length is {len(calibrated_sensor)}, expected 2"
+    assert (
+        len(calibrated_sensor) == 2
+    ), f"calibrated_sensor length is {len(calibrated_sensor)}, expected 2"
 
 
 def test_category_json(t4_dataset_path, category_list):
@@ -191,9 +192,7 @@ def test_object_ann_json(t4_dataset_path):
 
 def test_sample_data_json(t4_dataset_path):
     sample_data_json = load_json(t4_dataset_path, "sample_data")
-    assert (
-        len(sample_data_json) == 6
-    ), f"sample_data length is {len(sample_data_json)}, expected 6"
+    assert len(sample_data_json) == 6, f"sample_data length is {len(sample_data_json)}, expected 6"
     for sample_data in sample_data_json:
         assert sample_data["token"], "token is empty"
         assert sample_data["sample_token"], "sample_token is empty"
