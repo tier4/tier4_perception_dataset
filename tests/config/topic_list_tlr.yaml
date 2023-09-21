@@ -1,0 +1,25 @@
+mandatory_topic_list:
+ - /tf
+ - /tf_static
+topic_list:
+ - /sensing/lidar/concatenated/pointcloud
+ - /concatenated/pointcloud_raw
+ - /sensing/camera/camera6/image_raw/compressed
+ - /sensing/camera/camera7/image_raw/compressed
+ - /sensing/camera/traffic_light/image_raw/compressed
+ - /sensing/camera/camera6/image_rect_color/compressed
+ - /sensing/camera/camera7/image_rect_color/compressed
+ - /sensing/camera/camera6/camera_info
+ - /sensing/camera/camera7/camera_info
+ - /sensing/camera/traffic_light/camera_info
+ - /sensing/lidar/left/velodyne_packets
+ - /sensing/lidar/rear/velodyne_packets
+ - /sensing/lidar/right/velodyne_packets
+ - /sensing/lidar/top/velodyne_packets
+ - /pacmod/from_can_bus
+ - /pacmod/can_rx
+ - /can_rx
+ - /tf
+ - /tf_static
+ - /localization/kinematic_state
+ - /vehicle/status/velocity_status
