@@ -34,68 +34,6 @@ def semantic_type_to_class_name(semantic_type: int) -> str:
     return semantic_to_category.get(semantic_type, "unknown")
 
 
-def parse_dynamic_object_array(msg) -> List[Dict[str, Any]]:
-    """
-    The object message is archived, but used for synthetic data.
-    https://github.com/tier4/autoware_iv_msgs/blob/main/autoware_perception_msgs/msg/object_recognition/DynamicObjectArray.msg
-
-    Args:
-        msg (autoware_perception_msgs.msg.DynamicObjectArray): autoware perception msg (.iv)
-
-    Returns:
-        List[Dict[str, Any]]: dict format
-    """
-    scene_annotation_list: List[Dict[str, Any]] = []
-    for obj in msg.objects:
-        # obj: Dynamic Object
-
-        obj_uuid = uuid.UUID(bytes=obj.id.uuid.tobytes())
-        category_name = semantic_type_to_class_name(obj.semantic.type)
-        position: Dict[str, Any] = {
-            "x": obj.state.pose_covariance.pose.position.x,
-            "y": obj.state.pose_covariance.pose.position.y,
-            "z": obj.state.pose_covariance.pose.position.z,
-        }
-        orientation: Dict[str, Any] = {
-            "x": obj.state.pose_covariance.pose.orientation.x,
-            "y": obj.state.pose_covariance.pose.orientation.y,
-            "z": obj.state.pose_covariance.pose.orientation.z,
-            "w": obj.state.pose_covariance.pose.orientation.w,
-        }
-        velocity: Dict[str, Optional[float]] = {
-            "x": obj.state.twist_covariance.twist.linear.x,
-            "y": obj.state.twist_covariance.twist.linear.y,
-            "z": obj.state.twist_covariance.twist.linear.z,
-        }
-        acceleration: Dict[str, Optional[float]] = {
-            "x": obj.state.acceleration_covariance.accel.linear.x,
-            "y": obj.state.acceleration_covariance.accel.linear.y,
-            "z": obj.state.acceleration_covariance.accel.linear.z,
-        }
-        dimension: Dict[str, Any] = {
-            "width": obj.shape.dimensions.y,
-            "length": obj.shape.dimensions.x,
-            "height": obj.shape.dimensions.z,
-        }
-        label_dict: Dict[str, Any] = {
-            "category_name": category_name,
-            "instance_id": str(obj_uuid),
-            "attribute_names": [],  # not available
-            "three_d_bbox": {
-                "translation": position,
-                "velocity": velocity,
-                "acceleration": acceleration,
-                "size": dimension,
-                "rotation": orientation,
-            },
-            "num_lidar_pts": 1,  # placeholder, the value is caluculated in the Rosbag2ToT4Converter
-            "num_radar_pts": 0,
-        }
-        scene_annotation_list.append(label_dict)
-
-    return scene_annotation_list
-
-
 def object_classification_to_category_name(object_classification) -> str:
     """https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_perception_msgs/msg/ObjectClassification.idl"""
     cls_to_cat: Dict[int, str] = {
