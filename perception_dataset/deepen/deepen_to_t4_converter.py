@@ -3,7 +3,7 @@ import json
 import os.path as osp
 import re
 import shutil
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from nuscenes.nuscenes import NuScenes
 
@@ -140,7 +140,7 @@ class DeepenToT4Converter(AbstractConverter):
             return "full"
 
     def _format_deepen_annotation(
-        self, label_dicts: List[Dict[str, Any]], camera_index: Dict[str, int] = None
+        self, label_dicts: List[Dict[str, Any]], camera_index: Optional[Dict[str, int]] = None
     ):
         """
 
@@ -261,11 +261,12 @@ class DeepenToT4Converter(AbstractConverter):
                 )
             if label_dict["sensor_id"][:6] == "camera" or label_dict["label_type"] == "box":
                 sensor_id = label_dict["sensor_id"][-1]
-                for k in camera_index.keys():
-                    # overwrite sensor_id for multiple camera only annotation (e.g traffic light)
-                    if k in filename:
-                        sensor_id = camera_index[k]
-                        break
+                if camera_index is not None:
+                    for k in camera_index.keys():
+                        # overwrite sensor_id for multiple camera only annotation (e.g traffic light)
+                        if k in filename:
+                            sensor_id = camera_index[k]
+                            break
                 anno_two_d_bbox: List = label_dict["box"]
 
                 if anno_two_d_bbox[2] < 0 or anno_two_d_bbox[3] < 0:
