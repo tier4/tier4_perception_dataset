@@ -119,6 +119,7 @@ def main():
         logger.info(f"[BEGIN] Converting Deepen data ({input_base}) to T4 data ({output_base})")
         converter.convert()
         logger.info(f"[END] Converting Deepen data ({input_base}) to T4 data ({output_base})")
+
     elif task == "convert_rosbag2_to_t4":
         from perception_dataset.rosbag2.rosbag2_to_t4_converter import Rosbag2ToT4Converter
 
@@ -130,11 +131,13 @@ def main():
             "generate_bbox_from_cuboid": args.generate_bbox_from_cuboid,
         }
         converter_params = Rosbag2ConverterParams(**param_args)
+
         if args.synthetic:
             converter_params.data_type = DataType.SYNTHETIC
+
         converter = Rosbag2ToT4Converter(converter_params)
 
-        logger.info("[BEGIN] Converting ros2bag output by simulator --> T4 Format Data")
+        logger.info("[BEGIN] Converting ros2bag output by simulator/autoware --> T4 Format Data")
         converter.convert()
         logger.info("[END] Conversion Completed")
 

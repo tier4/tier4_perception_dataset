@@ -28,7 +28,7 @@ from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
 from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
 from perception_dataset.t4_dataset.classes.category import CategoryTable
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseTable
+from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord, EgoPoseTable
 from perception_dataset.t4_dataset.classes.instance import InstanceTable
 from perception_dataset.t4_dataset.classes.log import LogTable
 from perception_dataset.t4_dataset.classes.map import MapTable
@@ -531,6 +531,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         scene_token: str,
     ):
+        def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
+            dx: float = trans1["x"] - trans2["x"]
+            dy: float = trans1["y"] - trans2["y"]
+            dz: float = trans1["z"] - trans2["z"]
+            return (dx * dx + dy * dy + dz * dz) ** 0.5
+
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
         sample_records: List[SampleRecord] = self._sample_table.to_records()
@@ -549,6 +555,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
+        last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
         for image_msg in self._bag_reader.read_messages(
             topics=[topic],
             start_time=start_time_in_time,
@@ -561,6 +568,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             if self._end_timestamp < image_unix_timestamp:
                 self._end_timestamp = image_unix_timestamp
 
+            is_data_found: bool = False
             if not self._camera_only_mode:
                 sample_record: SampleRecord = sample_records[frame_index]
                 sample_token: str = sample_record.token
@@ -602,14 +610,33 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 print(
                     f"frame{generated_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
                 )
+                is_data_found = True
             else:
+                # camera_only_mode
                 if (frame_index % self._generate_frame_every) == 0:
-                    nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(image_msg.header.stamp)
-                    sample_token: str = self._sample_table.insert_into_table(
-                        timestamp=nusc_timestamp, scene_token=scene_token
+                    try:
+                        ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
+                    except Exception as e:
+                        print(e)
+                        continue
+                    ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
+                        ego_pose_token
                     )
+                    translation: Dict[str, float] = ego_pose.translation
+                    distance = get_move_distance(translation, last_translation)
+                    if distance >= self._generate_frame_every_meter:
+                        last_translation = translation
 
-            if (frame_index % self._generate_frame_every) == 0:
+                        nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(
+                            image_msg.header.stamp
+                        )
+                        sample_token: str = self._sample_table.insert_into_table(
+                            timestamp=nusc_timestamp, scene_token=scene_token
+                        )
+                        is_data_found = True
+
+            if is_data_found:
+                print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
                 sample_data_token = self._generate_image_data(
                     image_msg,
                     sample_token,

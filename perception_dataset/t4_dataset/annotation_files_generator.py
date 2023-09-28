@@ -58,6 +58,7 @@ class AnnotationFilesGenerator:
 
         if with_camera:
             self._camera2idx = description.get("camera_index")
+        self._with_lidar = description.get("with_lidar", True)
 
     def save_tables(self, anno_dir: str):
         for cls_attr in self.__dict__.values():
@@ -136,9 +137,10 @@ class AnnotationFilesGenerator:
         self._visibility_table.save_json(anno_dir)
         self._object_ann_table.save_json(anno_dir)
         self._surface_ann_table.save_json(anno_dir)
-        # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
-        calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
-        self._sample_annotation_table.save_json(anno_dir)
+        if self._with_lidar:
+            # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
+            calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
+            self._sample_annotation_table.save_json(anno_dir)
 
     def convert_annotations(
         self,

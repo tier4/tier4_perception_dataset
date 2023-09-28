@@ -1,0 +1,20 @@
+task: convert_deepen_to_t4
+description:
+  visibility:
+    full: "No occlusion of the object."
+    most: "Object is occluded, but by less than 50%."
+    partial: "The object is occluded by more than 50% (but not completely)."
+    none: "The object is 90-100% occluded and no points/pixels are visible in the label."
+  camera_index:
+    CAM_TRAFFIC_LIGHT_NEAR: 1
+    CAM_TRAFFIC_LIGHT_FAR: 0
+  with_lidar: false
+
+conversion:
+  input_base: ./data/non_annotated_t4_format
+  input_anno_file: ./data/deepen_format/tlr_annotations_accepted_deepen.json
+  input_bag_base: ./data/rosbag2_tlr
+  output_base: ./data/t4_format
+  topic_list: ./config/topic_list_tlr.yaml
+  dataset_corresponding:
+    traffic_light_sample_tf: 4CzSKBMmLCqaTi5tJtqz7rUu

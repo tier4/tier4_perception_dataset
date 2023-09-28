@@ -15,6 +15,6 @@ def get_sample_data_filename(sensor_channel: str, frame_index: int, fileformat: 
     filename = os.path.join(
         T4_FORMAT_DIRECTORY_NAME.DATA.value,
         sensor_channel,
-        f"{frame_index}.{fileformat}",
+        f"{frame_index:05}.{fileformat}",
     )
     return filename

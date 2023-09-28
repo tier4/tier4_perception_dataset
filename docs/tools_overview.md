@@ -135,16 +135,22 @@ python -m perception_dataset.convert --config config/convert_deepen_to_t4_sample
 input: rosbag2  
 output: T4 format data
 
+### Description
+
+This function is for converting a synthetic bag to T4 format.
+Synthetic bag must contain ground truth objects, pointclouds and tf.
+`ground_truth/objects` can be either `autoware_auto_perception_msgs/msg/DetectedObjects` or `autoware_auto_perception_msgs/msg/TrackedObjects`.
+
 #### Messages
 
-| Topic Name                                                  | Required | Message Type                                      |
-| ----------------------------------------------------------- | -------- | ------------------------------------------------- |
-| `/ground_truth/filtered/objects` or `/ground_truth/objects` | o        | `autoware_perception_msgs/msg/DynamicObjectArray` |
-| `/sensing/lidar/concatenated/pointcloud`                    | o        | `sensor_msgs/msg/PointCloud2`                     |
-| `/tf`                                                       | o        | `tf2_msgs/msg/TFMessage`                          |
-| `/tf_static`                                                | o        | `tf2_msgs/msg/TFMessage`                          |
-|                                                             |          | `sensor_msgs/msg/CompressedImage`                 |
-|                                                             |          | `sensor_msgs/msg/CameraInfo`                      |
+| Topic Name                                                  | Required | Message Type                                        |
+| ----------------------------------------------------------- | -------- | --------------------------------------------------- |
+| `/ground_truth/filtered/objects` or `/ground_truth/objects` | o        | `autoware_auto_perception_msgs/msg/DetectedObjects` |
+| `/sensing/lidar/concatenated/pointcloud`                    | o        | `sensor_msgs/msg/PointCloud2`                       |
+| `/tf`                                                       | o        | `tf2_msgs/msg/TFMessage`                            |
+| `/tf_static`                                                | o        | `tf2_msgs/msg/TFMessage`                            |
+|                                                             |          | `sensor_msgs/msg/CompressedImage`                   |
+|                                                             |          | `sensor_msgs/msg/CameraInfo`                        |
 
 #### script
 
