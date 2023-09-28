@@ -137,6 +137,8 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         self._calculate_num_points()
         if len(self._camera_sensors) > 0 and self._generate_bbox_from_cuboid is True:
             self._create_2d_annotations()
+        elif len(self._camera_sensors) == 0 and self._generate_bbox_from_cuboid is True:
+            logger.info("Skipping 2d annotations generation. No camera sensors found.")
 
     def _calculate_num_points(self):
         logger.info("Calculating number of points...")
