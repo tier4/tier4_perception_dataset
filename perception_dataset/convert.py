@@ -30,6 +30,11 @@ def main():
         action="store_true",
         help="convert synthetic data",
     )
+    parser.add_argument(
+        "--generate-bbox-from-cuboid",
+        action="store_true",
+        help="generate 2d images annotations from cuboid annotations",
+    )
     args = parser.parse_args()
 
     with open(args.config, "r") as f:
@@ -122,6 +127,7 @@ def main():
             "scene_description": config_dict["description"]["scene"],
             "overwrite_mode": args.overwrite,
             **config_dict["conversion"],
+            "generate_bbox_from_cuboid": args.generate_bbox_from_cuboid,
         }
         converter_params = Rosbag2ConverterParams(**param_args)
         if args.synthetic:

@@ -172,7 +172,7 @@ output: T4 format data
 #### script
 
 ```bash
-python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synthetic_data_camera.yaml --synthetic
+python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synthetic_data_camera.yaml --synthetic --generate-bbox-from-cuboid
 ```
 
 ### Pseudo-labeled bag to T4 format

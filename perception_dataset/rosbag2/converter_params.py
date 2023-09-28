@@ -42,6 +42,7 @@ class Rosbag2ConverterParams(BaseModel):
     traffic_light_rois_topic_name: str = ""
     world_frame_id: str = "map"
     with_camera: bool = True
+    generate_bbox_from_cuboid: bool = False
 
     # rosbag reader
     num_load_frames: int  # the number of frames to be loaded. if the value isn't positive, read all messages.
