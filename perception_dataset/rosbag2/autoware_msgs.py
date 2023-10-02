@@ -50,8 +50,8 @@ def object_classification_to_category_name(object_classification) -> str:
         11: "bicycle_without_rider",
         12: "motorbike_without_rider",
         13: "personal_mobility_vehicle",
-        14: "pedestrian", # on wheelchair
-        15: "pedestrian", # with umbrella
+        14: "pedestrian",  # on wheelchair
+        15: "pedestrian",  # with umbrella
         21: "street_asset",
     }
 
