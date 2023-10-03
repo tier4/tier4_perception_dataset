@@ -7,7 +7,7 @@ conversion:
   num_load_frames: 10
   crop_frames_unit: 1
   object_topic_name: /ground_truth/objects
-  object_msg_type: DynamicObjectArray
+  object_msg_type: TrackedObjects
   world_frame_id: world
   lidar_sensor:
     topic: /lidar/concatenated/pointcloud

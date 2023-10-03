@@ -7,7 +7,9 @@ from autoware_auto_perception_msgs.msg import (
     ObjectClassification,
     TrackedObject,
     TrackedObjects,
-    TrafficLight,
+)
+from tier4_perception_msgs.msg import (
+    TrafficLightElement,
     TrafficLightRoi,
     TrafficLightRoiArray,
     TrafficSignal,
@@ -32,68 +34,6 @@ def semantic_type_to_class_name(semantic_type: int) -> str:
     }
 
     return semantic_to_category.get(semantic_type, "unknown")
-
-
-def parse_dynamic_object_array(msg) -> List[Dict[str, Any]]:
-    """
-    The object message is archived, but used for synthetic data.
-    https://github.com/tier4/autoware_iv_msgs/blob/main/autoware_perception_msgs/msg/object_recognition/DynamicObjectArray.msg
-
-    Args:
-        msg (autoware_perception_msgs.msg.DynamicObjectArray): autoware perception msg (.iv)
-
-    Returns:
-        List[Dict[str, Any]]: dict format
-    """
-    scene_annotation_list: List[Dict[str, Any]] = []
-    for obj in msg.objects:
-        # obj: Dynamic Object
-
-        obj_uuid = uuid.UUID(bytes=obj.id.uuid.tobytes())
-        category_name = semantic_type_to_class_name(obj.semantic.type)
-        position: Dict[str, Any] = {
-            "x": obj.state.pose_covariance.pose.position.x,
-            "y": obj.state.pose_covariance.pose.position.y,
-            "z": obj.state.pose_covariance.pose.position.z,
-        }
-        orientation: Dict[str, Any] = {
-            "x": obj.state.pose_covariance.pose.orientation.x,
-            "y": obj.state.pose_covariance.pose.orientation.y,
-            "z": obj.state.pose_covariance.pose.orientation.z,
-            "w": obj.state.pose_covariance.pose.orientation.w,
-        }
-        velocity: Dict[str, Optional[float]] = {
-            "x": obj.state.twist_covariance.twist.linear.x,
-            "y": obj.state.twist_covariance.twist.linear.y,
-            "z": obj.state.twist_covariance.twist.linear.z,
-        }
-        acceleration: Dict[str, Optional[float]] = {
-            "x": obj.state.acceleration_covariance.accel.linear.x,
-            "y": obj.state.acceleration_covariance.accel.linear.y,
-            "z": obj.state.acceleration_covariance.accel.linear.z,
-        }
-        dimension: Dict[str, Any] = {
-            "width": obj.shape.dimensions.y,
-            "length": obj.shape.dimensions.x,
-            "height": obj.shape.dimensions.z,
-        }
-        label_dict: Dict[str, Any] = {
-            "category_name": category_name,
-            "instance_id": str(obj_uuid),
-            "attribute_names": [],  # not available
-            "three_d_bbox": {
-                "translation": position,
-                "velocity": velocity,
-                "acceleration": acceleration,
-                "size": dimension,
-                "rotation": orientation,
-            },
-            "num_lidar_pts": 1,  # placeholder, the value is caluculated in the Rosbag2ToT4Converter
-            "num_radar_pts": 0,
-        }
-        scene_annotation_list.append(label_dict)
-
-    return scene_annotation_list
 
 
 def object_classification_to_category_name(object_classification) -> str:
@@ -214,20 +154,20 @@ def parse_traffic_lights(
         List[Dict[str, Any]]: dict format
     """
     color_to_str: Dict[int, str] = {
-        TrafficLight.GREEN: "green",
-        TrafficLight.RED: "red",
-        TrafficLight.AMBER: "yellow",
-        TrafficLight.WHITE: "white",
+        TrafficLightElement.GREEN: "green",
+        TrafficLightElement.RED: "red",
+        TrafficLightElement.AMBER: "yellow",
+        TrafficLightElement.WHITE: "white",
     }
     shape_to_str: Dict[int, str] = {
-        TrafficLight.CIRCLE: "circle",
-        TrafficLight.DOWN_ARROW: "down",
-        TrafficLight.DOWN_LEFT_ARROW: "down_left",
-        TrafficLight.DOWN_RIGHT_ARROW: "down_right",
-        TrafficLight.LEFT_ARROW: "left",
-        TrafficLight.RIGHT_ARROW: "right",
-        TrafficLight.CROSS: "cross",
-        TrafficLight.UP_ARROW: "straight",
+        TrafficLightElement.CIRCLE: "circle",
+        TrafficLightElement.DOWN_ARROW: "down",
+        TrafficLightElement.DOWN_LEFT_ARROW: "down_left",
+        TrafficLightElement.DOWN_RIGHT_ARROW: "down_right",
+        TrafficLightElement.LEFT_ARROW: "left",
+        TrafficLightElement.RIGHT_ARROW: "right",
+        TrafficLightElement.CROSS: "cross",
+        TrafficLightElement.UP_ARROW: "straight",
     }
 
     def get_category_name(signal: TrafficSignal):
@@ -235,26 +175,26 @@ def parse_traffic_lights(
         blubs: List[int] = []
 
         category: str = ""
-        for light in signal.lights:
-            light: TrafficLight
-            if light.color == TrafficLight.UNKNOWN:
-                blubs.append(TrafficLight.UNKNOWN)
-            elif light.shape == TrafficLight.CIRCLE:
-                assert light.color in color_to_str
+        for element in signal.elements:
+            element: TrafficLightElement
+            if element.color == TrafficLightElement.UNKNOWN:
+                blubs.append(TrafficLightElement.UNKNOWN)
+            elif element.shape == TrafficLightElement.CIRCLE:
+                assert element.color in color_to_str
                 # if the shape is circle, save the color
-                blubs.append(light.color)
+                blubs.append(element.color)
             else:
                 # if the shape is not circle, the color must be green
                 # in this case, save the shape
-                assert light.color == TrafficLight.GREEN and light.shape in shape_to_str
-                blubs.append(light.shape)
+                assert element.color == TrafficLightElement.GREEN and element.shape in shape_to_str
+                blubs.append(element.shape)
         # we want the category name to have the format "color-shape1",
         # and the color constants are smaller than shape constants,
         # we can simply achieve this by sort()
         blubs.sort()
         blubs_str: List[str] = []
         for blub in blubs:
-            if blub == TrafficLight.UNKNOWN:
+            if blub == TrafficLightElement.UNKNOWN:
                 blubs_str.append("unknown")
             elif blub in color_to_str:
                 blubs_str.append(color_to_str[blub])
@@ -275,7 +215,7 @@ def parse_traffic_lights(
         roi: TrafficLightRoi
         for signal in signal_msg.signals:
             signal: TrafficSignal
-            if roi.id == signal._map_primitive_id:
+            if roi.traffic_light_id == signal.traffic_light_id:
                 category_name = get_category_name(signal)
                 label_dict: Dict[str, Any] = {
                     "category_name": category_name,
@@ -283,7 +223,7 @@ def parse_traffic_lights(
                     # considering traffic light would generally used camera_only mode and one camera,
                     # setting as "0" would be no problem
                     "sensor_id": 0,
-                    "instance_id": str(signal.map_primitive_id),
+                    "instance_id": str(signal.traffic_light_id),
                     "attribute_names": [],  # not available
                     "two_d_box": [
                         roi.roi.x_offset,

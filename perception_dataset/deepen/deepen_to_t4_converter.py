@@ -1,8 +1,9 @@
 from collections import defaultdict
 import json
 import os.path as osp
+import re
 import shutil
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from nuscenes.nuscenes import NuScenes
 
@@ -60,7 +61,7 @@ class DeepenToT4Converter(AbstractConverter):
             deepen_anno_json = json.load(f)
 
         scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
-            deepen_anno_json["labels"]
+            deepen_anno_json["labels"], self._description["camera_index"]
         )
 
         for t4data_name in self._t4data_name_to_deepen_dataset_id:
@@ -138,7 +139,9 @@ class DeepenToT4Converter(AbstractConverter):
         else:
             return "full"
 
-    def _format_deepen_annotation(self, label_dicts: List[Dict[str, Any]]):
+    def _format_deepen_annotation(
+        self, label_dicts: List[Dict[str, Any]], camera_index: Optional[Dict[str, int]] = None
+    ):
         """
 
         e.g.:
@@ -187,6 +190,7 @@ class DeepenToT4Converter(AbstractConverter):
 
         Args:
             anno_path (str): path to the deepen annotation file
+            camera_index (Dict[str, int]): camera index dictionary
         """
         anno_dict: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
         for label_dict in label_dicts:
@@ -196,7 +200,8 @@ class DeepenToT4Converter(AbstractConverter):
             ):
                 continue
             dataset_id = label_dict["dataset_id"]
-            file_id = int(label_dict["file_id"].split(".")[0])
+            filename = label_dict["file_id"].split(".")[0]
+            file_id = int(re.sub(r"\D", "", filename[-6:]))
 
             if dataset_id not in anno_dict:
                 anno_dict[dataset_id] = defaultdict(list)
@@ -255,6 +260,13 @@ class DeepenToT4Converter(AbstractConverter):
                     }
                 )
             if label_dict["sensor_id"][:6] == "camera" or label_dict["label_type"] == "box":
+                sensor_id = label_dict["sensor_id"][-1]
+                if camera_index is not None:
+                    for k in camera_index.keys():
+                        # overwrite sensor_id for multiple camera only annotation (e.g traffic light)
+                        if k in filename:
+                            sensor_id = camera_index[k]
+                            break
                 anno_two_d_bbox: List = label_dict["box"]
 
                 if anno_two_d_bbox[2] < 0 or anno_two_d_bbox[3] < 0:
@@ -272,7 +284,7 @@ class DeepenToT4Converter(AbstractConverter):
                             anno_two_d_bbox[0] + anno_two_d_bbox[2],
                             anno_two_d_bbox[1] + anno_two_d_bbox[3],
                         ],
-                        "sensor_id": label_dict["sensor_id"][-1],
+                        "sensor_id": sensor_id,
                     }
                 )
 

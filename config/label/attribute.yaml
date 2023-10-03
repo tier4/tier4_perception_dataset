@@ -26,3 +26,6 @@ emergency_vehicle_lights_state:
     off: [emergency_vehicle_lights_state.off]
 object_state:
     still: [object_state.still]
+truncation_state:
+    non-truncated: [truncation_state.non-truncated]
+    truncated: [truncation_state.truncated]
