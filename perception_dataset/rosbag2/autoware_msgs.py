@@ -25,11 +25,11 @@ def semantic_type_to_class_name(semantic_type: int) -> str:
         2: "truck",
         3: "bus",
         4: "bicycle",
-        5: "motorbike",
+        5: "motorcycle",
         6: "pedestrian",
         7: "animal",
         11: "bicycle_without_rider",
-        12: "motorbike_without_rider",
+        12: "motorcycle_without_rider",
         21: "street_asset",
     }
 
@@ -44,11 +44,11 @@ def object_classification_to_category_name(object_classification) -> str:
         2: "truck",
         3: "bus",
         4: "trailer",
-        5: "motorbike",
+        5: "motorcycle",
         6: "bicycle",
         7: "pedestrian",
         11: "bicycle_without_rider",
-        12: "motorbike_without_rider",
+        12: "motorcycle_without_rider",
         13: "personal_mobility_vehicle",
         14: "pedestrian",  # on wheelchair
         15: "pedestrian",  # with umbrella
