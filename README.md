@@ -20,7 +20,7 @@ source /opt/ros/${ROS_DISTRO}/setup.sh
 sudo apt install -y ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap ros-${ROS_DISTRO}-radar-msgs
 
 mkdir src -p && vcs import src < build_depends.repos
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-up-to autoware_auto_perception_msgs
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-up-to tier4_perception_msgs
 source ./install/setup.bash
 ```
 
