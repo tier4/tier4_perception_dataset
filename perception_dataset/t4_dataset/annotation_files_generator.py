@@ -227,6 +227,12 @@ class AnnotationFilesGenerator:
         """
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
+
+            # for the case that the frame_index is not in the sample_token
+            if frame_index not in frame_index_to_sample_token:
+                print(f"frame_index {frame_index} in annotation.json is not in sample_token")
+                continue
+
             for anno in anno_list:
                 # Category
                 category_token: str = self._category_table.get_token_from_name(
