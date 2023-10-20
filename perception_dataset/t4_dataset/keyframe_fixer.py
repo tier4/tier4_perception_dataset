@@ -41,16 +41,15 @@ class KeyFrameFixer:
         for sample_data in sample_data_list[:]:
             if sample_data["is_key_frame"]:
                 continue
-            print(f"{sample_data['filename']}@{sample_data['timestamp']/1e6}")
             sample_data["sample_token"] = self._get_next_closest_keyframe(
                 sample_data, sample_data_list
             )["sample_token"]
             if sample_data["sample_token"] == "":
                 sample_data_list.remove(sample_data)
 
-        with open(segment_path / "annotation/sample_changed.json", "w") as f:
+        with open(segment_path / "annotation/sample.json", "w") as f:
             json.dump(sample_list, f, indent=4)
-        with open(segment_path / "annotation/sample_data_changed.json", "w") as f:
+        with open(segment_path / "annotation/sample_data.json", "w") as f:
             json.dump(sample_data_list, f, indent=4)
 
     def _get_next_closest_keyframe(self, current_sample_data: dict, sample_data_list: list):
@@ -67,7 +66,6 @@ class KeyFrameFixer:
         for sample_data in sample_data_keyframe_list:
             if sample_data["timestamp"] < next_closest_keyframe["timestamp"]:
                 next_closest_keyframe = sample_data
-        print(f"    {next_closest_keyframe['sample_token']}")
         return next_closest_keyframe
 
 
