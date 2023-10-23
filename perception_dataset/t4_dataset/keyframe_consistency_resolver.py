@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 
-class KeyFrameFixer:
+class KeyFrameConsistencyResolver:
     def inspect_and_fix_t4_segment(self, segment_path: Path):
         print(f"Inspecting: {str(segment_path)}")
 
@@ -86,7 +86,7 @@ class KeyFrameFixer:
                 sample_data_list.remove(sample_data)
 
     def _cleanup_sample_data_and_annotations(
-        sample_list, sample_data_list, sample_annotation_list
+        self, sample_list, sample_data_list, sample_annotation_list
     ):
         # remove sample that has no corresponding sample_data
         # this is not supposed to happen since we have removed sample_data that has no corresponding annotation
@@ -124,7 +124,7 @@ class KeyFrameFixer:
                 print(f"Sample annotation {cur_annotation['token']} is removed")
                 sample_annotation_list.remove(cur_annotation)
 
-    def _fix_instance_according_to_sample_annotation(instance_list, sample_annotation_list):
+    def _fix_instance_according_to_sample_annotation(self, instance_list, sample_annotation_list):
         # fix instance according to sample_annotation
         for instance in instance_list:
             instance_annotation_list = [
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     parser.add_argument("--database-root", help="Root of the database to fix")
     args = parser.parse_args()
 
-    fixer = KeyFrameFixer()
+    fixer = KeyFrameConsistencyResolver()
     dataset_path = Path(args.database_root)
     for item in sorted(dataset_path.iterdir()):
         if not item.is_dir() or not (item / "annotation/sample_data.json").exists():
