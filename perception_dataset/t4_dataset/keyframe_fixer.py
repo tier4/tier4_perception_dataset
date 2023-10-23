@@ -15,6 +15,8 @@ class KeyFrameFixer:
             sample_list = json.load(f)
         with open(segment_path / "annotation/scene.json", "r") as f:
             scene_list = json.load(f)
+        with open(segment_path / "annotation/instance.json", "r") as f:
+            instance_list = json.load(f)
 
         # remove sample that sample_data is not a keyframe
         self._remove_sample_of_non_keyframe(sample_data_list, sample_list, sample_annotation_list)
@@ -24,8 +26,14 @@ class KeyFrameFixer:
 
         self.connect_sample_data_next_prev_tokens(sample_data_list)
 
+        # remove samples and annotations that are in conflict with the annotations.
+        self._cleanup_sample_data_and_annotations(
+            sample_list, sample_data_list, sample_annotation_list
+        )
+        self._fix_instance_according_to_sample_annotation(instance_list, sample_annotation_list)
         self.connect_sample_next_prev_tokens(sample_list)
 
+        # fix scene
         scene_list[0]["first_sample_token"] = sample_list[0]["token"]
         scene_list[0]["last_sample_token"] = sample_list[-1]["token"]
 
@@ -35,6 +43,10 @@ class KeyFrameFixer:
             json.dump(sample_list, f, indent=4)
         with open(segment_path / "annotation/sample_data.json", "w") as f:
             json.dump(sample_data_list, f, indent=4)
+        with open(segment_path / "annotation/sample_annotation.json", "w") as f:
+            json.dump(sample_annotation_list, f, indent=4)
+        with open(segment_path / "annotation/instance.json", "w") as f:
+            json.dump(instance_list, f, indent=4)
 
     def _remove_sample_of_non_keyframe(
         self, sample_data_list: list, sample_list: list, sample_annotation_list: list
@@ -51,7 +63,6 @@ class KeyFrameFixer:
 
             # If there is no corresponding annotation, then it is not a keyframe
             if len(corresponding_annotation) == 0:
-                print(f"Sample data {sample_data['token']} has no corresponding annotation")
                 # change is_keyframe to False
                 sample_data["is_key_frame"] = False
 
@@ -73,6 +84,62 @@ class KeyFrameFixer:
             )["sample_token"]
             if sample_data["sample_token"] == "":
                 sample_data_list.remove(sample_data)
+
+    def _cleanup_sample_data_and_annotations(
+        sample_list, sample_data_list, sample_annotation_list
+    ):
+        # remove sample that has no corresponding sample_data
+        # this is not supposed to happen since we have removed sample_data that has no corresponding annotation
+        # if this happens, then it means that the sample_annotation is not consistent with sample_data
+        unexpected_sample_token_list = []
+        for sample_i in sample_list[:]:
+            refered_sample_data_list = [
+                sample_data
+                for sample_data in sample_data_list
+                if sample_data["sample_token"] == sample_i["token"]
+            ]
+            if len(refered_sample_data_list) == 0:
+                print(f"Sample {sample_i['token']} has no corresponding sample_data")
+                unexpected_sample_token_list.append(sample_i["token"])
+                sample_list.remove(sample_i)
+
+        # remove non keyframe sample_annotation
+        for cur_annotation in sample_annotation_list[:]:
+            if cur_annotation["sample_token"] in unexpected_sample_token_list:
+                if cur_annotation["prev"] != "":
+                    prev_annotation = [
+                        anno
+                        for anno in sample_annotation_list
+                        if anno["token"] == cur_annotation["prev"]
+                    ][0]
+                    prev_annotation["next"] = cur_annotation["next"]
+                if cur_annotation["next"] != "":
+                    next_annotation = [
+                        anno
+                        for anno in sample_annotation_list
+                        if anno["token"] == cur_annotation["next"]
+                    ][0]
+                    next_annotation["prev"] = cur_annotation["prev"]
+
+                print(f"Sample annotation {cur_annotation['token']} is removed")
+                sample_annotation_list.remove(cur_annotation)
+
+    def _fix_instance_according_to_sample_annotation(instance_list, sample_annotation_list):
+        # fix instance according to sample_annotation
+        for instance in instance_list:
+            instance_annotation_list = [
+                anno
+                for anno in sample_annotation_list
+                if anno["instance_token"] == instance["token"]
+            ]
+            if len(instance_annotation_list) == 0:
+                instance["first_annotation_token"] = ""
+                instance["last_annotation_token"] = ""
+                instance["nbr_annotations"] = 0
+            else:
+                instance["first_annotation_token"] = instance_annotation_list[0]["token"]
+                instance["last_annotation_token"] = instance_annotation_list[-1]["token"]
+                instance["nbr_annotations"] = len(instance_annotation_list)
 
     def connect_sample_next_prev_tokens(self, sample_list: list):
         sample_list = sorted(sample_list, key=lambda x: x["timestamp"])
