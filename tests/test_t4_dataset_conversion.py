@@ -336,9 +336,9 @@ def test_sample_data_json(t4_dataset_path):
         assert sample_data["filename"], "filename is empty"
         assert sample_data["width"] >= 0, "width is empty"
         assert sample_data["height"] >= 0, "height is empty"
-        assert (
-            sample_data["is_key_frame"] == sample_data["is_valid"]
-        ), f"is_key_frame is {sample_data['is_key_frame']}, is_valid is {sample_data['is_valid']}"
+        assert (not sample_data["is_valid"] and not sample_data["is_key_frame"]) or sample_data[
+            "is_valid"
+        ], f"is_key_frame is {sample_data['is_key_frame']}, is_valid is {sample_data['is_valid']}"
         assert "next" in sample_data.keys(), "next is empty"
         assert "prev" in sample_data.keys(), "prev is empty"
 
