@@ -1,0 +1,16 @@
+task: add_2d_attribute
+description:
+  camera_index:
+    CAM_FRONT: 0
+    CAM_FRONT_RIGHT: 1
+    CAM_BACK_RIGHT: 2
+    CAM_BACK: 3
+    CAM_BACK_LEFT: 4
+    CAM_FRONT_LEFT: 5
+conversion:
+  input_base: ./data/input
+  input_anno_file: ./data/deepen_format/2d_attribute_deepen.json
+  output_base: ./data/t4_format
+  dataset_corresponding:
+    # input dataset_name: deepen dataset_id
+    t4_dataset_1-2: dummy_dataset_id
