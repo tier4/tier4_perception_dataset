@@ -158,6 +158,29 @@ Synthetic bag must contain ground truth objects, pointclouds and tf.
 python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synthetic_data.yaml
 ```
 
+### Synthetic bag to T4 format with images and 2d images annotations
+
+input: rosbag2  
+output: T4 format data
+
+#### Messages
+
+| Topic Name                                    | Required | Message Type                                       |
+| --------------------------------------------- | -------- | -------------------------------------------------- |
+| `/ground_truth/objects`                       | o        | `autoware_auto_perception_msgs/msg/TrackedObjects` |
+| `/sensing/camera/camera{ID}/camera_info`      | o        | `visualization_msgs/msg/MarkerArray`               |
+| `/sensing/lidar/concatenated/pointcloud`      | o        | `sensor_msgs/msg/PointCloud2`                      |
+| `/tf`                                         | o        | `tf2_msgs/msg/TFMessage`                           |
+| `/tf_static`                                  | o        | `tf2_msgs/msg/TFMessage`                           |
+| `/sensing/camera/camera{ID}/image_rect_color` | o        | `sensor_msgs/msg/Image`                            |
+| `/sensing/camera/camera{ID}/camera_info`      | o        | `sensor_msgs/msg/CameraInfo`                       |
+
+#### script
+
+```bash
+python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synthetic_data_camera.yaml --synthetic --generate-bbox-from-cuboid
+```
+
 ### Pseudo-labeled bag to T4 format
 
 #### Description

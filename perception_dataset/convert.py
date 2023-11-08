@@ -2,7 +2,7 @@ import argparse
 
 import yaml
 
-from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
+from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -24,6 +24,16 @@ def main():
         "--without_compress",
         action="store_true",
         help="do NOT compress rosbag/non-annotated-t4",
+    )
+    parser.add_argument(
+        "--synthetic",
+        action="store_true",
+        help="convert synthetic data",
+    )
+    parser.add_argument(
+        "--generate-bbox-from-cuboid",
+        action="store_true",
+        help="generate 2d images annotations from cuboid annotations",
     )
     args = parser.parse_args()
 
@@ -118,8 +128,12 @@ def main():
             "scene_description": config_dict["description"]["scene"],
             "overwrite_mode": args.overwrite,
             **config_dict["conversion"],
+            "generate_bbox_from_cuboid": args.generate_bbox_from_cuboid,
         }
         converter_params = Rosbag2ConverterParams(**param_args)
+
+        if args.synthetic:
+            converter_params.data_type = DataType.SYNTHETIC
 
         converter = Rosbag2ToT4Converter(converter_params)
 
