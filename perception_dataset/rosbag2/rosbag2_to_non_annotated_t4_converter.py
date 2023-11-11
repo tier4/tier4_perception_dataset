@@ -1,11 +1,12 @@
 import copy
+import enum
 import glob
 import json
 import os
 import os.path as osp
 import shutil
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import warnings
 
 import builtin_interfaces.msg
@@ -43,6 +44,12 @@ import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
 
 logger = configure_logger(modname=__name__)
+
+
+class SensorMode(enum.Enum):
+    DEFAULT = "default"
+    NO_LIDAR = "no_lidar"
+    NO_SENSOR = "no_sensor"
 
 
 class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
@@ -124,9 +131,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._sensor_enums: List = []
         self._set_sensors()
 
-        self._camera_only_mode: bool = (
-            True if self._lidar_sensor["topic"] == "" and len(self._radar_sensors) == 0 else False
-        )
+        self._sensor_mode: SensorMode = SensorMode.DEFAULT
+        if (
+            self._lidar_sensor["topic"] == ""
+            and len(self._radar_sensors) == 0
+            and len(self._camera_sensors) == 0
+        ):
+            self._sensor_mode = SensorMode.NO_SENSOR
+        elif self._lidar_sensor["topic"] == "":
+            self._sensor_mode = SensorMode.NO_LIDAR
 
         # init directories
         self._bag_name = osp.basename(self._input_bag)
@@ -146,10 +159,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _calc_actual_num_load_frames(self):
         topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
-        if not self._camera_only_mode:
+        if self._sensor_mode == SensorMode.DEFAULT:
             topic_names.append(self._lidar_sensor["topic"])
             for radar in self._radar_sensors:
                 topic_names.append(radar["topic"])
+            topic_names.append(self._lidar_sensor["topic"])
+        if len(topic_names) == 0:
+            return
 
         num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
         freq = 10
@@ -253,7 +269,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
         shutil.make_archive(self._input_bag, "zip", root_dir=self._input_bag)
 
-    def _convert(self) -> Tuple[str, Dict[str, str]]:
+    def _convert(self) -> None:
         """
         1. init tables
             - log: dummy file
@@ -274,19 +290,33 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             - is_key_frame=True
             - fill in next/prev
         """
+        sensor_channel_to_sample_data_token_list: Dict[str, List[str]] = {}
+
+        self._init_tables()
+        scene_token = self._convert_static_data()
+        self._convert_sensor_data(sensor_channel_to_sample_data_token_list, scene_token)
+        self._set_scene_data()
+        self._connect_sample_in_scene()
+        self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
+        self._add_scene_description(self._scene_description)
+
+    def _calc_start_timestamp(self) -> float:
         if self._start_timestamp < sys.float_info.epsilon:
             start_timestamp = self._bag_reader.start_timestamp + self._skip_timestamp
             self._start_timestamp = start_timestamp
         else:
             start_timestamp = self._start_timestamp
+        return start_timestamp
+
+    def _convert_sensor_data(
+        self,
+        sensor_channel_to_sample_data_token_list: Dict[str, List[str]],
+        scene_token: str,
+    ):
+        start_timestamp = self._calc_start_timestamp()
         logger.info(f"set start_timestamp to {start_timestamp}")
 
-        sensor_channel_to_sample_data_token_list: Dict[str, List[str]] = {}
-
-        self._init_tables()
-        scene_token = self._convert_static_data()
-
-        if not self._camera_only_mode:
+        if self._sensor_mode == SensorMode.DEFAULT:
             lidar_sensor_channel = self._lidar_sensor["channel"]
             sensor_channel_to_sample_data_token_list[
                 lidar_sensor_channel
@@ -312,7 +342,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # Note: The timing of lidar scan initiation and the first camera data acquisition is the same, but the camera has a delay due to data transfer and edge processing on the timestamp.
             first_sample_data_record: SampleDataRecord = self._sample_data_table.to_records()[0]
 
-        if self._camera_only_mode:
+        if self._sensor_mode == SensorMode.NO_LIDAR or self._sensor_mode == SensorMode.NO_SENSOR:
             # temporaly use start_timestamp instead of recorded timestamp for non synced data
             camera_start_timestamp = start_timestamp
         else:
@@ -339,11 +369,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                 first_sample_data_record.timestamp
             )
-
-        self._set_scene_data()
-        self._connect_sample_in_scene()
-        self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
-        self._add_scene_description(self._scene_description)
 
     def _convert_static_data(self):
         # Log, Map
@@ -435,7 +460,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            if isinstance(pointcloud_msg, PointCloud2):
+                points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            else:
+                points_arr = np.zeros((0, 5), dtype=np.float32)
+                warnings.warn(
+                    f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
+                )
+
             points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
 
             sample_data_token_list.append(sample_data_token)
@@ -540,7 +572,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sample_data_token_list: List[str] = []
         sample_records: List[SampleRecord] = self._sample_table.to_records()
 
-        if not self._camera_only_mode:
+        if self._sensor_mode != SensorMode.NO_LIDAR:
             prev_frame_unix_timestamp: float = (
                 misc_utils.nusc_timestamp_to_unix_timestamp(sample_records[0].timestamp)
                 + self._camera_latency
@@ -568,7 +600,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 self._end_timestamp = image_unix_timestamp
 
             is_data_found: bool = False
-            if not self._camera_only_mode:
+            if self._sensor_mode != SensorMode.NO_LIDAR:
                 sample_record: SampleRecord = sample_records[frame_index]
                 sample_token: str = sample_record.token
                 lidar_unix_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(

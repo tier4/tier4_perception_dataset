@@ -1,17 +1,18 @@
 import copy
-import glob
-from multiprocessing import Pool
 import os
-import sys
+import os.path as osp
+import shutil
 from typing import Any, Dict, List
 
-from perception_dataset.abstract_converter_to_t4 import AbstractAnnotatedToT4Converter
+from perception_dataset.constants import SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.ros2.tf2_geometry_msgs.tf2_geometry_msgs import do_transform_pose
-from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
-from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
-    _Rosbag2ToNonAnnotatedT4Converter,
+from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
+from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
+from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import SensorMode
+from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
+    Rosbag2ToT4Converter,
+    _Rosbag2ToT4Converter,
 )
-from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
 from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
 from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseTable
 from perception_dataset.t4_dataset.classes.log import LogTable
@@ -20,8 +21,6 @@ from perception_dataset.t4_dataset.classes.sample import SampleRecord, SampleTab
 from perception_dataset.t4_dataset.classes.sample_data import SampleDataTable
 from perception_dataset.t4_dataset.classes.scene import SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
-from perception_dataset.utils.calculate_num_points import calculate_num_points
-from perception_dataset.utils.create_2d_annotations import create_2d_annotations
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.rosbag2 as rosbag2_utils
 
@@ -30,12 +29,9 @@ from .autoware_msgs import parse_perception_objects
 logger = configure_logger(modname=__name__)
 
 
-class Rosbag2ToT4Converter(AbstractAnnotatedToT4Converter):
+class Rosbag2ToT4TrackingConverter(Rosbag2ToT4Converter):
     def __init__(self, params: Rosbag2ConverterParams) -> None:
-        super().__init__(params.input_base, params.output_base)
-
-        self._params = params
-        self._overwrite_mode = params.overwrite_mode
+        super().__init__(params)
 
     def convert(self):
         bag_dirs: List[str] = self._search_bag_dirs()
@@ -55,65 +51,48 @@ class Rosbag2ToT4Converter(AbstractAnnotatedToT4Converter):
                 logger.info("All files does not exist. Will be created")
 
         # parallel rosbag conversion
-        with Pool(processes=self._params.workers_number) as pool:
-            pool.map(self._convert_bag, bag_dirs)
+        # with Pool(processes=self._params.workers_number) as pool:
+        #     pool.map(self._convert_bag, bag_dirs)
+        for bag_dir in bag_dirs:
+            self._convert_bag(bag_dir)
 
     def _convert_bag(self, bag_dir: str):
         try:
             params = copy.deepcopy(self._params)
             params.input_bag_path = bag_dir
-            converter = _Rosbag2ToT4Converter(params)
+            converter = _Rosbag2ToT4TracingConverter(params)
+            # add_objects, add_noiseあたりも入れる
             converter.convert()
+            if params.data_type == DataType.SYNTHETIC:
+                converter._add_scene_description("synthetic")
+            # dir も修正する
         except Exception:
             logger.exception(f"{bag_dir} failed with exception")
             raise
 
-    def _search_bag_dirs(self):
-        ret_bag_files: List[str] = []
-        logger.info(f"Searching bag files in {self._input_base}")
-        for bag_dir in glob.glob(os.path.join(self._input_base, "*")):
-            if not os.path.isdir(bag_dir):
-                continue
-            logger.info(f"Found bag dir: {bag_dir}")
 
-            meta_file = os.path.join(bag_dir, "metadata.yaml")
-            if not os.path.exists(meta_file):
-                logger.warning(f"{bag_dir} is directory, but metadata.yaml doesn't exist.")
-                continue
-
-            ret_bag_files.append(bag_dir)
-
-        return ret_bag_files
-
-
-class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
+class _Rosbag2ToT4TracingConverter(_Rosbag2ToT4Converter):
     def __init__(self, params: Rosbag2ConverterParams) -> None:
         super().__init__(params)
+        self._topic_list = params.topic_list
 
-        self._object_topic_name: str = params.object_topic_name
-        self._calc_object_topic_num()
+        # overwrite sensors
+        self._sensor_mode = SensorMode.NO_SENSOR
+        self._sensor_channel = "LIDAR_CONCAT"
+        if SENSOR_ENUM.has_channel(self._sensor_channel):
+            self._sensor_enums.append(getattr(SENSOR_ENUM, self._sensor_channel))
 
-        # frame_id of coordinate transformation
-        self._object_msg_type: str = params.object_msg_type
-        self._ego_pose_target_frame: str = params.world_frame_id
-        self._ego_pose_source_frame: str = "base_link"
-        self._calibrated_sensor_target_frame: str = "base_link"
-
-        self._annotation_files_generator = AnnotationFilesGenerator(with_camera=params.with_camera)
-        self._generate_bbox_from_cuboid = params.generate_bbox_from_cuboid
-
-    def _calc_object_topic_num(self):
-        object_topic_num = self._bag_reader.get_topic_count(self._object_topic_name)
-        freq = 10
-        num_frames_to_skip = int(self._skip_timestamp * freq)
-        max_num_frames = object_topic_num - num_frames_to_skip
-
-        if self._num_load_frames == 0 and max_num_frames > 0:
-            self._num_load_frames = max_num_frames
-            logger.info(
-                f"max. possible number of frames will be loaded based on topic count"
-                f" since the value in config is not in (0, object_topic_num - num_frames_to_skip = {max_num_frames}> range."
-            )
+        # overwrite and re-make initial directories
+        shutil.rmtree(osp.join(self._output_base, self._bag_name), ignore_errors=True)
+        self._output_scene_dir = osp.join(self._output_base, self._bag_name, "t4_dataset")
+        self._output_anno_dir = osp.join(
+            self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value
+        )
+        self._output_data_dir = osp.join(
+            self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.DATA.value
+        )
+        self._make_directories()
+        os.makedirs(osp.join(self._output_data_dir, self._sensor_channel), exist_ok=True)
 
     def _init_tables(self):
         # vehicle
@@ -132,53 +111,70 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         self._ego_pose_table = EgoPoseTable()
 
     def convert(self):
-        if self._start_timestamp < sys.float_info.epsilon:
-            start_timestamp = self._bag_reader.start_timestamp
-        else:
-            start_timestamp = self._start_timestamp
-        start_timestamp = start_timestamp + self._skip_timestamp
+        start_timestamp = self._calc_start_timestamp()
 
         assert (
             self._bag_reader.get_topic_count(self._object_topic_name) > 0
         ), f"No object topic name: {self._object_topic_name}"
 
-        self._save_config()
         self._convert()
         self._convert_objects(start_timestamp)
         self._save_tables()
+        self._save_config()
         self._annotation_files_generator.save_tables(self._output_anno_dir)
-        # Calculate and overwrite num_lidar_prs in annotations
-        self._calculate_num_points()
-        if len(self._camera_sensors) > 0 and self._generate_bbox_from_cuboid is True:
-            self._create_2d_annotations()
-        elif len(self._camera_sensors) == 0 and self._generate_bbox_from_cuboid is True:
-            logger.info("Skipping 2d annotations generation. No camera sensors found.")
 
-    def _calculate_num_points(self):
-        logger.info("Calculating number of points...")
-        annotation_table = self._annotation_files_generator._sample_annotation_table
-        calculate_num_points(
-            self._output_scene_dir,
-            lidar_sensor_channel=self._lidar_sensor["channel"],
-            annotation_table=annotation_table,
-        )
-        annotation_table.save_json(self._output_anno_dir)
+        self._make_input_bag()
 
-    def _create_2d_annotations(self):
-        logger.info("Creating 2d camera annotations...")
-        object_ann_table = self._annotation_files_generator._object_ann_table
-        create_2d_annotations(
-            self._output_scene_dir,
-            self._camera_sensors,
-            self._annotation_files_generator._sample_annotation_table,
-            self._sample_data_table,
-            object_ann_table,
-            self._annotation_files_generator._instance_table,
+    def _make_input_bag(self):
+        output_bag_dir_temp: str = osp.join(self._output_scene_dir, osp.basename(self._input_bag))
+        output_bag_dir: str = osp.join(self._output_scene_dir, "input_bag")
+        converter = Rosbag2Converter(
+            self._input_bag,
+            output_bag_dir_temp,
+            self._topic_list,
+            mandatory_topics=["/tf", "/tf_static"],
         )
-        logger.info(
-            f"object_ann.json created with {len(object_ann_table._token_to_record)} records"
+        converter.convert()
+        shutil.move(output_bag_dir_temp, output_bag_dir)
+
+    def _convert(self) -> None:
+        """
+        1. init tables
+        2. fill dummy sensor data
+        3. convert simulation data to annotation
+        """
+        sensor_channel_to_sample_data_token_list: Dict[str, List[str]] = {}
+
+        self._init_tables()
+        scene_token = self._convert_static_data()
+        self._convert_dummy_pointcloud(
+            sensor_channel_to_sample_data_token_list, scene_token, self._object_topic_name
         )
-        object_ann_table.save_json(self._output_anno_dir)
+        self._set_scene_data()
+        self._connect_sample_in_scene()
+        self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
+        self._add_scene_description(self._scene_description)
+
+    def _convert_dummy_pointcloud(
+        self,
+        sensor_channel_to_sample_data_token_list: Dict[str, List[str]],
+        scene_token: str,
+        objects_topic_name: str,
+    ):
+        # Convert dummy pointcloud data to sample_data and sample
+        start_timestamp = self._calc_start_timestamp()
+        logger.info(f"set start_timestamp to {start_timestamp}")
+
+        if self._sensor_mode == SensorMode.NO_SENSOR:
+            lidar_sensor_channel = self._lidar_sensor["channel"]
+            sensor_channel_to_sample_data_token_list[
+                lidar_sensor_channel
+            ] = self._convert_pointcloud(
+                start_timestamp=start_timestamp,
+                sensor_channel="LIDAR_CONCAT",
+                topic=objects_topic_name,
+                scene_token=scene_token,
+            )
 
     def _convert_objects(self, start_timestamp: float):
         """read object bbox ground truth from rosbag"""

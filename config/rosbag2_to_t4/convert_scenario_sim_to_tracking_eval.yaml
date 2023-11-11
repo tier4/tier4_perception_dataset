@@ -1,0 +1,16 @@
+task: convert_rosbag2_to_t4_tracking
+description:
+  scene: ["tracking_regression", "synthetic"]
+conversion:
+  # path to rosbag dir output by simulator
+  input_base: ./data/rosbag2_scenario_sim
+  output_base: ./data/pseudo_labeling_t4_format
+  skip_timestamp: 1.0
+  num_load_frames: 0
+  object_topic_name: /perception/object_recognition/ground_truth/objects
+  object_msg_type: TrackedObjects
+  lidar_sensor:
+    topic: /perception/obstacle_segmentation/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors: [] # synthetic data has no images
+  topic_list: ./config/topic_list_tracking_eval.yaml

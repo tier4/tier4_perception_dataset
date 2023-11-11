@@ -2,6 +2,7 @@ import enum
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel, validator
+import yaml
 
 from perception_dataset.utils.logger import configure_logger
 
@@ -60,6 +61,13 @@ class Rosbag2ConverterParams(BaseModel):
     generate_frame_every_meter: float = 5.0  # pick frames when ego vehicle moves certain meters
 
     def __init__(self, **args):
+        if isinstance(args["scene_description"], list):
+            args["scene_description"] = ", ".join(args["scene_description"])
+        if isinstance(args["topic_list"], str):
+            with open(args["topic_list"]) as f:
+                args["topic_list"] = yaml.safe_load(f)
+        if isinstance(args["topic_list"], dict) and "topic_list" in args["topic_list"]:
+            args["topic_list"] = args["topic_list"]["topic_list"]
         super().__init__(**args)
 
         if len(self.camera_sensors) == 0:
