@@ -66,7 +66,11 @@ class Rosbag2ConverterParams(BaseModel):
         if "topic_list" in args and isinstance(args["topic_list"], str):
             with open(args["topic_list"]) as f:
                 args["topic_list"] = yaml.safe_load(f)
-        if "topic_list" in args and  isinstance(args["topic_list"], dict) and "topic_list" in args["topic_list"]:
+        if (
+            "topic_list" in args
+            and isinstance(args["topic_list"], dict)
+            and "topic_list" in args["topic_list"]
+        ):
             args["topic_list"] = args["topic_list"]["topic_list"]
         super().__init__(**args)
 
