@@ -1,4 +1,5 @@
 import copy
+from multiprocessing import Pool
 import os
 import os.path as osp
 import shutil
@@ -51,21 +52,22 @@ class Rosbag2ToT4TrackingConverter(Rosbag2ToT4Converter):
                 logger.info("All files does not exist. Will be created")
 
         # parallel rosbag conversion
-        # with Pool(processes=self._params.workers_number) as pool:
-        #     pool.map(self._convert_bag, bag_dirs)
-        for bag_dir in bag_dirs:
-            self._convert_bag(bag_dir)
+        if self._params.workers_number > 1:
+            with Pool(processes=self._params.workers_number) as pool:
+                pool.map(self._convert_bag, bag_dirs)
+        else:
+            for bag_dir in bag_dirs:
+                self._convert_bag(bag_dir)
 
     def _convert_bag(self, bag_dir: str):
         try:
             params = copy.deepcopy(self._params)
             params.input_bag_path = bag_dir
+            # TODO: Prior to Rosbag2ToT4TracingConversion, add the functions of 'add_objects' and 'add_noise' as options.
             converter = _Rosbag2ToT4TracingConverter(params)
-            # add_objects, add_noiseあたりも入れる
             converter.convert()
             if params.data_type == DataType.SYNTHETIC:
                 converter._add_scene_description("synthetic")
-            # dir も修正する
         except Exception:
             logger.exception(f"{bag_dir} failed with exception")
             raise
