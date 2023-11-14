@@ -42,6 +42,7 @@ class Rosbag2ConverterParams(BaseModel):
     traffic_light_rois_topic_name: str = ""
     world_frame_id: str = "map"
     with_camera: bool = True
+    generate_bbox_from_cuboid: bool = False
 
     # rosbag reader
     num_load_frames: int  # the number of frames to be loaded. if the value isn't positive, read all messages.
@@ -51,6 +52,7 @@ class Rosbag2ConverterParams(BaseModel):
     camera_latency_sec: float = (
         0.0  # camera latency in seconds between the header.stamp and shutter trigger
     )
+    timestamp_diff: float = 0.15
     topic_list: list = []  # topic list for input_bag
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False

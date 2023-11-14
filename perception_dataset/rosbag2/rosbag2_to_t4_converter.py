@@ -21,6 +21,7 @@ from perception_dataset.t4_dataset.classes.sample_data import SampleDataTable
 from perception_dataset.t4_dataset.classes.scene import SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
 from perception_dataset.utils.calculate_num_points import calculate_num_points
+from perception_dataset.utils.create_2d_annotations import create_2d_annotations
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.rosbag2 as rosbag2_utils
 
@@ -98,6 +99,7 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         self._calibrated_sensor_target_frame: str = "base_link"
 
         self._annotation_files_generator = AnnotationFilesGenerator(with_camera=params.with_camera)
+        self._generate_bbox_from_cuboid = params.generate_bbox_from_cuboid
 
     def _init_tables(self):
         # vehicle
@@ -133,6 +135,10 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         self._annotation_files_generator.save_tables(self._output_anno_dir)
         # Calculate and overwrite num_lidar_prs in annotations
         self._calculate_num_points()
+        if len(self._camera_sensors) > 0 and self._generate_bbox_from_cuboid is True:
+            self._create_2d_annotations()
+        elif len(self._camera_sensors) == 0 and self._generate_bbox_from_cuboid is True:
+            logger.info("Skipping 2d annotations generation. No camera sensors found.")
 
     def _calculate_num_points(self):
         logger.info("Calculating number of points...")
@@ -143,6 +149,22 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
             annotation_table=annotation_table,
         )
         annotation_table.save_json(self._output_anno_dir)
+
+    def _create_2d_annotations(self):
+        logger.info("Creating 2d camera annotations...")
+        object_ann_table = self._annotation_files_generator._object_ann_table
+        create_2d_annotations(
+            self._output_scene_dir,
+            self._camera_sensors,
+            self._annotation_files_generator._sample_annotation_table,
+            self._sample_data_table,
+            object_ann_table,
+            self._annotation_files_generator._instance_table,
+        )
+        logger.info(
+            f"object_ann.json created with {len(object_ann_table._token_to_record)} records"
+        )
+        object_ann_table.save_json(self._output_anno_dir)
 
     def _convert_objects(self, start_timestamp: float):
         """read object bbox ground truth from rosbag"""
