@@ -29,3 +29,19 @@ object_state:
 truncation_state:
     non-truncated: [truncation_state.non-truncated]
     truncated: [truncation_state.truncated]
+left_blinker:
+    unknown: [left_blinker.unknown]
+    on: [left_blinker.on]
+    off: [left_blinker.off]
+right_blinker:
+    unknown: [right_blinker.unknown]
+    on: [right_blinker.on]
+    off: [right_blinker.off]
+brake_lamp:
+    unknown: [brake_lamp.unknown]
+    on: [brake_lamp.on]
+    off: [brake_lamp.off]
+vehicle_front_or_rear_or_side:
+    front: [vehicle_front_or_rear_or_side.front]
+    rear: [vehicle_front_or_rear_or_side.rear]
+    side: [vehicle_front_or_rear_or_side.side]

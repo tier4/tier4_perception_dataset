@@ -141,6 +141,28 @@ def main():
         converter.convert()
         logger.info("[END] Conversion Completed")
 
+    elif task == "add_2d_attribute":
+        from perception_dataset.t4_dataset.attribute_merger import T4dataset2DAttributeMerger
+
+        input_base = config_dict["conversion"]["input_base"]
+        input_anno_file = config_dict["conversion"]["input_anno_file"]
+        output_base = config_dict["conversion"]["output_base"]
+        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
+        description = config_dict["description"]
+
+        converter = T4dataset2DAttributeMerger(
+            input_base=input_base,
+            input_anno_file=input_anno_file,
+            output_base=output_base,
+            overwrite_mode=args.overwrite,
+            dataset_corresponding=dataset_corresponding,
+            description=description,
+        )
+
+        logger.info(f"[BEGIN] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
+        converter.convert()
+        logger.info(f"[Done] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
+
     else:
         raise NotImplementedError()
 
