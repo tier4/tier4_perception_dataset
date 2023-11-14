@@ -1,0 +1,8 @@
+task: interpolate
+description:
+  scene: ""
+conversion:
+  input_base: ./data/t4_dataset
+  output_base: ./data/interpolate
+  target_hz: 10.0
+  method: cubic
