@@ -1,0 +1,4 @@
+topic_list:
+ - /perception/object_recognition/detection/objects
+ - /tf
+ - /tf_static

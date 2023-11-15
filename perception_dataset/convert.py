@@ -141,6 +141,28 @@ def main():
         converter.convert()
         logger.info("[END] Conversion Completed")
 
+    elif task == "convert_rosbag2_to_t4_tracking":
+        from perception_dataset.rosbag2.converter_params import DataType
+        from perception_dataset.rosbag2.rosbag2_to_t4_tracking_converter import (
+            Rosbag2ToT4TrackingConverter,
+        )
+
+        param_args = {
+            "task": config_dict["task"],
+            "data_type": DataType.SYNTHETIC,
+            "scene_description": config_dict["description"]["scene"],
+            "overwrite_mode": args.overwrite,
+            **config_dict["conversion"],
+        }
+        converter_params = Rosbag2ConverterParams(**param_args)
+        converter = Rosbag2ToT4TrackingConverter(converter_params)
+
+        logger.info(
+            "[BEGIN] Converting ros2bag output by autoware scenario simulator --> T4 Format Data"
+        )
+        converter.convert()
+        logger.info("[END] Conversion Completed")
+
     elif task == "add_2d_attribute":
         from perception_dataset.t4_dataset.attribute_merger import T4dataset2DAttributeMerger
 
