@@ -14,6 +14,7 @@ from scipy import interpolate
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.utils.logger import configure_logger
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation, Slerp
 
 
@@ -492,3 +493,92 @@ class DataInterpolator(AbstractConverter):
     def _save_json(self, records: Any, filename: str) -> None:
         with open(filename, "w") as f:
             json.dump(records, f, indent=4)
+
+
+def plot_ego_pose(nusc: NuScenes, show: bool) -> None:
+    timestamps_msec = []
+    translations = []
+    rotations = []
+    for record in nusc.ego_pose:
+        timestamps_msec.append(record["timestamp"] * 1e-3)
+        translations.append(record["translation"])
+        rotations.append(record["rotation"])
+
+    timestamps_msec = sorted(timestamps_msec)
+    translations = [t for _, t in sorted(zip(timestamps_msec, translations))]
+    rotations = [r for _, r in sorted(zip(timestamps_msec, rotations))]
+
+    timestamps_msec = np.array(timestamps_msec) - timestamps_msec[0]
+    translations = np.array(translations)
+    rotations = Rotation(rotations)
+
+    plt.plot(translations[:, 0], translations[:, 1])
+    plt.grid()
+
+    if show:
+        plt.show()
+    plt.close()
+
+
+def plot_sample_annotation(nusc: NuScenes, sample_annotations: list[dict], show: bool) -> None:
+    sample_timestamps = {s["token"]: s["timestamp"] for s in nusc.sample}
+    sample_annotations = sorted(
+        sample_annotations, key=lambda s: sample_timestamps[s["sample_token"]]
+    )
+
+    timestamps_msec = []
+    translations = []
+    rotations = []
+    for ann in sample_annotations:
+        timestamps_msec.append(sample_timestamps[ann["sample_token"]] * 1e-3)
+        translations.append(ann["translation"])
+        rotations.append(ann["rotation"])
+
+    timestamps_msec = sorted(timestamps_msec)
+    translations = [t for _, t in sorted(zip(timestamps_msec, translations))]
+    rotations = [r for _, r in sorted(zip(timestamps_msec, rotations))]
+
+    timestamps_msec = np.array(timestamps_msec) - timestamps_msec[0]
+    translations = np.array(translations)
+
+    plt.plot(translations[:, 0], translations[:, 1])
+    diff = np.diff(translations, axis=0)
+    arrow_pos = translations[:-1] + 0.5 * diff
+    arrow_norm = np.linalg.norm(diff[:, :2], axis=1)
+    plt.quiver(
+        arrow_pos[:, 0],
+        arrow_pos[:, 1],
+        diff[:, 0] / arrow_norm,
+        diff[:, 1] / arrow_norm,
+        angles="xy",
+    )
+    plt.grid()
+
+    if show:
+        plt.show()
+    plt.close()
+
+
+def test_with_plot():
+    import argparse
+    from nuscenes import NuScenes
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("data_root", type=str, help="root directory path")
+    parser.add_argument("--show", action="store_true", help="whether to show plot")
+    args = parser.parse_args()
+
+    nusc = NuScenes("annotation", args.data_root, verbose=False)
+    plot_ego_pose(nusc, args.show)
+
+    instance_tokens = [record["token"] for record in nusc.instance]
+    sample_annotations = {ins_token: [] for ins_token in instance_tokens}
+    for ann in nusc.sample_annotation:
+        sample_annotations[ann["instance_token"]].append(ann)
+
+    for ins_token, ann in sample_annotations.items():
+        plot_sample_annotation(nusc, ann, args.show)
+
+
+if __name__ == "__main__":
+    test_with_plot()
