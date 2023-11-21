@@ -174,7 +174,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         num_frames_to_crop = 0
 
         if not (self._num_load_frames > 0 and self._num_load_frames <= max_num_frames):
-            self._num_load_frames = max_num_frames
+            self._num_load_frames = (max_num_frames - 1)
             logger.info(
                 f"max. possible number of frames will be loaded based on topic count"
                 f" since the value in config is not in (0, num_frames_in_bag - num_frames_to_skip = {max_num_frames}> range."
