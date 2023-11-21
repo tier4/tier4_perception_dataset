@@ -601,6 +601,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             is_data_found: bool = False
             if self._sensor_mode != SensorMode.NO_LIDAR:
+                if frame_index >= len(sample_records):
+                    print(
+                        f"!!!WARNING!!! Please consider specifying `num_load_frames` with smaller size than {len(sample_records)} in config file. See also: https://github.com/tier4/AWMLdataset/issues/125"
+                    )
                 sample_record: SampleRecord = sample_records[frame_index]
                 sample_token: str = sample_record.token
                 lidar_unix_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
@@ -679,10 +683,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 generated_frame_index += 1
             prev_frame_unix_timestamp = image_unix_timestamp
             frame_index += 1
-            if frame_index >= len(sample_records):
-                print(
-                    f"!!!WARNING!!! Please consider specifying `num_load_frames` with smaller size than {len(sample_records)} in config file. See also: https://github.com/tier4/AWMLdataset/issues/125"
-                )
 
         assert len(sample_data_token_list) > 0
 
