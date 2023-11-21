@@ -77,7 +77,7 @@ class KeyFrameConsistencyResolver:
 
     def _change_sample_token_to_next_closest_keyframe(self, sample_data_list: list):
         for sample_data in sample_data_list[:]:
-            if sample_data["is_key_frame"] or not sample_data["is_valid"]:
+            if sample_data.get("is_key_frame", True) or not sample_data.get("is_valid", True):
                 continue
             sample_data["sample_token"] = self._get_next_closest_keyframe(
                 sample_data, sample_data_list
@@ -166,7 +166,7 @@ class KeyFrameConsistencyResolver:
             sensor_sample_data_list = [
                 data
                 for data in sample_data_list
-                if data["calibrated_sensor_token"] == sensor and data["is_valid"]
+                if data["calibrated_sensor_token"] == sensor and data.get("is_valid", True)
             ]
             self.connect_sample_next_prev_tokens(sensor_sample_data_list)
             new_sample_data_list.extend(sensor_sample_data_list)
