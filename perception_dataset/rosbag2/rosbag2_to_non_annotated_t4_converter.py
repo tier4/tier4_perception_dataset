@@ -680,7 +680,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             prev_frame_unix_timestamp = image_unix_timestamp
             frame_index += 1
             if frame_index >= len(sample_records):
-                print(f"!!!WARNING!!! Please consider specifying `num_load_frames` with smaller size than {len(sample_records)} in config file. See also: https://github.com/tier4/AWMLdataset/issues/125")
+                print(
+                    f"!!!WARNING!!! Please consider specifying `num_load_frames` with smaller size than {len(sample_records)} in config file. See also: https://github.com/tier4/AWMLdataset/issues/125"
+                )
 
         assert len(sample_data_token_list) > 0
 
