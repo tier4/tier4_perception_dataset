@@ -8,6 +8,8 @@ from glob import glob
 import os.path as osp
 import os
 import json
+import multiprocessing as mp
+from functools import partial
 
 from secrets import token_hex
 from nuscenes import NuScenes
@@ -77,40 +79,46 @@ class DataInterpolator(AbstractConverter):
         * `sample_annotation.json`
         * `ego_pose.json`
         """
-        for data_root in self._dataset_paths:
-            dataset_id = osp.basename(data_root)
-            output_path = osp.join(self._output_base, dataset_id)
-            os.makedirs(output_path, exist_ok=True)
-            os.system(f"cp -r {data_root} {self._output_base}")
+        func = partial(self._convert_single)
+        with mp.Pool(mp.cpu_count()) as p:
+            p.map(func, self._dataset_paths)
 
-            nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
+    def _convert_single(self, data_root: str) -> None:
+        self.logger.info(f"Start processing: {data_root}")
 
-            all_ego_poses = self.interpolate_ego_pose(nusc)
-            self.logger.info("Finish interpolating ego pose")
+        dataset_id = osp.basename(data_root)
+        output_path = osp.join(self._output_base, dataset_id)
+        os.makedirs(output_path, exist_ok=True)
+        os.system(f"cp -r {data_root} {self._output_base}")
 
-            all_samples = self.interpolate_sample(nusc)
-            self.logger.info("Finish interpolating sample")
+        nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
 
-            all_sample_data = self.interpolate_sample_data(nusc, all_ego_poses, all_samples)
-            self.logger.info("Finish interpolating sample data")
+        all_ego_poses = self.interpolate_ego_pose(nusc)
+        self.logger.info("Finish interpolating ego pose")
 
-            all_sample_anns = self.interpolate_sample_annotation(nusc, all_samples)
-            self.logger.info("Finish interpolating sample annotation")
+        all_samples = self.interpolate_sample(nusc)
+        self.logger.info("Finish interpolating sample")
 
-            all_instances = self.update_instance_record(nusc, all_sample_anns)
-            self.logger.info("Finish updating instance")
+        all_sample_data = self.interpolate_sample_data(nusc, all_ego_poses, all_samples)
+        self.logger.info("Finish interpolating sample data")
 
-            all_scenes = self.update_scene_record(nusc, all_samples)
-            self.logger.info("Finish updating scene")
+        all_sample_anns = self.interpolate_sample_annotation(nusc, all_samples)
+        self.logger.info("Finish interpolating sample annotation")
 
-            # save
-            annotation_root = osp.join(output_path, nusc.version)
-            self._save_json(all_ego_poses, osp.join(annotation_root, "ego_pose.json"))
-            self._save_json(all_samples, osp.join(annotation_root, "sample.json"))
-            self._save_json(all_sample_data, osp.join(annotation_root, "sample_data.json"))
-            self._save_json(all_sample_anns, osp.join(annotation_root, "sample_annotation.json"))
-            self._save_json(all_instances, osp.join(annotation_root, "instance.json"))
-            self._save_json(all_scenes, osp.join(annotation_root, "scene.json"))
+        all_instances = self.update_instance_record(nusc, all_sample_anns)
+        self.logger.info("Finish updating instance")
+
+        all_scenes = self.update_scene_record(nusc, all_samples)
+        self.logger.info("Finish updating scene")
+
+        # save
+        annotation_root = osp.join(output_path, nusc.version)
+        self._save_json(all_ego_poses, osp.join(annotation_root, "ego_pose.json"))
+        self._save_json(all_samples, osp.join(annotation_root, "sample.json"))
+        self._save_json(all_sample_data, osp.join(annotation_root, "sample_data.json"))
+        self._save_json(all_sample_anns, osp.join(annotation_root, "sample_annotation.json"))
+        self._save_json(all_instances, osp.join(annotation_root, "instance.json"))
+        self._save_json(all_scenes, osp.join(annotation_root, "scene.json"))
 
     def interpolate_ego_pose(self, nusc: NuScenes) -> List[Dict[str, Any]]:
         """
