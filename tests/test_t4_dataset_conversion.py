@@ -304,7 +304,9 @@ def test_sample_annotation_json(t4_dataset_path):
 @pytest.mark.parametrize("t4_dataset_path", [False], indirect=True)
 def test_sample_annotation_json_with_interpolate_label(t4_dataset_path):
     sample_annotation = load_json(t4_dataset_path, "sample_annotation")
-    assert len(sample_annotation) == 54, f"sample_annotation length is {len(sample_annotation)}, expected 54"
+    assert (
+        len(sample_annotation) == 54
+    ), f"sample_annotation length is {len(sample_annotation)}, expected 54"
     for sample_anno in sample_annotation:
         sample_anno: dict
         assert sample_anno["token"], "token is empty"
