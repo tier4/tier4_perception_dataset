@@ -302,23 +302,17 @@ def main():
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
         target_hz = config_dict["conversion"].get("target_hz", 10.0)
-        method = config_dict["conversion"].get("method", "cubic")
 
         converter = DataInterpolator(
             input_base=input_base,
             output_base=output_base,
             target_hz=target_hz,
-            method=method,
             logger=logger,
         )
 
-        logger.info(
-            f"[BEGIN] Interpolating {input_base} into {output_base} as {target_hz} Hz with {method}"
-        )
+        logger.info(f"[BEGIN] Interpolating {input_base} into {output_base} as {target_hz} Hz")
         converter.convert()
-        logger.info(
-            f"[DONE] Interpolating {input_base} into {output_base} as {target_hz} Hz with {method}"
-        )
+        logger.info(f"[DONE] Interpolating {input_base} into {output_base} as {target_hz} Hz")
 
     else:
         raise NotImplementedError()
