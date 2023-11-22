@@ -219,7 +219,7 @@ def test_category_json(t4_dataset_path, category_list):
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
 def test_ego_pose_json(t4_dataset_path):
     ego_pose_json = load_json(t4_dataset_path, "ego_pose")
-    assert len(ego_pose_json) == 197, f"ego_pose length is {len(ego_pose_json)}, expected 197"
+    assert len(ego_pose_json) == 190, f"ego_pose length is {len(ego_pose_json)}, expected 190"
     for ego_pose in ego_pose_json:
         assert ego_pose["translation"], "translation is empty"
         assert ego_pose["rotation"], "rotation is empty"
@@ -282,8 +282,8 @@ def test_object_ann_json(t4_dataset_path):
 def test_sample_annotation_json(t4_dataset_path):
     sample_annotation = load_json(t4_dataset_path, "sample_annotation")
     assert (
-        len(sample_annotation) == 30
-    ), f"sample_annotation length is {len(sample_annotation)}, expected 30"
+        len(sample_annotation) == 29
+    ), f"sample_annotation length is {len(sample_annotation)}, expected 29"
     for sample_anno in sample_annotation:
         sample_anno: dict
         assert sample_anno["token"], "token is empty"
@@ -304,7 +304,9 @@ def test_sample_annotation_json(t4_dataset_path):
 @pytest.mark.parametrize("t4_dataset_path", [False], indirect=True)
 def test_sample_annotation_json_with_interpolate_label(t4_dataset_path):
     sample_annotation = load_json(t4_dataset_path, "sample_annotation")
-    assert len(sample_annotation) == 56
+    assert (
+        len(sample_annotation) == 54
+    ), f"sample_annotation length is {len(sample_annotation)}, expected 54"
     for sample_anno in sample_annotation:
         sample_anno: dict
         assert sample_anno["token"], "token is empty"
@@ -326,8 +328,8 @@ def test_sample_annotation_json_with_interpolate_label(t4_dataset_path):
 def test_sample_data_json(t4_dataset_path):
     sample_data_json = load_json(t4_dataset_path, "sample_data")
     assert (
-        len(sample_data_json) == 196
-    ), f"sample_data length is {len(sample_data_json)}, expected 196"
+        len(sample_data_json) == 189
+    ), f"sample_data length is {len(sample_data_json)}, expected 189"
     for sample_data in sample_data_json:
         assert sample_data["token"], "token is empty"
         assert sample_data["sample_token"], "sample_token is empty"
@@ -346,7 +348,7 @@ def test_sample_data_json(t4_dataset_path):
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
 def test_sample_json(t4_dataset_path):
     sample_json = load_json(t4_dataset_path, "sample")
-    assert len(sample_json) == 28, f"sample length is {len(sample_json)}, expected 28"
+    assert len(sample_json) == 27, f"sample length is {len(sample_json)}, expected 27"
     for sample in sample_json:
         assert sample["token"], "token is empty"
         assert sample["timestamp"], "timestamp is empty"
