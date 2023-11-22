@@ -69,7 +69,7 @@ class DataInterpolator(AbstractConverter):
         super().__init__(input_base, output_base)
         self._dataset_paths = glob(osp.join(input_base, "*"))
         self._target_hz = target_hz
-        self._interpolate_step_msec = 100.0 / self._target_hz  # [msec]
+        self._interpolate_step_msec = 1000.0 / self._target_hz  # [msec]
         self.logger = configure_logger(modname=__name__) if logger is None else logger
 
     def convert(self) -> None:
