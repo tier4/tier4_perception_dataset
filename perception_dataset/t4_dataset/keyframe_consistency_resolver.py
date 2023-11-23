@@ -34,8 +34,9 @@ class KeyFrameConsistencyResolver:
         self.connect_sample_next_prev_tokens(sample_list)
 
         # fix scene
-        scene_list[0]["first_sample_token"] = sample_list[0]["token"]
-        scene_list[0]["last_sample_token"] = sample_list[-1]["token"]
+        if len(scene_list) > 0 and len(sample_list) > 0:
+            scene_list[0]["first_sample_token"] = sample_list[0]["token"]
+            scene_list[0]["last_sample_token"] = sample_list[-1]["token"]
 
         with open(segment_path / "annotation/scene.json", "w") as f:
             json.dump(scene_list, f, indent=4)
@@ -142,6 +143,8 @@ class KeyFrameConsistencyResolver:
                 instance["nbr_annotations"] = len(instance_annotation_list)
 
     def connect_sample_next_prev_tokens(self, sample_list: list):
+        if len(sample_list) == 0:
+            return
         sample_list = sorted(sample_list, key=lambda x: x["timestamp"])
         sample_list[0]["prev"] = ""
         sample_list[-1]["next"] = ""
@@ -154,6 +157,8 @@ class KeyFrameConsistencyResolver:
             cur_sample["prev"] = prev_sample["token"]
 
     def connect_sample_data_next_prev_tokens(self, sample_data_list: list):
+        if len(sample_data_list) == 0:
+            return
         sensor_list = []
         [
             sensor_list.append(data["calibrated_sensor_token"])
