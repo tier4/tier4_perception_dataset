@@ -1,5 +1,6 @@
 import argparse
 import json
+import os.path as osp
 from pathlib import Path
 
 
@@ -66,10 +67,15 @@ class KeyFrameConsistencyResolver:
                 for sample_anno in sample_annotation_list
                 if sample_anno["sample_token"] == sample_data["sample_token"]
             ]
+            same_sample_sample_data_token_list = [
+                data["token"]
+                for data in sample_data_list
+                if data["sample_token"] == sample_data["sample_token"]
+            ]
             corresponding_2d_annotation = [
                 object_ann
                 for object_ann in object_ann_list
-                if object_ann["sample_data_token"] == sample_data["token"]
+                if object_ann["sample_data_token"] in same_sample_sample_data_token_list
             ]
             corresponding_sample_list = [
                 sample for sample in sample_list if sample["token"] == sample_data["sample_token"]
@@ -201,6 +207,8 @@ class KeyFrameConsistencyResolver:
             if sample_data["is_key_frame"]
             and sample_data["timestamp"] > timestamp
             and sample_data["fileformat"] == current_sample_data["fileformat"]
+            and osp.dirname(sample_data["filename"])
+            == osp.dirname(current_sample_data["filename"])
         ]
         for sample_data in sample_data_keyframe_list:
             if sample_data["timestamp"] < next_closest_keyframe["timestamp"]:
