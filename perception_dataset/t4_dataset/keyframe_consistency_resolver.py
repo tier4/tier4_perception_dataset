@@ -11,6 +11,8 @@ class KeyFrameConsistencyResolver:
             sample_annotation_list = json.load(f)
         with open(segment_path / "annotation/sample_data.json", "r") as f:
             sample_data_list = json.load(f)
+        with open(segment_path / "annotation/object_ann.json", "r") as f:
+            object_ann_list = json.load(f)
         with open(segment_path / "annotation/sample.json", "r") as f:
             sample_list = json.load(f)
         with open(segment_path / "annotation/scene.json", "r") as f:
@@ -19,7 +21,9 @@ class KeyFrameConsistencyResolver:
             instance_list = json.load(f)
 
         # remove sample that sample_data is not a keyframe
-        self._remove_sample_of_non_keyframe(sample_data_list, sample_list, sample_annotation_list)
+        self._remove_sample_of_non_keyframe(
+            sample_data_list, sample_list, sample_annotation_list, object_ann_list
+        )
 
         # change non-keyframe sample_token in sample_data to next closest keyframe
         self._change_sample_token_to_next_closest_keyframe(sample_data_list)
@@ -50,7 +54,11 @@ class KeyFrameConsistencyResolver:
             json.dump(instance_list, f, indent=4)
 
     def _remove_sample_of_non_keyframe(
-        self, sample_data_list: list, sample_list: list, sample_annotation_list: list
+        self,
+        sample_data_list: list,
+        sample_list: list,
+        sample_annotation_list: list,
+        object_ann_list: list,
     ):
         for sample_data in sample_data_list:
             corresponding_annotation = [
@@ -58,12 +66,17 @@ class KeyFrameConsistencyResolver:
                 for sample_anno in sample_annotation_list
                 if sample_anno["sample_token"] == sample_data["sample_token"]
             ]
+            corresponding_2d_annotation = [
+                object_ann
+                for object_ann in object_ann_list
+                if object_ann["sample_data_token"] == sample_data["token"]
+            ]
             corresponding_sample_list = [
                 sample for sample in sample_list if sample["token"] == sample_data["sample_token"]
             ]
 
             # If there is no corresponding annotation, then it is not a keyframe
-            if len(corresponding_annotation) == 0:
+            if len(corresponding_annotation) == 0 and len(corresponding_2d_annotation) == 0:
                 # change is_keyframe to False
                 sample_data["is_key_frame"] = False
 
