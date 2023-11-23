@@ -100,7 +100,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         for camera_sensor_type in self._camera_sensor_types:
             camera_channel = camera_sensor_type.value["channel"]
 
-            if camera_channel in sample["data"]:
+            if camera_channel in sample["data"].keys():
                 camera_token = sample["data"][camera_channel]
             else:
                 sample_data = [s for s in nusc.sample_data if s["sample_token"] == sample["token"]]

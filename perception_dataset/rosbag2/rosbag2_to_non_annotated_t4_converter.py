@@ -170,7 +170,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
         freq = 10
         num_frames_to_skip = int(self._skip_timestamp * freq)
-        max_num_frames = num_frames_in_bag - num_frames_to_skip
+        max_num_frames = num_frames_in_bag - num_frames_to_skip - 1
         num_frames_to_crop = 0
 
         if not (self._num_load_frames > 0 and self._num_load_frames <= max_num_frames):
