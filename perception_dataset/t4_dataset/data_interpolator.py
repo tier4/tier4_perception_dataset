@@ -313,7 +313,10 @@ class DataInterpolator(AbstractConverter):
                     all_original_sample_timestamps[ann["sample_token"]] * 1e-3
                 )
 
-            sample_anns.sort(key=lambda s: all_original_sample_timestamps[s["timestamp"]])
+            if len(original_timestamps_msec) < 2:
+                continue
+
+            sample_anns.sort(key=lambda s: all_original_sample_timestamps[s["sample_token"]])
 
             original_timestamps_msec = np.array(sorted(original_timestamps_msec))
             translations = np.array(
