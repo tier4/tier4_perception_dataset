@@ -76,8 +76,9 @@ class DataInterpolator(AbstractConverter):
     def convert(self) -> None:
         """Interpolate the following annotation files.
         * `sample.json`
-        * `sample_data.json`
         * `sample_annotation.json`
+        * `instance.json`
+        * `scene.json`
         """
         func = partial(self._convert_single)
         with mp.Pool(mp.cpu_count()) as p:
@@ -96,9 +97,6 @@ class DataInterpolator(AbstractConverter):
         all_samples = self.interpolate_sample(nusc)
         self.logger.info("Finish interpolating sample")
 
-        all_sample_data = self.interpolate_sample_data(nusc, all_samples)
-        self.logger.info("Finish interpolating sample data")
-
         all_sample_anns = self.interpolate_sample_annotation(nusc, all_samples)
         self.logger.info("Finish interpolating sample annotation")
 
@@ -111,7 +109,6 @@ class DataInterpolator(AbstractConverter):
         # save
         annotation_root = osp.join(output_path, nusc.version)
         self._save_json(all_samples, osp.join(annotation_root, "sample.json"))
-        self._save_json(all_sample_data, osp.join(annotation_root, "sample_data.json"))
         self._save_json(all_sample_anns, osp.join(annotation_root, "sample_annotation.json"))
         self._save_json(all_instances, osp.join(annotation_root, "instance.json"))
         self._save_json(all_scenes, osp.join(annotation_root, "scene.json"))
@@ -175,89 +172,6 @@ class DataInterpolator(AbstractConverter):
             all_samples.append(sample)
         all_samples = sorted(all_samples, key=lambda s: s["timestamp"])
         return all_samples
-
-    def interpolate_sample_data(
-        self,
-        nusc: NuScenes,
-        interpolated_samples: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """
-        Extend sample data records with interpolation.
-
-        The keys of sample data are as follows.
-        * token (str)
-        * sample_token (str)
-        * ego_pose_token (str)
-        * calibrated_sensor_token (str)
-        * filename (str)
-        * fileformat (str)
-        * width (int)
-        * height (int)
-        * timestamp (int)
-        * is_key_frame (bool)
-        * next (str)
-        * prev (str)
-        * is_valid (bool)
-        """
-        original_sample_data = sorted(
-            [{key: s.get(key) for key in self.SAMPLE_DATA_KEYS} for s in nusc.sample_data],
-            key=lambda s: s["timestamp"],
-        )
-
-        prev_tokens = {cs["token"]: "" for cs in nusc.calibrated_sensor}
-        all_sample_data = []
-        for sample_data in original_sample_data:
-            cs_token: str = sample_data["calibrated_sensor_token"]
-            sample_data["prev"] = prev_tokens[cs_token]
-            next_token: str = sample_data["next"]
-            if next_token == "":
-                all_sample_data.append(sample_data)
-                continue
-            next_sample_data = nusc.get("sample_data", next_token)
-            curr_msec = sample_data["timestamp"] * 1e-3
-            next_msec = next_sample_data["timestamp"] * 1e-3
-            msec_list = np.arange(
-                curr_msec + self._interpolate_step_msec,
-                next_msec,
-                self._interpolate_step_msec,
-            )
-
-            inter_token = token_hex(16)
-            inter_prev_token: str = sample_data["token"]
-            if len(msec_list) != 0:
-                sample_data["next"] = inter_token
-            for i, msec in enumerate(msec_list):
-                inter_next_token = token_hex(16) if i != len(msec_list) - 1 else next_token
-                inter_sample_token = self._get_closest_timestamp(
-                    interpolated_samples, int(msec * 1e3)
-                )["token"]
-                inter_ego_token = self._get_closest_timestamp(nusc.ego_pose, int(msec * 1e3))[
-                    "token"
-                ]
-                all_sample_data.append(
-                    {
-                        "token": inter_token,
-                        "sample_token": inter_sample_token,
-                        "ego_pose_token": inter_ego_token,
-                        "calibrated_sensor_token": cs_token,
-                        "filename": "",
-                        "fileformat": sample_data["fileformat"],
-                        "width": sample_data["width"],
-                        "height": sample_data["height"],
-                        "timestamp": int(msec * 1e3),
-                        "is_key_frame": True,
-                        "next": inter_next_token,
-                        "prev": inter_prev_token,
-                        "is_valid": False,
-                    }
-                )
-                inter_prev_token = inter_token
-                inter_token = inter_next_token
-            prev_tokens[cs_token] = inter_prev_token
-            all_sample_data.append(sample_data)
-
-        all_sample_data = sorted(all_sample_data, key=lambda s: s["timestamp"])
-        return all_sample_data
 
     def interpolate_sample_annotation(
         self,
