@@ -166,6 +166,10 @@ class DataInterpolator(AbstractConverter):
                 for i in range(num_times - 1)
             ]
         )
+
+        if len(inter_times) == 0:
+            return all_ego_poses
+
         inter_xyz = func_xyz(inter_times)
         inter_quat = func_rot(inter_times).as_quat()
 
