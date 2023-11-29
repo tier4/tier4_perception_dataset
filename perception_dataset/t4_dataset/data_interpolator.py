@@ -1,4 +1,4 @@
-# cspell: ignore nuscenes, akima, pchip, slerp, interp, fileformat, modname, dataroot, nusc, anns, arange, linalg
+# cspell: ignore nuscenes, slerp, interp, fileformat, modname, dataroot, nusc, anns, arange, linalg, ncols, nrows
 
 from __future__ import annotations
 
@@ -227,6 +227,7 @@ class DataInterpolator(AbstractConverter):
                     all_original_sample_timestamps[ann["sample_token"]] * 1e-3
                 )
 
+            # skip if there is only one annotation because interpolation is unavailable
             if len(original_timestamps_msec) < 2:
                 continue
 
@@ -257,6 +258,7 @@ class DataInterpolator(AbstractConverter):
             else:
                 func_acc = None
 
+            new_sample_anns = []
             for i, curr_msec in enumerate(original_timestamps_msec[:-1]):
                 interpolated_timestamps_msec = np.arange(
                     curr_msec + self._interpolate_step_msec,
@@ -264,23 +266,31 @@ class DataInterpolator(AbstractConverter):
                     self._interpolate_step_msec,
                 )
 
-                if len(interpolated_timestamps_msec) < 2:
+                num_interpolation: int = len(interpolated_timestamps_msec)
+
+                # skip if there is no interpolated timestamp
+                if num_interpolation == 0:
                     continue
 
                 inter_xyz = func_xyz(interpolated_timestamps_msec)
                 inter_quat = func_rot(interpolated_timestamps_msec).as_quat()
 
-                if func_vel is not None:
-                    inter_vel = func_vel(interpolated_timestamps_msec)
-                else:
-                    inter_vel = [None] * len(interpolated_timestamps_msec)
+                inter_vel = (
+                    func_vel(interpolated_timestamps_msec)
+                    if func_vel is not None
+                    else [None] * num_interpolation
+                )
 
-                if func_acc is not None:
-                    inter_acc = func_acc(interpolated_timestamps_msec)
-                else:
-                    inter_acc = [None] * len(interpolated_timestamps_msec)
+                inter_acc = (
+                    func_acc(interpolated_timestamps_msec)
+                    if func_acc is not None
+                    else [None] * num_interpolation
+                )
 
+                # update next token in current sample annotation to the first interpolated token
+                # note that, keep original next token to set to next token for the last interpolated sample annotation
                 inter_token = token_hex(16)
+                original_next_token = sample_anns[i]["next"]
                 sample_anns[i]["next"] = inter_token
                 inter_prev_token = sample_anns[i]["token"]
                 for j, (timestamp_msec, xyz, q, vel, acc) in enumerate(
@@ -296,12 +306,12 @@ class DataInterpolator(AbstractConverter):
                         interpolated_samples,
                         int(timestamp_msec * 1e3),
                     )
+                    # other than the last interpolation, generate a new next token
+                    # at last, set original next token
                     inter_next_token = (
-                        token_hex(16)
-                        if j != len(interpolated_sample_timestamps) - 1
-                        else sample_anns[i]["next"]
+                        token_hex(16) if j != num_interpolation - 1 else original_next_token
                     )
-                    sample_anns.append(
+                    new_sample_anns.append(
                         {
                             "token": inter_token,
                             "sample_token": closest_sample["token"],
@@ -319,13 +329,17 @@ class DataInterpolator(AbstractConverter):
                             "prev": inter_prev_token,
                         }
                     )
+                    # set the latest prev token as current token, and
+                    # next token as token
                     inter_prev_token = inter_token
                     inter_token = inter_next_token
                 sample_anns[i + 1]["prev"] = inter_prev_token
+            # extend original sample annotations with interpolated
+            sample_anns += new_sample_anns
 
-        all_sample_annotations = []
-        for _, sample_anns in all_instance_anns.items():
-            all_sample_annotations += sample_anns
+        all_sample_annotations = [
+            ann for _, sample_anns in all_instance_anns.items() for ann in sample_anns
+        ]
 
         return all_sample_annotations
 
@@ -364,6 +378,9 @@ class DataInterpolator(AbstractConverter):
         timestamp: int,
     ) -> Dict[str, Any]:
         """Get the closest element to 'timestamp' from the input list."""
+        assert isinstance(
+            timestamp, int
+        ), f"Expected integer timestamp, but got: {type(timestamp)}"
         res = min(records, key=lambda r: abs(r["timestamp"] - timestamp))
         return res
 
@@ -373,37 +390,6 @@ class DataInterpolator(AbstractConverter):
 
 
 # ============================== DEBUG ==============================
-def plot_ego_pose(ax: Axes, nusc: NuScenes) -> Axes:
-    timestamps_msec = []
-    translations = []
-    rotations = []
-    for record in nusc.ego_pose:
-        timestamps_msec.append(record["timestamp"] * 1e-3)
-        translations.append(record["translation"])
-        rotations.append(record["rotation"])
-
-    timestamps_msec = sorted(timestamps_msec)
-    translations = [t for _, t in sorted(zip(timestamps_msec, translations))]
-    rotations = [r for _, r in sorted(zip(timestamps_msec, rotations))]
-
-    timestamps_msec = np.array(timestamps_msec) - timestamps_msec[0]
-    translations = np.array(translations)
-    rotations = Rotation(rotations)
-
-    ax.plot(translations[:, 0], translations[:, 1])
-    diff = np.diff(translations, axis=0)
-    arrow_pos = translations[:-1] + 0.5 * diff
-    arrow_norm = np.linalg.norm(diff[:, :2], axis=1)
-    ax.quiver(
-        arrow_pos[:, 0],
-        arrow_pos[:, 1],
-        diff[:, 0] / arrow_norm,
-        diff[:, 1] / arrow_norm,
-        angles="xy",
-    )
-    return ax
-
-
 def plot_sample_annotation(ax: Axes, nusc: NuScenes, sample_annotations: list[dict]) -> Axes:
     sample_timestamps = {s["token"]: s["timestamp"] for s in nusc.sample}
     sample_annotations = sorted(
@@ -432,8 +418,8 @@ def plot_sample_annotation(ax: Axes, nusc: NuScenes, sample_annotations: list[di
     ax.quiver(
         arrow_pos[:, 0],
         arrow_pos[:, 1],
-        diff[:, 0] / arrow_norm,
-        diff[:, 1] / arrow_norm,
+        diff[:, 0] / (arrow_norm + 1e-6),
+        diff[:, 1] / (arrow_norm + 1e-6),
         angles="xy",
     )
     return ax
@@ -445,32 +431,50 @@ def test_with_plot():
     from nuscenes import NuScenes
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("data_root", type=str, help="root directory path")
+    parser.add_argument("data_root", type=str, help="Path to interpolated output base root")
     args = parser.parse_args()
 
-    nusc = NuScenes("annotation", args.data_root, verbose=False)
-    ego_ax = plt.subplot()
-    plot_ego_pose(ego_ax, nusc)
-    ego_ax.set_title("Ego")
+    data_paths = glob(osp.join(args.data_root, "*"))
+    for data_root in data_paths:
+        try:
+            print(f"Start plotting >> {data_root}")
+            nusc = NuScenes("annotation", data_root, verbose=False)
 
-    instance_tokens = [record["token"] for record in nusc.instance]
-    sample_annotations = {ins_token: [] for ins_token in instance_tokens}
-    for ann in nusc.sample_annotation:
-        sample_annotations[ann["instance_token"]].append(ann)
+            sample_annotations: Dict[str, List[Any]] = {}
+            for record in nusc.instance:
+                token: str = record["token"]
+                next_ann_token: str = record["first_annotation_token"]
+                prev_ann_token: str = ""
+                last_ann_token: str = record["last_annotation_token"]
+                sample_annotations[token] = []
+                while next_ann_token != "":
+                    sample_ann = nusc.get("sample_annotation", next_ann_token)
+                    sample_annotations[token].append(sample_ann)
+                    assert (
+                        prev_ann_token == sample_ann["prev"]
+                    ), f"Invalid prev token>> Expect: {prev_ann_token}, Result: {sample_ann['prev']}"
+                    prev_ann_token = next_ann_token
+                    next_ann_token = sample_ann["next"]
+                assert (
+                    sample_annotations[token][-1]["token"] == last_ann_token
+                ), f"Invalid last ann token>>: Expect: {last_ann_token}, Result: {sample_annotations[token][-1]['token']}"
 
-    num_instance: int = len(instance_tokens)
-    num_cols = 5
-    _, axes = plt.subplots(nrows=num_instance // num_cols + 1, ncols=num_cols)
+            num_instance: int = len(sample_annotations.keys())
+            num_cols = 5
+            _, axes = plt.subplots(nrows=num_instance // num_cols + 1, ncols=num_cols)
 
-    for i, (ins_token, ann) in enumerate(sample_annotations.items()):
-        ax: Axes = axes[i // num_cols, i % num_cols]
-        ax = plot_sample_annotation(ax, nusc, ann)
-        instance_record = nusc.get("instance", ins_token)
-        category_record = nusc.get("category", instance_record["category_token"])
-        ax.set_title(category_record["name"])
+            for i, (ins_token, ann) in enumerate(sample_annotations.items()):
+                ax: Axes = axes[i // num_cols, i % num_cols]
+                ax = plot_sample_annotation(ax, nusc, ann)
+                instance_record = nusc.get("instance", ins_token)
+                category_record = nusc.get("category", instance_record["category_token"])
+                ax.set_title(category_record["name"])
 
-    plt.show()
-    plt.close()
+            plt.tight_layout()
+            plt.show()
+            plt.close()
+        except Exception as e:
+            print(e)
 
 
 if __name__ == "__main__":
