@@ -608,7 +608,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 lidar_unix_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                     sample_record.timestamp
                 )
-                while (image_unix_timestamp - prev_frame_unix_timestamp) > self._TIMESTAMP_DIFF:
+                while (
+                    image_unix_timestamp - prev_frame_unix_timestamp
+                ) > self._camera_latency + self._TIMESTAMP_DIFF:
                     dummy_image_timestamp = self._insert_dummy_image_frame(
                         image_msg,
                         sensor_channel,
