@@ -39,12 +39,12 @@ repos:
         args: ["-c", ".markdownlint.yaml", "--fix"]
 
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.3
+    rev: v4.0.0-alpha.3
     hooks:
       - id: prettier
 
   - repo: https://github.com/gruntwork-io/pre-commit
-    rev: v0.1.22
+    rev: v0.1.23
     hooks:
       - id: shellcheck
 
@@ -54,7 +54,7 @@ repos:
       - id: isort
 
   - repo: https://github.com/psf/black
-    rev: 23.10.1
+    rev: 23.11.0
     hooks:
       - id: black
 
