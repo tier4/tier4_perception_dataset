@@ -83,7 +83,8 @@ class KeyFrameConsistencyResolver:
 
             # If there is no corresponding annotation, then it is not a keyframe
             if len(corresponding_annotation) == 0 and len(corresponding_2d_annotation) == 0:
-                # change is_keyframe to False
+                # Todo: fix this
+                # If there is a frame in the dataset where no objects are present, that frame will be removed by current implementation
                 sample_data["is_key_frame"] = False
 
                 # change sample_token to "" (temporarily)
