@@ -150,6 +150,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._output_data_dir = osp.join(
             self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.DATA.value
         )
+        self._msg_display_interval = 10
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
@@ -428,9 +429,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(pointcloud_msg.header.stamp)
             if frame_index > 0:
                 time_diff = unix_timestamp - prev_frame_unix_timestamp
-                print(
-                    f"frame_index:{frame_index}: {unix_timestamp}, unix_timestamp - prev_frame_unix_timestamp: {time_diff}"
-                )
+                if frame_index % self._msg_display_interval == 0:
+                    print(
+                        f"frame_index:{frame_index}: {unix_timestamp}, unix_timestamp - prev_frame_unix_timestamp: {time_diff}"
+                    )
                 # Note: LiDAR Message drops are not accepted unless accept_frame_drop is True.
                 if not self._accept_frame_drop and (
                     time_diff > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp
@@ -638,9 +640,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         f"{topic} message may be dropped at [{generated_frame_index}]: lidar_timestamp={lidar_unix_timestamp} image_timestamp={image_unix_timestamp}"
                     )
 
-                print(
-                    f"frame{generated_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
-                )
+                if generated_frame_index % self._msg_display_interval == 0:
+                    print(
+                        f"frame{generated_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
+                    )
                 is_data_found = True
             else:
                 # camera_only_mode
@@ -667,7 +670,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         is_data_found = True
 
             if is_data_found:
-                print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
+                if generated_frame_index % self._msg_display_interval == 0:
+                    print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
                 sample_data_token = self._generate_image_data(
                     image_msg,
                     sample_token,
