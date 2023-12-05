@@ -76,7 +76,7 @@ class Rosbag2Reader:
         if "/tf" not in self._topic_name_to_topic_type:
             raise ValueError(f"/tf is not in {self._bag_dir}")
         if "/tf_static" not in self._topic_name_to_topic_type:
-            raise ValueError(f"tf_static is not in {self._bag_dir}")
+            raise ValueError(f"/tf_static is not in {self._bag_dir}")
         for message in self.read_messages(topics=["/tf"]):
             for transform in message.transforms:
                 self._tf_buffer.set_transform(transform, "default_authority")
