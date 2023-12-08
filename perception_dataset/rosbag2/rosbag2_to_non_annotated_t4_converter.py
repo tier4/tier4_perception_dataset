@@ -405,6 +405,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
+
+        # Calculate the maximum number of points
+        max_num_points = 0
+        for pointcloud_msg in self._bag_reader.read_messages(
+            topics=[topic],
+            start_time=start_time_in_time,
+        ):
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            max_num_points = max(max_num_points, len(points_arr))
+
+        # Main iteration
         for pointcloud_msg in self._bag_reader.read_messages(
             topics=[topic],
             start_time=start_time_in_time,
@@ -439,6 +450,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         f"PointCloud message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
 
+            points_arr = misc_utils.get_points_from_pointcloud_msg(pointcloud_msg)
+            if len(points_arr) < max_num_points * 0.5:
+                warnings.warn(
+                    f"PointCloud message is relatively lower than the maximum size. "
+                    f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
+                )
+                continue
+
             nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
             sample_token = self._sample_table.insert_into_table(
                 timestamp=nusc_timestamp, scene_token=scene_token
@@ -460,10 +479,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            if isinstance(pointcloud_msg, PointCloud2):
-                points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-            else:
-                points_arr = np.zeros((0, 5), dtype=np.float32)
+            points_arr = misc_utils.get_points_from_pointcloud_msg(pointcloud_msg)
+            if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                 )
