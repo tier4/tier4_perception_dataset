@@ -1,5 +1,5 @@
 import perception_dataset.utils.misc as misc_utils
-
+import pytest
 
 def test_unix_timestamp_to_nusc_timestamp():
     # TODO(yukke42): impl test_unix_timestamp_to_nusc_timestamp
@@ -24,7 +24,7 @@ def assert_synced_frame_info_list(expected, synced_frame_info_list):
         if expected[i][2] is None:  # If the timestamp is dummy
             assert synced_frame_info_list[i][2] is None
         else:
-            assert abs(synced_frame_info_list[i][2] - expected[i][2]) < 1e-6
+            synced_frame_info_list[i][2] == pytest.approx(expected[i][2])
 
 
 def test_get_lidar_camera_synced_frame_info_1():
