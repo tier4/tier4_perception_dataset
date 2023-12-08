@@ -1,4 +1,3 @@
-import copy
 import enum
 import glob
 import json
@@ -562,7 +561,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         scene_token: str,
     ):
-
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
         sample_records: List[SampleRecord] = self._sample_table.to_records()
@@ -573,12 +571,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sensor_channel, start_time_in_time, topic
         )
 
-        if self._sensor_mode != SensorMode.NO_LIDAR: # w/ LiDAR mode
+        if self._sensor_mode != SensorMode.NO_LIDAR:  # w/ LiDAR mode
             image_timestamp_list = [
-                rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp) for image_msg in self._bag_reader.read_messages(topics=[topic], start_time=start_time_in_time)
+                rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
+                for image_msg in self._bag_reader.read_messages(
+                    topics=[topic], start_time=start_time_in_time
+                )
             ]
             lidar_timestamp_list = [
-                misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp) for sample_record in sample_records
+                misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp)
+                for sample_record in sample_records
             ]
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                 image_timestamp_list,
@@ -593,7 +595,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # Save image
             sample_data_token_list: List[str] = []
             image_index_counter = -1
-            image_generator = self._bag_reader.read_messages(topics=[topic], start_time=start_time_in_time)
+            image_generator = self._bag_reader.read_messages(
+                topics=[topic], start_time=start_time_in_time
+            )
             for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
                 if dummy_image_timestamp is None:
                     lidar_sample_token: str = sample_records[lidar_frame_index].token
@@ -614,7 +618,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     sample_data_token_list.append(sample_data_token)
                 else:
                     sample_data_token = self._generate_image_data(
-                        None, # dummy image
+                        None,  # dummy image
                         dummy_image_timestamp,
                         lidar_sample_token,
                         calibrated_sensor_token,
@@ -623,8 +627,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
                     sample_data_token_list.append(sample_data_token)
 
+        else:  # camera only mode
 
-        else: # camera only mode
             def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
                 dx: float = trans1["x"] - trans2["x"]
                 dy: float = trans1["y"] - trans2["y"]
@@ -647,7 +651,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 if generated_frame_index >= self._num_load_frames:
                     break
 
-                image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
+                image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(
+                    image_msg.header.stamp
+                )
 
                 is_data_found: bool = False
                 # camera_only_mode
@@ -701,7 +707,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         output_blank_image: bool = False,
         is_key_frame: bool = True,
     ):
-        ego_pose_token = self._generate_ego_pose(rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp))
+        ego_pose_token = self._generate_ego_pose(
+            rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp)
+        )
         if output_blank_image:
             image_arr = np.zeros(shape=image_arr.shape, dtype=np.uint8)
 
