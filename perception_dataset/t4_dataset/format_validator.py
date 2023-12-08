@@ -111,7 +111,7 @@ def validate_sample_data(nusc: NuScenes, root_path: Path):
     no_next_token_count: int = 0
     no_prev_token_count: int = 0
     for sample_data in nusc.sample_data:
-        if "is_valid" in sample_data and not sample_data["is_valid"]:
+        if not sample_data.get("is_valid", True):
             continue
         assert find_in_table(
             nusc, "sample", sample_data["sample_token"]

@@ -149,6 +149,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._output_data_dir = osp.join(
             self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.DATA.value
         )
+        self._msg_display_interval = 10
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
@@ -169,7 +170,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
         freq = 10
         num_frames_to_skip = int(self._skip_timestamp * freq)
-        max_num_frames = num_frames_in_bag - num_frames_to_skip
+        max_num_frames = num_frames_in_bag - num_frames_to_skip - 1
         num_frames_to_crop = 0
 
         if not (self._num_load_frames > 0 and self._num_load_frames <= max_num_frames):
@@ -427,9 +428,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(pointcloud_msg.header.stamp)
             if frame_index > 0:
                 time_diff = unix_timestamp - prev_frame_unix_timestamp
-                print(
-                    f"frame_index:{frame_index}: {unix_timestamp}, unix_timestamp - prev_frame_unix_timestamp: {time_diff}"
-                )
+                if frame_index % self._msg_display_interval == 0:
+                    print(
+                        f"frame_index:{frame_index}: {unix_timestamp}, unix_timestamp - prev_frame_unix_timestamp: {time_diff}"
+                    )
                 # Note: LiDAR Message drops are not accepted unless accept_frame_drop is True.
                 if not self._accept_frame_drop and (
                     time_diff > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp
@@ -656,6 +658,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 )
 
                 is_data_found: bool = False
+
                 # camera_only_mode
                 if (frame_index % self._generate_frame_every) == 0:
                     try:
