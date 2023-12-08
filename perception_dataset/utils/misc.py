@@ -1,11 +1,6 @@
 import os
-import numpy as np
 from typing import List
-from sensor_msgs.msg import PointCloud2
-import perception_dataset.utils.rosbag2 as rosbag2_utils
-
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
-
 
 def unix_timestamp_to_nusc_timestamp(timestamp: float) -> int:
     return int(timestamp * 1e6)
@@ -23,16 +18,9 @@ def get_sample_data_filename(sensor_channel: str, frame_index: int, fileformat: 
     )
     return filename
 
-def get_points_from_pointcloud_msg(pointcloud_msg):
-    if isinstance(pointcloud_msg, PointCloud2):
-        points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-    else:
-        points_arr = np.zeros((0, 5), dtype=np.float32)
-    return points_arr
-
 def get_lidar_camera_synced_frame_info(
-    lidar_timestamp_list: List[float],
     image_timestamp_list: List[float],
+    lidar_timestamp_list: List[float],
     start_timestamp: float = 0.0,
     camera_latency_sec: float = 0.0,
     accept_frame_drop: bool = False,
@@ -49,6 +37,7 @@ def get_lidar_camera_synced_frame_info(
 
         # Get LiDAR data
         lidar_unix_timestamp = lidar_timestamp_list[frame_index]
+        print("KOJI!!! ", lidar_unix_timestamp, image_unix_timestamp)
 
         # Address image drop
         while (image_unix_timestamp - prev_frame_unix_timestamp) > timestamp_diff:
@@ -56,7 +45,7 @@ def get_lidar_camera_synced_frame_info(
             dummy_image_timestamp = image_unix_timestamp
             while (dummy_image_timestamp - prev_frame_unix_timestamp) > timestamp_diff:
                 dummy_image_timestamp -= 0.1
-            synced_frame_info_list.append([image_index, generated_frame_index, dummy_image_timestamp])
+            synced_frame_info_list.append([None, generated_frame_index, dummy_image_timestamp])
 
             # Increment LiDAR information
             frame_index += 1
