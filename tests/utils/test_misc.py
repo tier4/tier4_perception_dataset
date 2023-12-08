@@ -53,3 +53,31 @@ def test_get_lidar_camera_synced_frame_info_2():
         num_load_frames=5,
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
+
+
+def test_get_lidar_camera_synced_frame_info_3():
+    image_timestamp_list = [0.07, 0.17, 0.27, 0.37, 0.47]
+    lidar_timestamp_list = [0.0, 0.1, 0.2, 0.3, 0.4]
+    expected = [[0, 0, None], [1, 1, None], [2, 2, None], [3, 3, None], [4, 4, None]]
+
+    synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
+        image_timestamp_list=image_timestamp_list,
+        lidar_timestamp_list=lidar_timestamp_list,
+        accept_frame_drop=True,
+        num_load_frames=5,
+    )
+    assert_synced_frame_info_list(expected, synced_frame_info_list)
+
+
+def test_get_lidar_camera_synced_frame_info_4():
+    image_timestamp_list = [0.12, 0.22, 0.32, 0.42, 0.52]
+    lidar_timestamp_list = [0.0, 0.1, 0.2, 0.3, 0.4]
+    expected = [[0, 0, None], [1, 1, None], [2, 2, None], [3, 3, None], [4, 4, None]]
+
+    synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
+        image_timestamp_list=image_timestamp_list,
+        lidar_timestamp_list=lidar_timestamp_list,
+        accept_frame_drop=True,
+        num_load_frames=5,
+    )
+    assert_synced_frame_info_list(expected, synced_frame_info_list)
