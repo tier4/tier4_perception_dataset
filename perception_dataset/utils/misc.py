@@ -30,7 +30,7 @@ def get_lidar_camera_synced_frame_info(
     num_load_frames: int = 0,
 ):
     synced_frame_info_list: List[
-        int, int, bool
+        int, int, float
     ] = []  # [image_index, lidar_frame_index, dummy_timestamp (None if not dummy)]
     frame_index: int = 0
     generated_frame_index: int = 0
