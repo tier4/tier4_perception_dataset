@@ -649,7 +649,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 topics=[topic],
                 start_time=start_time_in_time,
             ):
-                image_msg: CompressedImage
+                image_msg = None
                 if generated_frame_index >= self._num_load_frames:
                     break
 

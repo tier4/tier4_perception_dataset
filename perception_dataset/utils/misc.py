@@ -24,7 +24,6 @@ def get_sample_data_filename(sensor_channel: str, frame_index: int, fileformat: 
 def get_lidar_camera_synced_frame_info(
     image_timestamp_list: List[float],
     lidar_timestamp_list: List[float],
-    start_timestamp: float = 0.0,
     camera_latency_sec: float = 0.0,
     accept_frame_drop: bool = False,
     timestamp_diff: float = 0.15,
@@ -35,14 +34,13 @@ def get_lidar_camera_synced_frame_info(
     ] = []  # [image_index, lidar_frame_index, dummy_timestamp (None if not dummy)]
     frame_index: int = 0
     generated_frame_index: int = 0
-    prev_frame_unix_timestamp = start_timestamp
+    prev_frame_unix_timestamp = lidar_timestamp_list[0] + camera_latency_sec
     for image_index, image_unix_timestamp in enumerate(image_timestamp_list):
         if generated_frame_index >= num_load_frames:
             break
 
         # Get LiDAR data
         lidar_unix_timestamp = lidar_timestamp_list[frame_index]
-        print("KOJI!!! ", lidar_unix_timestamp, image_unix_timestamp)
 
         # Address image drop
         while (image_unix_timestamp - prev_frame_unix_timestamp) > timestamp_diff:
