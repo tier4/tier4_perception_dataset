@@ -592,6 +592,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 self._accept_frame_drop,
                 self._TIMESTAMP_DIFF,
                 self._num_load_frames,
+                self._msg_display_interval,
             )
 
             # Save image

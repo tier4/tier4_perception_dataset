@@ -28,6 +28,7 @@ def get_lidar_camera_synced_frame_info(
     accept_frame_drop: bool = False,
     timestamp_diff: float = 0.15,
     num_load_frames: int = 0,
+    msg_display_interval: int = 100,
 ):
     synced_frame_info_list: List[
         int, int, float
@@ -63,11 +64,11 @@ def get_lidar_camera_synced_frame_info(
                 f"Topic message may be dropped at [{lidar_frame_index}]: lidar_timestamp={lidar_unix_timestamp} image_timestamp={image_unix_timestamp}"
             )
 
-        print(
-            f"frame{lidar_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
-        )
+        if lidar_frame_index % msg_display_interval == 0:
+            print(
+                f"frame{lidar_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
+            )
 
-        print(f"frame{lidar_frame_index}, image stamp: {image_unix_timestamp}")
         synced_frame_info_list.append([image_index, lidar_frame_index, None])
         lidar_frame_index += 1
         prev_frame_unix_timestamp = image_unix_timestamp
