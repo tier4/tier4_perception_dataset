@@ -1,5 +1,7 @@
-import perception_dataset.utils.misc as misc_utils
 import pytest
+
+import perception_dataset.utils.misc as misc_utils
+
 
 def test_unix_timestamp_to_nusc_timestamp():
     # TODO(yukke42): impl test_unix_timestamp_to_nusc_timestamp
