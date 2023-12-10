@@ -649,7 +649,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 topics=[topic],
                 start_time=start_time_in_time,
             ):
-                image_msg = None
+                image_msg: CompressedImage
                 if generated_frame_index >= self._num_load_frames:
                     break
 
@@ -685,7 +685,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 if is_data_found:
                     print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
                     sample_data_token = self._generate_image_data(
-                        image_msg,
+                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                        image_unix_timestamp,
                         sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
