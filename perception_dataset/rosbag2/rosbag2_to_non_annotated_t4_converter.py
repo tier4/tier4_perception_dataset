@@ -586,7 +586,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                 image_timestamp_list,
                 lidar_timestamp_list,
-                start_timestamp,
                 self._camera_latency,
                 self._accept_frame_drop,
                 self._TIMESTAMP_DIFF,

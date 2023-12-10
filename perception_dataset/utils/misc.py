@@ -34,7 +34,7 @@ def get_lidar_camera_synced_frame_info(
         int, int, float
     ] = []  # [image_index, lidar_frame_index, dummy_timestamp (None if not dummy)]
     lidar_frame_index: int = 0
-    prev_frame_unix_timestamp = lidar_timestamp_list[0] + camera_latency_sec
+    prev_frame_unix_timestamp = nusc_timestamp_to_unix_timestamp(lidar_timestamp_list[0]) + camera_latency_sec
     for image_index, image_unix_timestamp in enumerate(image_timestamp_list):
         if lidar_frame_index >= num_load_frames:
             break
