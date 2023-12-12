@@ -76,15 +76,24 @@ Execute the conversion command again with `--overwrite` option.
 
 ## Deepen
 
-### T4 format to Deepen format
+### Non-annotated T4 format to Deepen format
 
 Converts T4 format data to Deepen format.
 
-input: T4 format data  
+input: Non-annotated T4 format data  
 output: deepen-format data
 
 ```bash
-python -m perception_dataset.convert --config config/convert_t4_to_deepen_sample.yaml
+python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_deepen_sample.yaml
+```
+
+### Annotated T4 format to Deepen format
+
+input: Annotated T4 format data  
+output: deepen-format data
+
+```bash
+python -m perception_dataset.convert --config config/convert_annotated_t4_to_deepen_sample.yaml
 ```
 
 ### Create and update dataset
