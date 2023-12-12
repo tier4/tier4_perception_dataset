@@ -301,18 +301,16 @@ def main():
 
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
-        target_hz = config_dict["conversion"].get("target_hz", 10.0)
 
         converter = DataInterpolator(
             input_base=input_base,
             output_base=output_base,
-            target_hz=target_hz,
             logger=logger,
         )
 
-        logger.info(f"[BEGIN] Interpolating {input_base} into {output_base} as {target_hz} Hz")
+        logger.info(f"[BEGIN] Interpolating {input_base} into {output_base}")
         converter.convert()
-        logger.info(f"[DONE] Interpolating {input_base} into {output_base} as {target_hz} Hz")
+        logger.info(f"[DONE] Interpolating {input_base} into {output_base}")
 
     else:
         raise NotImplementedError()

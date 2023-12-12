@@ -1,8 +1,15 @@
 # Data Interpolation
 
-Interpolate annotations with specified Hz.
+Interpolate 3D annotations based on LiDAR timestamps recorded in sample data.
 
-By interpolation, the following metadata will be interpolated.
+## Assumptions
+
+- LiDAR and 3D annotation data is included.
+- Sample and sample annotation records will be interpolated with non-key frame timestamp that corresponding LiDAR timestamp has.
+
+## Metadata updates
+
+By interpolation, the following metadata will be updated.
 
 - **scene.json**
   - Only update `description` and `nbr_samples`
@@ -21,6 +28,20 @@ By interpolation, the following metadata will be interpolated.
     - `nbr_annotations` ...Update with the number of interpolated `sample_annotation`
     - `first_annotation_token` ..._No update_
     - `last_annotation_token` ..._No update_
+- **sample_data.json**
+  - Set the updated `sample_token` with the interpolated `sample` and set `is_key_frame=True`
+    - `token` ..._No update_
+    - `sample_token` ...If `is_key_frame=False` and LiDAR data, add new sample and set its token
+    - `ego_pose_token` ..._No update_
+    - `calibrated_sensor_token` ..._No update_
+    - `filename` ..._No update_
+    - `fileformat` ..._No update_
+    - `width` ..._No update_
+    - `height` ..._No update_
+    - `timestamp` ..._No update_
+    - `is_key_frame` ...Set `True` if there is corresponding an interpolated `sample`
+    - `next` ..._No update_
+    - `prev` ..._No update_
 - **sample.json**
   - Add new record with the interpolated `timestamp`.
   - Update `next/prev` token in the original record if there are any new records around at its `timestamp`.
