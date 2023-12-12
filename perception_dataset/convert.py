@@ -89,11 +89,11 @@ def main():
             f"[Done] Converting T4 dataset ({input_base}) to deepen format dataset ({output_base})"
         )
     elif task == "convert_annotated_t4_to_deepen":
-        from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
-            NonAnnotatedT4ToDeepenConverter,
-        )
         from perception_dataset.deepen.annotated_t4_to_deepen_converter import (
             AnnotatedT4ToDeepenConverter,
+        )
+        from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
+            NonAnnotatedT4ToDeepenConverter,
         )
 
         input_base = config_dict["conversion"]["input_base"]
