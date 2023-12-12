@@ -5,7 +5,7 @@ Interpolate 3D annotations based on LiDAR timestamps recorded in sample data.
 ## Assumptions
 
 - LiDAR and 3D annotation data is included.
-- Sample and sample annotation records will be interpolated with non-key frame timestamp that corresponding LiDAR timestamp has.
+- Sample and sample annotation records will be interpolated with the non-key frame timestamp corresponding to the LiDAR timestamp.
 
 ## Metadata updates
 
@@ -31,7 +31,7 @@ By interpolation, the following metadata will be updated.
 - **sample_data.json**
   - Set the updated `sample_token` with the interpolated `sample` and set `is_key_frame=True`
     - `token` ..._No update_
-    - `sample_token` ...If `is_key_frame=False` and LiDAR data, add new sample and set its token
+    - `sample_token` ...If `is_key_frame=False` and LiDAR data is, add a new sample and set its token
     - `ego_pose_token` ..._No update_
     - `calibrated_sensor_token` ..._No update_
     - `filename` ..._No update_
@@ -39,34 +39,34 @@ By interpolation, the following metadata will be updated.
     - `width` ..._No update_
     - `height` ..._No update_
     - `timestamp` ..._No update_
-    - `is_key_frame` ...Set `True` if there is corresponding an interpolated `sample`
+    - `is_key_frame` ...Set `True` if there is a corresponding interpolated `sample`
     - `next` ..._No update_
     - `prev` ..._No update_
 - **sample.json**
-  - Add new record with the interpolated `timestamp`.
+  - Add a new record with the interpolated `timestamp`.
   - Update `next/prev` token in the original record if there are any new records around at its `timestamp`.
     - `token` ..._No update_
     - `timestamp` ..._No update_
     - `scene_token` ..._No update_
-    - `next` ...Update if there is new next record
-    - `prev` ...Update if there is new previous record
+    - `next` ...Update if there is a new next record
+    - `prev` ...Update if there is a new previous record
 - **sample_annotation.json**
-  - Add new record interpolating `translation/rotation/velocity/acceleration` with the corresponding timestamp
+  - Add a new record interpolating `translation/rotation/velocity/acceleration` with the corresponding timestamp
   - Update `next/prev` token in the original record if there are any new records around at its `timestamp`.
     - `token` ..._No update_
     - `sample_token` ...Fill with the corresponding token of `sample`
     - `instance_token` ..._No update_
     - `attribute_tokens` ..._No update_
-    - `visibility_token` ...Set same value with the latest previous original `sample_annotation` for same instance
+    - `visibility_token` ...Set the same value with the latest previous original `sample_annotation` for the same instance
     - `translation` ...Interpolate with `CUBIC_SPLINE`
     - `velocity` ...Interpolate with `CUBIC_SPLINE` if not `None`
     - `acceleration` ...Interpolate with `CUBIC_SPLINE` if not `None`
-    - `size` ...Set same value with the latest previous original `sample_annotation` for same instance
+    - `size` ...Set the same value with the latest previous original `sample_annotation` for the same instance
     - `rotation` ...Interpolate with `SLERP`
-    - `num_lidar_pts` ...Set same value with the latest previous original `sample_annotation` for same instance
-    - `num_radar_pts` ...Set same value with the latest previous original `sample_annotation` for same instance
-    - `next` ...Update if there is new next record
-    - `prev` ...Update if there is new previous record
+    - `num_lidar_pts` ...Set the same value with the latest previous original `sample_annotation` for the same instance
+    - `num_radar_pts` ...Set the same value with the latest previous original `sample_annotation` for the same instance
+    - `next` ...Update if there is a new next record
+    - `prev` ...Update if there is a new previous record
 
 ## Quick Start
 
@@ -83,7 +83,6 @@ description:
 conversion:
   input_base: ./data/t4_dataset     ...Input base directory path
   output_base: ./data/interpolate   ...Output base directory path
-  target_hz: 10.0                   ...Target Hz
 ```
 
 ## Check Interpolation Result
