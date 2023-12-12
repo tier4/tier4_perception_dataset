@@ -604,7 +604,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 topics=[topic], start_time=start_time_in_time
             )
             for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
-                if image_index is None: # Image dropped
+                if image_index is None:  # Image dropped
                     sample_data_token = self._generate_image_data(
                         np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
                         dummy_image_timestamp,
@@ -616,9 +616,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         is_key_frame=False,
                     )
                     sample_data_token_list.append(sample_data_token)
-                elif lidar_frame_index is None: # LiDAR dropped
+                elif lidar_frame_index is None:  # LiDAR dropped
                     warnings.warn(f"LiDAR message dropped at image_index: {image_index}")
-                else: # Both messages available
+                else:  # Both messages available
                     lidar_sample_token: str = sample_records[lidar_frame_index].token
 
                     image_msg = None

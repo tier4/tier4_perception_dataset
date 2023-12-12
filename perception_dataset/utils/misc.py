@@ -42,13 +42,17 @@ def get_lidar_camera_synced_frame_info(
 
         while image_timestamp - lidar_timestamp < timestamp_diff + camera_latency_sec - 0.1:
             if not accept_frame_drop:
-                raise ValueError(f"LiDAR message may be dropped at image_timestamp={image_timestamp}")
+                raise ValueError(
+                    f"LiDAR message may be dropped at image_timestamp={image_timestamp}"
+                )
             current_image_index += 1
             image_timestamp = image_timestamp_list[current_image_index]
 
         if image_timestamp - lidar_timestamp > timestamp_diff + camera_latency_sec:
             if not accept_frame_drop:
-                raise ValueError(f"Image message may be dropped at lidar_timestamp={lidar_timestamp}")
+                raise ValueError(
+                    f"Image message may be dropped at lidar_timestamp={lidar_timestamp}"
+                )
             dummy_timestamp = image_timestamp - 0.1
             synced_frame_info_list.append([None, lidar_index, dummy_timestamp])
             continue
@@ -59,5 +63,5 @@ def get_lidar_camera_synced_frame_info(
         if lidar_index % msg_display_interval == 0:
             print(
                 f"frame{lidar_index}, stamp = {image_timestamp}, diff cam - lidar = {image_timestamp - lidar_timestamp:0.3f} sec"
-            )        
+            )
     return synced_frame_info_list
