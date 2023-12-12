@@ -87,15 +87,6 @@ output: deepen-format data
 python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_deepen_sample.yaml
 ```
 
-### Annotated T4 format to Deepen format
-
-input: Annotated T4 format data  
-output: deepen-format data
-
-```bash
-python -m perception_dataset.convert --config config/convert_annotated_t4_to_deepen_sample.yaml
-```
-
 ### Create and update dataset
 
 Login to deepen, create a dataset, and upload the file `deepen_format/${DATSET_NAME}.zip`
@@ -215,4 +206,15 @@ output: T4 format data
 
 ```bash
 python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_pseudolabel_lidar.yaml
+```
+
+### Annotated T4 format to Deepen format
+
+In case you may want to modify the annotation of the T4 format data, you can also convert the annotated T4 format data to Deepen format.
+
+input: Annotated T4 format data  
+output: deepen-format data
+
+```bash
+python -m perception_dataset.convert --config config/convert_annotated_t4_to_deepen_sample.yaml
 ```
