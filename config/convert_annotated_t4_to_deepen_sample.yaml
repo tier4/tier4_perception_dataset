@@ -4,7 +4,7 @@ conversion:
   output_base: ./data/deepen_format
   annotation_hz: 10
   workers_number: 12
-  label_only: False
+  label_only: True
   camera_sensors:
     - channel: CAM_FRONT
     - channel: CAM_FRONT_RIGHT
