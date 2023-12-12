@@ -99,35 +99,7 @@ def test_get_lidar_camera_synced_frame_info_5():
     assert_synced_frame_info_list(expected, synced_frame_info_list)
 
 
-# def test_get_lidar_camera_synced_frame_info_6():
-#     image_timestamp_list = [0.07, 0.27, 0.37, 0.47]
-#     lidar_timestamp_list = [0.0, 0.2, 0.3, 0.4]
-#     expected = [[0, 0, None], [1, 1, None], [2, 2, None], [3, 3, None]]
-
-#     synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
-#         image_timestamp_list=image_timestamp_list,
-#         lidar_timestamp_list=lidar_timestamp_list,
-#         accept_frame_drop=True,
-#         num_load_frames=len(lidar_timestamp_list),
-#     )
-#     assert_synced_frame_info_list(expected, synced_frame_info_list)
-
-
-# def test_get_lidar_camera_synced_frame_info_7():
-#     image_timestamp_list = [0.07, 0.27, 0.37, 0.47]
-#     lidar_timestamp_list = [0.0, 0.3, 0.4]
-#     expected = [[0, 0, None], [2, 1, None], [3, 2, None]]
-
-#     synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
-#         image_timestamp_list=image_timestamp_list,
-#         lidar_timestamp_list=lidar_timestamp_list,
-#         accept_frame_drop=True,
-#         num_load_frames=len(lidar_timestamp_list),
-#     )
-#     assert_synced_frame_info_list(expected, synced_frame_info_list)
-
-
-def test_get_lidar_camera_synced_frame_info_8():
+def test_get_lidar_camera_synced_frame_info_6():
     image_timestamp_list = [0.07, 0.37, 0.47]
     lidar_timestamp_list = [0.0, 0.1, 0.2, 0.3, 0.4]
     expected = [[0, 0, None], [None, 1, 0.17], [None, 2, 0.27], [1, 3, None], [2, 4, None]]
@@ -139,18 +111,3 @@ def test_get_lidar_camera_synced_frame_info_8():
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
-
-
-# Current implementation does not consider this case
-# def test_get_lidar_camera_synced_frame_info_9():
-#     image_timestamp_list = [0.07, 0.37, 0.47]
-#     lidar_timestamp_list = [0.0, 0.2, 0.3, 0.4]
-#     expected = [[0, 0, None], [None, 1, 0.17], [None, 2, 0.27], [1, 3, None], [2, 4, None]]
-
-#     synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
-#         image_timestamp_list=image_timestamp_list,
-#         lidar_timestamp_list=lidar_timestamp_list,
-#         accept_frame_drop=True,
-#         num_load_frames=len(lidar_timestamp_list),
-#     )
-#     assert_synced_frame_info_list(expected, synced_frame_info_list)
