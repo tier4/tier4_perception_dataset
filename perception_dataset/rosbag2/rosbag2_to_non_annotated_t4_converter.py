@@ -629,7 +629,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         calibrated_sensor_token,
                         sensor_channel,
                         lidar_frame_index,
-                        output_blank_image = True
+                        output_blank_image=True,
                     )
                     sample_data_token_list.append(sample_data_token)
 
