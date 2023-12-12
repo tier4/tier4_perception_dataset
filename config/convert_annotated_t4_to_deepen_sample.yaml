@@ -1,0 +1,22 @@
+task: convert_annotated_t4_to_deepen
+conversion:
+  # input_base: ./data/annotated_t4_format
+  input_base: ./data/synthetic_to_t4_format #TEMP!!!!!!!!!!!
+  output_base: ./data/deepen_format
+  annotation_hz: 10
+  workers_number: 12
+  label_only: False
+  camera_sensors:
+    - channel: CAM_FRONT
+    - channel: CAM_FRONT_RIGHT
+    - channel: CAM_BACK_RIGHT
+    - channel: CAM_BACK
+    - channel: CAM_BACK_LEFT
+    - channel: CAM_FRONT_LEFT
+  camera_position:
+    CAM_FRONT: camera_0
+    CAM_FRONT_RIGHT: camera_1
+    CAM_BACK_RIGHT: camera_2
+    CAM_BACK: camera_3
+    CAM_BACK_LEFT: camera_4
+    CAM_FRONT_LEFT: camera_5

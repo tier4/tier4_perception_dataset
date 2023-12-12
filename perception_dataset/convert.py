@@ -62,7 +62,7 @@ def main():
         logger.info(
             f"[END] Converting Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
         )
-    elif task == "convert_t4_to_deepen":
+    elif task == "convert_non_annotated_t4_to_deepen":
         from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
             NonAnnotatedT4ToDeepenConverter,
         )
@@ -88,6 +88,47 @@ def main():
         logger.info(
             f"[Done] Converting T4 dataset ({input_base}) to deepen format dataset ({output_base})"
         )
+    elif task == "convert_annotated_t4_to_deepen":
+        from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
+            NonAnnotatedT4ToDeepenConverter,
+        )
+        from perception_dataset.deepen.annotated_t4_to_deepen_converter import (
+            AnnotatedT4ToDeepenConverter,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        camera_sensors = config_dict["conversion"]["camera_sensors"]
+        annotation_hz = config_dict["conversion"]["annotation_hz"]
+        workers_number = config_dict["conversion"]["workers_number"]
+        camera_position = config_dict["conversion"]["camera_position"]
+        label_only = config_dict["conversion"]["label_only"]
+
+        converter = AnnotatedT4ToDeepenConverter(
+            input_base=input_base,
+            output_base=output_base,
+            camera_position=camera_position,
+        )
+
+        logger.info(
+            f"[BEGIN] Converting T4 dataset ({input_base}) to deepen format dataset ({output_base})"
+        )
+        converter.convert()
+
+        if not label_only:
+            converter_non_anno = NonAnnotatedT4ToDeepenConverter(
+                input_base=input_base,
+                output_base=output_base,
+                camera_sensors=camera_sensors,
+                annotation_hz=annotation_hz,
+                workers_number=workers_number,
+            )
+            converter_non_anno.convert()
+
+        logger.info(
+            f"[Done] Converting T4 dataset ({input_base}) to deepen format dataset ({output_base})"
+        )
+
     elif task == "convert_deepen_to_t4":
         from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 
