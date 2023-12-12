@@ -593,6 +593,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 self._msg_display_interval,
             )
 
+            # Get image shape
+            temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
+            image_shape = rosbag2_utils.compressed_msg_to_numpy(temp_image_msg).shape
+
             # Save image
             sample_data_token_list: List[str] = []
             image_index_counter = -1
@@ -619,12 +623,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     sample_data_token_list.append(sample_data_token)
                 else:
                     sample_data_token = self._generate_image_data(
-                        None,  # dummy image
+                        np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
                         dummy_image_timestamp,
                         lidar_sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
                         lidar_frame_index,
+                        output_blank_image = True
                     )
                     sample_data_token_list.append(sample_data_token)
 
@@ -713,8 +718,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         ego_pose_token = self._generate_ego_pose(
             rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp)
         )
-        if output_blank_image:
-            image_arr = np.zeros(shape=image_arr.shape, dtype=np.uint8)
 
         fileformat = EXTENSION_ENUM.JPG.value[1:]  # Note: png for all images
         filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
