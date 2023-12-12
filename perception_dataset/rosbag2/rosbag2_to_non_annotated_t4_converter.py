@@ -645,7 +645,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             frame_index: int = 0
             generated_frame_index: int = 0
 
-            start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
             last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
             for image_msg in self._bag_reader.read_messages(
                 topics=[topic],
