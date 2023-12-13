@@ -1,6 +1,7 @@
 from collections import defaultdict
 import json
 import os.path as osp
+from pathlib import Path
 import re
 import shutil
 from typing import Any, Dict, List, Optional
@@ -10,6 +11,7 @@ from nuscenes.nuscenes import NuScenes
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
+from perception_dataset.t4_dataset.keyframe_consistency_resolver import KeyFrameConsistencyResolver
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 
@@ -60,10 +62,12 @@ class DeepenToT4Converter(AbstractConverter):
         with open(self._input_anno_file) as f:
             deepen_anno_json = json.load(f)
 
+        # format deepen annotation
         scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
             deepen_anno_json["labels"], self._description["camera_index"]
         )
 
+        # copy data and make time/topic filtered rosbag from non-annotated-t4-dataset and rosbag
         for t4data_name in self._t4data_name_to_deepen_dataset_id:
             is_dir_exist: bool = False
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
@@ -83,6 +87,7 @@ class DeepenToT4Converter(AbstractConverter):
             else:
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
+        # insert annotation to t4 dataset
         for t4data_name, dataset_id in self._t4data_name_to_deepen_dataset_id.items():
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             input_dir = osp.join(self._input_base, t4data_name)
@@ -93,6 +98,12 @@ class DeepenToT4Converter(AbstractConverter):
                 scene_anno_dict=scenes_anno_dict[dataset_id],
                 dataset_name=t4data_name,
             )
+
+        # fix non-keyframe (no-labeled frame) in t4 dataset
+        for t4data_name in self._t4data_name_to_deepen_dataset_id.keys():
+            output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
+            modifier = KeyFrameConsistencyResolver()
+            modifier.inspect_and_fix_t4_segment(Path(output_dir))
 
     def _copy_data(self, input_dir: str, output_dir: str):
         if input_dir != output_dir:
