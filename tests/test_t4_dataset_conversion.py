@@ -49,8 +49,8 @@ def t4_dataset_path(request):
     converter = Rosbag2ToNonAnnotatedT4Converter(converter_params)
     converter.convert()
 
-    # before test - convert t4 to deepen
-    with open(TEST_CONFIG_ROOT_DIR / "convert_t4_to_deepen.yaml") as f:
+    # before test - convert non-annotated t4 to deepen
+    with open(TEST_CONFIG_ROOT_DIR / "convert_non_annotated_t4_to_deepen.yaml") as f:
         config_dict = yaml.safe_load(f)
     t42d_input_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["input_base"])
     t42d_output_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["output_base"])
