@@ -220,8 +220,12 @@ def test_category_json(t4_dataset_path, category_list):
 def test_ego_pose_json(t4_dataset_path):
     ego_pose_json = load_json(t4_dataset_path, "ego_pose")
     assert len(ego_pose_json) == 190, f"ego_pose length is {len(ego_pose_json)}, expected 190"
-    assert ego_pose_json[0]["timestamp"] == 1660889208802548, "the first timestamp of ego_pose is not 1660889208.802548"
-    assert ego_pose_json[-1]["timestamp"] == 1660889211547769, "the last timestamp of ego_pose is not 1660889211.547769"
+    assert (
+        ego_pose_json[0]["timestamp"] == 1660889208802548
+    ), "the first timestamp of ego_pose is not 1660889208.802548"
+    assert (
+        ego_pose_json[-1]["timestamp"] == 1660889211547769
+    ), "the last timestamp of ego_pose is not 1660889211.547769"
     for ego_pose in ego_pose_json:
         assert ego_pose["translation"], "translation is empty"
         assert ego_pose["rotation"], "rotation is empty"
@@ -349,19 +353,33 @@ def test_sample_data_json(t4_dataset_path):
         assert "next" in sample_data.keys(), "next is empty"
         assert "prev" in sample_data.keys(), "prev is empty"
         if sample_data["filename"] == "data/LIDAR_CONCAT/00000.pcd.bin":
-            assert sample_data["timestamp"] == 1660889208802548, "the first lidar timestamp is not 1660889208.802548"
+            assert (
+                sample_data["timestamp"] == 1660889208802548
+            ), "the first lidar timestamp is not 1660889208.802548"
         if sample_data["filename"] == "data/CAM_BACK_LEFT/00000.jpg":
-            assert sample_data["timestamp"] == 1660889208867851, "the first back-left-camera timestamp is not 1660889208.867851"
+            assert (
+                sample_data["timestamp"] == 1660889208867851
+            ), "the first back-left-camera timestamp is not 1660889208.867851"
         if sample_data["filename"] == "data/CAM_FRONT_LEFT/00000.jpg":
-            assert sample_data["timestamp"] == 1660889208884535, "the first front-left-camera timestamp is not 1660889208.884535"
+            assert (
+                sample_data["timestamp"] == 1660889208884535
+            ), "the first front-left-camera timestamp is not 1660889208.884535"
         if sample_data["filename"] == "data/CAM_FRONT/00000.jpg":
-            assert sample_data["timestamp"] == 1660889208898248, "the first front-camera timestamp is not 1660889208.898248"
+            assert (
+                sample_data["timestamp"] == 1660889208898248
+            ), "the first front-camera timestamp is not 1660889208.898248"
         if sample_data["filename"] == "data/CAM_FRONT_RIGHT/00000.jpg":
-            assert sample_data["timestamp"] == 1660889208917294, "the first back-left-camera timestamp is not 1660889208.917294"
+            assert (
+                sample_data["timestamp"] == 1660889208917294
+            ), "the first back-left-camera timestamp is not 1660889208.917294"
         if sample_data["filename"] == "data/CAM_BACK_RIGHT/00000.jpg":
-            assert sample_data["timestamp"] == 1660889208933253, "the first back-right-camera timestamp is not 1660889208.933253"
+            assert (
+                sample_data["timestamp"] == 1660889208933253
+            ), "the first back-right-camera timestamp is not 1660889208.933253"
         if sample_data["filename"] == "data/CAM_BACK/00000.jpg":
-            assert sample_data["timestamp"] == 1660889208947739, "the first back-camera timestamp is not 1660889208.947739"
+            assert (
+                sample_data["timestamp"] == 1660889208947739
+            ), "the first back-camera timestamp is not 1660889208.947739"
 
 
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
