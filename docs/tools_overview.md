@@ -214,7 +214,7 @@ In case you may want to modify the annotation of the T4 format data, you can als
 NOTE: By default the conversion script will convert sensor data and annotation data, but you may change `label_only` to `true` in the config file to convert only the annotation data.
 
 input: Annotated T4 format data
-output: deepen-format data
+output: deepen-format data (sensor data and label data)
 
 ```bash
 python -m perception_dataset.convert --config config/convert_annotated_t4_to_deepen_sample.yaml
