@@ -1,0 +1,21 @@
+task: convert_rosbag2_to_annotated_t4_tlr
+conversion:
+  overwrite_mode: true
+  # path to rosbag dir output by simulator
+  input_base: ./data/rosbag2
+  output_base: ./data/t4_annotated_tlr
+  skip_timestamp: 2.0
+  num_load_frames: 0
+  workers_number: 6
+  #traffic_light_signal_topic_name: /perception/traffic_light_recognition/camera6/traffic_signals
+  traffic_light_signal_topic_name: /perception/traffic_light_recognition/camera7/traffic_signals
+  # only used for traffic lights
+  #traffic_light_rois_topic_name: /perception/traffic_light_recognition/camera6/rois
+  traffic_light_rois_topic_name: /perception/traffic_light_recognition/camera7/rois
+  camera_sensors:  # カメラシャッタータイミングの順序と同じにする (x2)
+    #- topic: /sensing/camera/camera6/image_raw/compressed
+    #  channel: CAM_TRAFFIC_LIGHT_FAR
+    - topic: /sensing/camera/camera7/image_raw/compressed
+      channel: CAM_TRAFFIC_LIGHT_NEAR
+  generate_frame_every: 1
+  generate_frame_every_meter: 10
