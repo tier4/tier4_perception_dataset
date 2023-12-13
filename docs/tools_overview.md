@@ -211,8 +211,9 @@ python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_pseud
 ### Annotated T4 format to Deepen format
 
 In case you may want to modify the annotation of the T4 format data, you can also convert the annotated T4 format data to Deepen format.
+NOTE: By default the conversion script will convert sensor data and annotation data, but you may change `label_only` to `true` in the config file to convert only the annotation data.
 
-input: Annotated T4 format data  
+input: Annotated T4 format data
 output: deepen-format data
 
 ```bash
