@@ -32,7 +32,7 @@ def get_lidar_camera_synced_frame_info(
 ):
     synced_frame_info_list: List[
         int, int, float
-    ] = []  # [image_index, lidar_frame_index, dummy_timestamp (None if image is not dropped)]
+    ] = []  # [image_index, lidar_frame_index, dummy_image_timestamp (None if image is not dropped)]
 
     current_image_index: int = 0
     for lidar_index, lidar_timestamp in enumerate(lidar_timestamp_list):
