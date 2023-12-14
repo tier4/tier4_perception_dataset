@@ -128,6 +128,10 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
             "length": obj.shape.dimensions.x,
             "height": obj.shape.dimensions.z,
         }
+        if category_name == 'trailer':
+            # change trailer uuid, for case when truck and trailer has the same ID 
+            obj_uuid = str(obj_uuid).replace('-0000-0000-0000-', '-0001-0000-0000-')
+
         label_dict: Dict[str, Any] = {
             "category_name": category_name,
             "instance_id": str(obj_uuid),
