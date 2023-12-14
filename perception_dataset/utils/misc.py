@@ -67,7 +67,7 @@ def get_lidar_camera_synced_frame_info(
 
         if image_timestamp - lidar_timestamp > system_scan_period + lidar_to_camera_latency_sec:
             # Image is dropped
-            dummy_timestamp = image_timestamp - 0.1
+            dummy_timestamp = image_timestamp - system_scan_period
             synced_frame_info_list.append([None, lidar_index, dummy_timestamp])
             continue
 
