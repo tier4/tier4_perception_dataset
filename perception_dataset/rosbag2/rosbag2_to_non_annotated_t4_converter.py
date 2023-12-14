@@ -603,7 +603,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp)
                 for sample_record in sample_records
             ]
-            lidar_to_camera_latency_sec = self._camera_lidar_latency_margin + self._lidar_latency + self._camera_latency
+            lidar_to_camera_latency_sec = (
+                self._camera_lidar_latency_margin + self._lidar_latency + self._camera_latency
+            )
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                 image_timestamp_list=image_timestamp_list,
                 lidar_timestamp_list=lidar_timestamp_list,
