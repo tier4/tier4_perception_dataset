@@ -61,7 +61,7 @@ class Rosbag2ConverterParams(BaseModel):
     system_scan_period_sec: float = 0.1  # system scan period in seconds
     topic_list: list = []  # topic list for input_bag
 
-    lidar_points_ratio_threshold: float = 0.5  # ratio of lidar points to be used proportion to the maximum number of lidar points in a frame
+    lidar_points_ratio_threshold: float = 0.2  # ratio of lidar points to be used proportion to the maximum number of lidar points in a frame
 
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False
