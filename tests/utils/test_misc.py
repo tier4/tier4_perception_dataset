@@ -146,7 +146,7 @@ def test_get_lidar_camera_synced_frame_info_accept_drop_frame_false():
     lidar_timestamp_list = [0.0, 0.2, 0.3, 0.4]
 
     with pytest.raises(ValueError):
-        synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
+        _ = misc_utils.get_lidar_camera_synced_frame_info(
             image_timestamp_list=image_timestamp_list,
             lidar_timestamp_list=lidar_timestamp_list,
             lidar_to_camera_latency_sec=0.05,
