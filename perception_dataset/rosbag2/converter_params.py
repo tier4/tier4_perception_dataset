@@ -61,7 +61,7 @@ class Rosbag2ConverterParams(BaseModel):
     system_scan_period_sec: float = 0.1  # system scan period in seconds
     timestamp_diff: float = 0.15
     topic_list: list = []  # topic list for input_bag
-    
+
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False
     generate_frame_every: int = 1  # pick frames out of every this number.
