@@ -33,9 +33,10 @@ def get_lidar_camera_synced_frame_info(
     """
     Get synced frame info list for lidar and camera.
     LiDAR scan with t_lidar and image with t_image are synced if
-        t_image - t_lidar >= lidar_to_camera_latency_sec
+        t_image - t_lidar >= 0
             and
         t_image - t_lidar <= system_scan_period + lidar_to_camera_latency_sec
+    Note that ideally t_image - t_lidar > lidar_to_camera_latency_sec.
 
     Args:
         image_timestamp_list: image timestamp list
@@ -57,7 +58,7 @@ def get_lidar_camera_synced_frame_info(
             break
         image_timestamp = image_timestamp_list[current_image_index]
 
-        while image_timestamp - lidar_timestamp < lidar_to_camera_latency_sec:
+        while image_timestamp - lidar_timestamp < 0:
             if not accept_frame_drop:
                 raise ValueError(
                     f"LiDAR message may be dropped at image_timestamp={image_timestamp}"
