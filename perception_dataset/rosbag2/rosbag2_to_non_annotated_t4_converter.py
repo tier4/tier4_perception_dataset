@@ -107,6 +107,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._camera_latency: float = params.camera_latency_sec
         self._lidar_latency: float = params.lidar_latency_sec
         self._camera_lidar_latency_margin: float = params.camera_lidar_latency_margin_sec
+        self._lidar_points_ratio_threshold: float = params.lidar_points_ratio_threshold
         self._start_timestamp: float = params.start_timestamp_sec
         self._data_type: DataType = params.data_type
         self._ignore_no_ego_transform_at_rosbag_beginning: bool = (
@@ -454,7 +455,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
 
             points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-            if len(points_arr) < max_num_points * 0.5:
+            if len(points_arr) < max_num_points * self._lidar_points_ratio_threshold:
                 warnings.warn(
                     f"PointCloud message is relatively lower than the maximum size. "
                     f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
