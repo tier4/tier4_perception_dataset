@@ -40,9 +40,9 @@ def get_lidar_camera_synced_frame_info(
     Args:
         image_timestamp_list: image timestamp list
         lidar_timestamp_list: lidar timestamp list
-        camera_latency_sec: camera latency in seconds between the header.stamp and shutter trigger
-        accept_frame_drop: whether to accept frame drop
+        lidar_to_camera_latency_sec: camera latency in seconds between the header.stamp and shutter trigger
         system_scan_period: system scan period in seconds
+        accept_frame_drop: whether to accept frame drop in LiDAR
         num_load_frames: the number of frames to be loaded. if the value isn't positive, read all messages.
         msg_display_interval: display interval for messages
     Return:
@@ -66,10 +66,7 @@ def get_lidar_camera_synced_frame_info(
             image_timestamp = image_timestamp_list[current_image_index]
 
         if image_timestamp - lidar_timestamp > system_scan_period + lidar_to_camera_latency_sec:
-            if not accept_frame_drop:
-                raise ValueError(
-                    f"Image message may be dropped at lidar_timestamp={lidar_timestamp}"
-                )
+            # Image is dropped
             dummy_timestamp = image_timestamp - 0.1
             synced_frame_info_list.append([None, lidar_index, dummy_timestamp])
             continue
