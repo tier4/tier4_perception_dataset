@@ -205,7 +205,7 @@ def main():
         logger.info("[END] Conversion Completed")
 
     elif task == "convert_rosbag2_to_annotated_t4_tlr":
-        from perception_dataset.rosbag2.rosbag2_to_t4_tlr_converter import (
+        from perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter import (
             Rosbag2ToAnnotatedT4TlrConverter,
         )
 
@@ -222,7 +222,7 @@ def main():
         logger.info("[END] Conversion Completed")
 
     elif task == "convert_rosbag2_with_gt_to_annotated_t4_tlr":
-        from perception_dataset.rosbag2.rosbag2_to_t4_tlr_converter import (
+        from perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter import (
             Rosbag2ToAnnotatedT4TlrConverter,
         )
 

@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Set, Union
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
-from tier4_perception_msgs.msg import TrafficLightRoiArray, TrafficSignalArray
+from autoware_perception_msgs.msg import TrafficSignalArray
+from autoware_auto_perception_msgs.msg import TrafficLightRoiArray
 import yaml
 
 from perception_dataset.rosbag2.autoware_msgs import parse_traffic_lights
@@ -36,7 +37,7 @@ class Rosbag2ToAnnotatedT4TlrConverter(Rosbag2ToT4Converter):
         try:
             params = copy.deepcopy(self._params)
             params.input_bag_path = bag_dir
-            converter = _Rosbag2ToT4TlrConverter(params)
+            converter = _Rosbag2ToAnnotatedT4TlrConverter(params)
             converter.convert()
         except Exception:
             logger.exception(f"{bag_dir} failed with exception")
