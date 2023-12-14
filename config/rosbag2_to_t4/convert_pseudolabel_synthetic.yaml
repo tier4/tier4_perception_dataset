@@ -1,0 +1,31 @@
+task: convert_rosbag2_to_t4
+description:
+  scene: synthetic
+conversion:
+  # path to rosbag dir output by simulator
+  input_base: ./data/rosbag2_synthetic
+  output_base: ./data/synthetic_to_t4_format
+  workers_number: 1
+  skip_timestamp: 2.0
+  num_load_frames: 0
+  crop_frames_unit: 0  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
+  object_topic_name: /perception/object_recognition/detection/pointpainting/objects
+  object_msg_type: DetectedObjects
+  world_frame_id: map
+  accept_frame_drop: True # If true, the conversion will continue even if the LiDAR frame is dropped.
+  lidar_sensor:
+    topic: /sensing/lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors: #  Keep the same order as each camera exposure timing
+    - topic: /sensing/camera/camera3/image_rect_color/compressed
+      channel: CAM_BACK_LEFT
+    - topic: /sensing/camera/camera2/image_rect_color/compressed
+      channel: CAM_FRONT_LEFT
+    - topic: /sensing/camera/camera0/image_rect_color/compressed
+      channel: CAM_FRONT
+    - topic: /sensing/camera/camera4/image_rect_color/compressed
+      channel: CAM_FRONT_RIGHT
+    - topic: /sensing/camera/camera5/image_rect_color/compressed
+      channel: CAM_BACK_RIGHT
+    - topic: /sensing/camera/camera1/image_rect_color/compressed
+      channel: CAM_BACK
