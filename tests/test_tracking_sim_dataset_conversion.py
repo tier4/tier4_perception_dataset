@@ -10,7 +10,6 @@ import yaml
 
 from perception_dataset.constants import SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
-from perception_dataset.rosbag2.converter_params import DataType
 from perception_dataset.rosbag2.rosbag2_to_t4_tracking_converter import (
     Rosbag2ToT4TrackingConverter,
 )
@@ -341,4 +340,6 @@ def test_directory_structure(t4_dataset_path):
 
     intput_bag_files = os.listdir(osp.join(t4_dataset_path, "input_bag"))
     assert "metadata.yaml" in intput_bag_files, "metadata.yaml is not in input_bag"
-    assert "tracking_sim_sample_data_0.db3" in intput_bag_files, "tracking_sim_sample_data_0.db3 is not in input_bag"
+    assert (
+        "tracking_sim_sample_data_0.db3" in intput_bag_files
+    ), "tracking_sim_sample_data_0.db3 is not in input_bag"
