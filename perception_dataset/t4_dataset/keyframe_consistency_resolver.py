@@ -42,6 +42,7 @@ class KeyFrameConsistencyResolver:
         if len(scene_list) > 0 and len(sample_list) > 0:
             scene_list[0]["first_sample_token"] = sample_list[0]["token"]
             scene_list[0]["last_sample_token"] = sample_list[-1]["token"]
+            scene_list[0]["nbr_samples"] = len(sample_list)
 
         with open(segment_path / "annotation/scene.json", "w") as f:
             json.dump(scene_list, f, indent=4)

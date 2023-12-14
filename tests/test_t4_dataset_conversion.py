@@ -220,6 +220,12 @@ def test_category_json(t4_dataset_path, category_list):
 def test_ego_pose_json(t4_dataset_path):
     ego_pose_json = load_json(t4_dataset_path, "ego_pose")
     assert len(ego_pose_json) == 190, f"ego_pose length is {len(ego_pose_json)}, expected 190"
+    assert (
+        ego_pose_json[0]["timestamp"] == 1660889208802548
+    ), "the first timestamp of ego_pose is not 1660889208.802548"
+    assert (
+        ego_pose_json[-1]["timestamp"] == 1660889211547769
+    ), "the last timestamp of ego_pose is not 1660889211.547769"
     for ego_pose in ego_pose_json:
         assert ego_pose["translation"], "translation is empty"
         assert ego_pose["rotation"], "rotation is empty"
@@ -346,6 +352,34 @@ def test_sample_data_json(t4_dataset_path):
         ], f"is_key_frame is {sample_data['is_key_frame']}, is_valid is {sample_data['is_valid']}"
         assert "next" in sample_data.keys(), "next is empty"
         assert "prev" in sample_data.keys(), "prev is empty"
+        if sample_data["filename"] == "data/LIDAR_CONCAT/00000.pcd.bin":
+            assert (
+                sample_data["timestamp"] == 1660889208802548
+            ), "the first lidar timestamp is not 1660889208.802548"
+        if sample_data["filename"] == "data/CAM_BACK_LEFT/00000.jpg":
+            assert (
+                sample_data["timestamp"] == 1660889208867851
+            ), "the first back-left-camera timestamp is not 1660889208.867851"
+        if sample_data["filename"] == "data/CAM_FRONT_LEFT/00000.jpg":
+            assert (
+                sample_data["timestamp"] == 1660889208884535
+            ), "the first front-left-camera timestamp is not 1660889208.884535"
+        if sample_data["filename"] == "data/CAM_FRONT/00000.jpg":
+            assert (
+                sample_data["timestamp"] == 1660889208898248
+            ), "the first front-camera timestamp is not 1660889208.898248"
+        if sample_data["filename"] == "data/CAM_FRONT_RIGHT/00000.jpg":
+            assert (
+                sample_data["timestamp"] == 1660889208917294
+            ), "the first back-left-camera timestamp is not 1660889208.917294"
+        if sample_data["filename"] == "data/CAM_BACK_RIGHT/00000.jpg":
+            assert (
+                sample_data["timestamp"] == 1660889208933253
+            ), "the first back-right-camera timestamp is not 1660889208.933253"
+        if sample_data["filename"] == "data/CAM_BACK/00000.jpg":
+            assert (
+                sample_data["timestamp"] == 1660889208947739
+            ), "the first back-camera timestamp is not 1660889208.947739"
 
 
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
@@ -377,6 +411,11 @@ def test_scene_json(t4_dataset_path):
         assert scene["nbr_samples"], "nbr_samples is empty"
         assert scene["first_sample_token"], "first_sample_token is empty"
         assert scene["last_sample_token"], "last_sample_token is empty"
+
+        # Todo: fix this
+        # Because of current implementation of KeyFrameConsistencyResolver, sample length is 26, which should be 27
+        # If there is a frame in the dataset where no objects are present, it is advisable to refrain from using the KeyFrameConsistencyResolver.
+        assert scene["nbr_samples"] == 26, f"nbr_samples is {scene['nbr_samples']}, expected 26"
 
 
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
