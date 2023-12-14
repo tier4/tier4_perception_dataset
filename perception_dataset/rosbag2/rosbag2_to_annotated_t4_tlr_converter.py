@@ -5,11 +5,10 @@ import os.path as osp
 import sys
 from typing import Any, Dict, List, Set, Union
 
-from autoware_auto_perception_msgs.msg import TrafficLightRoiArray
-from autoware_perception_msgs.msg import TrafficSignalArray
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
+from tier4_perception_msgs.msg import TrafficSignalArray, TrafficLightRoiArray
 import yaml
 
 from perception_dataset.rosbag2.autoware_msgs import parse_traffic_lights
@@ -182,7 +181,8 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         timestamp=nusc_timestamp, scene_token=scene_token
                     )
                     sample_data_token = self._generate_image_data(
-                        image_msg,
+                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                        rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
                         sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
