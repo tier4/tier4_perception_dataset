@@ -602,13 +602,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 for sample_record in sample_records
             ]
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
-                image_timestamp_list,
-                lidar_timestamp_list,
-                self._camera_latency,
-                self._accept_frame_drop,
-                self._system_scan_period_sec,
-                self._num_load_frames,
-                self._msg_display_interval,
+                image_timestamp_list=image_timestamp_list,
+                lidar_timestamp_list=lidar_timestamp_list,
+                lidar_to_camera_latency_sec=self._camera_latency,
+                system_scan_period=self._system_scan_period_sec,
+                accept_frame_drop=self._accept_frame_drop,
+                num_load_frames=self._num_load_frames,
+                msg_display_interval=self._msg_display_interval,
             )
 
             # Get image shape

@@ -24,25 +24,18 @@ def get_sample_data_filename(sensor_channel: str, frame_index: int, fileformat: 
 def get_lidar_camera_synced_frame_info(
     image_timestamp_list: List[float],
     lidar_timestamp_list: List[float],
-    camera_latency_sec: float = 0.0,
-    accept_frame_drop: bool = False,
+    lidar_to_camera_latency_sec: float = 0.0,
     system_scan_period: float = 0.1,
+    accept_frame_drop: bool = False,
     num_load_frames: int = 0,
     msg_display_interval: int = 100,
 ):
-<<<<<<< HEAD
-    synced_frame_info_list: List[
-        int, int, float
-    ] = (
-        []
-    )  # [image_index, lidar_frame_index, dummy_image_timestamp (None if image is not dropped)]
-=======
     """
     Get synced frame info list for lidar and camera.
     LiDAR scan with t_lidar and image with t_image are synced if
-        t_image - t_lidar >= camera_latency_sec
+        t_image - t_lidar >= lidar_to_camera_latency_sec
             and
-        t_image - t_lidar <= system_scan_period + camera_latency_sec
+        t_image - t_lidar <= system_scan_period + lidar_to_camera_latency_sec
 
     Args:
         image_timestamp_list: image timestamp list
@@ -57,7 +50,6 @@ def get_lidar_camera_synced_frame_info(
             [[image_index, lidar_frame_index, dummy_image_timestamp (None if image is not dropped)]]
     """
     synced_frame_info_list: List[int, int, float] = []
->>>>>>> a3f9bb2 (feat: add document for get_lidar_camera_synced_frame_info)
 
     current_image_index: int = 0
     for lidar_index, lidar_timestamp in enumerate(lidar_timestamp_list):
@@ -65,7 +57,7 @@ def get_lidar_camera_synced_frame_info(
             break
         image_timestamp = image_timestamp_list[current_image_index]
 
-        while image_timestamp - lidar_timestamp < camera_latency_sec:
+        while image_timestamp - lidar_timestamp < lidar_to_camera_latency_sec:
             if not accept_frame_drop:
                 raise ValueError(
                     f"LiDAR message may be dropped at image_timestamp={image_timestamp}"
@@ -73,7 +65,7 @@ def get_lidar_camera_synced_frame_info(
             current_image_index += 1
             image_timestamp = image_timestamp_list[current_image_index]
 
-        if image_timestamp - lidar_timestamp > system_scan_period + camera_latency_sec:
+        if image_timestamp - lidar_timestamp > system_scan_period + lidar_to_camera_latency_sec:
             if not accept_frame_drop:
                 raise ValueError(
                     f"Image message may be dropped at lidar_timestamp={lidar_timestamp}"
