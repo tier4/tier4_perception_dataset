@@ -124,8 +124,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._calibrated_sensor_target_frame: str = "base_link"
 
         # Note: To determine if there is any message dropout, including a delay tolerance of 10Hz.
-
-        self._TIMESTAMP_DIFF = params.timestamp_diff
+        # Note: The delay tolerance is set to 1.5 times the system scan period.
+        self._TIMESTAMP_DIFF = params.system_scan_period_sec * 1.5
 
         self._lidar_sensor: Dict[str, str] = params.lidar_sensor
         self._radar_sensors: List[Dict[str, str]] = params.radar_sensors

@@ -59,7 +59,6 @@ class Rosbag2ConverterParams(BaseModel):
     camera_lidar_latency_margin_sec: float = 0.02  # margin for camera-lidar latency in seconds
 
     system_scan_period_sec: float = 0.1  # system scan period in seconds
-    timestamp_diff: float = 0.15
     topic_list: list = []  # topic list for input_bag
 
     lidar_points_ratio_threshold: float = 0.5  # ratio of lidar points to be used proportion to the maximum number of lidar points in a frame
