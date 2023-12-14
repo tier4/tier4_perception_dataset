@@ -451,7 +451,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         f"PointCloud message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
 
-            points_arr = misc_utils.get_points_from_pointcloud_msg(pointcloud_msg)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
             if len(points_arr) < max_num_points * 0.5:
                 warnings.warn(
                     f"PointCloud message is relatively lower than the maximum size. "
@@ -480,7 +480,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            points_arr = misc_utils.get_points_from_pointcloud_msg(pointcloud_msg)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
             if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
@@ -604,9 +604,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                 image_timestamp_list,
                 lidar_timestamp_list,
-                self._system_scan_period_sec,
                 self._camera_latency,
                 self._accept_frame_drop,
+                self._system_scan_period_sec,
                 self._num_load_frames,
                 self._msg_display_interval,
             )
