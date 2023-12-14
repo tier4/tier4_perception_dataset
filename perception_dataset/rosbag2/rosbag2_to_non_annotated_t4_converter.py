@@ -604,9 +604,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 topics=[topic], start_time=start_time_in_time
             )
             for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
+                lidar_sample_token: str = sample_records[lidar_frame_index].token
                 if dummy_image_timestamp is None:
-                    lidar_sample_token: str = sample_records[lidar_frame_index].token
-
                     image_msg = None
                     while image_index_counter < image_index:
                         image_msg = next(image_generator)
