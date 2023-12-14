@@ -5,11 +5,11 @@ import os.path as osp
 import sys
 from typing import Any, Dict, List, Set, Union
 
+from autoware_auto_perception_msgs.msg import TrafficLightRoiArray
+from autoware_perception_msgs.msg import TrafficSignalArray
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
-from autoware_perception_msgs.msg import TrafficSignalArray
-from autoware_auto_perception_msgs.msg import TrafficLightRoiArray
 import yaml
 
 from perception_dataset.rosbag2.autoware_msgs import parse_traffic_lights
