@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Set, Union
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
-from tier4_perception_msgs.msg import TrafficSignalArray, TrafficLightRoiArray
+from tier4_perception_msgs.msg import TrafficLightRoiArray, TrafficSignalArray
 import yaml
 
 from perception_dataset.rosbag2.autoware_msgs import parse_traffic_lights
