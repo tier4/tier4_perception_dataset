@@ -50,14 +50,18 @@ class Rosbag2ConverterParams(BaseModel):
     skip_timestamp: float  # not read for the second after the first topic
     start_timestamp_sec: float = 0.0  # conversion start timestamp in sec
     crop_frames_unit: int = 1  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
+
+    # Following three parameters are used to calculate the possible range of the timestamp difference between the lidar and the camera.
     camera_latency_sec: float = (
         0.0  # camera latency in seconds between the header.stamp and shutter trigger
     )
     lidar_latency_sec: float = 0.03  # lidar to camera latency in seconds. For example in XX1 the latency is 0.03 sec due to the offset between top and the other LiDARs.
     camera_lidar_latency_margin_sec: float = 0.02  # margin for camera-lidar latency in seconds
+
     system_scan_period_sec: float = 0.1  # system scan period in seconds
     timestamp_diff: float = 0.15
     topic_list: list = []  # topic list for input_bag
+    
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False
     generate_frame_every: int = 1  # pick frames out of every this number.
