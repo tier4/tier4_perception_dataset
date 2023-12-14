@@ -53,7 +53,8 @@ class Rosbag2ConverterParams(BaseModel):
     camera_latency_sec: float = (
         0.0  # camera latency in seconds between the header.stamp and shutter trigger
     )
-    lidar_to_camera_latency_sec: float = 0.03  # lidar to camera latency in seconds. For example in XX1 the latency is 0.03 sec due to the offset between top and the other LiDARs.
+    lidar_latency_sec: float = 0.03  # lidar to camera latency in seconds. For example in XX1 the latency is 0.03 sec due to the offset between top and the other LiDARs.
+    camera_lidar_latency_margin_sec: float = 0.02  # margin for camera-lidar latency in seconds
     system_scan_period_sec: float = 0.1  # system scan period in seconds
     timestamp_diff: float = 0.15
     topic_list: list = []  # topic list for input_bag

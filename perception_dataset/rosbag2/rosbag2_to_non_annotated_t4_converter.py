@@ -106,6 +106,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._system_scan_period_sec: float = params.system_scan_period_sec
         self._camera_latency: float = params.camera_latency_sec
         self._lidar_latency: float = params.lidar_latency_sec
+        self._camera_lidar_latency_margin: float = params.camera_lidar_latency_margin_sec
         self._start_timestamp: float = params.start_timestamp_sec
         self._data_type: DataType = params.data_type
         self._ignore_no_ego_transform_at_rosbag_beginning: bool = (
@@ -602,10 +603,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp)
                 for sample_record in sample_records
             ]
+            lidar_to_camera_latency_sec = self._camera_lidar_latency_margin + self._lidar_latency + self._camera_latency
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                 image_timestamp_list=image_timestamp_list,
                 lidar_timestamp_list=lidar_timestamp_list,
-                lidar_to_camera_latency_sec=self._lidar_latency + self._camera_latency,
+                lidar_to_camera_latency_sec=lidar_to_camera_latency_sec,
                 system_scan_period=self._system_scan_period_sec,
                 accept_frame_drop=self._accept_frame_drop,
                 num_load_frames=self._num_load_frames,
