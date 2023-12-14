@@ -103,6 +103,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._num_load_frames: int = params.num_load_frames
         self._crop_frames_unit: int = params.crop_frames_unit
         self._without_compress: bool = params.without_compress
+        self._system_scan_period_sec: float = params.system_scan_period_sec
         self._camera_latency: float = params.camera_latency_sec
         self._start_timestamp: float = params.start_timestamp_sec
         self._data_type: DataType = params.data_type
@@ -603,9 +604,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                 image_timestamp_list,
                 lidar_timestamp_list,
+                self._system_scan_period_sec,
                 self._camera_latency,
                 self._accept_frame_drop,
-                self._TIMESTAMP_DIFF,
                 self._num_load_frames,
                 self._msg_display_interval,
             )
