@@ -39,7 +39,6 @@ def test_get_lidar_camera_synced_frame_info_1():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
@@ -55,7 +54,6 @@ def test_get_lidar_camera_synced_frame_info_2():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
@@ -71,7 +69,6 @@ def test_get_lidar_camera_synced_frame_info_3():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
@@ -87,7 +84,6 @@ def test_get_lidar_camera_synced_frame_info_4():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
@@ -103,7 +99,6 @@ def test_get_lidar_camera_synced_frame_info_5():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
@@ -119,7 +114,6 @@ def test_get_lidar_camera_synced_frame_info_6():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
@@ -135,7 +129,6 @@ def test_get_lidar_camera_synced_frame_info_7():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
@@ -151,25 +144,9 @@ def test_get_lidar_camera_synced_frame_info_8():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=len(lidar_timestamp_list),
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)
-
-
-def test_get_lidar_camera_synced_frame_info_accept_drop_frame_false():
-    image_timestamp_list = [0.07, 0.17, 0.27, 0.37, 0.47]
-    lidar_timestamp_list = [0.0, 0.2, 0.3, 0.4]
-
-    with pytest.raises(ValueError):
-        _ = misc_utils.get_lidar_camera_synced_frame_info(
-            image_timestamp_list=image_timestamp_list,
-            lidar_timestamp_list=lidar_timestamp_list,
-            lidar_to_camera_latency_sec=0.05,
-            system_scan_period=0.1,
-            accept_frame_drop=False,
-            num_load_frames=5,
-        )
 
 
 def test_get_lidar_camera_synced_frame_info_num_load_frames():
@@ -183,7 +160,6 @@ def test_get_lidar_camera_synced_frame_info_num_load_frames():
         lidar_timestamp_list=lidar_timestamp_list,
         lidar_to_camera_latency_sec=0.05,
         system_scan_period=0.1,
-        accept_frame_drop=True,
         num_load_frames=num_load_frames,
     )
     assert_synced_frame_info_list(expected, synced_frame_info_list)

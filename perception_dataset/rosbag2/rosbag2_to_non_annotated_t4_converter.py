@@ -456,11 +456,18 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
             if len(points_arr) < max_num_points * self._lidar_points_ratio_threshold:
-                warnings.warn(
-                    f"PointCloud message is relatively lower than the maximum size. "
-                    f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
-                )
-                continue
+                if not self._accept_frame_drop:
+                    raise ValueError(
+                        f"PointCloud message is relatively lower than the maximum size, which is not acceptable. "
+                        f"If you would like to accept, please change accept_frame_drop parameter. "
+                        f"frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
+                    )
+                else:
+                    warnings.warn(
+                        f"PointCloud message is relatively lower than the maximum size. "
+                        f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
+                    )
+                    continue
 
             nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
             sample_token = self._sample_table.insert_into_table(
@@ -614,7 +621,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 lidar_timestamp_list=lidar_timestamp_list,
                 lidar_to_camera_latency_sec=lidar_to_camera_latency_sec,
                 system_scan_period=self._system_scan_period_sec,
-                accept_frame_drop=self._accept_frame_drop,
                 num_load_frames=self._num_load_frames,
                 msg_display_interval=self._msg_display_interval,
             )
