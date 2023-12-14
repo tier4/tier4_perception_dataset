@@ -205,7 +205,9 @@ def main():
         logger.info("[END] Conversion Completed")
 
     elif task == "convert_rosbag2_to_annotated_t4_tlr":
-        from perception_dataset.rosbag2.rosbag2_to_t4_tlr_converter import Rosbag2ToAnnotatedT4TlrConverter
+        from perception_dataset.rosbag2.rosbag2_to_t4_tlr_converter import (
+            Rosbag2ToAnnotatedT4TlrConverter,
+        )
 
         param_args = {
             "task": task,
@@ -220,7 +222,9 @@ def main():
         logger.info("[END] Conversion Completed")
 
     elif task == "convert_rosbag2_with_gt_to_annotated_t4_tlr":
-        from perception_dataset.rosbag2.rosbag2_to_t4_tlr_converter import Rosbag2ToAnnotatedT4TlrConverter
+        from perception_dataset.rosbag2.rosbag2_to_t4_tlr_converter import (
+            Rosbag2ToAnnotatedT4TlrConverter,
+        )
 
         param_args = {
             "task": task,
@@ -238,12 +242,11 @@ def main():
         logger.info("[END] Conversion Completed")
 
     elif task == "convert_annotated_t4_tlr_to_deepen":
-        from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
-            NonAnnotatedT4ToDeepenConverter,
-        )
-
         from perception_dataset.deepen.annotated_t4_tlr_to_deepen_converter import (
             AnnotatedT4TlrToDeepenConverter,
+        )
+        from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
+            NonAnnotatedT4ToDeepenConverter,
         )
 
         input_base = config_dict["conversion"]["input_base"]
