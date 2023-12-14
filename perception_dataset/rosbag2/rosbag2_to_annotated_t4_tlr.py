@@ -6,6 +6,11 @@ import sys
 from typing import Any, Dict, List, Set, Union
 
 import numpy as np
+from pycocotools import mask as cocomask
+from sensor_msgs.msg import CompressedImage
+from tier4_perception_msgs.msg import TrafficLightRoiArray, TrafficSignalArray
+import yaml
+
 from perception_dataset.rosbag2.autoware_msgs import parse_traffic_lights
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
@@ -19,10 +24,6 @@ from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 import perception_dataset.utils.rosbag2 as rosbag2_utils
-from pycocotools import mask as cocomask
-from sensor_msgs.msg import CompressedImage
-from tier4_perception_msgs.msg import TrafficLightRoiArray, TrafficSignalArray
-import yaml
 
 logger = configure_logger(modname=__name__)
 
@@ -40,6 +41,7 @@ class Rosbag2ToAnnotatedT4TlrConverter(Rosbag2ToT4Converter):
         except Exception:
             logger.exception(f"{bag_dir} failed with exception")
             raise
+
 
 # TODO: This implementation has a lot in common with Rosbag2ToNonAnnotatedT4Converter,
 # and thus these two classes should be merged somehow in the near future.
