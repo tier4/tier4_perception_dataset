@@ -30,11 +30,34 @@ def get_lidar_camera_synced_frame_info(
     num_load_frames: int = 0,
     msg_display_interval: int = 100,
 ):
+<<<<<<< HEAD
     synced_frame_info_list: List[
         int, int, float
     ] = (
         []
     )  # [image_index, lidar_frame_index, dummy_image_timestamp (None if image is not dropped)]
+=======
+    """
+    Get synced frame info list for lidar and camera.
+    LiDAR scan with t_lidar and image with t_image are synced if
+        t_image - t_lidar >= camera_latency_sec
+            and
+        t_image - t_lidar <= system_scan_period + camera_latency_sec
+
+    Args:
+        image_timestamp_list: image timestamp list
+        lidar_timestamp_list: lidar timestamp list
+        camera_latency_sec: camera latency in seconds between the header.stamp and shutter trigger
+        accept_frame_drop: whether to accept frame drop
+        system_scan_period: system scan period in seconds
+        num_load_frames: the number of frames to be loaded. if the value isn't positive, read all messages.
+        msg_display_interval: display interval for messages
+    Return:
+        synced_frame_info_list: synced frame info list
+            [[image_index, lidar_frame_index, dummy_image_timestamp (None if image is not dropped)]]
+    """
+    synced_frame_info_list: List[int, int, float] = []
+>>>>>>> a3f9bb2 (feat: add document for get_lidar_camera_synced_frame_info)
 
     current_image_index: int = 0
     for lidar_index, lidar_timestamp in enumerate(lidar_timestamp_list):
