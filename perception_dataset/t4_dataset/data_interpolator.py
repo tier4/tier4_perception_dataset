@@ -396,40 +396,56 @@ def plot_sample_annotation(
     timestamps_msec = np.array(timestamps_msec) - timestamps_msec[0]
     translations = np.array(translations)
 
-    mean_hz: float = np.diff(timestamps_msec).mean() * 0.1
-    print(f"[{instance_token}]: Mean Hz={mean_hz}")
-
     ax.plot(translations[:, 0], translations[:, 1])
-    diff = np.diff(translations, axis=0)
-    arrow_pos = translations[:-1] + 0.5 * diff
-    arrow_norm = np.linalg.norm(diff[:, :2], axis=1)
-    ax.quiver(
-        arrow_pos[:, 0],
-        arrow_pos[:, 1],
-        diff[:, 0] / (arrow_norm + 1e-6),
-        diff[:, 1] / (arrow_norm + 1e-6),
-        angles="xy",
-    )
+
+    if len(timestamps_msec) > 1:
+        mean_hz: float = np.diff(timestamps_msec).mean() * 0.1
+        print(f"[{instance_token}]: Mean Hz={mean_hz}")
+
+        diff = np.diff(translations, axis=0)
+        arrow_pos = translations[:-1] + 0.5 * diff
+        arrow_norm = np.linalg.norm(diff[:, :2], axis=1)
+        ax.quiver(
+            arrow_pos[:, 0],
+            arrow_pos[:, 1],
+            diff[:, 0] / (arrow_norm + 1e-6),
+            diff[:, 1] / (arrow_norm + 1e-6),
+            angles="xy",
+        )
+    else:
+        print(f"[{instance_token}]: Single annotation only!!")
+
     return ax
 
 
 def test_with_plot():
     import argparse
 
-    from nuscenes import NuScenes
-
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Plot interpolated paths",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     parser.add_argument("data_root", type=str, help="Path to interpolated output base root")
+    parser.add_argument("-o", "--output", type=str, help="Output path, skip if not specified")
+    parser.add_argument("-n", "--num_max_plot", type=int, help="Number of instances to plot")
+    parser.add_argument("--show", action="store_true", help="")
     args = parser.parse_args()
 
     data_paths = glob(osp.join(args.data_root, "*"))
+    save_dir: str | None = args.output
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+
     for data_root in data_paths:
         try:
             print(f"Start plotting >> {data_root}")
             nusc = NuScenes("annotation", data_root, verbose=False)
 
             sample_annotations: Dict[str, List[Any]] = {}
-            for record in nusc.instance:
+            instances: List[Dict[str, Any]] = (
+                nusc.instance if args.num_max_plot is None else nusc.instance[: args.num_max_plot]
+            )
+            for record in instances:
                 token: str = record["token"]
                 next_ann_token: str = record["first_annotation_token"]
                 prev_ann_token: str = ""
@@ -447,18 +463,31 @@ def test_with_plot():
                     sample_annotations[token][-1]["token"] == last_ann_token
                 ), f"Invalid last ann token>>: Expect: {last_ann_token}, Result: {sample_annotations[token][-1]['token']}"
 
-            num_instance: int = len(sample_annotations.keys())
-            num_cols = 5
-            _, axes = plt.subplots(nrows=num_instance // num_cols + 1, ncols=num_cols)
+            num_instances: int = len(sample_annotations.keys())
+            num_cols = 5 if num_instances > 5 else num_instances
+            num_rows = (
+                num_instances // num_cols
+                if num_instances % num_cols == 0
+                else num_instances // num_cols + 1
+            )
+            fig, axes = plt.subplots(nrows=num_rows, ncols=num_cols)
 
             for i, (ins_token, ann) in enumerate(sample_annotations.items()):
-                ax: Axes = axes[i // num_cols, i % num_cols]
+                ax: Axes = (
+                    axes[i // num_cols, i % num_cols] if num_rows > 1 else axes[i % num_cols]
+                )
                 ax = plot_sample_annotation(ax, nusc, ann, ins_token)
                 instance_record = nusc.get("instance", ins_token)
                 category_record = nusc.get("category", instance_record["category_token"])
                 ax.set_title(category_record["name"])
 
-            plt.show()
+            if save_dir is not None:
+                scenario_name: str = osp.basename(data_root)
+                fig.savefig(osp.join(save_dir, f"{scenario_name}.png"))
+
+            if args.show:
+                plt.show()
+
             plt.close()
         except Exception as e:
             print(e)
