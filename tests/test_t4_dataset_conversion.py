@@ -22,6 +22,7 @@ from perception_dataset.t4_dataset.format_validator import (
     validate_directory_structure,
     validate_format,
 )
+from perception_dataset.utils.rosbag2 import get_topic_count
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
 
@@ -463,3 +464,20 @@ def test_directory_structure(t4_dataset_path):
     intput_bag_files = os.listdir(osp.join(t4_dataset_path, "input_bag"))
     assert "metadata.yaml" in intput_bag_files, "metadata.yaml is not in input_bag"
     assert "sample_bag_0.db3" in intput_bag_files, ".db3 is not in input_bag"
+
+    topic_count_dict = get_topic_count(osp.join(t4_dataset_path, "input_bag"))
+    assert (
+        "/localization/kinematic_state" in topic_count_dict.keys()
+    ), "kinematic_state is not in input_bag"
+    for i in range(6):
+        assert (
+            f"/sensing/camera/camera{i}/camera_info" in topic_count_dict.keys()
+        ), f"camera{i}/camera_info is not in input_bag"
+        assert (
+            f"/sensing/camera/camera{i}/image_rect_color/compressed" in topic_count_dict.keys()
+        ), f"camera{i}/image_rect_color is not in input_bag"
+    assert (
+        "/sensing/lidar/concatenated/pointcloud" in topic_count_dict.keys()
+    ), "lidar/concatenated/pointcloud is not in input_bag"
+    assert "/tf" in topic_count_dict.keys(), "tf is not in input_bag"
+    assert "/tf_static" in topic_count_dict.keys(), "tf_static is not in input_bag"
