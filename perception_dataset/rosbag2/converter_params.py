@@ -55,6 +55,7 @@ class Rosbag2ConverterParams(BaseModel):
     )
     timestamp_diff: float = 0.15
     topic_list: list = []  # topic list for input_bag
+    mandatory_topic_list: list = []  # mandatory topic list for input_bag
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False
     generate_frame_every: int = 1  # pick frames out of every this number.
@@ -71,7 +72,10 @@ class Rosbag2ConverterParams(BaseModel):
             and isinstance(args["topic_list"], dict)
             and "topic_list" in args["topic_list"]
         ):
-            args["topic_list"] = args["topic_list"]["topic_list"]
+            topic_list_dict = args["topic_list"]
+            args["topic_list"] = topic_list_dict["topic_list"]
+            if "mandatory_topic_list" in topic_list_dict.keys():
+                args["mandatory_topic_list"] = topic_list_dict["mandatory_topic_list"]
         super().__init__(**args)
 
         if len(self.camera_sensors) == 0:

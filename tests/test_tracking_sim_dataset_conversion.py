@@ -18,6 +18,7 @@ from perception_dataset.t4_dataset.format_validator import (
     validate_directory_structure,
     validate_format,
 )
+from perception_dataset.utils.rosbag2 import get_topic_count
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
 
@@ -343,3 +344,13 @@ def test_directory_structure(t4_dataset_path):
     assert (
         "tracking_sim_sample_data_0.db3" in intput_bag_files
     ), "tracking_sim_sample_data_0.db3 is not in input_bag"
+
+    topic_count_dict = get_topic_count(osp.join(t4_dataset_path, "input_bag"))
+    assert (
+        "/localization/kinematic_state" in topic_count_dict.keys()
+    ), "kinematic_state is not in input_bag"
+    assert (
+        "/perception/object_recognition/detection/objects" in topic_count_dict.keys()
+    ), "object_recognition/detection/objects is not in input_bag"
+    assert "/tf" in topic_count_dict.keys(), "tf is not in input_bag"
+    assert "/tf_static" in topic_count_dict.keys(), "tf_static is not in input_bag"

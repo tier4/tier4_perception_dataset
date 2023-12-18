@@ -12,6 +12,7 @@ from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     Rosbag2ToNonAnnotatedT4Converter,
 )
+from perception_dataset.utils.rosbag2 import get_topic_count
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
 
@@ -272,3 +273,19 @@ def test_directory_structure(t4_dataset_path):
     intput_bag_files = os.listdir(osp.join(t4_dataset_path, "input_bag"))
     assert "metadata.yaml" in intput_bag_files, "metadata.yaml is not in input_bag"
     assert "traffic_light_sample_tf_0.db3" in intput_bag_files, ".db3 is not in input_bag"
+
+    topic_count_dict = get_topic_count(osp.join(t4_dataset_path, "input_bag"))
+    assert (
+        "/localization/kinematic_state" in topic_count_dict.keys()
+    ), "kinematic_state is not in input_bag"
+    assert (
+        "/sensing/camera/camera6/camera_info" in topic_count_dict.keys()
+    ), "camera_info is not in input_bag"
+    assert (
+        "/sensing/camera/camera6/image_raw/compressed" in topic_count_dict.keys()
+    ), "image_raw is not in input_bag"
+    assert (
+        "/vehicle/status/velocity_status" in topic_count_dict.keys()
+    ), "velocity_status is not in input_bag"
+    assert "/tf" in topic_count_dict.keys(), "tf is not in input_bag"
+    assert "/tf_static" in topic_count_dict.keys(), "tf_static is not in input_bag"
