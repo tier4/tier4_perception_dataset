@@ -57,6 +57,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         self._non_empty_timestamps: Set[float] = set()
 
         self._topic_list = params.topic_list
+        self._mandatory_topics = params.mandatory_topic_list
         self._with_gt_label = params.with_gt_label
         self._gt_label_base = params.gt_label_base
 
@@ -86,6 +87,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                 self._topic_list,
                 self._start_timestamp,
                 self._end_timestamp,
+                self._mandatory_topics,
             )
             input_bag_maker.make_input_bag()
 
