@@ -490,10 +490,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            if isinstance(pointcloud_msg, PointCloud2):
-                points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-            else:
-                points_arr = np.zeros((0, 5), dtype=np.float32)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                 )
