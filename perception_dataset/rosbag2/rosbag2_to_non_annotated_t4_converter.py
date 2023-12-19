@@ -125,7 +125,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Note: To determine if there is any message dropout, including a delay tolerance of 10Hz.
         # Note: The delay tolerance is set to 1.5 times the system scan period.
-        self._TIMESTAMP_DIFF = params.system_scan_period_sec * 1.5
+        self._timestamp_diff = params.system_scan_period_sec * 1.5
 
         self._lidar_sensor: Dict[str, str] = params.lidar_sensor
         self._radar_sensors: List[Dict[str, str]] = params.radar_sensors
@@ -448,7 +448,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
                 # Note: LiDAR Message drops are not accepted unless accept_frame_drop is True.
                 if not self._accept_frame_drop and (
-                    time_diff > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp
+                    time_diff > self._timestamp_diff or unix_timestamp < prev_frame_unix_timestamp
                 ):
                     raise ValueError(
                         f"PointCloud message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
@@ -546,7 +546,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 )
                 if (
                     unix_timestamp - prev_frame_unix_timestamp
-                ) > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp:
+                ) > self._timestamp_diff or unix_timestamp < prev_frame_unix_timestamp:
                     raise ValueError(
                         f"{topic} message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
