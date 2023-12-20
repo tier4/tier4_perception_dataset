@@ -109,6 +109,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._camera_lidar_latency_margin: float = params.camera_lidar_latency_margin_sec
         self._lidar_points_ratio_threshold: float = params.lidar_points_ratio_threshold
         self._start_timestamp: float = params.start_timestamp_sec
+        self._end_timestamp: float = 0
         self._data_type: DataType = params.data_type
         self._ignore_no_ego_transform_at_rosbag_beginning: bool = (
             params.ignore_no_ego_transform_at_rosbag_beginning

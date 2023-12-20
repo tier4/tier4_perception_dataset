@@ -2,3 +2,4 @@ topic_list:
  - /perception/object_recognition/detection/objects
  - /tf
  - /tf_static
+ - /localization/kinematic_state

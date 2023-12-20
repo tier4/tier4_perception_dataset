@@ -61,6 +61,7 @@ class Rosbag2ConverterParams(BaseModel):
 
     system_scan_period_sec: float = 0.1  # system scan period in seconds
     topic_list: list = []  # topic list for input_bag
+    mandatory_topic_list: list = []  # mandatory topic list for input_bag
 
     lidar_points_ratio_threshold: float = 0.2  # ratio of lidar points to be used proportion to the maximum number of lidar points in a frame
 
@@ -80,7 +81,10 @@ class Rosbag2ConverterParams(BaseModel):
             and isinstance(args["topic_list"], dict)
             and "topic_list" in args["topic_list"]
         ):
-            args["topic_list"] = args["topic_list"]["topic_list"]
+            topic_list_dict = args["topic_list"]
+            args["topic_list"] = topic_list_dict["topic_list"]
+            if "mandatory_topic_list" in topic_list_dict.keys():
+                args["mandatory_topic_list"] = topic_list_dict["mandatory_topic_list"]
         super().__init__(**args)
 
         if len(self.camera_sensors) == 0:

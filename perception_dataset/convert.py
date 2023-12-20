@@ -204,6 +204,76 @@ def main():
         converter.convert()
         logger.info("[END] Conversion Completed")
 
+    elif task == "convert_rosbag2_to_annotated_t4_tlr":
+        from perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter import (
+            Rosbag2ToAnnotatedT4TlrConverter,
+        )
+
+        param_args = {
+            "task": task,
+            **config_dict["conversion"],
+        }
+        if args.overwrite:
+            param_args["overwrite_mode"] = args.overwrite
+        logger.info("[BEGIN] Converting ros2bag output by simulator --> T4 Format Data")
+        converter_params = Rosbag2ConverterParams(**param_args, with_camera=False)
+        converter = Rosbag2ToAnnotatedT4TlrConverter(converter_params)
+        converter.convert()
+        logger.info("[END] Conversion Completed")
+
+    elif task == "convert_rosbag2_with_gt_to_annotated_t4_tlr":
+        from perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter import (
+            Rosbag2ToAnnotatedT4TlrConverter,
+        )
+
+        param_args = {
+            "task": task,
+            **config_dict["conversion"],
+        }
+        if args.overwrite:
+            param_args["overwrite_mode"] = args.overwrite
+        logger.info("[BEGIN] Converting ros2bag with TLR GT --> T4 Format Data")
+        topic_list_yaml = config_dict["conversion"]["topic_list"]
+        with open(topic_list_yaml) as f:
+            param_args["topic_list"] = yaml.safe_load(f)
+        converter_params = Rosbag2ConverterParams(**param_args, with_camera=False)
+        converter = Rosbag2ToAnnotatedT4TlrConverter(converter_params)
+        converter.convert()
+        logger.info("[END] Conversion Completed")
+
+    elif task == "convert_annotated_t4_tlr_to_deepen":
+        from perception_dataset.deepen.annotated_t4_tlr_to_deepen_converter import (
+            AnnotatedT4TlrToDeepenConverter,
+        )
+        from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
+            NonAnnotatedT4ToDeepenConverter,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        camera_position = config_dict["conversion"]["camera_position"]
+        camera_sensors = [{"channel": k} for k in camera_position.keys()]
+
+        converter = AnnotatedT4TlrToDeepenConverter(
+            input_base=input_base,
+            output_base=output_base,
+            camera_position=camera_position,
+        )
+        logger.info(
+            f"[BEGIN] Converting T4 tlr dataset ({input_base}) to deepen format dataset ({output_base})"
+        )
+        converter.convert()
+        if not config_dict["conversion"]["label_only"]:
+            converter_non_anno = NonAnnotatedT4ToDeepenConverter(
+                input_base=input_base,
+                output_base=output_base,
+                camera_sensors=camera_sensors,
+            )
+            converter_non_anno.convert()
+        logger.info(
+            f"[Done] Converting T4 tlr dataset ({input_base}) to deepen format dataset ({output_base})"
+        )
+
     elif task == "add_2d_attribute":
         from perception_dataset.t4_dataset.attribute_merger import T4dataset2DAttributeMerger
 
