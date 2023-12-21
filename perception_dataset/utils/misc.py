@@ -26,7 +26,7 @@ def get_lidar_camera_synced_frame_info(
     lidar_timestamp_list: List[float],
     lidar_to_camera_latency_sec: float = 0.0,
     system_scan_period_sec: float = 0.1,
-    max_camera_jitter_sec: float = 0.0,
+    max_camera_jitter_sec: float = 0.03,
     num_load_frames: int = 0,
     msg_display_interval: int = 100,
 ):
