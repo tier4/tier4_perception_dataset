@@ -2,6 +2,7 @@ import copy
 import glob
 import os
 import os.path as osp
+from pathlib import Path
 import time
 from typing import Any, Dict, List
 
@@ -9,17 +10,14 @@ from nuimages import NuImages
 import numpy as np
 from nuscenes.nuscenes import NuScenes
 
-from pathlib import Path
 
 class AnnotatedT4ToRosbag2Converter(AbstractConverter):
-    def __init__(
-        self,
-        params: Rosbag2ConverterParams) -> None:
+    def __init__(self, params: Rosbag2ConverterParams) -> None:
         super().__init__(params.input_base, params.output_base)
 
         self._params = params
         self._overwrite_mode = params.overwrite_mode
-    
+
     def convert(self):
         start_time = time.time()
 
