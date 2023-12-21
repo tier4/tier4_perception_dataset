@@ -51,14 +51,11 @@ class Rosbag2ConverterParams(BaseModel):
     start_timestamp_sec: float = 0.0  # conversion start timestamp in sec
     crop_frames_unit: int = 1  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
 
-    # Following three parameters are used to calculate the possible range of the timestamp difference between the lidar and the camera.
-    # NOTE THAT THESE PARAMETERS ARE CAREFULLY TUNED.
-    camera_latency_sec: float = (
-        0.0  # camera latency in seconds between the header.stamp and shutter trigger
-    )
-    lidar_latency_sec: float = 0.03  # lidar to camera latency in seconds. For example in XX1 the latency is 0.03 sec due to the offset between top and the other LiDARs.
-    camera_lidar_latency_margin_sec: float = 0.01  # margin for camera-lidar latency in seconds
+    # Maximum camera jitter in seconds. This value MUST be set large enough since the camera jitter smaller than this value is not considererd. 
+    # Also, do not set this value larger than system_scan_period_sec.
+    max_camera_jitter_sec: float = 0.03
 
+    lidar_latency_sec: float = 0.03  # lidar latency in seconds between the header.stamp and shutter trigger
     system_scan_period_sec: float = 0.1  # system scan period in seconds
     topic_list: list = []  # topic list for input_bag
     mandatory_topic_list: list = []  # mandatory topic list for input_bag
