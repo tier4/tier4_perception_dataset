@@ -349,10 +349,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # temporaly use start_timestamp instead of recorded timestamp for non synced data
             camera_start_timestamp = start_timestamp
         else:
-            camera_start_timestamp = (
-                misc_utils.nusc_timestamp_to_unix_timestamp(first_sample_data_record.timestamp)
-                # + self._camera_latency
-            )
+            camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(first_sample_data_record.timestamp)
 
         for camera_sensor in self._camera_sensors:
             sensor_channel = camera_sensor["channel"]

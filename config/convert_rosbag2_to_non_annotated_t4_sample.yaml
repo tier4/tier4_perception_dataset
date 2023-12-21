@@ -15,19 +15,19 @@ conversion:
   camera_sensors: #  Keep the same order as each camera exposure timing
     - topic: /sensing/camera/camera3/image_rect_color/compressed
       channel: CAM_BACK_LEFT
-      delay_msec: 28.33
+      delay_msec: 48.33
     - topic: /sensing/camera/camera2/image_rect_color/compressed
       channel: CAM_FRONT_LEFT
-      delay_msec: 45.0
+      delay_msec: 65.0
     - topic: /sensing/camera/camera0/image_rect_color/compressed
       channel: CAM_FRONT
-      delay_msec: 61.67
+      delay_msec: 81.67
     - topic: /sensing/camera/camera4/image_rect_color/compressed
       channel: CAM_FRONT_RIGHT
-      delay_msec: 78.33
+      delay_msec: 98.33
     - topic: /sensing/camera/camera5/image_rect_color/compressed
       channel: CAM_BACK_RIGHT
-      delay_msec: 95.0
+      delay_msec: 115.0
     - topic: /sensing/camera/camera1/image_rect_color/compressed
       channel: CAM_BACK
-      delay_msec: 111.67
+      delay_msec: 131.67
