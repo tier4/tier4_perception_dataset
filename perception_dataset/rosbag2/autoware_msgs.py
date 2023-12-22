@@ -16,7 +16,6 @@ from tier4_perception_msgs.msg import (
     TrafficSignalArray,
 )
 
-
 DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME: Dict[str, List[str]] = {
     "unknown": [
         "object_state.still",
