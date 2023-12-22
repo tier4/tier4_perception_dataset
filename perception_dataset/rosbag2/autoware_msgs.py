@@ -58,6 +58,52 @@ def object_classification_to_category_name(object_classification) -> str:
     return cls_to_cat.get(object_classification, "unknown")
 
 
+default_attributes_by_category_name: Dict[str, List[str]] = {
+    "unknown": [
+        "object_state.still",
+        "occlusion_state.none",
+    ],
+    "car": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "truck": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "bus": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "trailer": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "motorcycle": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "bicycle": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "pedestrian": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "pedestrian_state.standing",
+    ],
+    "bicycle_without_rider": [],
+    "motorcycle_without_rider": [],
+    "personal_mobility_vehicle": [],
+}
+
+
 def parse_perception_objects(msg) -> List[Dict[str, Any]]:
     """https://github.com/tier4/autoware_auto_msgs/tree/tier4/main/autoware_auto_perception_msgs
 
@@ -131,7 +177,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
         label_dict: Dict[str, Any] = {
             "category_name": category_name,
             "instance_id": str(obj_uuid),
-            "attribute_names": [],  # not available
+            "attribute_names": default_attributes_by_category_name[category_name],
             "three_d_bbox": {
                 "translation": position,
                 "velocity": velocity,
