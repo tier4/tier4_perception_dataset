@@ -59,6 +59,7 @@ DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME: Dict[str, List[str]] = {
     "bicycle_without_rider": [],
     "motorcycle_without_rider": [],
     "personal_mobility_vehicle": [],
+    "street_asset": [],
 }
 
 
@@ -176,7 +177,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
         label_dict: Dict[str, Any] = {
             "category_name": category_name,
             "instance_id": str(obj_uuid),
-            "attribute_names": DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME[category_name],
+            "attribute_names": DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME[category_name] if category_name in DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME else [],
             "three_d_bbox": {
                 "translation": position,
                 "velocity": velocity,
