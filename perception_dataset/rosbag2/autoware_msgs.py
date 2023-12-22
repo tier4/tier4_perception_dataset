@@ -17,48 +17,7 @@ from tier4_perception_msgs.msg import (
 )
 
 
-def semantic_type_to_class_name(semantic_type: int) -> str:
-    """https://github.com/tier4/tier4_autoware_msgs/blob/tier4/universe/tier4_perception_msgs/msg/object_recognition/Semantic.msg"""
-    semantic_to_category: Dict[int, str] = {
-        0: "unknown",
-        1: "car",
-        2: "truck",
-        3: "bus",
-        4: "bicycle",
-        5: "motorcycle",
-        6: "pedestrian",
-        7: "animal",
-        11: "bicycle_without_rider",
-        12: "motorcycle_without_rider",
-        21: "street_asset",
-    }
-
-    return semantic_to_category.get(semantic_type, "unknown")
-
-
-def object_classification_to_category_name(object_classification) -> str:
-    """https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_perception_msgs/msg/ObjectClassification.idl"""
-    cls_to_cat: Dict[int, str] = {
-        0: "unknown",
-        1: "car",
-        2: "truck",
-        3: "bus",
-        4: "trailer",
-        5: "motorcycle",
-        6: "bicycle",
-        7: "pedestrian",
-        11: "bicycle_without_rider",
-        12: "motorcycle_without_rider",
-        13: "personal_mobility_vehicle",
-        14: "pedestrian",  # on wheelchair
-        15: "pedestrian",  # with umbrella
-        21: "street_asset",
-    }
-
-    return cls_to_cat.get(object_classification, "unknown")
-
-
-default_attributes_by_category_name: Dict[str, List[str]] = {
+DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME: Dict[str, List[str]] = {
     "unknown": [
         "object_state.still",
         "occlusion_state.none",
@@ -102,6 +61,47 @@ default_attributes_by_category_name: Dict[str, List[str]] = {
     "motorcycle_without_rider": [],
     "personal_mobility_vehicle": [],
 }
+
+
+def semantic_type_to_class_name(semantic_type: int) -> str:
+    """https://github.com/tier4/tier4_autoware_msgs/blob/tier4/universe/tier4_perception_msgs/msg/object_recognition/Semantic.msg"""
+    semantic_to_category: Dict[int, str] = {
+        0: "unknown",
+        1: "car",
+        2: "truck",
+        3: "bus",
+        4: "bicycle",
+        5: "motorcycle",
+        6: "pedestrian",
+        7: "animal",
+        11: "bicycle_without_rider",
+        12: "motorcycle_without_rider",
+        21: "street_asset",
+    }
+
+    return semantic_to_category.get(semantic_type, "unknown")
+
+
+def object_classification_to_category_name(object_classification) -> str:
+    """https://github.com/tier4/autoware_auto_msgs/blob/tier4/main/autoware_auto_perception_msgs/msg/ObjectClassification.idl"""
+    cls_to_cat: Dict[int, str] = {
+        0: "unknown",
+        1: "car",
+        2: "truck",
+        3: "bus",
+        4: "trailer",
+        5: "motorcycle",
+        6: "bicycle",
+        7: "pedestrian",
+        11: "bicycle_without_rider",
+        12: "motorcycle_without_rider",
+        13: "personal_mobility_vehicle",
+        14: "pedestrian",  # on wheelchair
+        15: "pedestrian",  # with umbrella
+        21: "street_asset",
+    }
+
+    return cls_to_cat.get(object_classification, "unknown")
 
 
 def parse_perception_objects(msg) -> List[Dict[str, Any]]:
@@ -177,7 +177,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
         label_dict: Dict[str, Any] = {
             "category_name": category_name,
             "instance_id": str(obj_uuid),
-            "attribute_names": default_attributes_by_category_name[category_name],
+            "attribute_names": DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME[category_name],
             "three_d_bbox": {
                 "translation": position,
                 "velocity": velocity,
