@@ -177,7 +177,9 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
         label_dict: Dict[str, Any] = {
             "category_name": category_name,
             "instance_id": str(obj_uuid),
-            "attribute_names": DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME[category_name] if category_name in DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME else [],
+            "attribute_names": DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME[category_name]
+            if category_name in DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME
+            else [],
             "three_d_bbox": {
                 "translation": position,
                 "velocity": velocity,
