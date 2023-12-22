@@ -4,7 +4,7 @@ import os.path as osp
 from pathlib import Path
 import re
 import shutil
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from nuscenes.nuscenes import NuScenes
 
@@ -28,7 +28,7 @@ class DeepenToT4Converter(AbstractConverter):
         overwrite_mode: bool,
         description: Dict[str, Dict[str, str]],
         input_bag_base: str,
-        topic_list: Dict[str, List[str]],
+        topic_list: Union[Dict[str, List[str]], List[str]],
         t4_dataset_dir_name: str = "t4_dataset",
         ignore_interpolate_label: bool = False,
     ):
@@ -44,19 +44,7 @@ class DeepenToT4Converter(AbstractConverter):
         self._end_sec: float = 1e10
         self._ignore_interpolate_label: bool = ignore_interpolate_label
 
-        if "topic_list" in topic_list:
-            allow_topics = topic_list["topic_list"]
-        elif isinstance(topic_list, list):
-            allow_topics = topic_list
-        else:
-            allow_topics = []
-        mandatory_topics = (
-            topic_list["mandatory_topic_list"] if "mandatory_topic_list" in topic_list else []
-        )
-        mandatory_topics = [] if mandatory_topics is None else mandatory_topics
-
-        self._topic_list: List[str] = allow_topics
-        self._mandatory_topics: List[str] = mandatory_topics
+        self._topic_list_yaml: Union[List, Dict] = topic_list
 
     def convert(self):
         with open(self._input_anno_file) as f:
@@ -132,10 +120,9 @@ class DeepenToT4Converter(AbstractConverter):
         converter = Rosbag2Converter(
             input_bag_dir,
             output_bag_dir_temp,
-            self._topic_list,
+            self._topic_list_yaml,
             self._start_sec,
             self._end_sec,
-            self._mandatory_topics,
         )
         converter.convert()
         shutil.move(output_bag_dir_temp, output_bag_dir)
