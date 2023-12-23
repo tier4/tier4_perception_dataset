@@ -8,8 +8,8 @@ conversion:
   workers_number: 1
   skip_timestamp: 2.0
   num_load_frames: 50
+  accept_frame_drop: false # If true, the conversion will continue even if the LiDAR frame is dropped.
   crop_frames_unit: 1  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
-  camera_latency_sec: 0.00
   object_topic_name: /ground_truth/objects
   object_msg_type: TrackedObjects
   world_frame_id: world
