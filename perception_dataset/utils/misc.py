@@ -24,54 +24,59 @@ def get_sample_data_filename(sensor_channel: str, frame_index: int, fileformat: 
 def get_lidar_camera_synced_frame_info(
     image_timestamp_list: List[float],
     lidar_timestamp_list: List[float],
-    camera_latency_sec: float = 0.0,
-    accept_frame_drop: bool = False,
-    timestamp_diff: float = 0.15,
+    lidar_to_camera_latency_sec: float = 0.0,
+    system_scan_period_sec: float = 0.1,
+    max_camera_jitter_sec: float = 0.03,
     num_load_frames: int = 0,
     msg_display_interval: int = 100,
 ):
-    synced_frame_info_list: List[
-        int, int, float
-    ] = []  # [image_index, lidar_frame_index, dummy_timestamp (None if not dummy)]
-    lidar_frame_index: int = 0
-    prev_frame_unix_timestamp = lidar_timestamp_list[0] + camera_latency_sec
+    """
+    Get synced frame info list for lidar and camera.
+    LiDAR scan with t_lidar and image with t_image are synced if
+        t_image - t_lidar >= lidar_to_camera_latency_sec - (system_scan_period_sec - max_camera_jitter_sec)
+            and
+        t_image - t_lidar <= lidar_to_camera_latency_sec + (system_scan_period_sec - max_camera_jitter_sec)
 
-    for image_index, image_unix_timestamp in enumerate(image_timestamp_list):
-        if lidar_frame_index >= num_load_frames:
+    Args:
+        image_timestamp_list: image timestamp list
+        lidar_timestamp_list: lidar timestamp list
+        lidar_to_camera_latency_sec: camera latency in seconds between the header.stamp and shutter trigger
+        system_scan_period_sec: system scan period in seconds
+        num_load_frames: the number of frames to be loaded. if the value isn't positive, read all messages.
+        msg_display_interval: display interval for messages
+    Return:
+        synced_frame_info_list: synced frame info list
+            [[image_index, lidar_frame_index, dummy_image_timestamp (None if image is not dropped)]]
+    """
+    synced_frame_info_list: List[int, int, float] = []
+
+    # calculate nominal delay between lidar and camera
+
+    current_image_index: int = 0
+    for lidar_index, lidar_timestamp in enumerate(lidar_timestamp_list):
+        if lidar_index >= num_load_frames:
             break
+        image_timestamp = image_timestamp_list[current_image_index]
 
-        # Get LiDAR data
-        lidar_unix_timestamp = lidar_timestamp_list[lidar_frame_index]
+        while image_timestamp - lidar_timestamp < lidar_to_camera_latency_sec - (
+            system_scan_period_sec - max_camera_jitter_sec
+        ):
+            current_image_index += 1
+            image_timestamp = image_timestamp_list[current_image_index]
 
-        # Address image drop
-        while (image_unix_timestamp - prev_frame_unix_timestamp) > timestamp_diff:
-            # Add dummy image timestamp in synced_frame_info_list
-            dummy_image_timestamp = image_unix_timestamp
-            while (dummy_image_timestamp - prev_frame_unix_timestamp) > timestamp_diff:
-                dummy_image_timestamp -= 0.1
-            synced_frame_info_list.append([None, lidar_frame_index, dummy_image_timestamp])
+        if image_timestamp - lidar_timestamp > lidar_to_camera_latency_sec + (
+            system_scan_period_sec - max_camera_jitter_sec
+        ):
+            # Image is dropped
+            dummy_timestamp = image_timestamp - system_scan_period_sec
+            synced_frame_info_list.append([None, lidar_index, dummy_timestamp])
+            continue
 
-            # Increment LiDAR information
-            lidar_frame_index += 1
-            prev_frame_unix_timestamp = dummy_image_timestamp
-            if lidar_frame_index >= num_load_frames:
-                return synced_frame_info_list
+        synced_frame_info_list.append([current_image_index, lidar_index, None])
+        current_image_index += 1
 
-            lidar_unix_timestamp = lidar_timestamp_list[lidar_frame_index]
-
-        time_diff_from_lidar = image_unix_timestamp - lidar_unix_timestamp
-        if not accept_frame_drop and time_diff_from_lidar > (camera_latency_sec + timestamp_diff):
-            raise ValueError(
-                f"Topic message may be dropped at [{lidar_frame_index}]: lidar_timestamp={lidar_unix_timestamp} image_timestamp={image_unix_timestamp}"
-            )
-
-        if lidar_frame_index % msg_display_interval == 0:
+        if lidar_index % msg_display_interval == 0:
             print(
-                f"frame{lidar_frame_index}, stamp = {image_unix_timestamp}, diff cam - lidar = {time_diff_from_lidar:0.3f} sec"
+                f"frame{lidar_index}, stamp = {image_timestamp}, diff cam - lidar = {image_timestamp - lidar_timestamp:0.3f} sec"
             )
-
-        synced_frame_info_list.append([image_index, lidar_frame_index, None])
-        lidar_frame_index += 1
-        prev_frame_unix_timestamp = image_unix_timestamp
-
     return synced_frame_info_list

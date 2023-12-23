@@ -11,11 +11,12 @@ conversion:
   lidar_sensor:
     topic: ""
     channel: ""
-  camera_latency_sec: 0.1 # camera latency in seconds between the header.stamp and shutter trigger
   camera_sensors:
     - topic: /sensing/camera/camera0/image_rect_color/compressed
       channel: CAM_TRAFFIC_LIGHT_NEAR
+      delay_msec: 0.1
     - topic: /sensing/camera/camera6/image_raw/compressed
       channel: CAM_TRAFFIC_LIGHT_FAR
+      delay_msec: 0.1
   generate_frame_every: 1
   generate_frame_every_meter: 5
