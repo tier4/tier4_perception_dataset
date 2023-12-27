@@ -16,6 +16,52 @@ from tier4_perception_msgs.msg import (
     TrafficSignalArray,
 )
 
+DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME: Dict[str, List[str]] = {
+    "unknown": [
+        "object_state.still",
+        "occlusion_state.none",
+    ],
+    "car": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "truck": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "bus": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "trailer": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "motorcycle": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "bicycle": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "vehicle_state.driving",
+    ],
+    "pedestrian": [
+        "occlusion_state.none",
+        "extremities_state.none",
+        "pedestrian_state.standing",
+    ],
+    "bicycle_without_rider": [],
+    "motorcycle_without_rider": [],
+    "personal_mobility_vehicle": [],
+    "street_asset": [],
+}
+
 
 def semantic_type_to_class_name(semantic_type: int) -> str:
     """https://github.com/tier4/tier4_autoware_msgs/blob/tier4/universe/tier4_perception_msgs/msg/object_recognition/Semantic.msg"""
@@ -131,7 +177,9 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
         label_dict: Dict[str, Any] = {
             "category_name": category_name,
             "instance_id": str(obj_uuid),
-            "attribute_names": [],  # not available
+            "attribute_names": DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME[category_name]
+            if category_name in DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME
+            else [],
             "three_d_bbox": {
                 "translation": position,
                 "velocity": velocity,

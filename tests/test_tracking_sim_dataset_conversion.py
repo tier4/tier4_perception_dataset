@@ -136,7 +136,7 @@ def test_rosbag2_converter_dataset_consistency(t4_dataset_path):
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
 def test_attribute_json(t4_dataset_path, attribute_list):
     attribute_json = load_json(t4_dataset_path, "attribute")
-    assert len(attribute_json) == 0, f"attribute_json length is {len(attribute_json)}, expected 0"
+    assert len(attribute_json) == 3, f"attribute_json length is {len(attribute_json)}, expected 3"
     assert len(attribute_json) <= len(
         attribute_list
     ), f"attribute_json length more than {len(attribute_list)}, expected {len(attribute_list), {attribute_list}}"
@@ -236,7 +236,6 @@ def test_sample_annotation_json(t4_dataset_path):
         assert sample_anno["sample_token"], "sample_token is empty"
         assert sample_anno["instance_token"], "instance_token is empty"
 
-        assert sample_anno["attribute_tokens"] == []
         assert sample_anno["visibility_token"], "visibility_token is empty"
         assert sample_anno["translation"], "translation is empty"
         assert "velocity" in sample_anno.keys(), "sample_annotation must have velocity key"
