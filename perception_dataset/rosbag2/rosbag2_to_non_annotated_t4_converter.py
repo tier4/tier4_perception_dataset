@@ -103,7 +103,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._num_load_frames: int = params.num_load_frames
         self._crop_frames_unit: int = params.crop_frames_unit
         self._without_compress: bool = params.without_compress
-        self._camera_latency: float = params.camera_latency_sec
+        self._system_scan_period_sec: float = params.system_scan_period_sec
+        self._max_camera_jitter_sec: float = params.max_camera_jitter_sec
+        self._lidar_latency: float = params.lidar_latency_sec
+        self._lidar_points_ratio_threshold: float = params.lidar_points_ratio_threshold
         self._start_timestamp: float = params.start_timestamp_sec
         self._end_timestamp: float = 0
         self._data_type: DataType = params.data_type
@@ -121,8 +124,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._calibrated_sensor_target_frame: str = "base_link"
 
         # Note: To determine if there is any message dropout, including a delay tolerance of 10Hz.
-
-        self._TIMESTAMP_DIFF = params.timestamp_diff
+        # Note: The delay tolerance is set to 1.5 times the system scan period.
+        self._timestamp_diff = params.system_scan_period_sec * 1.5
 
         self._lidar_sensor: Dict[str, str] = params.lidar_sensor
         self._radar_sensors: List[Dict[str, str]] = params.radar_sensors
@@ -346,9 +349,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # temporaly use start_timestamp instead of recorded timestamp for non synced data
             camera_start_timestamp = start_timestamp
         else:
-            camera_start_timestamp = (
-                misc_utils.nusc_timestamp_to_unix_timestamp(first_sample_data_record.timestamp)
-                + self._camera_latency
+            camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
+                first_sample_data_record.timestamp
             )
 
         for camera_sensor in self._camera_sensors:
@@ -357,6 +359,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 start_timestamp=camera_start_timestamp,
                 sensor_channel=camera_sensor["channel"],
                 topic=camera_sensor["topic"],
+                delay_msec=float(camera_sensor["delay_msec"]),
                 scene_token=scene_token,
             )
 
@@ -405,6 +408,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
+
+        # Calculate the maximum number of points
+        max_num_points = 0
+        for pointcloud_msg in self._bag_reader.read_messages(
+            topics=[topic],
+            start_time=start_time_in_time,
+        ):
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            max_num_points = max(max_num_points, len(points_arr))
+
+        # Main iteration
         for pointcloud_msg in self._bag_reader.read_messages(
             topics=[topic],
             start_time=start_time_in_time,
@@ -434,11 +448,26 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
                 # Note: LiDAR Message drops are not accepted unless accept_frame_drop is True.
                 if not self._accept_frame_drop and (
-                    time_diff > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp
+                    time_diff > self._timestamp_diff or unix_timestamp < prev_frame_unix_timestamp
                 ):
                     raise ValueError(
                         f"PointCloud message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
+
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            if len(points_arr) < max_num_points * self._lidar_points_ratio_threshold:
+                if not self._accept_frame_drop:
+                    raise ValueError(
+                        f"PointCloud message is relatively lower than the maximum size, which is not acceptable. "
+                        f"If you would like to accept, please change accept_frame_drop parameter. "
+                        f"frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
+                    )
+                else:
+                    warnings.warn(
+                        f"PointCloud message is relatively lower than the maximum size. "
+                        f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
+                    )
+                    continue
 
             nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
             sample_token = self._sample_table.insert_into_table(
@@ -461,10 +490,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            if isinstance(pointcloud_msg, PointCloud2):
-                points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-            else:
-                points_arr = np.zeros((0, 5), dtype=np.float32)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                 )
@@ -519,7 +546,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 )
                 if (
                     unix_timestamp - prev_frame_unix_timestamp
-                ) > self._TIMESTAMP_DIFF or unix_timestamp < prev_frame_unix_timestamp:
+                ) > self._timestamp_diff or unix_timestamp < prev_frame_unix_timestamp:
                     raise ValueError(
                         f"{topic} message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
@@ -561,6 +588,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         start_timestamp: float,
         sensor_channel: str,
         topic: str,
+        delay_msec: float,
         scene_token: str,
     ):
         """convert image topic to raw image data"""
@@ -584,14 +612,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp)
                 for sample_record in sample_records
             ]
+            lidar_to_camera_latency_sec = self._lidar_latency + 1e-3 * delay_msec
+
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
-                image_timestamp_list,
-                lidar_timestamp_list,
-                self._camera_latency,
-                self._accept_frame_drop,
-                self._TIMESTAMP_DIFF,
-                self._num_load_frames,
-                self._msg_display_interval,
+                image_timestamp_list=image_timestamp_list,
+                lidar_timestamp_list=lidar_timestamp_list,
+                lidar_to_camera_latency_sec=lidar_to_camera_latency_sec,
+                system_scan_period_sec=self._system_scan_period_sec,
+                max_camera_jitter_sec=self._max_camera_jitter_sec,
+                num_load_frames=self._num_load_frames,
+                msg_display_interval=self._msg_display_interval,
             )
 
             # Get image shape
@@ -606,7 +636,21 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
             for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
                 lidar_sample_token: str = sample_records[lidar_frame_index].token
-                if dummy_image_timestamp is None:
+                if image_index is None:  # Image dropped
+                    sample_data_token = self._generate_image_data(
+                        np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
+                        dummy_image_timestamp,
+                        lidar_sample_token,
+                        calibrated_sensor_token,
+                        sensor_channel,
+                        lidar_frame_index,
+                        output_blank_image=True,
+                        is_key_frame=False,
+                    )
+                    sample_data_token_list.append(sample_data_token)
+                elif lidar_frame_index is None:  # LiDAR dropped
+                    warnings.warn(f"LiDAR message dropped at image_index: {image_index}")
+                else:  # Both messages available
                     image_msg = None
                     while image_index_counter < image_index:
                         image_msg = next(image_generator)
@@ -621,19 +665,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         lidar_frame_index,
                     )
                     sample_data_token_list.append(sample_data_token)
-                else:
-                    sample_data_token = self._generate_image_data(
-                        np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
-                        dummy_image_timestamp,
-                        lidar_sample_token,
-                        calibrated_sensor_token,
-                        sensor_channel,
-                        lidar_frame_index,
-                        output_blank_image=True,
-                        is_key_frame=False,
-                    )
-                    sample_data_token_list.append(sample_data_token)
-
         else:  # camera only mode
 
             def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
