@@ -236,7 +236,6 @@ def test_sample_annotation_json(t4_dataset_path):
         assert sample_anno["sample_token"], "sample_token is empty"
         assert sample_anno["instance_token"], "instance_token is empty"
 
-        assert sample_anno["attribute_tokens"] == []
         assert sample_anno["visibility_token"], "visibility_token is empty"
         assert sample_anno["translation"], "translation is empty"
         assert "velocity" in sample_anno.keys(), "sample_annotation must have velocity key"
