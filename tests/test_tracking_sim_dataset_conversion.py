@@ -136,7 +136,7 @@ def test_rosbag2_converter_dataset_consistency(t4_dataset_path):
 @pytest.mark.parametrize("t4_dataset_path", [True], indirect=True)
 def test_attribute_json(t4_dataset_path, attribute_list):
     attribute_json = load_json(t4_dataset_path, "attribute")
-    assert len(attribute_json) == 0, f"attribute_json length is {len(attribute_json)}, expected 0"
+    assert len(attribute_json) == 3, f"attribute_json length is {len(attribute_json)}, expected 3"
     assert len(attribute_json) <= len(
         attribute_list
     ), f"attribute_json length more than {len(attribute_list)}, expected {len(attribute_list), {attribute_list}}"
