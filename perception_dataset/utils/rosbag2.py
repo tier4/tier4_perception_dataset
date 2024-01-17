@@ -106,13 +106,18 @@ def pointcloud_msg_to_numpy(
     pointcloud_msg: PointCloud2,
 ) -> NDArray:
     """numpy ver. of https://github.com/ros2/common_interfaces/blob/master/sensor_msgs_py/sensor_msgs_py/point_cloud2.py#L119"""
+    NUM_DIMENSIONS = 5
+
+    if not isinstance(pointcloud_msg, PointCloud2):
+        return np.zeros((0, NUM_DIMENSIONS), dtype=np.float32)
+
     points_arr = np.array(
         [tuple(p) for p in sensor_msgs_py.point_cloud2.read_points(pointcloud_msg)],
         dtype=np.float32,
     )
-    if len(points_arr[0]) > 5:
-        points_arr = np.delete(points_arr, np.s_[5:], axis=1)
-    while len(points_arr[0]) < 5:
+    if len(points_arr[0]) > NUM_DIMENSIONS:
+        points_arr = np.delete(points_arr, np.s_[NUM_DIMENSIONS:], axis=1)
+    while len(points_arr[0]) < NUM_DIMENSIONS:
         points_arr = np.insert(points_arr, len(points_arr[0]), -1, axis=1)
     return points_arr
 

@@ -50,12 +50,20 @@ class Rosbag2ConverterParams(BaseModel):
     skip_timestamp: float  # not read for the second after the first topic
     start_timestamp_sec: float = 0.0  # conversion start timestamp in sec
     crop_frames_unit: int = 1  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
-    camera_latency_sec: float = (
-        0.0  # camera latency in seconds between the header.stamp and shutter trigger
+
+    # Maximum camera jitter in seconds. This value MUST be set large enough since the camera jitter smaller than this value is not considererd.
+    # Also, do not set this value larger than system_scan_period_sec.
+    max_camera_jitter_sec: float = 0.03
+
+    lidar_latency_sec: float = (
+        0.03  # lidar latency in seconds between the header.stamp and shutter trigger
     )
-    timestamp_diff: float = 0.15
+    system_scan_period_sec: float = 0.1  # system scan period in seconds
     topic_list: list = []  # topic list for input_bag
     mandatory_topic_list: list = []  # mandatory topic list for input_bag
+
+    lidar_points_ratio_threshold: float = 0.2  # ratio of lidar points to be used proportion to the maximum number of lidar points in a frame
+
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False
     generate_frame_every: int = 1  # pick frames out of every this number.
