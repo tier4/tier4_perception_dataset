@@ -166,9 +166,9 @@ class DataInterpolator(AbstractConverter):
             for record in nusc.sample_data
         ]
         for sd_record in all_sample_data:
-            if sd_record["is_key_frame"] or "pcd.bin" == sd_record["fileformat"]:
+            if sd_record["is_key_frame"]:
                 continue
-            filename: str = osp.splitext(osp.basename(sd_record["filename"]))[0]
+            filename: str = osp.splitext(osp.basename(sd_record["filename"].replace(".pcd.bin", ".pcd")))[0]
             if filename in interpolated_samples_dict.keys():
                 sample_token: str = interpolated_samples_dict[filename]["token"]
                 sd_record["sample_token"] = sample_token
