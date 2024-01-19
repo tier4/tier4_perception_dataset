@@ -296,6 +296,22 @@ def main():
         converter.convert()
         logger.info(f"[Done] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
 
+    elif task == "interpolate":
+        from perception_dataset.t4_dataset.data_interpolator import DataInterpolator
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+
+        converter = DataInterpolator(
+            input_base=input_base,
+            output_base=output_base,
+            logger=logger,
+        )
+
+        logger.info(f"[BEGIN] Interpolating {input_base} into {output_base}")
+        converter.convert()
+        logger.info(f"[DONE] Interpolating {input_base} into {output_base}")
+
     else:
         raise NotImplementedError()
 

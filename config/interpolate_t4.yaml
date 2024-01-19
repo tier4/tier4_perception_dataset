@@ -1,0 +1,6 @@
+task: interpolate
+description:
+  scene: "Interpolate"
+conversion:
+  input_base: ./data/t4_dataset
+  output_base: ./data/interpolate
