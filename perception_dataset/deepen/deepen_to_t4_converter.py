@@ -27,7 +27,7 @@ class DeepenToT4Converter(AbstractConverter):
         dataset_corresponding: Dict[str, str],
         overwrite_mode: bool,
         description: Dict[str, Dict[str, str]],
-        input_bag_base: str,
+        input_bag_base: Optional[str],
         topic_list: Union[Dict[str, List[str]], List[str]],
         t4_dataset_dir_name: str = "t4_dataset",
         ignore_interpolate_label: bool = False,
@@ -38,7 +38,7 @@ class DeepenToT4Converter(AbstractConverter):
         self._t4data_name_to_deepen_dataset_id: Dict[str, str] = dataset_corresponding
         self._overwrite_mode: bool = overwrite_mode
         self._description: Dict[str, Dict[str, str]] = description
-        self._input_bag_base: str = input_bag_base
+        self._input_bag_base: Optional[str] = input_bag_base
         self._t4_dataset_dir_name: str = t4_dataset_dir_name
         self._start_sec: float = 0
         self._end_sec: float = 1e10
