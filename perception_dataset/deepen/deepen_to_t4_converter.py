@@ -207,20 +207,19 @@ class DeepenToT4Converter(AbstractConverter):
             anno_label_category_id: str = label_dict["label_category_id"]
             anno_label_id: str = label_dict["label_id"]
             # in case the attributes is not set
+            visibility: str = "Not available"
             if "attributes" not in label_dict:
                 anno_attributes = {}
             else:
                 anno_attributes: Dict[str, str] = label_dict["attributes"]
-            if "Occlusion_State" in anno_attributes:
-                visibility: str = self._convert_occulusion_to_visibility(
-                    anno_attributes["Occlusion_State"]
-                )
-            elif "occlusion_state" in anno_attributes:
-                visibility: str = self._convert_occulusion_to_visibility(
-                    anno_attributes["occlusion_state"]
-                )
-            else:
-                visibility: str = "Not available"
+                if "Occlusion_State" in anno_attributes:
+                    visibility = self._convert_occulusion_to_visibility(
+                        anno_attributes["Occlusion_State"]
+                    )
+                elif "occlusion_state" in anno_attributes:
+                    visibility = self._convert_occulusion_to_visibility(
+                        anno_attributes["occlusion_state"]
+                    )
             label_t4_dict: Dict[str, Any] = {
                 "category_name": anno_label_category_id,
                 "instance_id": anno_label_id,
