@@ -321,24 +321,24 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         if self._sensor_mode == SensorMode.DEFAULT:
             lidar_sensor_channel = self._lidar_sensor["channel"]
-            sensor_channel_to_sample_data_token_list[
-                lidar_sensor_channel
-            ] = self._convert_pointcloud(
-                start_timestamp=start_timestamp,
-                sensor_channel=lidar_sensor_channel,
-                topic=self._lidar_sensor["topic"],
-                scene_token=scene_token,
+            sensor_channel_to_sample_data_token_list[lidar_sensor_channel] = (
+                self._convert_pointcloud(
+                    start_timestamp=start_timestamp,
+                    sensor_channel=lidar_sensor_channel,
+                    topic=self._lidar_sensor["topic"],
+                    scene_token=scene_token,
+                )
             )
 
             for radar_sensor in self._radar_sensors:
                 radar_sensor_channel = radar_sensor["channel"]
-                sensor_channel_to_sample_data_token_list[
-                    radar_sensor_channel
-                ] = self._convert_radar_tracks(
-                    start_timestamp=start_timestamp,
-                    sensor_channel=radar_sensor_channel,
-                    topic=radar_sensor["topic"],
-                    scene_token=scene_token,
+                sensor_channel_to_sample_data_token_list[radar_sensor_channel] = (
+                    self._convert_radar_tracks(
+                        start_timestamp=start_timestamp,
+                        sensor_channel=radar_sensor_channel,
+                        topic=radar_sensor["topic"],
+                        scene_token=scene_token,
+                    )
                 )
 
             # Note: Align the loading order of the cameras with the shutter sequence.

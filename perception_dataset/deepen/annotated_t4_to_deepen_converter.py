@@ -178,9 +178,9 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                             current_label_dict["stage_id"] = "Labelling"
                             current_label_dict["file_id"] = f"{frame_index}.pcd"
                             current_label_dict["label_category_id"] = label_category_id
-                            current_label_dict[
-                                "label_id"
-                            ] = f"{label_category_id}:{instance_index}"
+                            current_label_dict["label_id"] = (
+                                f"{label_category_id}:{instance_index}"
+                            )
                             current_label_dict["sensor_id"] = sensor_id
                             current_label_dict["label_type"] = label_type
 

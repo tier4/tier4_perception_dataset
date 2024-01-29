@@ -71,20 +71,24 @@ class SampleAnnotationRecord(AbstractRecord):
                 self._translation["y"],
                 self._translation["z"],
             ],
-            "velocity": [
-                self._velocity["x"],
-                self._velocity["y"],
-                self._velocity["z"],
-            ]
-            if self._velocity is not None
-            else self._velocity,
-            "acceleration": [
-                self._acceleration["x"],
-                self._acceleration["y"],
-                self._acceleration["z"],
-            ]
-            if self._acceleration is not None
-            else self._acceleration,
+            "velocity": (
+                [
+                    self._velocity["x"],
+                    self._velocity["y"],
+                    self._velocity["z"],
+                ]
+                if self._velocity is not None
+                else self._velocity
+            ),
+            "acceleration": (
+                [
+                    self._acceleration["x"],
+                    self._acceleration["y"],
+                    self._acceleration["z"],
+                ]
+                if self._acceleration is not None
+                else self._acceleration
+            ),
             "size": [
                 self._size["width"],
                 self._size["length"],
