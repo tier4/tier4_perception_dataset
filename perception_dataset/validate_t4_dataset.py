@@ -1,6 +1,7 @@
 """This tool validates that the token of schema can be accessed to the target schema and the camera and lidar data is more than 9 Hz.
 2D annotation format is't supported yet.
 """
+
 import argparse
 
 from loguru import logger

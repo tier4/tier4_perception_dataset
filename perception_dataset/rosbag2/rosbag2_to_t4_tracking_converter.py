@@ -169,13 +169,13 @@ class _Rosbag2ToT4TracingConverter(_Rosbag2ToT4Converter):
 
         if self._sensor_mode == SensorMode.NO_SENSOR:
             lidar_sensor_channel = self._lidar_sensor["channel"]
-            sensor_channel_to_sample_data_token_list[
-                lidar_sensor_channel
-            ] = self._convert_pointcloud(
-                start_timestamp=start_timestamp,
-                sensor_channel="LIDAR_CONCAT",
-                topic=objects_topic_name,
-                scene_token=scene_token,
+            sensor_channel_to_sample_data_token_list[lidar_sensor_channel] = (
+                self._convert_pointcloud(
+                    start_timestamp=start_timestamp,
+                    sensor_channel="LIDAR_CONCAT",
+                    topic=objects_topic_name,
+                    scene_token=scene_token,
+                )
             )
 
     def _convert_objects(self, start_timestamp: float):
