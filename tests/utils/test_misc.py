@@ -168,7 +168,7 @@ def test_get_lidar_camera_synced_frame_info_num_load_frames():
 
 def test_get_lidar_camera_synced_frame_info_too_large_num_load_frames():
     # Test case where len(lidar_timestamp_list) >= num_load_frames > len(image_timestamp_list)
-    image_timestamp_list = [0.552, 0.652]                                                                  
+    image_timestamp_list = [0.552, 0.652]
     lidar_timestamp_list = [0.4, 0.499, 0.6]
 
     expected = [[0, 0, None], [1, 1, None]]
