@@ -56,6 +56,8 @@ def get_lidar_camera_synced_frame_info(
     for lidar_index, lidar_timestamp in enumerate(lidar_timestamp_list):
         if lidar_index >= num_load_frames:
             break
+        if current_image_index >= len(image_timestamp_list):
+            break
         image_timestamp = image_timestamp_list[current_image_index]
 
         while image_timestamp - lidar_timestamp < lidar_to_camera_latency_sec - (
