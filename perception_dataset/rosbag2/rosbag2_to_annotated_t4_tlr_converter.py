@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Set, Union
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
-from tier4_perception_msgs.msg import TrafficLightRoiArray, TrafficSignalArray
+from tier4_perception_msgs.msg import TrafficLightArray, TrafficLightRoiArray
 import yaml
 
 from perception_dataset.rosbag2.autoware_msgs import parse_traffic_lights
@@ -52,7 +52,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         self._traffic_light_rois_topic_name: str = params.traffic_light_rois_topic_name
         # traffic light lists
         self._traffic_light_roi_msgs: List[TrafficLightRoiArray] = []
-        self._traffic_light_label_msgs: List[TrafficSignalArray] = []
+        self._traffic_light_label_msgs: List[TrafficLightArray] = []
         # timestamps when there are traffic lights being detected
         self._non_empty_timestamps: Set[float] = set()
 
@@ -250,12 +250,12 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         )
 
     def _process_traffic_lights(
-        self, message: Union[TrafficLightRoiArray, TrafficSignalArray]
+        self, message: Union[TrafficLightRoiArray, TrafficLightArray]
     ) -> List[Dict[str, Any]]:
         """
         Args:
           message: autoware_auto_perception_msgs.msg.TrafficLightRoiArray
-            or autoware_auto_perception_msgs.msg.TrafficSignalArray
+            or autoware_auto_perception_msgs.msg.TrafficLightArray
         Returns:
             List[Dict[str, Any]]: dict format
         """
@@ -269,7 +269,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     self._traffic_light_label_msgs.remove(label)
                     return res
             self._traffic_light_roi_msgs.append(message)
-        elif isinstance(message, TrafficSignalArray):
+        elif isinstance(message, TrafficLightArray):
             for roi in self._traffic_light_roi_msgs:
                 if (
                     roi.header.stamp.sec == message.header.stamp.sec

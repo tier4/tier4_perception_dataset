@@ -9,11 +9,11 @@ from autoware_auto_perception_msgs.msg import (
     TrackedObjects,
 )
 from tier4_perception_msgs.msg import (
+    TrafficLight,
+    TrafficLightArray,
     TrafficLightElement,
     TrafficLightRoi,
     TrafficLightRoiArray,
-    TrafficSignal,
-    TrafficSignalArray,
 )
 
 DEFAULT_ATTRIBUTES_BY_CATEGORY_NAME: Dict[str, List[str]] = {
@@ -198,7 +198,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
 
 
 def parse_traffic_lights(
-    roi_msg: TrafficLightRoiArray, signal_msg: TrafficSignalArray
+    roi_msg: TrafficLightRoiArray, signal_msg: TrafficLightArray
 ) -> List[Dict[str, Any]]:
     """https://github.com/tier4/autoware_auto_msgs/tree/tier4/main/autoware_auto_perception_msgs
 
@@ -226,7 +226,7 @@ def parse_traffic_lights(
         TrafficLightElement.UP_ARROW: "straight",
     }
 
-    def get_category_name(signal: TrafficSignal):
+    def get_category_name(signal: TrafficLight):
         # list for saving the status of the lights
         blubs: List[int] = []
 
@@ -263,14 +263,14 @@ def parse_traffic_lights(
         roi_msg, TrafficLightRoiArray
     ), f"Invalid object message type: {type(roi_msg)}"
     assert isinstance(
-        signal_msg, TrafficSignalArray
+        signal_msg, TrafficLightArray
     ), f"Invalid object message type: {type(signal_msg)}"
 
     scene_annotation_list: List[Dict[str, Any]] = []
     for roi in roi_msg.rois:
         roi: TrafficLightRoi
         for signal in signal_msg.signals:
-            signal: TrafficSignal
+            signal: TrafficLight
             if roi.traffic_light_id == signal.traffic_light_id:
                 category_name = get_category_name(signal)
                 label_dict: Dict[str, Any] = {
