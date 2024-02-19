@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Set, Union
 
 import numpy as np
 from pycocotools import mask as cocomask
-from sensor_msgs.msg import CompressedImage
 from tier4_perception_msgs.msg import TrafficLightRoiArray, TrafficSignalArray
 import yaml
 
@@ -18,7 +17,6 @@ from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
     Rosbag2ToT4Converter,
     _Rosbag2ToT4Converter,
 )
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord
 from perception_dataset.t4_dataset.classes.sample import SampleRecord
 from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord
 from perception_dataset.utils.logger import configure_logger
