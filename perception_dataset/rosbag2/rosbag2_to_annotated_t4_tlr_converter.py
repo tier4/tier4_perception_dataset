@@ -255,7 +255,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         """
         Args:
           message: autoware_auto_perception_msgs.msg.TrafficLightRoiArray
-            or autoware_auto_perception_msgs.msg.TrafficLightArray
+            or autoware_auto_perception_msgs.msg.TrafficSignalArray
         Returns:
             List[Dict[str, Any]]: dict format
         """
