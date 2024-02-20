@@ -279,10 +279,12 @@ class AnnotationFilesGenerator:
 
                 # Object Annotation
                 if "two_d_box" in anno.keys():
-                    anno_two_d_box: List[float] = self._clip_bbox(anno["two_d_box"], mask)
                     sensor_id: int = int(anno["sensor_id"])
                     if frame_index not in frame_index_to_sample_data_token[sensor_id]:
                         continue
+                    anno_two_d_box: List[float] = self._clip_bbox(
+                        anno["two_d_box"], mask[sensor_id][frame_index]
+                    )
                     self._object_ann_table.insert_into_table(
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                         instance_token=instance_token,
@@ -292,10 +294,10 @@ class AnnotationFilesGenerator:
                         mask=mask[sensor_id][frame_index],
                     )
 
-    def _clip_bbox(self, bbox: List[float], mask: any) -> List[float]:
+    def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:
         """Clip the bbox to the image size."""
         try:
-            width, height = list(mask[0].values())[0]["size"]
+            width, height = mask["size"]
             bbox[0] = max(0, bbox[0])
             bbox[1] = max(0, bbox[1])
             bbox[2] = min(width, bbox[2])
