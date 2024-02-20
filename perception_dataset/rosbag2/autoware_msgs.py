@@ -198,7 +198,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
 
 
 def parse_traffic_lights(
-    roi_msg: TrafficLightRoiArray, signal_msg: TrafficLightArray
+    roi_msg: TrafficLightRoiArray, traffic_light_array_msg: TrafficLightArray
 ) -> List[Dict[str, Any]]:
     """https://github.com/tier4/autoware_auto_msgs/tree/tier4/main/autoware_auto_perception_msgs
 
@@ -263,13 +263,13 @@ def parse_traffic_lights(
         roi_msg, TrafficLightRoiArray
     ), f"Invalid object message type: {type(roi_msg)}"
     assert isinstance(
-        signal_msg, TrafficLightArray
-    ), f"Invalid object message type: {type(signal_msg)}"
+        traffic_light_array_msg, TrafficLightArray
+    ), f"Invalid object message type: {type(traffic_light_array_msg)}"
 
     scene_annotation_list: List[Dict[str, Any]] = []
     for roi in roi_msg.rois:
         roi: TrafficLightRoi
-        for signal in signal_msg.signals:
+        for signal in traffic_light_array_msg.signals:
             signal: TrafficLight
             if roi.traffic_light_id == signal.traffic_light_id:
                 category_name = get_category_name(signal)
