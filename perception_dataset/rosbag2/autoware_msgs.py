@@ -206,7 +206,7 @@ def parse_traffic_lights(
 
     Args:
         roi_msg (tier4_perception_msgs.msg.TrafficLightRoiArray): tier4 perception msg
-        signal_msg (tier4_perception_msgs.msg.TrafficLightArray): tier4 perception msg
+        traffic_light_array_msg (tier4_perception_msgs.msg.TrafficLightArray): tier4 perception msg
 
     Returns:
         List[Dict[str, Any]]: dict format
