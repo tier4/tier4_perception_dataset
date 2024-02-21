@@ -13,7 +13,7 @@ source {AUTOWARE_WORKSPACE}/install/setup.bash
 poetry shell
 ```
 
-## Convert rosbag2 (with Autoware TLR result in) to T4 dataset with Autoware reuslt (T4 tlr-semi-annotated format data)
+## Convert rosbag2 (with Autoware TLR result in) to T4 dataset with Autoware result (T4 tlr-semi-annotated format data)
 
 input: rosbag2
 
@@ -24,7 +24,7 @@ python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_rosba
 # if you want to overwrite t4-format data, use --overwrite option
 ```
 
-## Convert T4 dataset with Autoware reuslt (T4 tlr-semi-annotated format data) to deepen importable json format label
+## Convert T4 dataset with Autoware result (T4 tlr-semi-annotated format data) to deepen importable json format label
 
 input: T4 tlr-semi-annotated format data
 

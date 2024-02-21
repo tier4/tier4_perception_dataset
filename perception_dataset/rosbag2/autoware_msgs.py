@@ -200,11 +200,13 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
 def parse_traffic_lights(
     roi_msg: TrafficLightRoiArray, traffic_light_array_msg: TrafficLightArray
 ) -> List[Dict[str, Any]]:
-    """https://github.com/tier4/autoware_auto_msgs/tree/tier4/main/autoware_auto_perception_msgs
-
+    """
+    https://github.com/tier4/tier4_autoware_msgs/tree/tier4/universe/tier4_perception_msgs
+    https://github.com/autowarefoundation/autoware_msgs/tree/main/autoware_perception_msgs
 
     Args:
-        msg (autoware_auto_perception_msgs.msg.DetectedObjects): autoware detection msg (.core/.universe)
+        roi_msg (tier4_perception_msgs.msg.TrafficLightRoiArray): tier4 perception msg
+        traffic_light_array_msg (tier4_perception_msgs.msg.TrafficLightArray): tier4 perception msg
 
     Returns:
         List[Dict[str, Any]]: dict format
