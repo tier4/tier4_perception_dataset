@@ -41,7 +41,9 @@ class AbstractTable(Generic[T], metaclass=ABCMeta):
 
     def insert_into_table(self, **kwargs) -> str:
         record = self._to_record(**kwargs)
-        assert isinstance(record, T), "_to_record function must return the instance of RecordClass"
+        assert isinstance(
+            record, AbstractRecord
+        ), "_to_record function must return the instance of RecordClass"
         self.set_record_to_table(record)
         return record.token
 
