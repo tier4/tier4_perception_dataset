@@ -27,7 +27,7 @@ class SurfaceAnnRecord(AbstractRecord):
         return d
 
 
-class SurfaceAnnTable(AbstractTable):
+class SurfaceAnnTable(AbstractTable[SurfaceAnnRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#sample_annotationjson"""
 
     FILENAME = "surface_ann" + EXTENSION_ENUM.JSON.value

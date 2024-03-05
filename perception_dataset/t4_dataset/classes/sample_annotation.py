@@ -108,7 +108,7 @@ class SampleAnnotationRecord(AbstractRecord):
         return d
 
 
-class SampleAnnotationTable(AbstractTable):
+class SampleAnnotationTable(AbstractTable[SampleAnnotationRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#sample_annotationjson"""
 
     FILENAME = "sample_annotation" + EXTENSION_ENUM.JSON.value

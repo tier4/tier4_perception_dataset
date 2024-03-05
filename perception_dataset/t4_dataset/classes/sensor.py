@@ -24,7 +24,7 @@ class SensorRecord(AbstractRecord):
         return d
 
 
-class SensorTable(AbstractTable):
+class SensorTable(AbstractTable[SensorRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#sensorjson"""
 
     FILENAME = "sensor" + EXTENSION_ENUM.JSON.value

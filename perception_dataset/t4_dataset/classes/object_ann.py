@@ -43,7 +43,7 @@ class ObjectAnnRecord(AbstractRecord):
         return d
 
 
-class ObjectAnnTable(AbstractTable):
+class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#sample_annotationjson"""
 
     FILENAME = "object_ann" + EXTENSION_ENUM.JSON.value

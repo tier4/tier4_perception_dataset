@@ -32,7 +32,7 @@ class InstanceRecord(AbstractRecord):
         self._last_annotation_token = last_annotation_token
 
 
-class InstanceTable(AbstractTable):
+class InstanceTable(AbstractTable[InstanceRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#instancejson"""
 
     FILENAME = "instance" + EXTENSION_ENUM.JSON.value
