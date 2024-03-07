@@ -36,7 +36,7 @@ class SceneRecord(AbstractRecord):
         return d
 
 
-class SceneTable(AbstractTable):
+class SceneTable(AbstractTable[SceneRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#scenejson"""
 
     FILENAME = "scene" + EXTENSION_ENUM.JSON.value

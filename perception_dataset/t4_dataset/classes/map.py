@@ -27,7 +27,7 @@ class MapRecord(AbstractRecord):
         return d
 
 
-class MapTable(AbstractTable):
+class MapTable(AbstractTable[MapRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#mapjson"""
 
     FILENAME = "map" + EXTENSION_ENUM.JSON.value

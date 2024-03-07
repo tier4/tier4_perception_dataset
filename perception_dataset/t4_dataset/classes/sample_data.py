@@ -52,7 +52,7 @@ class SampleDataRecord(AbstractRecord):
         return d
 
 
-class SampleDataTable(AbstractTable):
+class SampleDataTable(AbstractTable[SampleDataRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#sample_datajson"""
 
     FILENAME = "sample_data" + EXTENSION_ENUM.JSON.value
