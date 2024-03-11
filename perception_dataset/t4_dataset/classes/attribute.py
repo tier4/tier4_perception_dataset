@@ -19,7 +19,7 @@ class AttributeRecord(AbstractRecord):
         return d
 
 
-class AttributeTable(AbstractTable):
+class AttributeTable(AbstractTable[AttributeRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#attributejson"""
 
     FILENAME = "attribute" + EXTENSION_ENUM.JSON.value

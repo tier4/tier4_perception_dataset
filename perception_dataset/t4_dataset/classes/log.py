@@ -30,7 +30,7 @@ class LogRecord(AbstractRecord):
         return d
 
 
-class LogTable(AbstractTable):
+class LogTable(AbstractTable[LogRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#logjson"""
 
     FILENAME = "log" + EXTENSION_ENUM.JSON.value

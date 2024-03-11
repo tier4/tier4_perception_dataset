@@ -48,7 +48,7 @@ class CalibratedSensorRecord(AbstractRecord):
         return d
 
 
-class CalibratedSensorTable(AbstractTable):
+class CalibratedSensorTable(AbstractTable[CalibratedSensorRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#calibrated_sensorjson"""
 
     FILENAME = "calibrated_sensor" + EXTENSION_ENUM.JSON.value

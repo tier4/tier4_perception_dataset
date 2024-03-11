@@ -19,7 +19,7 @@ class CategoryRecord(AbstractRecord):
         return d
 
 
-class CategoryTable(AbstractTable):
+class CategoryTable(AbstractTable[CategoryRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#categoryjson"""
 
     FILENAME = "category" + EXTENSION_ENUM.JSON.value
