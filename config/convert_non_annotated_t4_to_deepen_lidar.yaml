@@ -1,0 +1,7 @@
+task: convert_non_annotated_t4_to_deepen
+conversion:
+  input_base: ./perception_dataset/non_annotated_t4_ds_lidar
+  output_base: ./perception_dataset/deepen_format_lidar
+  annotation_hz: 10
+  workers_number: 12
+  camera_sensors: []

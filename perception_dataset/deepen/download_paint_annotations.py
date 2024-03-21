@@ -6,6 +6,7 @@ from typing import List
 import zlib
 import yaml
 import sqlite3
+import pathlib
 import requests
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs.msg import PointField
@@ -14,7 +15,7 @@ from rosidl_runtime_py.utilities import get_message
 from rclpy.serialization import deserialize_message
 from rclpy.serialization import serialize_message
 import rosbag2_py
-
+from rclpy.time import Time
 from perception_dataset.utils import misc
 
 CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
@@ -29,6 +30,13 @@ point_fields = [
     PointField(name="entity_id", offset=16, datatype=PointField.UINT32, count=1),
 ]
 
+test_point_fields = [
+    PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+    PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+    PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+    PointField(name="intensity", offset=12, datatype=PointField.FLOAT32, count=1),
+]
+
 def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str, input_bag_file: str, input_base_dir: str):
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
@@ -40,7 +48,7 @@ def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str, inp
     response = requests.get(DATASET_URL, headers=headers)
     decompress_data = bytearray(zlib.decompress(bytearray(response.content)))
     # print(decompress_data)
-    # print(list(response.headers.values()))
+    print(list(response.headers.values()))
     header_list = list(response.headers.values())
     label_info = json.loads(header_list[3])
     frame_size = list(label_info['frame_sizes'])
@@ -51,80 +59,104 @@ def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str, inp
     sample_data = list(filter(lambda d : d["filename"].split(".")[-2] == "pcd", sample_data))
     
     target_topic_name = '/sensing/lidar/concatenated/pointcloud'
-    bag_connection = sqlite3.connect(input_bag_file)
-    cursor = bag_connection.cursor()
-    # reader = rosbag2_py
 
-    cursor.execute('PRAGMA table_info(messages)')
-    table_info = cursor.fetchall()
-    print(table_info)
+    reader = rosbag2_py.SequentialReader()
+    reader.open(
+        rosbag2_py.StorageOptions(uri = input_bag_file, storage_id='sqlite3'),
+        rosbag2_py.ConverterOptions(input_serialization_format='cdr', output_serialization_format='cdr')
+    )
 
-    # return
+    output_bag_file = os.path.join(pathlib.Path(input_bag_file).parent, "annotated", "annotated.db3")
+    writer = rosbag2_py.SequentialWriter()
+    writer.open(
+        rosbag2_py.StorageOptions(uri = output_bag_file, storage_id='sqlite3'),
+        rosbag2_py.ConverterOptions('','')
+    )
 
-    cursor.execute('SELECT * from(topics)')
-    topic_names = cursor.fetchall()
-
-    target_topic_row = None
-    msg_types = []
-    for topic in topic_names:
-        msg_types.append(topic[2])
-        if topic[1] == target_topic_name:
-            target_topic_row = topic
-            print(target_topic_row)
-    type_map = {topic_names[i][1]:msg_types[i] for i in range(len(msg_types))}
+    topic_types = reader.get_all_topics_and_types()
+    target_topic_type: str
+    topic_name_type_map = {}
+    for topic_type in topic_types:
+        if topic_type.name == target_topic_name:
+            writer.create_topic(topic_type)
+            topic_name_type_map[topic_type.name] = topic_type.type
+        # elif 'tf' in topic_type.name:
+        #     writer.create_topic(topic_type)
+        #     topic_name_type_map[topic_type.name] = topic_type.type
     
-    if target_topic_row is None:
-        print('target topic does not appeared')
-        return
+    print(topic_name_type_map)
 
-    time_stamps = []
-    messages = []
-    cursor.execute('SELECT * from(messages)')
-    msgs = cursor.fetchall()
-    for msg in msgs:
-        # print(msg)
-        if msg[1] == target_topic_row[0]: # id check
-            # print(f'ts : {msg[2]} , msg : {msg[3]}')
-            time_stamps.append(msg[2])
-            messages.append(msg[3])
-    
-    msg_type = get_message(type_map[target_topic_name])
+    valid_frame_size = 0
+    init_time = -1
 
     def header_stamp_to_nusc_ts(msg: PointCloud2):
         unix_ts = msg.header.stamp.sec + msg.header.stamp.nanosec / 1e9
         nusc_ts = misc.unix_timestamp_to_nusc_timestamp(unix_ts)
         return nusc_ts
     
-    def out_of_range(l: list, i)->bool:
-        return len(l) <= i
-    
-    msg_cnt = 0
-    print(len(sample_data))
     for i in range(len(sample_data)):
-        msg: PointCloud2 = deserialize_message(messages[msg_cnt], msg_type)
-        while sample_data[i]["timestamp"] != header_stamp_to_nusc_ts(msg):
-            msg_cnt += 1
-            msg: PointCloud2 = deserialize_message(messages[msg_cnt], msg_type)
+        while reader.has_next():
+            topic, data, timestamp = reader.read_next()
+            if topic == target_topic_name:
+                msg: PointCloud2 = deserialize_message(data, get_message(topic_name_type_map[topic]))
+                np_cloud = point_cloud2.read_points(msg, ['x', 'y', 'z', 'intensity'])
+                if len(np_cloud.tolist()) == frame_size[i]:
+                    bag_stamp = int(timestamp*1e-3)
+                    print('======================================================================')
+                    print(f'bag cloud : {len(np_cloud.tolist())}, annotation cloud : {frame_size[i]}')
+                    print(f'bag stamp : {header_stamp_to_nusc_ts(msg)}, {sample_data[i]["timestamp"]}')
+                    cloud_list = np_cloud.tolist()
+                    if i == 0:
+                        labelled_cloud_list = [list(cloud_list[j]) + [int(decompress_data[j])] for j in range(len(cloud_list))]
+                    else:
+                        labelled_cloud_list = [list(cloud_list[j]) + [int(decompress_data[frame_size[i-1] + j])] for j in range(len(cloud_list))]
+                    labelled_cloud: PointCloud2 = point_cloud2.create_cloud(msg.header,point_fields, labelled_cloud_list)
+
+                    serialized_cloud = serialize_message(labelled_cloud)
+                    writer.write(topic, serialized_cloud, timestamp)
+                    print('======================================================================')
+                    valid_frame_size += 1
+                    break
+                # elif 'tf' in topic:
+                #     writer.write(topic, data, timestamp)
+    print(valid_frame_size)
+
+
+    # def header_stamp_to_nusc_ts(msg: PointCloud2):
+    #     unix_ts = msg.header.stamp.sec + msg.header.stamp.nanosec / 1e9
+    #     nusc_ts = misc.unix_timestamp_to_nusc_timestamp(unix_ts)
+    #     return nusc_ts
+    
+    # def out_of_range(l: list, i)->bool:
+    #     return len(l) <= i
+    
+    # msg_cnt = 0
+    # print(len(sample_data))
+    # for i in range(len(sample_data)):
+    #     msg: PointCloud2 = deserialize_message(messages[msg_cnt], msg_type)
+    #     while sample_data[i]["timestamp"] != header_stamp_to_nusc_ts(msg):
+    #         msg_cnt += 1
+    #         msg: PointCloud2 = deserialize_message(messages[msg_cnt], msg_type)
         
-        print(f'Label pointcloud ts: {msg.header.stamp}')
-        np_cloud = point_cloud2.read_points(msg, ['x', 'y', 'z', 'intensity'])
-        cloud_list = np_cloud.tolist()
-        labelled_cloud_list = [list(cloud_list[j]) + [int(decompress_data[i + j])] for j in range(len(cloud_list))]
-        labelled_cloud = point_cloud2.create_cloud(msg.header,point_fields, labelled_cloud_list)
-        serialized_labelled_cloud = serialize_message(labelled_cloud)
-        print(sample_data[i]["timestamp"])
-        replace = "REPLACE INTO messages(topic_id,timestamp,data) VALUES(?,?,?)"
-        cursor.execute(replace, (target_topic_row[0], sample_data[i]["timestamp"], serialized_labelled_cloud,))
-        bag_connection.commit()
-        return
-        msg_cnt += 1
-        if out_of_range(messages, msg_cnt):
-            break
+    #     print(f'Label pointcloud ts: {msg.header.stamp}')
+    #     np_cloud = point_cloud2.read_points(msg, ['x', 'y', 'z', 'intensity'])
+    #     cloud_list = np_cloud.tolist()
+    #     labelled_cloud_list = [list(cloud_list[j]) + [int(decompress_data[i + j])] for j in range(len(cloud_list))]
+    #     labelled_cloud = point_cloud2.create_cloud(msg.header,point_fields, labelled_cloud_list)
+    #     serialized_labelled_cloud = serialize_message(labelled_cloud)
+    #     print(sample_data[i]["timestamp"])
+    #     replace = "REPLACE INTO messages(topic_id,timestamp,data) VALUES(?,?,?)"
+    #     cursor.execute(replace, (target_topic_row[0], sample_data[i]["timestamp"], serialized_labelled_cloud,))
+    #     bag_connection.commit()
+        # return
+        # msg_cnt += 1
+        # if out_of_range(messages, msg_cnt):
+            # break
 
     # print(deserialized_msgs)
     # print(len(messages))
     # bag_connection.commit()
-    bag_connection.close()
+    # bag_connection.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

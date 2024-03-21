@@ -1,0 +1,15 @@
+task: convert_rosbag2_to_non_annotated_t4
+description:
+  scene: ""
+conversion:
+  input_base: ./perception_dataset/rosbag2
+  output_base: ./perception_dataset/non_annotated_t4_ds_lidar
+  start_timestamp_sec: 0 # Enter here if there is a timestamp for the start time. If not used, enter 0.
+  skip_timestamp: 2.0 # Do not load data for the first point cloud timestamp for skip_timestamp seconds.
+  num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
+  accept_frame_drop: True # If true, the conversion will continue even if the LiDAR frame is dropped.
+  # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
+  lidar_sensor:
+    topic: /sensing/lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors: []
