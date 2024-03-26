@@ -94,6 +94,7 @@ def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str, inp
         nusc_ts = misc.unix_timestamp_to_nusc_timestamp(unix_ts)
         return nusc_ts
     
+    offset = 0
     for i in range(len(sample_data)):
         while reader.has_next():
             topic, data, timestamp = reader.read_next()
@@ -106,10 +107,8 @@ def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str, inp
                     print(f'bag cloud : {len(np_cloud.tolist())}, annotation cloud : {frame_size[i]}')
                     print(f'bag stamp : {header_stamp_to_nusc_ts(msg)}, {sample_data[i]["timestamp"]}')
                     cloud_list = np_cloud.tolist()
-                    if i == 0:
-                        labelled_cloud_list = [list(cloud_list[j]) + [int(decompress_data[j])] for j in range(len(cloud_list))]
-                    else:
-                        labelled_cloud_list = [list(cloud_list[j]) + [int(decompress_data[frame_size[i-1] + j])] for j in range(len(cloud_list))]
+                    offset += frame_size[i-1] if i != 0 else 0
+                    labelled_cloud_list = [list(cloud_list[j]) + [int(decompress_data[offset + j])] for j in range(len(cloud_list))]
                     labelled_cloud: PointCloud2 = point_cloud2.create_cloud(msg.header,point_fields, labelled_cloud_list)
 
                     serialized_cloud = serialize_message(labelled_cloud)
