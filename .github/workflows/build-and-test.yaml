@@ -13,6 +13,7 @@ jobs:
   # it's hard to setup it in the container.
   download-test-data:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
