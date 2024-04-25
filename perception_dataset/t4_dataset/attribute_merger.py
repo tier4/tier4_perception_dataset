@@ -189,7 +189,7 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
     ):
         for attr_name in max_iou_anno["attribute_names"]:
             # Ignore pedestrian and cyclist for turn signal/brake lamp attributes
-            if "pedestrian" in category_name or "cyclist" in category_name:
+            if "pedestrian" in category_name or "bicycle" in category_name:
                 if (
                     "turn_signal" in attr_name
                     or "blinker" in attr_name
