@@ -313,7 +313,10 @@ def main():
         logger.info(f"[DONE] Interpolating {input_base} into {output_base}")
 
     elif task == "convert_fastlabel_2d_to_t4":
-        from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import FastLabel2dToT4Converter
+        from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import (
+            FastLabel2dToT4Converter,
+        )
+
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
         input_anno_base = config_dict["conversion"]["input_anno_base"]

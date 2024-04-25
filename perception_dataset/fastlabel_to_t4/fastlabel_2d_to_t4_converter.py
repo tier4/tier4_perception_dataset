@@ -5,6 +5,7 @@ import os.path as osp
 from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional, Union
+
 from nuimages import NuImages
 from nuscenes import NuScenes
 
@@ -85,10 +86,6 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                 scene_anno_dict=fl_annotations[t4dataset_name],
                 dataset_name=t4dataset_name,
             )
-
-
-
-
 
     def _load_annotation_jsons(self):
         """Load annotations from all JSON files in the input directory and return as a dictionary."""
@@ -187,7 +184,9 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                         if "occlusion_state" in att["key"]:
                             for v in att["value"]:
                                 if frame_no in range(v[0], v[1]):
-                                    occlusion_state = "occlusion_state." + att["key"].split("_")[-1]
+                                    occlusion_state = (
+                                        "occlusion_state." + att["key"].split("_")[-1]
+                                    )
                                     break
                     label_t4_dict: Dict[str, Any] = {
                         "category_name": a["title"],
