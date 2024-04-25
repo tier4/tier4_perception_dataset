@@ -54,12 +54,14 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
 
         for t4dataset_name in fl_annotations.keys():
+            # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
             if not osp.exists(input_annotation_dir):
                 logger.warning(f"input_dir {input_dir} not exists.")
                 continue
 
+            # Check if output directory already exists
             output_dir = self._output_base / t4dataset_name
             output_dir = output_dir / "t4_dataset"
             if self._input_bag_base is not None:
@@ -79,6 +81,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             else:
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
+            # Start converting annotations
             annotation_files_generator = AnnotationFilesGenerator(description=self._description)
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
