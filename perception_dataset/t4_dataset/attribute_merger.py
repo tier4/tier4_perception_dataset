@@ -19,14 +19,16 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         self,
         input_base: str,
         output_base: str,
-        input_anno_file: str,
+        input_anno_base: str,
         overwrite_mode: bool,
         dataset_corresponding: Dict[str, int],
         description: Dict[str, Dict[str, str]],
     ):
         self._input_base = Path(input_base)
         self._output_base = Path(output_base)
-        self._input_anno_file: str = input_anno_file
+        self._input_anno_files: List[Path] = []
+        for f in Path(input_anno_base).rglob("*.json"):
+            self._input_anno_files.append(f)
         self._overwrite_mode: bool = overwrite_mode
         self._t4dataset_name_to_merge: Dict[str, str] = dataset_corresponding
         self._description: Dict[str, Dict[str, str]] = description
@@ -40,7 +42,8 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
 
     def convert(self):
         # Load Deepen annotation from JSON file
-        deepen_anno_json = self._load_deepen_annotation()
+        deepen_anno_json_dict = self._load_deepen_annotations()
+        deepen_anno_json = self._format_2d_annotation(deepen_anno_json_dict)
 
         # Format Deepen annotation into a more usable structure
         scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
@@ -93,6 +96,23 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
     def _load_deepen_annotation(self):
         with open(self._input_anno_file) as f:
             return json.load(f)
+
+    def _load_deepen_annotations(self):
+        """Load Deepen annotations from all JSON files in the input directory and return as a dictionary."""
+        deepen_anno_dict = {}
+        for file in self._input_anno_files:
+            with open(file) as f:
+                deepen_anno_dict[file.name] = json.load(f)
+        return deepen_anno_dict
+
+    def _format_2d_annotation(self, deepen_anno_json_dict):
+        """Format 2D annotations from Deepen json in order to correspond with 3D Deepen json."""
+        formatted_deepen_anno_dict = {"labels": []}
+        for file_name, deepen_anno_json in deepen_anno_json_dict.items():
+            for anno in deepen_anno_json["labels"]:
+                anno["dataset_id"] = file_name
+            formatted_deepen_anno_dict["labels"].extend(deepen_anno_json["labels"])
+        return formatted_deepen_anno_dict
 
     def _find_corresponding_annotation(
         self, nuim: NuImages, object_ann: Dict[str, Any], scenes_anno: Dict[str, Any]
