@@ -312,6 +312,31 @@ def main():
         converter.convert()
         logger.info(f"[DONE] Interpolating {input_base} into {output_base}")
 
+    elif task == "convert_fastlabel_2d_to_t4":
+        from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import FastLabel2dToT4Converter
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
+        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
+        description = config_dict["description"]
+        input_bag_base = config_dict["conversion"]["input_bag_base"]
+        topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+        with open(topic_list_yaml_path) as f:
+            topic_list_yaml = yaml.safe_load(f)
+
+        converter = FastLabel2dToT4Converter(
+            input_base=input_base,
+            output_base=output_base,
+            input_anno_base=input_anno_base,
+            dataset_corresponding=dataset_corresponding,
+            overwrite_mode=args.overwrite,
+            description=description,
+            input_bag_base=input_bag_base,
+            topic_list=topic_list_yaml,
+        )
+        logger.info(f"[BEGIN] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
+        converter.convert()
+        logger.info(f"[END] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
     else:
         raise NotImplementedError()
 
