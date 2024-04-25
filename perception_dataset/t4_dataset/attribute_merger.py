@@ -78,10 +78,12 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
                 )
                 if max_iou_anno is None:
                     continue
+                # Get category name
+                category_name: str = nuim.get("category", each_object_ann["category_token"])["name"].lower()
 
                 # Append attribute
                 self._update_attribute_table(max_iou_anno, out_attribute)
-                self._update_object_annotation(each_object_ann, max_iou_anno, out_attribute)
+                self._update_object_annotation(each_object_ann, max_iou_anno, out_attribute, category_name)
 
             # Save modified data to files
             object_ann_filename = output_dir / "annotation" / "object_ann.json"
@@ -178,8 +180,12 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
                     }
                 )
 
-    def _update_object_annotation(self, each_object_ann, max_iou_anno, out_attribute):
+    def _update_object_annotation(self, each_object_ann, max_iou_anno, out_attribute, category_name):
         for attr_name in max_iou_anno["attribute_names"]:
+            # Ignore pedestrian and cyclist for turn signal/brake lamp attributes
+            if "pedestrian" in category_name or "cyclist" in category_name:
+                if "turn_signal" in attr_name or "blinker" in attr_name or "brake_lamp" in attr_name:
+                    continue
             # update object_ann
             token = [a["token"] for a in out_attribute if a["name"] == attr_name][0]
             each_object_ann["attribute_tokens"].append(token)
