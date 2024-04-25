@@ -4,7 +4,7 @@ This document describes the conversion from a rosbag with traffic light recognit
 
 ## Common
 
-Those commands below are asuumed to be run in poetry shell built in [README.md](../README.md)  
+Those commands below are assumed to be run in poetry shell built in [README.md](../README.md)  
 Run this to start a poetry shell.
 
 ```bash
