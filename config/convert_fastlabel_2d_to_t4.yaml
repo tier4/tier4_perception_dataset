@@ -14,14 +14,11 @@ description:
     CAM_FRONT_LEFT: 5
 
 conversion:
-  input_base: ./data/non_annotated_t4_format
+  input_base: ./data/non_annotated_t4_format  # could be non_annotated_t4_format or t4_format_3d_annotated
   input_anno_base: ./data/fastlabel
   input_bag_base: ./data/rosbag2
-  output_base: ./data/t4_format
+  output_base: ./data/t4_format_2d_annotated  # this only includes the 2D annotations
   topic_list: ./config/topic_list_sample.yaml
   dataset_corresponding:
     # input t4dataset_name: FastLabel json file name
-    2-4: 2-4.json
-    2-6: 2-6.json
-    4-6-2: 4-6-2.json
-    6-1: 6-1.json
+    DBv2.0-2-4: 2-4.json
