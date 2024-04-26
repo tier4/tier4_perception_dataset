@@ -144,6 +144,7 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         max_iou_anno = None
         for anno in frame_annotations:
             iou = self._get_IoU(object_ann["bbox"], anno["two_d_box"])
+            # NOTE: 0.75 is defined empirically
             if iou > max_iou and iou > 0.75:
                 max_iou = iou
                 max_iou_anno = anno
