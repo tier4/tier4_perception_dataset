@@ -9,7 +9,7 @@ description:
     CAM_FRONT_LEFT: 5
 conversion:
   input_base: ./data/input
-  input_anno_file: ./data/deepen_format
+  input_anno_base: ./data/deepen_format
   output_base: ./data/t4_format
   dataset_corresponding:
     # original_dataset_name: deepen_label_json_file_name
