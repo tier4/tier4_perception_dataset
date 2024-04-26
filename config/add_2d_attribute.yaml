@@ -9,8 +9,9 @@ description:
     CAM_FRONT_LEFT: 5
 conversion:
   input_base: ./data/input
-  input_anno_file: ./data/deepen_format/2d_attribute_deepen.json
+  input_anno_base: ./data/deepen_format
   output_base: ./data/t4_format
   dataset_corresponding:
-    # input dataset_name: deepen dataset_id
-    t4_dataset_1-2: dummy_dataset_id
+    # original_dataset_name: deepen_label_json_file_name
+    # t4_dataset_1-2: DBv2-0_lamp_1-2.json
+    # t4_dataset_1-4: DBv2-0_lamp_1-4.json
