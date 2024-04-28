@@ -278,14 +278,14 @@ def main():
         from perception_dataset.t4_dataset.attribute_merger import T4dataset2DAttributeMerger
 
         input_base = config_dict["conversion"]["input_base"]
-        input_anno_file = config_dict["conversion"]["input_anno_file"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
         output_base = config_dict["conversion"]["output_base"]
         dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
         description = config_dict["description"]
 
         converter = T4dataset2DAttributeMerger(
             input_base=input_base,
-            input_anno_file=input_anno_file,
+            input_anno_base=input_anno_base,
             output_base=output_base,
             overwrite_mode=args.overwrite,
             dataset_corresponding=dataset_corresponding,
