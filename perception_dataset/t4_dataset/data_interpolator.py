@@ -154,7 +154,7 @@ class DataInterpolator(AbstractConverter):
         prev_token: str = ""
         for i, sample_record in enumerate(all_sorted_samples[:-1]):
             next_sample_token = all_sorted_samples[i + 1]["token"]
-            sample_record["prev_token"] = prev_token
+            sample_record["prev"] = prev_token
             sample_record["next"] = next_sample_token
             prev_token = sample_record["token"]
         all_sorted_samples[-1]["prev"] = prev_token
