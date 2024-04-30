@@ -207,7 +207,8 @@ class DeepenToT4Converter(AbstractConverter):
             anno_label_category_id: str = label_dict["label_category_id"]
             anno_label_id: str = label_dict["label_id"]
             # in case the attributes is not set
-            if "attributes" not in label_dict:
+            if "attributes" not in label_dict or label_dict["attributes"] is None:
+                logger.warning(f"attributes is not set in {label_dict}")
                 anno_attributes = {}
             else:
                 anno_attributes: Dict[str, str] = label_dict["attributes"]

@@ -49,7 +49,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         anno_jsons_dict = self._load_annotation_jsons()
         fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
 
-        for t4dataset_name in fl_annotations.keys():
+        for t4dataset_name in self._t4dataset_name_to_merge.keys():
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
@@ -71,7 +71,9 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                 # Copy input data to output directory
                 self._copy_data(input_dir, output_dir)
                 # Make rosbag
-                if self._input_bag_base is not None:
+                if self._input_bag_base is not None and not osp.exists(
+                    osp.join(output_dir, "input_bag")
+                ):
                     self._find_start_end_time(input_dir)
                     self._make_rosbag(str(input_bag_dir), str(output_dir))
             else:
@@ -164,7 +166,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         """
         fl_annotations = {}
 
-        for filename, ann_list in annotations.items():
+        for filename, ann_list in sorted(annotations.items()):
             dataset_name = Path(filename).stem
             for ann in ann_list:
                 filename = ann["name"].split("/")[-1]
