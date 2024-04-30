@@ -21,6 +21,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.utils.logger import configure_logger
+import subprocess
 
 
 class DataInterpolator(AbstractConverter):
@@ -65,10 +66,12 @@ class DataInterpolator(AbstractConverter):
         self,
         input_base: str,
         output_base: str,
+        copy_excludes: Optional[List[str]] = None,
         logger: Optional[logging.RootLogger] = None,
     ) -> None:
         super().__init__(input_base, output_base)
         self._dataset_paths = glob(osp.join(input_base, "*"))
+        self.copy_excludes = copy_excludes
         self.logger = configure_logger(modname=__name__) if logger is None else logger
 
     def convert(self) -> None:
@@ -90,7 +93,14 @@ class DataInterpolator(AbstractConverter):
         dataset_id = osp.basename(data_root)
         output_path = osp.join(self._output_base, dataset_id)
         os.makedirs(output_path, exist_ok=True)
-        os.system(f"cp -r {data_root} {self._output_base}")
+
+        command: list[str] = ["rsync", "-av"]
+        if self.copy_excludes is not None:
+            assert isinstance(self.copy_excludes, list), f"Unexpected type of excludes: {type(self.copy_excludes)}"
+            for e in self.copy_excludes:
+                command.extend(["--exclude", e])
+        command.extend([f"{data_root}", f"{self._output_base}"])
+        subprocess.run(command)
 
         nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
 

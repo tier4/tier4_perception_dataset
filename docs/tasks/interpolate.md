@@ -81,8 +81,9 @@ task: interpolate                   ...Task name
 description:
   scene: "Interpolate"              ...Scene description
 conversion:
-  input_base: ./data/t4_dataset     ...Input base directory path
-  output_base: ./data/interpolate   ...Output base directory path
+  input_base: str     ...Input base directory path
+  output_base: str   ...Output base directory path
+  copy_excludes: list[str] | null  ...Patterns excluded to copy. If excludes nothing, set `null`.
 ```
 
 ## Check Interpolation Result

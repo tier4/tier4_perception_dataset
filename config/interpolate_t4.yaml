@@ -4,3 +4,4 @@ description:
 conversion:
   input_base: ./data/t4_dataset
   output_base: ./data/interpolate
+  copy_excludes: ["data", "input_bag", "pointcloud_map*"]
