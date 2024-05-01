@@ -299,12 +299,14 @@ def main():
     elif task == "interpolate":
         from perception_dataset.t4_dataset.data_interpolator import DataInterpolator
 
-        input_base = config_dict["conversion"]["input_base"]
-        output_base = config_dict["conversion"]["output_base"]
+        input_base: str = config_dict["conversion"]["input_base"]
+        output_base: str = config_dict["conversion"]["output_base"]
+        copy_excludes: list[str] | None = config_dict["conversion"].get("copy_excludes", None)
 
         converter = DataInterpolator(
             input_base=input_base,
             output_base=output_base,
+            copy_excludes=copy_excludes,
             logger=logger,
         )
 
