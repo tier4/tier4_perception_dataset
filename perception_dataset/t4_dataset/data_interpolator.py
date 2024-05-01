@@ -94,7 +94,7 @@ class DataInterpolator(AbstractConverter):
         output_path = osp.join(self._output_base, dataset_id)
         os.makedirs(output_path, exist_ok=True)
 
-        command: list[str] = ["rsync", "-av"]
+        command: list[str] = ["rsync", "-ahuv"]
         if self.copy_excludes is not None:
             assert isinstance(self.copy_excludes, list), f"Unexpected type of excludes: {type(self.copy_excludes)}"
             for e in self.copy_excludes:
