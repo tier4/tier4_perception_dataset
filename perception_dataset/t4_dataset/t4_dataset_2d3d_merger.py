@@ -2,9 +2,6 @@ import json
 from pathlib import Path
 from typing import Dict
 
-from nuimages import NuImages
-from nuscenes import NuScenes
-
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.utils.logger import configure_logger
 
