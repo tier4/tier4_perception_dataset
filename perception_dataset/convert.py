@@ -342,6 +342,25 @@ def main():
         logger.info(f"[BEGIN] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
         converter.convert()
         logger.info(f"[END] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
+
+    elif task == "merge_2d_t4dataset_to_3d":
+        from perception_dataset.t4_dataset.t4_dataset_2d3d_merger import T4dataset2D3DMerger
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
+
+        converter = T4dataset2D3DMerger(
+            input_base=input_base,
+            output_base=output_base,
+            overwrite_mode=args.overwrite,
+            dataset_corresponding=dataset_corresponding,
+        )
+
+        logger.info(f"[BEGIN] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
+        converter.convert()
+        logger.info(f"[Done] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
+
     else:
         raise NotImplementedError()
 
