@@ -69,6 +69,8 @@ class T4dataset2D3DMerger(AbstractConverter):
                 json.dump(out_visibility, f, indent=4)
             with open(output_3d_annotation_dir / "object_ann.json", "w") as f:
                 json.dump(out_object_ann, f, indent=4)
+            with open(output_3d_annotation_dir / "surface_ann.json", "w") as f:
+                json.dump(out_surface_ann, f, indent=4)
 
 
     def _merge_json_files(self, input_dir, output_dir, filename):
