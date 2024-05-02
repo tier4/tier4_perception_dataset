@@ -25,7 +25,16 @@ class T4dataset2D3DMerger(AbstractConverter):
         for output_3d_t4dataset_name in self._t4dataset_name_to_merge.keys():
             input_t4dataset_name = self._t4dataset_name_to_merge[output_3d_t4dataset_name]
             input_2d_annotation_dir = self._input_base / input_t4dataset_name / "annotation"
+            if not input_2d_annotation_dir.exists():
+                input_2d_annotation_dir = self._input_base / input_t4dataset_name / "t4_dataset/annotation"
+            if not input_2d_annotation_dir.exists():
+                logger.warning(f"input_dir {input_2d_annotation_dir} not exists.")
+                continue
+
             output_3d_annotation_dir = self._output_base / output_3d_t4dataset_name / "annotation"
+            if not output_3d_annotation_dir.exists():
+                logger.warning(f"output_dir {output_3d_annotation_dir} not exists.")
+                continue
 
             out_attribute, attribute_in_out_token_map = self._merge_json_files(
                 input_2d_annotation_dir, output_3d_annotation_dir, "attribute.json"
@@ -77,8 +86,6 @@ class T4dataset2D3DMerger(AbstractConverter):
             out_data: list[dict[str, str]] = json.load(f)
         
         in_out_token_map = {}
-        print(f"input data: {len(in_data)}")
-        print(f"output data: {len(out_data)}")
         for in_d in in_data:
             for out_d in out_data:
                 if "name" in in_d.keys():
@@ -91,8 +98,6 @@ class T4dataset2D3DMerger(AbstractConverter):
                         break
                 
         out_data += [d for d in in_data if d["token"] not in in_out_token_map.keys()]
-        print(f"output data: {len(out_data)}")
-        print([d for d in in_data if d["token"] not in in_out_token_map.keys()])
 
         return out_data, in_out_token_map
         
