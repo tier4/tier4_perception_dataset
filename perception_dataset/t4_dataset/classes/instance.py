@@ -13,6 +13,11 @@ class InstanceRecord(AbstractRecord):
         self._first_annotation_token: str = ""
         self._last_annotation_token: str = ""
 
+        # If the instance_name is a token, then it is a valid token
+        orig_instance_id = instance_name.split("::")[-1]
+        if len(orig_instance_id) == 32:
+            self._token = orig_instance_id
+
     def to_dict(self) -> Dict[str, Any]:
         d = {
             "token": self.token,
