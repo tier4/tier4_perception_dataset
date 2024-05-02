@@ -96,7 +96,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                 anno_dict[file.name] = json.load(f)
         return anno_dict
 
-    def _format_fastlabel_annotation(self, annotations):
+    def _format_fastlabel_annotation(self, annotations: Dict[str, List[Dict[str, Any]]]):
         """
         e.g. of input_anno_file(fastlabel):
         "DBv2.0_1-1.json": [
@@ -164,21 +164,22 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         ],
         ....
         """
-        fl_annotations = {}
+        fl_annotations: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
 
         for filename, ann_list in sorted(annotations.items()):
-            dataset_name = Path(filename).stem
+            dataset_name: str = Path(filename).stem
             for ann in ann_list:
-                filename = ann["name"].split("/")[-1]
-                file_id = int(filename.split(".")[0])
-                frame_no = file_id + 1
-                camera = ann["name"].split("/")[-2]
+                filename: str = ann["name"].split("/")[-1]
+                file_id: int = int(filename.split(".")[0])
+                frame_no: int = file_id + 1
+                camera: str = ann["name"].split("/")[-2]
 
                 if dataset_name not in fl_annotations:
                     fl_annotations[dataset_name] = defaultdict(list)
 
                 for a in ann["annotations"]:
-                    occlusion_state = "occlusion_state.none"
+                    occlusion_state: str = "occlusion_state.none"
+                    visibility: str = "Not available"
                     for att in a["attributes"]:
                         if att["key"] == "id":
                             instance_id = att["value"]
@@ -188,11 +189,15 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                                     occlusion_state = (
                                         "occlusion_state." + att["key"].split("_")[-1]
                                     )
+                                    visibility = self._convert_occulusion_to_visibility(
+                                        att["key"].split("_")[-1]
+                                    )
                                     break
                     label_t4_dict: Dict[str, Any] = {
                         "category_name": a["title"],
                         "instance_id": instance_id,
                         "attribute_names": [occlusion_state],
+                        "visibility_name": visibility,
                     }
                     label_t4_dict.update(
                         {
