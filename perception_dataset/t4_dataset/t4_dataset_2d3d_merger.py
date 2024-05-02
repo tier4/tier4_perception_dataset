@@ -24,6 +24,7 @@ class T4dataset2D3DMerger(AbstractConverter):
 
     def convert(self):
         for output_3d_t4dataset_name in self._t4dataset_name_to_merge.keys():
+            logger.info(f"Merge 2D annotation to {output_3d_t4dataset_name}")
             input_t4dataset_name = self._t4dataset_name_to_merge[output_3d_t4dataset_name]
             input_2d_annotation_dir = self._input_base / input_t4dataset_name / "annotation"
             if not input_2d_annotation_dir.exists():
