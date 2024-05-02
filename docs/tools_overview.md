@@ -143,6 +143,7 @@ python -m perception_dataset.convert --config config/convert_fastlabel_2d_to_t4.
 ```
 
 ### Merge 2D T4 format data into 3D T4 format data
+
 This step merges 2D-id-linked T4 format dataset into originally 3D-labeled T4 format data.
 
 input: T4 format data (3D annotated) + T4 format data (2D annotated/ID-linked)  
