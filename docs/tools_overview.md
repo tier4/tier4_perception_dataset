@@ -130,9 +130,9 @@ python -m perception_dataset.convert --config config/convert_deepen_to_t4_sample
 
 ## FastLabel
 
-This step converts FastLabel 2D annotations to T4 format (2D only).
-
 ### Conversion from FastLabel JSON Format to T4 Format
+
+This step converts FastLabel 2D annotations to T4 format (2D only).
 
 input: T4 format data (3D annotated or non-annotated) + FastLabel annotations (JSON format)  
 output: T4 format data (2D annotated)
@@ -140,6 +140,16 @@ output: T4 format data (2D annotated)
 ```bash
 python -m perception_dataset.convert --config config/convert_fastlabel_2d_to_t4.yaml
 # To overwrite T4-format data, use the --overwrite option
+```
+
+### Merge 2D T4 format data into 3D T4 format data
+This step merges 2D-id-linked T4 format dataset into originally 3D-labeled T4 format data.
+
+input: T4 format data (3D annotated) + T4 format data (2D annotated/ID-linked)  
+output: T4 format data (2D&3D annotated)
+
+```bash
+python -m perception_dataset.convert --config config/merge_2d_t4dataset_to_3d.yaml
 ```
 
 ## Rosbag with objects

@@ -15,12 +15,10 @@ class T4dataset2D3DMerger(AbstractConverter):
         self,
         input_base: str,
         output_base: str,
-        overwrite_mode: bool,
         dataset_corresponding: Dict[str, int],
     ):
         self._input_base = Path(input_base)
         self._output_base = Path(output_base)
-        self._overwrite_mode = overwrite_mode
         self._t4dataset_name_to_merge: Dict[str, str] = dataset_corresponding
 
     def convert(self):
@@ -28,17 +26,6 @@ class T4dataset2D3DMerger(AbstractConverter):
             input_t4dataset_name = self._t4dataset_name_to_merge[output_3d_t4dataset_name]
             input_2d_annotation_dir = self._input_base / input_t4dataset_name / "annotation"
             output_3d_annotation_dir = self._output_base / output_3d_t4dataset_name / "annotation"
-
-            input_t4_dataset_2d = NuImages(
-                version="annotation",
-                dataroot=self._input_base / input_t4dataset_name,
-                verbose=False,
-            )
-            output_t4_dataset_3d = NuScenes(
-                version="annotation",
-                dataroot=self._output_base / output_3d_t4dataset_name,
-                verbose=False,
-            )
 
             out_attribute, attribute_in_out_token_map = self._merge_json_files(
                 input_2d_annotation_dir, output_3d_annotation_dir, "attribute.json"

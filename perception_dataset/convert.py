@@ -353,7 +353,6 @@ def main():
         converter = T4dataset2D3DMerger(
             input_base=input_base,
             output_base=output_base,
-            overwrite_mode=args.overwrite,
             dataset_corresponding=dataset_corresponding,
         )
 
