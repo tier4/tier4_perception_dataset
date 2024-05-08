@@ -22,6 +22,7 @@ class BaseConverter(ABC):
         return label_map
 
     def convert_label(self, label: str) -> str:
+        return label
         return self.label_map[label]
 
 
@@ -49,8 +50,7 @@ class LabelConverter(BaseConverter):
         self,
         attribute: str,
     ) -> str:
-        return_attribute: str = self.attribute_map[attribute]
-        return return_attribute
+        return attribute
 
 
 class TrafficLightLabelConverter(BaseConverter):

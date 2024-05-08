@@ -191,6 +191,8 @@ class DeepenToT4Converter(AbstractConverter):
             camera_index (Dict[str, int]): camera index dictionary
         """
         anno_dict: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
+        class_label_3d = []
+        class_label_2d = []
         for label_dict in label_dicts:
             if (
                 self._ignore_interpolate_label
@@ -206,6 +208,23 @@ class DeepenToT4Converter(AbstractConverter):
 
             anno_label_category_id: str = label_dict["label_category_id"]
             anno_label_id: str = label_dict["label_id"]
+            if "bicycle" in anno_label_category_id and (
+                label_dict.get("attributes", {}).get("vehicle_state") == "parked"
+                or label_dict.get("attributes", {}).get("cycle_state") == "without_rider"
+            ):
+                print(
+                    f"label is {anno_label_category_id}, and attributes is {label_dict['attributes']}"
+                )
+                continue
+            if "motorcycle" in anno_label_category_id and (
+                label_dict.get("attributes", {}).get("vehicle_state") == "parked"
+                or label_dict.get("attributes", {}).get("cycle_state") == "without_rider"
+            ):
+                print(
+                    f"label is {anno_label_category_id}, and attributes is {label_dict['attributes']}"
+                )
+                continue
+
             # in case the attributes is not set
             if "attributes" not in label_dict or label_dict["attributes"] is None:
                 logger.warning(f"attributes is not set in {label_dict}")
@@ -222,6 +241,8 @@ class DeepenToT4Converter(AbstractConverter):
                 )
             else:
                 visibility: str = "Not available"
+            if "camera" in label_dict["sensor_id"] and visibility == "none":
+                continue
             label_t4_dict: Dict[str, Any] = {
                 "category_name": anno_label_category_id,
                 "instance_id": anno_label_id,
@@ -231,6 +252,7 @@ class DeepenToT4Converter(AbstractConverter):
                 "visibility_name": visibility,
             }
             if label_dict["sensor_id"] == "lidar" or label_dict["label_type"] == "3d_bbox":
+                class_label_3d.append(anno_label_category_id)
                 anno_three_d_bbox: Dict[str, str] = label_dict["three_d_bbox"]
                 label_t4_dict.update(
                     {
@@ -259,6 +281,7 @@ class DeepenToT4Converter(AbstractConverter):
                     }
                 )
             if label_dict["sensor_id"][:6] == "camera" or label_dict["label_type"] == "box":
+                class_label_2d.append(anno_label_category_id)
                 sensor_id = label_dict["sensor_id"][-1]
                 if camera_index is not None:
                     for k in camera_index.keys():
@@ -288,5 +311,44 @@ class DeepenToT4Converter(AbstractConverter):
                 )
 
             anno_dict[dataset_id][file_id].append(label_t4_dict)
+
+        class_label_3d = list(set(class_label_3d))
+        class_label_2d = list(set(class_label_2d))
+        for dataset_id in anno_dict:
+            for file_id in anno_dict[dataset_id]:
+                for label in anno_dict[dataset_id][file_id]:
+                    if label["category_name"] in class_label_2d:
+                        if "cone" == label["category_name"]:
+                            label["category_name"] = "traffic_cone"
+                            print(
+                                f"label is just {label['category_name']}, dataset_id is {dataset_id}, camera is {label['sensor_id']}"
+                            )
+                            continue
+                        for label_3d in class_label_3d:
+                            if label["category_name"] in label_3d:
+                                label["instance_id"] = label["instance_id"].replace(
+                                    label["category_name"], label_3d
+                                )
+                                label["category_name"] = label_3d
+                        if label["category_name"] in class_label_2d:
+                            if "fire_truck" in label["category_name"]:
+                                label["category_name"] = label["category_name"].replace(
+                                    "fire_truck", "fire"
+                                )
+                                label["instance_id"] = label["instance_id"].replace(
+                                    "fire_truck", "fire"
+                                )
+                                label["category_name"] = f"vehicle.{label['category_name']}"
+                            if (
+                                "car" in label["category_name"]
+                                or "fire_truck" in label["category_name"]
+                                or "ambulance" in label["category_name"]
+                            ):
+                                label["category_name"] = f"vehicle.{label['category_name']}"
+                            if "cone" in label["category_name"]:
+                                label["category_name"] = f"movable_object.{label['category_name']}"
+                        if label["category_name"] in class_label_2d:
+                            if label["category_name"] != "animal":
+                                print(f"no 3d label for {label['category_name']}")
 
         return anno_dict

@@ -88,7 +88,8 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                 # We need to convert it to 0.pcd in this case.
                 file_id = str(int(file_id.split(".")[0])) + ".pcd"
 
-                label_category_id = self._label_converter.convert_label(category_record["name"])
+                label_category_id = category_record["name"]
+                # label_category_id = self._label_converter.convert_label(category_record["name"])
 
                 attributes_records = [
                     nusc.get("attribute", token) for token in anno["attribute_tokens"]
