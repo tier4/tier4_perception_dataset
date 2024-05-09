@@ -1,4 +1,5 @@
 pedestrian_state:
+    # The word `siting` is a typo included intentionally since the existing T4dataset also had the same typo.
     sitting: [pedestrian_state.sitting_lying_down, pedestrian_state.siting_lying_down, pedestrian_state.sitting]
     lying_down: [pedestrian_state.lying_down]
     standing: [pedestrian_state.standing, pedestrian_state.moving]
