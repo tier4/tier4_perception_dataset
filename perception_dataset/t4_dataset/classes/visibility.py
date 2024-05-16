@@ -19,7 +19,7 @@ class VisibilityRecord(AbstractRecord):
         return d
 
 
-class VisibilityTable(AbstractTable):
+class VisibilityTable(AbstractTable[VisibilityRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#visibilityjson"""
 
     FILENAME = "visibility" + EXTENSION_ENUM.JSON.value

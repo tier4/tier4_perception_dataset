@@ -13,6 +13,11 @@ class InstanceRecord(AbstractRecord):
         self._first_annotation_token: str = ""
         self._last_annotation_token: str = ""
 
+        # If the instance_name is a token, then it is a valid token
+        orig_instance_id = instance_name.split("::")[-1]
+        if len(orig_instance_id) == 32:
+            self._token = orig_instance_id
+
     def to_dict(self) -> Dict[str, Any]:
         d = {
             "token": self.token,
@@ -32,7 +37,7 @@ class InstanceRecord(AbstractRecord):
         self._last_annotation_token = last_annotation_token
 
 
-class InstanceTable(AbstractTable):
+class InstanceTable(AbstractTable[InstanceRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#instancejson"""
 
     FILENAME = "instance" + EXTENSION_ENUM.JSON.value

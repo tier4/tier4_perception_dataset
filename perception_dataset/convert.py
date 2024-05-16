@@ -278,14 +278,14 @@ def main():
         from perception_dataset.t4_dataset.attribute_merger import T4dataset2DAttributeMerger
 
         input_base = config_dict["conversion"]["input_base"]
-        input_anno_file = config_dict["conversion"]["input_anno_file"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
         output_base = config_dict["conversion"]["output_base"]
         dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
         description = config_dict["description"]
 
         converter = T4dataset2DAttributeMerger(
             input_base=input_base,
-            input_anno_file=input_anno_file,
+            input_anno_base=input_anno_base,
             output_base=output_base,
             overwrite_mode=args.overwrite,
             dataset_corresponding=dataset_corresponding,
@@ -299,18 +299,66 @@ def main():
     elif task == "interpolate":
         from perception_dataset.t4_dataset.data_interpolator import DataInterpolator
 
-        input_base = config_dict["conversion"]["input_base"]
-        output_base = config_dict["conversion"]["output_base"]
+        input_base: str = config_dict["conversion"]["input_base"]
+        output_base: str = config_dict["conversion"]["output_base"]
+        copy_excludes: list[str] | None = config_dict["conversion"].get("copy_excludes", None)
 
         converter = DataInterpolator(
             input_base=input_base,
             output_base=output_base,
+            copy_excludes=copy_excludes,
             logger=logger,
         )
 
         logger.info(f"[BEGIN] Interpolating {input_base} into {output_base}")
         converter.convert()
         logger.info(f"[DONE] Interpolating {input_base} into {output_base}")
+
+    elif task == "convert_fastlabel_2d_to_t4":
+        from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import (
+            FastLabel2dToT4Converter,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
+        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
+        description = config_dict["description"]
+        input_bag_base = config_dict["conversion"]["input_bag_base"]
+        topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+        with open(topic_list_yaml_path) as f:
+            topic_list_yaml = yaml.safe_load(f)
+
+        converter = FastLabel2dToT4Converter(
+            input_base=input_base,
+            output_base=output_base,
+            input_anno_base=input_anno_base,
+            dataset_corresponding=dataset_corresponding,
+            overwrite_mode=args.overwrite,
+            description=description,
+            input_bag_base=input_bag_base,
+            topic_list=topic_list_yaml,
+        )
+        logger.info(f"[BEGIN] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
+        converter.convert()
+        logger.info(f"[END] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
+
+    elif task == "merge_2d_t4dataset_to_3d":
+        from perception_dataset.t4_dataset.t4_dataset_2d3d_merger import T4dataset2D3DMerger
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
+
+        converter = T4dataset2D3DMerger(
+            input_base=input_base,
+            output_base=output_base,
+            dataset_corresponding=dataset_corresponding,
+        )
+
+        logger.info(f"[BEGIN] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
+        converter.convert()
+        logger.info(f"[Done] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
 
     else:
         raise NotImplementedError()

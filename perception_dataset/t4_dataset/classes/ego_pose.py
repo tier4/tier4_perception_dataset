@@ -39,7 +39,7 @@ class EgoPoseRecord(AbstractRecord):
         return d
 
 
-class EgoPoseTable(AbstractTable):
+class EgoPoseTable(AbstractTable[EgoPoseRecord]):
     """https://github.com/tier4/tier4_perception_dataset/blob/main/docs/t4_format_3d_detailed.md#ego_posejson"""
 
     FILENAME = "ego_pose" + EXTENSION_ENUM.JSON.value

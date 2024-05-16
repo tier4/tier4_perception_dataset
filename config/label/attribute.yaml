@@ -1,5 +1,6 @@
 pedestrian_state:
-    sitting: [pedestrian_state.sitting_lying_down, pedestrian_state.sitting]
+    # The word `siting` is a typo included intentionally since the existing T4dataset also had the same typo.
+    sitting: [pedestrian_state.sitting_lying_down, pedestrian_state.siting_lying_down, pedestrian_state.sitting]
     lying_down: [pedestrian_state.lying_down]
     standing: [pedestrian_state.standing, pedestrian_state.moving]
 vehicle_state:
@@ -24,6 +25,7 @@ extremities_state:
 emergency_vehicle_lights_state:
     on: [emergency_vehicle_lights_state.on]
     off: [emergency_vehicle_lights_state.off]
+    unknown: [emergency_vehicle_lights_state.unknown]
 object_state:
     still: [object_state.still]
 truncation_state:
