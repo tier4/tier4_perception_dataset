@@ -63,8 +63,8 @@ class Rosbag2ToT4TrackingConverter(Rosbag2ToT4Converter):
         try:
             params = copy.deepcopy(self._params)
             params.input_bag_path = bag_dir
-            # TODO: Prior to Rosbag2ToT4TracingConversion, add the functions of 'add_objects' and 'add_noise' as options.
-            converter = _Rosbag2ToT4TracingConverter(params)
+            # TODO: Prior to Rosbag2ToT4TrackingConversion, add the functions of 'add_objects' and 'add_noise' as options.
+            converter = _Rosbag2ToT4TrackingConverter(params)
             converter.convert()
             if params.data_type == DataType.SYNTHETIC:
                 converter._add_scene_description("synthetic")
@@ -73,7 +73,7 @@ class Rosbag2ToT4TrackingConverter(Rosbag2ToT4Converter):
             raise
 
 
-class _Rosbag2ToT4TracingConverter(_Rosbag2ToT4Converter):
+class _Rosbag2ToT4TrackingConverter(_Rosbag2ToT4Converter):
     def __init__(self, params: Rosbag2ConverterParams) -> None:
         super().__init__(params)
         self._topic_list = params.topic_list
