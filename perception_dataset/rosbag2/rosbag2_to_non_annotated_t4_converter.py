@@ -417,7 +417,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             start_time=start_time_in_time,
         ):
             # Find the maximum number of points in the point cloud in the first 100 messages.
-            max_num_points = max(max_num_points, pointcloud_msg.width)
+            if hasattr(pointcloud_msg, "width"):
+                max_num_points = max(max_num_points, pointcloud_msg.width)
+            else:
+                max_num_points = 0
             topic_check_count += 1
             if topic_check_count > 100:
                 break
