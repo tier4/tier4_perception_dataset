@@ -411,12 +411,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Calculate the maximum number of points
         max_num_points = 0
+        topic_check_count = 0
         for pointcloud_msg in self._bag_reader.read_messages(
             topics=[topic],
             start_time=start_time_in_time,
         ):
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-            max_num_points = max(max_num_points, len(points_arr))
+            # Find the maximum number of points in the point cloud in the first 100 messages.
+            max_num_points = max(max_num_points, pointcloud_msg.width)
+            topic_check_count += 1
+            if topic_check_count > 100:
+                break
 
         # Main iteration
         for pointcloud_msg in self._bag_reader.read_messages(
