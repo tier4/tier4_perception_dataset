@@ -96,8 +96,12 @@ class Rosbag2Reader:
     def _set_camera_info(self):
         """set /camera_info to self.camera_info"""
         for topic_name, message in self.read_camera_info():
-            cam_info_available: bool = all(cam_info is not None for cam_info in self.camera_info.values())
-            frame_id_available: bool = all(frame_id is not None for frame_id in self.sensor_topic_to_frame_id.values())
+            cam_info_available: bool = all(
+                cam_info is not None for cam_info in self.camera_info.values()
+            )
+            frame_id_available: bool = all(
+                frame_id is not None for frame_id in self.sensor_topic_to_frame_id.values()
+            )
             if cam_info_available and frame_id_available:
                 return
             self.camera_info[topic_name] = message
