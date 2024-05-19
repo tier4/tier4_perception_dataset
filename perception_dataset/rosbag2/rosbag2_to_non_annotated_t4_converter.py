@@ -119,7 +119,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._accept_frame_drop: bool = params.accept_frame_drop
 
         # frame_id of coordinate transformation
-        self._ego_pose_target_frame: str = "map"
+        self._ego_pose_target_frame: str = params.world_frame_id
         self._ego_pose_source_frame: str = "base_link"
         self._calibrated_sensor_target_frame: str = "base_link"
 
@@ -157,7 +157,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
 
-        self._bag_reader = Rosbag2Reader(self._input_bag)
+        with_world_frame_conversion = self._ego_pose_target_frame != self._ego_pose_source_frame
+        self._bag_reader = Rosbag2Reader(self._input_bag, with_world_frame_conversion)
         self._calc_actual_num_load_frames()
 
     def _calc_actual_num_load_frames(self):

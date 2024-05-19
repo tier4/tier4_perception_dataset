@@ -15,11 +15,12 @@ from perception_dataset.utils.rosbag2 import create_reader, get_topic_count, get
 
 
 class Rosbag2Reader:
-    def __init__(self, bag_dir: str):
+    def __init__(self, bag_dir: str, with_world_frame_conversion: bool = False):
         self._bag_dir: str = bag_dir
 
         self._topic_name_to_topic_type = get_topic_type_dict(self._bag_dir)
         self._topic_name_to_topic_count = get_topic_count(self._bag_dir)
+        self._is_tf_needed = with_world_frame_conversion
 
         #  start time in seconds
         self.start_timestamp = self._get_starting_time()
@@ -27,8 +28,16 @@ class Rosbag2Reader:
         self._tf_buffer = tf2_ros.BufferCore(Duration(seconds=1e9))
         self._set_tf_buffer()
 
-        self.sensor_topic_to_frame_id: Dict[str, str] = {}
-        self.camera_info: Dict[str, str] = {}
+        self.sensor_topic_to_frame_id: Dict[str, str] = {
+            topic: None
+            for topic in self._topic_name_to_topic_type
+            if "sensor_msgs/msg/" in self._topic_name_to_topic_type[topic]
+        }
+        self.camera_info: Dict[str, str] = {
+            topic: None
+            for topic in self._topic_name_to_topic_type
+            if "sensor_msgs/msg/CameraInfo" in self._topic_name_to_topic_type[topic]
+        }
         self._set_camera_info()
 
     def _get_starting_time(self) -> float:
@@ -73,7 +82,7 @@ class Rosbag2Reader:
 
     def _set_tf_buffer(self):
         """set /tf and /tf_static to tf_buffer"""
-        if "/tf" not in self._topic_name_to_topic_type:
+        if self._is_tf_needed and "/tf" not in self._topic_name_to_topic_type:
             raise ValueError(f"/tf is not in {self._bag_dir}")
         if "/tf_static" not in self._topic_name_to_topic_type:
             raise ValueError(f"/tf_static is not in {self._bag_dir}")
@@ -88,6 +97,10 @@ class Rosbag2Reader:
     def _set_camera_info(self):
         """set /camera_info to self.camera_info"""
         for topic_name, message in self.read_camera_info():
+            if all([cam_info is not None for cam_info in self.camera_info.values()]) and all(
+                [frame_id is not None for frame_id in self.sensor_topic_to_frame_id.values()]
+            ):
+                return
             self.camera_info[topic_name] = message
 
     def get_topic_count(self, topic_name: str) -> int:
