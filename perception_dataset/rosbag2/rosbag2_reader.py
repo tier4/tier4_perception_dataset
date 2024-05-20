@@ -27,8 +27,16 @@ class Rosbag2Reader:
         self._tf_buffer = tf2_ros.BufferCore(Duration(seconds=1e9))
         self._set_tf_buffer()
 
-        self.sensor_topic_to_frame_id: Dict[str, str] = {}
-        self.camera_info: Dict[str, str] = {}
+        self.sensor_topic_to_frame_id: Dict[str, str] = {
+            topic: None
+            for topic in self._topic_name_to_topic_type
+            if "sensor_msgs/msg/" in self._topic_name_to_topic_type[topic]
+        }
+        self.camera_info: Dict[str, str] = {
+            topic: None
+            for topic in self._topic_name_to_topic_type
+            if "sensor_msgs/msg/CameraInfo" in self._topic_name_to_topic_type[topic]
+        }
         self._set_camera_info()
 
     def _get_starting_time(self) -> float:
@@ -88,6 +96,14 @@ class Rosbag2Reader:
     def _set_camera_info(self):
         """set /camera_info to self.camera_info"""
         for topic_name, message in self.read_camera_info():
+            cam_info_available: bool = all(
+                cam_info is not None for cam_info in self.camera_info.values()
+            )
+            frame_id_available: bool = all(
+                frame_id is not None for frame_id in self.sensor_topic_to_frame_id.values()
+            )
+            if cam_info_available and frame_id_available:
+                return
             self.camera_info[topic_name] = message
 
     def get_topic_count(self, topic_name: str) -> int:
