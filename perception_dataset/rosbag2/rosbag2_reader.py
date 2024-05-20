@@ -15,11 +15,12 @@ from perception_dataset.utils.rosbag2 import create_reader, get_topic_count, get
 
 
 class Rosbag2Reader:
-    def __init__(self, bag_dir: str):
+    def __init__(self, bag_dir: str, with_world_frame_conversion: bool = False):
         self._bag_dir: str = bag_dir
 
         self._topic_name_to_topic_type = get_topic_type_dict(self._bag_dir)
         self._topic_name_to_topic_count = get_topic_count(self._bag_dir)
+        self._is_tf_needed = with_world_frame_conversion
 
         #  start time in seconds
         self.start_timestamp = self._get_starting_time()
@@ -81,7 +82,7 @@ class Rosbag2Reader:
 
     def _set_tf_buffer(self):
         """set /tf and /tf_static to tf_buffer"""
-        if "/tf" not in self._topic_name_to_topic_type:
+        if self._is_tf_needed and "/tf" not in self._topic_name_to_topic_type:
             raise ValueError(f"/tf is not in {self._bag_dir}")
         if "/tf_static" not in self._topic_name_to_topic_type:
             raise ValueError(f"/tf_static is not in {self._bag_dir}")
