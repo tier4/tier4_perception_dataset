@@ -18,7 +18,7 @@ pydantic = "^1.10.2"
 lark = "^1.1.2"
 loguru = "^0.6.0"
 numba = "^0.56.4"
-requests = "^2.28.2"
+requests = "^2.32.0"
 matplotlib = "3.5.3"
 pandas = "2.0.2"
 
