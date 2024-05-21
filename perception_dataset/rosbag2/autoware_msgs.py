@@ -1,13 +1,23 @@
 from typing import Any, Dict, List, Optional, Union
 import uuid
 
-from autoware_auto_perception_msgs.msg import (
-    DetectedObject,
-    DetectedObjects,
-    ObjectClassification,
-    TrackedObject,
-    TrackedObjects,
-)
+try:
+    from autoware_auto_perception_msgs.msg import (
+        DetectedObject,
+        DetectedObjects,
+        ObjectClassification,
+        TrackedObject,
+        TrackedObjects,
+    )
+except:
+    from autoware_perception_msgs.msg import (
+        DetectedObject,
+        DetectedObjects,
+        ObjectClassification,
+        TrackedObject,
+        TrackedObjects,
+    )
+
 from tier4_perception_msgs.msg import (
     TrafficLight,
     TrafficLightArray,
