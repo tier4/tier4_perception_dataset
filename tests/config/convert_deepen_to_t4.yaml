@@ -19,6 +19,7 @@ conversion:
   input_bag_base: ./data/rosbag2
   output_base: ./data/t4_format
   topic_list: ./config/topic_list.yaml
+  format_version: "1.2"
   ignore_interpolate_label: True
   dataset_corresponding:
     sample_bag: i3BpFG1vXknBto6q2vPZ3M1i

@@ -29,6 +29,7 @@ class DeepenToT4Converter(AbstractConverter):
         description: Dict[str, Dict[str, str]],
         input_bag_base: Optional[str],
         topic_list: Union[Dict[str, List[str]], List[str]],
+        format_version: str,
         t4_dataset_dir_name: str = "t4_dataset",
         ignore_interpolate_label: bool = False,
     ):
@@ -45,6 +46,7 @@ class DeepenToT4Converter(AbstractConverter):
         self._ignore_interpolate_label: bool = ignore_interpolate_label
 
         self._topic_list_yaml: Union[List, Dict] = topic_list
+        self._format_version: str = str(format_version)
 
     def convert(self):
         with open(self._input_anno_file) as f:
@@ -69,6 +71,7 @@ class DeepenToT4Converter(AbstractConverter):
             if self._overwrite_mode or not is_dir_exist:
                 shutil.rmtree(output_dir, ignore_errors=True)
                 self._copy_data(input_dir, output_dir)
+                self._generate_format_version_file(output_dir)
                 if self._input_bag_base is not None:
                     self._find_start_end_time(input_dir)
                     self._make_rosbag(input_bag_dir, output_dir)
@@ -92,6 +95,11 @@ class DeepenToT4Converter(AbstractConverter):
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             modifier = KeyFrameConsistencyResolver()
             modifier.inspect_and_fix_t4_segment(Path(output_dir))
+    
+    def _generate_format_version_file(self, output_dir: str):
+        format_version_file_path = osp.join(output_dir, "format_version.txt")
+        with open(format_version_file_path, "w") as f:
+            f.write(self._format_version)
 
     def _copy_data(self, input_dir: str, output_dir: str):
         if input_dir != output_dir:

@@ -139,6 +139,7 @@ def main():
         description = config_dict["description"]
         input_bag_base = config_dict["conversion"]["input_bag_base"]
         topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+        format_version = config_dict["conversion"]["format_version"]
         ignore_interpolate_label = False
         if "ignore_interpolate_label" in config_dict["conversion"]:
             ignore_interpolate_label = config_dict["conversion"]["ignore_interpolate_label"]
@@ -154,6 +155,7 @@ def main():
             description=description,
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
+            format_version=format_version,
             ignore_interpolate_label=ignore_interpolate_label,
         )
 
