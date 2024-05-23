@@ -11,6 +11,7 @@ from nptyping import NDArray
 import numpy as np
 from radar_msgs.msg import RadarTrack, RadarTracks
 from rclpy.time import Time
+import ros2_numpy as rnp
 from rosbag2_py import (
     ConverterOptions,
     Reindexer,
@@ -20,7 +21,6 @@ from rosbag2_py import (
 )
 from sensor_msgs.msg import CompressedImage, PointCloud2
 import yaml
-import ros2_numpy as rnp
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 
