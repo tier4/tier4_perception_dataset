@@ -95,7 +95,7 @@ class DeepenToT4Converter(AbstractConverter):
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             modifier = KeyFrameConsistencyResolver()
             modifier.inspect_and_fix_t4_segment(Path(output_dir))
-    
+
     def _generate_format_version_file(self, output_dir: str):
         format_version_file_path = osp.join(output_dir, "format_version.txt")
         with open(format_version_file_path, "w") as f:
