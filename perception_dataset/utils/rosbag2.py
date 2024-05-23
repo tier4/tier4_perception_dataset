@@ -19,8 +19,8 @@ from rosbag2_py import (
     StorageOptions,
 )
 from sensor_msgs.msg import CompressedImage, PointCloud2
-import sensor_msgs_py.point_cloud2
 import yaml
+import ros2_numpy as rnp
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 
@@ -102,23 +102,33 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
-def pointcloud_msg_to_numpy(
-    pointcloud_msg: PointCloud2,
-) -> NDArray:
-    """numpy ver. of https://github.com/ros2/common_interfaces/blob/master/sensor_msgs_py/sensor_msgs_py/point_cloud2.py#L119"""
+def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
+    """Convert ROS PointCloud2 message to numpy array using ros2-numpy."""
     NUM_DIMENSIONS = 5
 
     if not isinstance(pointcloud_msg, PointCloud2):
         return np.zeros((0, NUM_DIMENSIONS), dtype=np.float32)
 
-    points_arr = np.array(
-        [tuple(p) for p in sensor_msgs_py.point_cloud2.read_points(pointcloud_msg)],
-        dtype=np.float32,
-    )
-    if len(points_arr[0]) > NUM_DIMENSIONS:
-        points_arr = np.delete(points_arr, np.s_[NUM_DIMENSIONS:], axis=1)
-    while len(points_arr[0]) < NUM_DIMENSIONS:
-        points_arr = np.insert(points_arr, len(points_arr[0]), -1, axis=1)
+    # Convert the PointCloud2 message to a numpy structured array
+    points = rnp.point_cloud2.point_cloud2_to_array(pointcloud_msg)
+
+    # Extract the x, y, z coordinates and additional fields if available
+    xyz = points["xyz"]
+    if "intensity" in points.keys():
+        intensity = points["intensity"]
+        points_arr = np.hstack((xyz, intensity))
+    else:
+        points_arr = xyz
+
+    # Ensure the resulting array has exactly NUM_DIMENSIONS columns
+    if points_arr.shape[1] > NUM_DIMENSIONS:
+        points_arr = points_arr[:, :NUM_DIMENSIONS]
+    elif points_arr.shape[1] < NUM_DIMENSIONS:
+        padding = np.full(
+            (points_arr.shape[0], NUM_DIMENSIONS - points_arr.shape[1]), -1, dtype=np.float32
+        )
+        points_arr = np.hstack((points_arr, padding))
+
     return points_arr
 
 
@@ -167,7 +177,7 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
     return radar_tracks
 
 
-def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> np.ndarray:
+def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
     if hasattr(compressed_image_msg, "_encoding"):
         try:
             np_arr = np.frombuffer(compressed_image_msg.data, np.uint8)
