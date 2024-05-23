@@ -465,7 +465,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             if hasattr(pointcloud_msg, "width"):
                 num_points = pointcloud_msg.width
             else:
-                max_num_points = 0
+                num_points = 0
             if num_points < max_num_points * self._lidar_points_ratio_threshold:
                 if not self._accept_frame_drop:
                     raise ValueError(
