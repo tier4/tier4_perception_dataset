@@ -462,18 +462,21 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         f"PointCloud message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
 
-            point_num = pointcloud_msg.width
-            if point_num < max_num_points * self._lidar_points_ratio_threshold:
+            if hasattr(pointcloud_msg, "width"):
+                num_points = pointcloud_msg.width
+            else:
+                max_num_points = 0
+            if num_points < max_num_points * self._lidar_points_ratio_threshold:
                 if not self._accept_frame_drop:
                     raise ValueError(
                         f"PointCloud message is relatively lower than the maximum size, which is not acceptable. "
                         f"If you would like to accept, please change accept_frame_drop parameter. "
-                        f"frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {point_num}"
+                        f"frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {num_points}"
                     )
                 else:
                     warnings.warn(
                         f"PointCloud message is relatively lower than the maximum size. "
-                        f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {point_num}"
+                        f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {num_points}"
                     )
                     continue
 
