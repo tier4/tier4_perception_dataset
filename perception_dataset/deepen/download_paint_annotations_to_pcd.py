@@ -4,19 +4,19 @@ import json
 import os
 from typing import List
 import zlib
-import yaml
-import requests
-from sensor_msgs.msg import PointField
 
 import numpy as np
-
+import requests
+from sensor_msgs.msg import PointField
 import tqdm
+import yaml
 
 CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
 ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
 today = str(date.today()).replace("-", "")
 
 NUM_DIMENSIONS = 5
+
 
 def get_datasets(dataset_id: str, input_base_dir: str):
     headers = {
@@ -32,12 +32,12 @@ def get_datasets(dataset_id: str, input_base_dir: str):
 
     response = requests.get(DATASET_URL, headers=headers)
     decompress_data = bytearray(zlib.decompress(bytearray(response.content)))
-    
+
     print(list(response.headers.values()))
     header_list = list(response.headers.values())
     label_info = json.loads(header_list[3])
-    frame_size = list(label_info['frame_sizes'])
-    
+    frame_size = list(label_info["frame_sizes"])
+
     # [
     #     [l,l,l,l,...],
     #     [l,l,l,l,...],
@@ -47,23 +47,24 @@ def get_datasets(dataset_id: str, input_base_dir: str):
     label_list = []
     offset = 0
     for i in range(len(frame_size)):
-        offset += frame_size[i-1] if i != 0 else 0
+        offset += frame_size[i - 1] if i != 0 else 0
         label_list.append(
-            np.array([
-                decompress_data[offset + j] for j in range(frame_size[i])
-            ], dtype=np.uint32)
+            np.array([decompress_data[offset + j] for j in range(frame_size[i])], dtype=np.uint32)
         )
 
     sample_data_file = os.path.join(input_base_dir, "annotation", "sample_data.json")
-    sample_data = json.load(open(sample_data_file, 'r'))
-    sample_data = list(filter(lambda d : d["filename"].split(".")[-2] == "pcd", sample_data))
-    
+    sample_data = json.load(open(sample_data_file, "r"))
+    sample_data = list(filter(lambda d: d["filename"].split(".")[-2] == "pcd", sample_data))
+
     for i in tqdm.tqdm(range(0, len(sample_data))):
         pcd_file_path = os.path.join(input_base_dir, sample_data[i]["filename"])
         scan = np.fromfile(pcd_file_path, dtype=np.float32)
-        points: np.ndarray = scan.reshape((-1, NUM_DIMENSIONS)) # 行数，列数
-        labelled_points: np.ndarray = np.concatenate([points, label_list[i].reshape(-1,1)],1, dtype=np.float32)
+        points: np.ndarray = scan.reshape((-1, NUM_DIMENSIONS))  # 行数，列数
+        labelled_points: np.ndarray = np.concatenate(
+            [points, label_list[i].reshape(-1, 1)], 1, dtype=np.float32
+        )
         labelled_points.tofile(pcd_file_path)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -87,6 +88,8 @@ if __name__ == "__main__":
         config["task"] == "convert_deepen_to_t4"
     ), f"use config file of convert_deepen_to_t4 task: {config['task']}"
     dataset_id = list(config["conversion"]["dataset_corresponding"].values())
-    input_base_dir = os.path.join(config["conversion"]["input_base"],os.listdir(config["conversion"]["input_base"])[0])
+    input_base_dir = os.path.join(
+        config["conversion"]["input_base"], os.listdir(config["conversion"]["input_base"])[0]
+    )
 
     get_datasets(dataset_id[0], input_base_dir)
