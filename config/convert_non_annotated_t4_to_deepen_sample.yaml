@@ -1,7 +1,7 @@
 task: convert_non_annotated_t4_to_deepen
 conversion:
-  input_base: ./tests/data/non_annotated_t4_format
-  output_base: ./tests/data/deepen_format
+  input_base: ./data/non_annotated_t4_format
+  output_base: ./data/deepen_format
   annotation_hz: 10
   workers_number: 12
   camera_sensors:
