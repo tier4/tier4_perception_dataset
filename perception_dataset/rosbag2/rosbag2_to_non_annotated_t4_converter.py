@@ -119,7 +119,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._accept_frame_drop: bool = params.accept_frame_drop
 
         # frame_id of coordinate transformation
-        self._ego_pose_target_frame: str = "map"
+        self._ego_pose_target_frame: str = params.world_frame_id
         self._ego_pose_source_frame: str = "base_link"
         self._calibrated_sensor_target_frame: str = "base_link"
 
@@ -157,7 +157,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
 
-        self._bag_reader = Rosbag2Reader(self._input_bag)
+        with_world_frame_conversion = self._ego_pose_target_frame != self._ego_pose_source_frame
+        self._bag_reader = Rosbag2Reader(self._input_bag, with_world_frame_conversion)
         self._calc_actual_num_load_frames()
 
     def _calc_actual_num_load_frames(self):
@@ -411,12 +412,19 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Calculate the maximum number of points
         max_num_points = 0
+        topic_check_count = 0
         for pointcloud_msg in self._bag_reader.read_messages(
             topics=[topic],
             start_time=start_time_in_time,
         ):
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-            max_num_points = max(max_num_points, len(points_arr))
+            # Find the maximum number of points in the point cloud in the first 100 messages.
+            if hasattr(pointcloud_msg, "width"):
+                max_num_points = max(max_num_points, pointcloud_msg.width)
+            else:
+                max_num_points = 0
+            topic_check_count += 1
+            if topic_check_count > 100:
+                break
 
         # Main iteration
         for pointcloud_msg in self._bag_reader.read_messages(
@@ -454,18 +462,21 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         f"PointCloud message is dropped [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                     )
 
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
-            if len(points_arr) < max_num_points * self._lidar_points_ratio_threshold:
+            if hasattr(pointcloud_msg, "width"):
+                num_points = pointcloud_msg.width
+            else:
+                num_points = 0
+            if num_points < max_num_points * self._lidar_points_ratio_threshold:
                 if not self._accept_frame_drop:
                     raise ValueError(
                         f"PointCloud message is relatively lower than the maximum size, which is not acceptable. "
                         f"If you would like to accept, please change accept_frame_drop parameter. "
-                        f"frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
+                        f"frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {num_points}"
                     )
                 else:
                     warnings.warn(
                         f"PointCloud message is relatively lower than the maximum size. "
-                        f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {len(points_arr)}"
+                        f"May be encountering a LiDAR message drop. Skip frame_index: {frame_index}, stamp: {unix_timestamp}, # points: {num_points}"
                     )
                     continue
 
