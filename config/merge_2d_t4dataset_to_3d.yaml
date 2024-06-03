@@ -1,0 +1,7 @@
+task: merge_2d_t4dataset_to_3d
+conversion:
+  input_base: data/t4_format_2d_only
+  output_base: data/t4_format_3d_only
+  dataset_corresponding:
+    # output 3D dataset name: input 2D dataset name
+    # (e.g.)DBv2.0_1-1_3d: DBv2.0_1-1_2d
