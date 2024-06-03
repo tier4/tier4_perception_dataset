@@ -9,7 +9,7 @@ try:
         TrackedObject,
         TrackedObjects,
     )
-except:
+except ModuleNotFoundError:
     from autoware_perception_msgs.msg import (
         DetectedObject,
         DetectedObjects,
