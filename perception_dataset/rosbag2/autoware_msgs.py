@@ -9,6 +9,7 @@ try:
         TrackedObject,
         TrackedObjects,
     )
+    print("Use autoware_auto_perception_msgs")
 except ModuleNotFoundError:
     from autoware_perception_msgs.msg import (
         DetectedObject,
@@ -17,6 +18,7 @@ except ModuleNotFoundError:
         TrackedObject,
         TrackedObjects,
     )
+    print("autoware_auto_perception_msgs not found. Use autoware_perception_msgs")
 
 from tier4_perception_msgs.msg import (
     TrafficLight,
