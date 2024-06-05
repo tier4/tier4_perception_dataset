@@ -1,27 +1,13 @@
 from typing import Any, Dict, List, Optional, Union
 import uuid
 
-try:
-    from autoware_auto_perception_msgs.msg import (
-        DetectedObject,
-        DetectedObjects,
-        ObjectClassification,
-        TrackedObject,
-        TrackedObjects,
-    )
-
-    print("Use autoware_auto_perception_msgs")
-except ModuleNotFoundError:
-    from autoware_perception_msgs.msg import (
-        DetectedObject,
-        DetectedObjects,
-        ObjectClassification,
-        TrackedObject,
-        TrackedObjects,
-    )
-
-    print("autoware_auto_perception_msgs not found. Use autoware_perception_msgs")
-
+from autoware_auto_perception_msgs.msg import (
+    DetectedObject,
+    DetectedObjects,
+    ObjectClassification,
+    TrackedObject,
+    TrackedObjects,
+)
 from tier4_perception_msgs.msg import (
     TrafficLight,
     TrafficLightArray,
