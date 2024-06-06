@@ -105,7 +105,7 @@ def object_classification_to_category_name(object_classification) -> str:
     return cls_to_cat.get(object_classification, "unknown")
 
 
-def parse_autoware_perception_objects(msg) -> List[Dict[str, Any]]:
+def parse_perception_objects(msg) -> List[Dict[str, Any]]:
     """
     Args:
         msg: autoware detection msg (.core/.universe)
