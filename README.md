@@ -24,7 +24,8 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --package
 source ./install/setup.bash
 ```
 
-As of 2024/06/10, the repository supports both `autoware_msgs` and `autoware_auto_msgs`. The above command will install both messages. If you want to install only one of them, please remove the unnecessary message from `build_depends.repos`.
+As of 2024/06/10, the repository requires both `autoware_msgs` and `autoware_auto_msgs`. The above command will install both messages.
+If you already have either of them, you can remove the unnecessary one from `build_depends.repos`.
 
 Install python dependencies:
 
