@@ -4,15 +4,17 @@ import uuid
 from autoware_auto_perception_msgs.msg import (
     ObjectClassification as AutowareAutoObjectClassification,
 )
-from autoware_auto_perception_msgs.msg import DetectedObjects as AutowareAutoDetectedObject
 from autoware_auto_perception_msgs.msg import DetectedObjects as AutowareAutoDetectedObjects
-from autoware_auto_perception_msgs.msg import TrackedObjects as AutowareAutoTrackedObject
 from autoware_auto_perception_msgs.msg import TrackedObjects as AutowareAutoTrackedObjects
-from autoware_perception_msgs.msg import DetectedObjects as AutowareDetectedObject
-from autoware_perception_msgs.msg import DetectedObjects as AutowareDetectedObjects
+from autoware_auto_perception_msgs.msg import DetectedObject as AutowareAutoDetectedObject
+from autoware_auto_perception_msgs.msg import TrackedObject as AutowareAutoTrackedObject
+
 from autoware_perception_msgs.msg import ObjectClassification as AutowareObjectClassification
-from autoware_perception_msgs.msg import TrackedObjects as AutowareTrackedObject
+from autoware_perception_msgs.msg import DetectedObjects as AutowareDetectedObjects
 from autoware_perception_msgs.msg import TrackedObjects as AutowareTrackedObjects
+from autoware_perception_msgs.msg import DetectedObject as AutowareDetectedObject
+from autoware_perception_msgs.msg import TrackedObject as AutowareTrackedObject
+
 from tier4_perception_msgs.msg import (
     TrafficLight,
     TrafficLightArray,
@@ -148,7 +150,10 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
         ]
         pose = obj.kinematics.pose_with_covariance.pose
 
-        if isinstance(obj, AutowareAutoDetectedObject) or isinstance(obj, AutowareDetectedObject):
+        print(AutowareAutoDetectedObject, AutowareAutoTrackedObject, AutowareDetectedObject, AutowareTrackedObject)
+        if isinstance(obj, AutowareAutoDetectedObject) or isinstance(
+            obj, AutowareDetectedObject
+        ):
             obj_uuid = uuid.uuid4()  # random uuid
             velocity: Dict[str, float] = {
                 "x": obj.kinematics.twist_with_covariance.twist.linear.x,
