@@ -148,12 +148,6 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
         ]
         pose = obj.kinematics.pose_with_covariance.pose
 
-        print(
-            AutowareAutoDetectedObject,
-            AutowareAutoTrackedObject,
-            AutowareDetectedObject,
-            AutowareTrackedObject,
-        )
         if isinstance(obj, (AutowareAutoDetectedObject, AutowareDetectedObject)):
             obj_uuid = uuid.uuid4()  # random uuid
             velocity: Dict[str, float] = {
