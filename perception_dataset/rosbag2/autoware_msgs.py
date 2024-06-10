@@ -154,7 +154,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
             AutowareDetectedObject,
             AutowareTrackedObject,
         )
-        if isinstance(obj, AutowareAutoDetectedObject) or isinstance(obj, AutowareDetectedObject):
+        if isinstance(obj, (AutowareAutoDetectedObject, AutowareDetectedObject)):
             obj_uuid = uuid.uuid4()  # random uuid
             velocity: Dict[str, float] = {
                 "x": obj.kinematics.twist_with_covariance.twist.linear.x,
@@ -162,7 +162,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
                 "z": obj.kinematics.twist_with_covariance.twist.linear.z,
             }
             acceleration: Optional[Dict[str, float]] = None
-        elif isinstance(obj, AutowareAutoTrackedObject) or isinstance(obj, AutowareTrackedObject):
+        elif isinstance(obj, (AutowareAutoTrackedObject, AutowareTrackedObject)):
             obj_uuid = uuid.UUID(bytes=obj.object_id.uuid.tobytes())
             velocity: Dict[str, float] = {
                 "x": obj.kinematics.twist_with_covariance.twist.linear.x,
