@@ -77,13 +77,11 @@ class PinholeCameraModel:
         self.P[1, 2] = (self.P[1, 2] - self.raw_roi.y_offset) / self.binning_y
 
     def rectifyImage(self, raw: np.ndarray) -> np.ndarray:
-        """
-        :param raw:       input image
-        :type raw:        :class:`CvMat` or :class:`IplImage`
-        :param rectified: rectified output image
-        :type rectified:  :class:`CvMat` or :class:`IplImage`
-
-        Applies the rectification specified by camera parameters :math:`K` and and :math:`D` to image `raw` and writes the resulting image `rectified`.
+        """Applies the rectification specified by camera parameters :math:`K` and and :math:`D` to image `raw` and writes the resulting image `rectified`.
+        Args:
+            raw: input image (np.ndarray)
+        Return:
+            rectified image (np.ndarray)
         """
 
         self.mapx = np.ndarray(shape=(self.height, self.width, 1), dtype="float32")
