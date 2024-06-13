@@ -12,7 +12,6 @@ import warnings
 import builtin_interfaces.msg
 import cv2
 
-# import cvbridge related
 from cv_bridge import CvBridge
 import numpy as np
 from pyquaternion import Quaternion
