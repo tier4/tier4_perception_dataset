@@ -83,6 +83,10 @@ class PinholeCameraModel:
         Return:
             rectified image (np.ndarray)
         """
+        if np.all(self.D == 0):
+            # No need to recitfy
+            return raw
+
         self.mapx = np.ndarray(shape=(self.height, self.width, 1), dtype="float32")
         self.mapy = np.ndarray(shape=(self.height, self.width, 1), dtype="float32")
         cv2.initUndistortRectifyMap(
