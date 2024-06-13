@@ -13,7 +13,7 @@ git clone git@github.com:tier4/tier4_perception_dataset.git perception_dataset
 cd perception_dataset
 ```
 
-install and build ros dependencies (this step must be outside of poetry virtualenv)
+Install and build ros dependencies (this step must be outside of poetry virtualenv):
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.sh
@@ -24,7 +24,10 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --package
 source ./install/setup.bash
 ```
 
-install python dependencies
+As of 2024/06/10, the repository requires both `autoware_msgs` and `autoware_auto_msgs`. The above command will install both messages.
+If you already have either of them, you can remove the unnecessary one from `build_depends.repos`.
+
+Install python dependencies:
 
 ```bash
 pip3 install poetry
