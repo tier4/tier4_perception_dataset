@@ -3,6 +3,7 @@ import glob
 import json
 import os
 import os.path as osp
+import re
 import shutil
 import sys
 from typing import Dict, List
@@ -14,6 +15,10 @@ import numpy as np
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CompressedImage, PointCloud2
+
+# import cvbridge related 
+from cv_bridge import CvBridge
+from perception_dataset.utils.rectify_image import PinholeCameraModel
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
@@ -594,6 +599,41 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return sample_data_token_list
 
+    def _load_camera_info(
+        self,
+        camera_image_topic_name: str,
+        start_time_in_time: builtin_interfaces.msg.Time,
+    ) -> PinholeCameraModel:
+        """Load camera info that corresponds to the camera image topic name.
+        Args:
+            camera_image_topic_name: Camera image topic name. Should be either
+                - /.../image.*/compressed -> /.../camera_info
+                - /.../image.* -> /.../camera_info
+            start_time_in_time: Start time in builtin_interfaces.msg.Time format.
+        Returns:
+            PinholeCameraModel message.
+        """
+        if camera_image_topic_name.endswith("compressed"):
+            camera_info_topic_name = re.sub(r"image.*/compressed", "camera_info", camera_image_topic_name)
+        else:
+            camera_info_topic_name = re.sub(r"image.*", "camera_info", camera_image_topic_name)
+        logger.info(f"For {camera_image_topic_name}, camera_info topic is {camera_info_topic_name}")
+
+        camera_model = None
+        for camera_info_msg in self._bag_reader.read_messages(
+            topics=[camera_info_topic_name], start_time=start_time_in_time
+        ):
+            camera_model_tmp: PinholeCameraModel = PinholeCameraModel()
+            camera_model_tmp.fromCameraInfo(camera_info_msg)
+
+            # check if all the camera_info messages are the same
+            if camera_model is None:
+                camera_model = camera_model_tmp
+            elif camera_model != camera_model_tmp:
+                raise ValueError("Camera info is different between messages.")
+        
+        return camera_model
+
     def _convert_image(
         self,
         start_timestamp: float,
@@ -611,6 +651,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
+
+        # Get camera info
+        camera_model: PinholeCameraModel = self._load_camera_info(topic, start_time_in_time)
+        print(f"Topic: {topic}, camera_model intrinsics: {camera_model.K}, distortion: {camera_model.D}")
+
+        # Get cvbridge
+        bridge = CvBridge()
 
         if self._sensor_mode != SensorMode.NO_LIDAR:  # w/ LiDAR mode
             image_timestamp_list = [
@@ -667,8 +714,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         image_msg = next(image_generator)
                         image_index_counter += 1
 
+                    rectified_image = camera_model.rectifyImage(bridge.compressed_imgmsg_to_cv2(image_msg))
                     sample_data_token = self._generate_image_data(
-                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                        rectified_image,
                         rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
                         lidar_sample_token,
                         calibrated_sensor_token,
@@ -727,8 +775,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
                 if is_data_found:
                     print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
+                    rectified_image = camera_model.rectifyImage(bridge.compressed_imgmsg_to_cv2(image_msg))
                     sample_data_token = self._generate_image_data(
-                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                        rectified_image,
                         image_unix_timestamp,
                         sample_token,
                         calibrated_sensor_token,
