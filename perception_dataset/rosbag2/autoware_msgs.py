@@ -2,12 +2,17 @@ from typing import Any, Dict, List, Optional, Union
 import uuid
 
 from autoware_auto_perception_msgs.msg import (
-    DetectedObject,
-    DetectedObjects,
-    ObjectClassification,
-    TrackedObject,
-    TrackedObjects,
+    ObjectClassification as AutowareAutoObjectClassification,
 )
+from autoware_auto_perception_msgs.msg import DetectedObject as AutowareAutoDetectedObject
+from autoware_auto_perception_msgs.msg import DetectedObjects as AutowareAutoDetectedObjects
+from autoware_auto_perception_msgs.msg import TrackedObject as AutowareAutoTrackedObject
+from autoware_auto_perception_msgs.msg import TrackedObjects as AutowareAutoTrackedObjects
+from autoware_perception_msgs.msg import DetectedObject as AutowareDetectedObject
+from autoware_perception_msgs.msg import DetectedObjects as AutowareDetectedObjects
+from autoware_perception_msgs.msg import ObjectClassification as AutowareObjectClassification
+from autoware_perception_msgs.msg import TrackedObject as AutowareTrackedObject
+from autoware_perception_msgs.msg import TrackedObjects as AutowareTrackedObjects
 from tier4_perception_msgs.msg import (
     TrafficLight,
     TrafficLightArray,
@@ -105,20 +110,26 @@ def object_classification_to_category_name(object_classification) -> str:
 
 
 def parse_perception_objects(msg) -> List[Dict[str, Any]]:
-    """https://github.com/tier4/autoware_auto_msgs/tree/tier4/main/autoware_auto_perception_msgs
-
-
+    """
     Args:
-        msg (autoware_auto_perception_msgs.msg.DetectedObjects): autoware detection msg (.core/.universe)
-
+        msg: autoware detection msg (.core/.universe)
+            valid type: AutowareDetectedObjects, AutowareTrackedObjects, AutowareAutoDetectedObjects, AutowareAutoTrackedObjects
     Returns:
         List[Dict[str, Any]]: dict format
     """
     assert isinstance(
-        msg, (DetectedObjects, TrackedObjects)
+        msg,
+        (
+            AutowareDetectedObjects,
+            AutowareTrackedObjects,
+            AutowareAutoDetectedObjects,
+            AutowareAutoTrackedObjects,
+        ),
     ), f"Invalid object message type: {type(msg)}"
 
-    def get_category_name(classification: List[ObjectClassification]) -> str:
+    def get_category_name(
+        classification: List[Union[AutowareAutoObjectClassification, AutowareObjectClassification]]
+    ) -> str:
         max_score: float = -1.0
         out_class_name: str = "unknown"
         for obj_cls in classification:
@@ -129,10 +140,15 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
 
     scene_annotation_list: List[Dict[str, Any]] = []
     for obj in msg.objects:
-        obj: Union[DetectedObject, TrackedObject]
+        obj: Union[
+            AutowareAutoDetectedObject,
+            AutowareAutoTrackedObject,
+            AutowareDetectedObject,
+            AutowareTrackedObject,
+        ]
         pose = obj.kinematics.pose_with_covariance.pose
 
-        if isinstance(obj, DetectedObject):
+        if isinstance(obj, (AutowareAutoDetectedObject, AutowareDetectedObject)):
             obj_uuid = uuid.uuid4()  # random uuid
             velocity: Dict[str, float] = {
                 "x": obj.kinematics.twist_with_covariance.twist.linear.x,
@@ -140,7 +156,7 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
                 "z": obj.kinematics.twist_with_covariance.twist.linear.z,
             }
             acceleration: Optional[Dict[str, float]] = None
-        elif isinstance(obj, TrackedObject):
+        elif isinstance(obj, (AutowareAutoTrackedObject, AutowareTrackedObject)):
             obj_uuid = uuid.UUID(bytes=obj.object_id.uuid.tobytes())
             velocity: Dict[str, float] = {
                 "x": obj.kinematics.twist_with_covariance.twist.linear.x,
