@@ -11,14 +11,13 @@ import warnings
 
 import builtin_interfaces.msg
 import cv2
+
+# import cvbridge related
+from cv_bridge import CvBridge
 import numpy as np
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CompressedImage, PointCloud2
-
-# import cvbridge related 
-from cv_bridge import CvBridge
-from perception_dataset.utils.rectify_image import PinholeCameraModel
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
@@ -45,6 +44,7 @@ from perception_dataset.t4_dataset.classes.sensor import SensorTable
 from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
+from perception_dataset.utils.rectify_image import PinholeCameraModel
 import perception_dataset.utils.rosbag2 as rosbag2_utils
 
 logger = configure_logger(modname=__name__)
@@ -614,10 +614,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             PinholeCameraModel message.
         """
         if camera_image_topic_name.endswith("compressed"):
-            camera_info_topic_name = re.sub(r"image.*/compressed", "camera_info", camera_image_topic_name)
+            camera_info_topic_name = re.sub(
+                r"image.*/compressed", "camera_info", camera_image_topic_name
+            )
         else:
             camera_info_topic_name = re.sub(r"image.*", "camera_info", camera_image_topic_name)
-        logger.info(f"For {camera_image_topic_name}, camera_info topic is {camera_info_topic_name}")
+        logger.info(
+            f"For {camera_image_topic_name}, camera_info topic is {camera_info_topic_name}"
+        )
 
         camera_model = None
         for camera_info_msg in self._bag_reader.read_messages(
@@ -631,7 +635,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 camera_model = camera_model_tmp
             elif camera_model != camera_model_tmp:
                 raise ValueError("Camera info is different between messages.")
-        
+
         return camera_model
 
     def _convert_image(
@@ -654,7 +658,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Get camera info
         camera_model: PinholeCameraModel = self._load_camera_info(topic, start_time_in_time)
-        print(f"Topic: {topic}, camera_model intrinsics: {camera_model.K}, distortion: {camera_model.D}")
+        print(
+            f"Topic: {topic}, camera_model intrinsics: {camera_model.K}, distortion: {camera_model.D}"
+        )
 
         # Get cvbridge
         bridge = CvBridge()
@@ -714,7 +720,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         image_msg = next(image_generator)
                         image_index_counter += 1
 
-                    rectified_image = camera_model.rectifyImage(bridge.compressed_imgmsg_to_cv2(image_msg))
+                    rectified_image = camera_model.rectifyImage(
+                        bridge.compressed_imgmsg_to_cv2(image_msg)
+                    )
                     sample_data_token = self._generate_image_data(
                         rectified_image,
                         rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
@@ -775,7 +783,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
                 if is_data_found:
                     print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
-                    rectified_image = camera_model.rectifyImage(bridge.compressed_imgmsg_to_cv2(image_msg))
+                    rectified_image = camera_model.rectifyImage(
+                        bridge.compressed_imgmsg_to_cv2(image_msg)
+                    )
                     sample_data_token = self._generate_image_data(
                         rectified_image,
                         image_unix_timestamp,
