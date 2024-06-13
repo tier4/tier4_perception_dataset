@@ -19,9 +19,6 @@ from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CompressedImage, PointCloud2
 
-from cv_bridge import CvBridge
-from perception_dataset.utils.rectify_image import PinholeCameraModel
-
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
     EXTENSION_ENUM,
