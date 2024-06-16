@@ -18,7 +18,7 @@ today = str(date.today()).replace("-", "")
 NUM_DIMENSIONS = 5
 
 
-def get_datasets(dataset_id: str, input_base_dir: str):
+def get_datasets(dataset_id: str, input_base_dir: str) -> None:
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json",
