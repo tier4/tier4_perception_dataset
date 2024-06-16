@@ -36,7 +36,6 @@ def get_datasets(dataset_id: str, input_base_dir: str) -> None:
     response = requests.get(DATASET_URL, headers=headers)
     decompress_data = bytearray(zlib.decompress(bytearray(response.content)))
 
-    print(list(response.headers.values()))
     header_list = list(response.headers.values())
     label_info = json.loads(header_list[3])
     frame_size = list(label_info["frame_sizes"])
