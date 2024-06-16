@@ -33,7 +33,12 @@ def get_datasets(dataset_id: str, input_base_dir: str) -> None:
 
     DATASET_URL = f"https://tools.deepen.ai/api/v2/datasets/{dataset_id}/label_types/3d_point/paint_labels?stageId=QA"
 
-    response = requests.get(DATASET_URL, headers=headers)
+    try:
+        response = requests.get(DATASET_URL, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(e)
+    
     decompress_data = bytearray(zlib.decompress(bytearray(response.content)))
 
     header_list = list(response.headers.values())
