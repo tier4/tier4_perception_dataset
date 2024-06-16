@@ -11,10 +11,13 @@ from sensor_msgs.msg import PointField
 import tqdm
 import yaml
 
-CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
-ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
-today = str(date.today()).replace("-", "")
+if os.environ.get("DEEPEN_CLIENT_ID") is None or os.environ.get("DEEPEN_ACCESS_TOKEN") is None:
+    raise ValueError("You need to properly set the environment variables \"DEEPEN_CLIENT_ID\" and \"DEEPEN_ACCESS_TOKEN\"")
+else:
+    CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
+    ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
 
+today = str(date.today()).replace("-", "")
 NUM_DIMENSIONS = 5
 
 
