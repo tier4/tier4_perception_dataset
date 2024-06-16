@@ -72,8 +72,7 @@ def get_datasets(dataset_id: str, input_base_dir: str) -> None:
         )
         labelled_points.tofile(pcd_file_path)
 
-
-if __name__ == "__main__":
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config",
@@ -100,3 +99,6 @@ if __name__ == "__main__":
     )
 
     get_datasets(dataset_id[0], input_base_dir)
+
+if __name__ == "__main__":
+    main()
