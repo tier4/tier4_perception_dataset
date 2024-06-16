@@ -12,7 +12,9 @@ import tqdm
 import yaml
 
 if os.environ.get("DEEPEN_CLIENT_ID") is None or os.environ.get("DEEPEN_ACCESS_TOKEN") is None:
-    raise ValueError("You need to properly set the environment variables \"DEEPEN_CLIENT_ID\" and \"DEEPEN_ACCESS_TOKEN\"")
+    raise ValueError(
+        'You need to properly set the environment variables "DEEPEN_CLIENT_ID" and "DEEPEN_ACCESS_TOKEN"'
+    )
 else:
     CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
     ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
@@ -38,7 +40,7 @@ def get_datasets(dataset_id: str, input_base_dir: str) -> None:
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
-    
+
     decompress_data = bytearray(zlib.decompress(bytearray(response.content)))
 
     header_list = list(response.headers.values())
@@ -72,6 +74,7 @@ def get_datasets(dataset_id: str, input_base_dir: str) -> None:
         )
         labelled_points.tofile(pcd_file_path)
 
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -99,6 +102,7 @@ def main() -> None:
     )
 
     get_datasets(dataset_id[0], input_base_dir)
+
 
 if __name__ == "__main__":
     main()
