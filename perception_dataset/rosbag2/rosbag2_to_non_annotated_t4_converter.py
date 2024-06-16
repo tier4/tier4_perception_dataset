@@ -172,6 +172,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             return
 
         num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
+        for topic in topic_names:
+            count = self._bag_reader.get_topic_count(topic)
+            if count == 0:
+                raise KeyError(f"In {self._input_bag}, {topic} message is not found.")
         freq = 10
         num_frames_to_skip = int(self._skip_timestamp * freq)
         max_num_frames = num_frames_in_bag - num_frames_to_skip - 1
