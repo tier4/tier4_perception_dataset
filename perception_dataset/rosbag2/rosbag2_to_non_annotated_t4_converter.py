@@ -781,7 +781,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sample_data_token
         )
         if isinstance(image_arr, np.ndarray):
-            cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image_arr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            cv2.imwrite(
+                osp.join(self._output_scene_dir, sample_data_record.filename),
+                image_arr,
+                [int(cv2.IMWRITE_JPEG_QUALITY), 95],
+            )
         elif isinstance(image_arr, CompressedImage):
             with open(osp.join(self._output_scene_dir, sample_data_record.filename), "xb") as fw:
                 fw.write(image_arr.data)
