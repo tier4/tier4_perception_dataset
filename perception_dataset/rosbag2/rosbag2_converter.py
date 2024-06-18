@@ -1,5 +1,5 @@
-import os.path as osp
 import logging
+import os.path as osp
 import re
 import shutil
 import sys
@@ -112,7 +112,9 @@ class Rosbag2Converter:
             except ModuleNotFoundError:
                 logging.warning(f"ModuleNotFoundError: {topic_type}")
             except AttributeError:
-                logging.error(f"AttributeError: {topic_type}. Sourced message type is differ from the one in rosbag. {topic_name} is ignored.")
+                logging.error(
+                    f"AttributeError: {topic_type}. Sourced message type is differ from the one in rosbag. {topic_name} is ignored."
+                )
                 continue
 
             if topic_name == "/tf_static":
