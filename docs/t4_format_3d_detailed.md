@@ -442,7 +442,7 @@ Items related to maps can be extracted from data submitted to Scale_AI for annot
 
 #### Description
 
-A sample is an annotated keyframe at 2 Hz. The timestamp of a sample is the same as that of a LiDAR sample data.
+A sample is an annotated keyframe. The timestamp of a sample is the same as that of a LiDAR sample data.
 
 #### Items
 
