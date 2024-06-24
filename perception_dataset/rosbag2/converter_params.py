@@ -1,5 +1,5 @@
 import enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, validator
 import yaml
@@ -36,7 +36,7 @@ class Rosbag2ConverterParams(BaseModel):
         "channel": "",
     }  # lidar_sensor, {topic: , channel, }
     radar_sensors: List[Dict[str, str]] = []  # radar sensors
-    camera_sensors: List[Dict[str, str]] = []  # camera sensors,
+    camera_sensors: List[Dict[str, Union[str, float]]] = []  # camera sensors,
     object_topic_name: str = ""
     object_msg_type: str = ""
     traffic_light_signal_topic_name: str = ""

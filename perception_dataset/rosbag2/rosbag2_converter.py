@@ -1,3 +1,4 @@
+import logging
 import os.path as osp
 import re
 import shutil
@@ -100,20 +101,21 @@ class Rosbag2Converter:
             topic_type = self._topic_name_to_topic_type[topic_name]
             try:
                 msg_type = get_message(topic_type)
+                msg = deserialize_message(data, msg_type)
+                if hasattr(msg, "header"):
+                    message_time: float = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+                elif hasattr(msg, "transforms"):
+                    message_time: float = (
+                        msg.transforms[0].header.stamp.sec
+                        + msg.transforms[0].header.stamp.nanosec * 1e-9
+                    )
             except ModuleNotFoundError:
-                continue
+                logging.warning(f"ModuleNotFoundError: {topic_type}")
             except AttributeError:
-                print("Sourced message type is differ from the one in rosbag")
-                continue
-
-            msg = deserialize_message(data, msg_type)
-            if hasattr(msg, "header"):
-                message_time: float = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-            elif hasattr(msg, "transforms"):
-                message_time: float = (
-                    msg.transforms[0].header.stamp.sec
-                    + msg.transforms[0].header.stamp.nanosec * 1e-9
+                logging.error(
+                    f"AttributeError: {topic_type}. Sourced message type is differ from the one in rosbag. {topic_name} is ignored."
                 )
+                continue
 
             if topic_name == "/tf_static":
                 writer.write(topic_name, data, timestamp)
