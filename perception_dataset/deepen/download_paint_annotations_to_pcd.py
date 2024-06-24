@@ -2,12 +2,10 @@ import argparse
 from datetime import date
 import json
 import os
-from typing import List
 import zlib
 
 import numpy as np
 import requests
-from sensor_msgs.msg import PointField
 import tqdm
 import yaml
 
