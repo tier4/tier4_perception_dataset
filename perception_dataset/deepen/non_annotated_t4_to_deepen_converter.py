@@ -108,6 +108,10 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                     if sensor["channel"] == camera_channel:
                         camera_token = sensor["token"]
                         break
+                logger.warning(
+                    f"camera: {camera_channel} not found in frame {frame_index}, skipping this frame..."
+                )
+                return
 
             camera_path, _, cam_intrinsic = nusc.get_sample_data(camera_token)
             data_dict: Dict[str, Any] = self._get_data(nusc, camera_token)
