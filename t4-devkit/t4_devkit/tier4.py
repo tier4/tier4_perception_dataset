@@ -134,7 +134,7 @@ class Tier4:
         -------
             list[SchemaTable]: Loaded table data saved in `.json`.
         """
-        filepath = osp.join(self.data_root, self.version, f"{schema.value}.json")
+        filepath = osp.join(self.data_root, self.version, schema.filename)
         if not osp.exists(filepath) and schema.is_optional():
             return []
 

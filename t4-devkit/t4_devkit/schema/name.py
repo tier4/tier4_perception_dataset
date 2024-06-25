@@ -16,7 +16,7 @@ __all__ = ("SchemaName",)
 
 
 class SchemaName(StrEnum):
-    """Represents names of schema files."""
+    """An enum to represent schema filenames."""
 
     CATEGORY = "category"
     ATTRIBUTE = "attribute"
@@ -35,10 +35,21 @@ class SchemaName(StrEnum):
     SURFACE_ANN = "surface_ann"  # optional
     KEYPOINT = "keypoint"  # optional
 
+    @property
+    def filename(self) -> str:
+        """Return the annotation json filename.
+
+        Returns:
+        -------
+            str: Annotation json filename.
+        """
+        return f"{self.value}.json"
+
     def is_optional(self) -> bool:
         """Indicates if this schema name is optional.
 
         Returns:
+        -------
             bool: Return True if this schema is optional.
         """
         return self in (SchemaName.OBJECT_ANN, SchemaName.SURFACE_ANN, SchemaName.KEYPOINT)
