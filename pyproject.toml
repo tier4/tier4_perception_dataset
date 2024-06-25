@@ -2,7 +2,10 @@
 name = "perception-dataset"
 version = "1.0.10"
 description = "TIER IV Perception dataset has modules to convert dataset from rosbag to t4_dataset"
-authors = ["Yusuke Muramatsu <yusuke.muramatsu@tier4.jp>", "Shunsuke Miura <shunsuke.miura@tier4.jp>"]
+authors = [
+    "Yusuke Muramatsu <yusuke.muramatsu@tier4.jp>",
+    "Shunsuke Miura <shunsuke.miura@tier4.jp>",
+]
 
 [tool.poetry.dependencies]
 python = ">=3.10"
@@ -23,6 +26,7 @@ matplotlib = "3.5.3"
 pandas = "2.0.2"
 ros2-numpy = "^0.0.4"
 importlib-metadata = "^7.1.0"
+t4-devkit = { path = "t4-devkit" }
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.1"
