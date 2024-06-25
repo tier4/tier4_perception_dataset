@@ -108,8 +108,8 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                     if sensor["channel"] == camera_channel:
                         camera_token = sensor["token"]
                         break
-                logger.info(
-                    f"camera_token: {camera_channel} not found in frame {frame_index}, skipping this frame..."
+                logger.warning(
+                    f"camera: {camera_channel} not found in frame {frame_index}, skipping this frame..."
                 )
                 return
 
