@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import Enum
 import sys
@@ -9,6 +7,8 @@ from t4_devkit.common import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
+from .registry import SCHEMAS
+from ..name import SchemaName
 
 if sys.version_info < (3, 11):
 
@@ -23,12 +23,16 @@ __all__ = ("Sensor", "SensorModality", "SensorChannel")
 
 
 class SensorModality(StrEnum):
+    """An enum to represent sensor modalities."""
+
     LIDAR = "lidar"
     CAMERA = "camera"
     RADAR = "radar"
 
 
 class SensorChannel(StrEnum):
+    """An enum to represent sensor channels."""
+
     CAM_BACK_LEFT = "CAM_BACK_LEFT"
     CAM_FRONT = "CAM_FRONT"
     CAM_FRONT_RIGHT = "CAM_FRONT_RIGHT"
@@ -58,16 +62,22 @@ class SensorChannel(StrEnum):
             raise ValueError(f"Cannot find modality for {self.value}")
 
 
-@dataclass(frozen=True)
+@dataclass
+@SCHEMAS.register(SchemaName.SENSOR)
 class Sensor(SchemaBase):
+    """A dataclass to represent schema table of `sensor.json`."""
+
     token: str
     channel: SensorChannel
     modality: SensorModality
 
     @classmethod
-    def from_json(cls, filepath: str) -> Self:
-        record: dict[str, Any] = load_json(filepath)
-        token: str = record["token"]
-        channel = SensorChannel(record["channel"])
-        modality = SensorModality(record["modality"])
-        return cls(token=token, channel=channel, modality=modality)
+    def from_json(cls, filepath: str) -> list[Self]:
+        objs: list[Self] = []
+        record_list: list[dict[str, Any]] = load_json(filepath)
+        for record in record_list:
+            token: str = record["token"]
+            channel = SensorChannel(record["channel"])
+            modality = SensorModality(record["modality"])
+            objs.append(cls(token=token, channel=channel, modality=modality))
+        return objs

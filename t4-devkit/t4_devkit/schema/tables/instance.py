@@ -5,12 +5,17 @@ from t4_devkit.common import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
+from .registry import SCHEMAS
+from ..name import SchemaName
 
 __all__ = ("Instance",)
 
 
-@dataclass(frozen=True)
+@dataclass
+@SCHEMAS.register(SchemaName.INSTANCE)
 class Instance(SchemaBase):
+    """A dataclass to represent schema table of `instance.json`."""
+
     token: str
     category_token: str
     instance_name: str
@@ -19,6 +24,6 @@ class Instance(SchemaBase):
     last_annotation_token: str
 
     @classmethod
-    def from_json(cls, filepath: str) -> Self:
-        record: dict[str, Any] = load_json(filepath)
-        return cls(**record)
+    def from_json(cls, filepath: str) -> list[Self]:
+        record_list: list[dict[str, Any]] = load_json(filepath)
+        return [cls(**record) for record in record_list]

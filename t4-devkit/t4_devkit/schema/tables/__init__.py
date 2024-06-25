@@ -1,4 +1,5 @@
 from .attribute import *  # noqa
+from .base import *  # noqa
 from .calibrated_sensor import *  # noqa
 from .category import *  # noqa
 from .ego_pose import *  # noqa
@@ -7,6 +8,7 @@ from .keypoint import *  # noqa
 from .log import *  # noqa
 from .map import *  # noqa
 from .object_ann import *  # noqa
+from .registry import *  # noqa
 from .sample import *  # noqa
 from .sample_annotation import *  # noqa
 from .sample_data import *  # noqa

@@ -11,6 +11,7 @@ if sys.version_info < (3, 11):
 else:
     from enum import StrEnum
 
+
 __all__ = ("SchemaName",)
 
 
@@ -29,10 +30,10 @@ class SchemaName(StrEnum):
     SAMPLE = "sample"
     SAMPLE_DATA = "sample_data"
     SAMPLE_ANNOTATION = "sample_annotation"
+    MAP = "map"
     OBJECT_ANN = "object_ann"  # optional
     SURFACE_ANN = "surface_ann"  # optional
     KEYPOINT = "keypoint"  # optional
-    MAP = "map"
 
     def is_optional(self) -> bool:
         """Indicates if this schema name is optional.

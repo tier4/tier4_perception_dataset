@@ -9,9 +9,11 @@ def load_json(filename: str) -> Any:
     """Load json data from specified filepath.
 
     Args:
+    ----
         filename (str): File path to .json file.
 
     Returns:
+    -------
         Any: Loaded data.
     """
     with open(filename, "r") as f:

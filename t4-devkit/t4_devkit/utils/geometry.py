@@ -1,8 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, TypeVar
+
 import numpy as np
-from nuscenes.utils.data_classes import Box as Box3D
 from nuscenes.utils.geometry_utils import view_points
 from t4_devkit.schema import VisibilityLevel
-from t4_devkit.typing import NDArrayF64
+
+if TYPE_CHECKING:
+    from nuscenes.utils.data_classes import Box
+    from t4_devkit.typing import NDArrayF64
+
+    Box3D = TypeVar("Box3D", Box)
 
 __all__ = ("is_box_in_image",)
 
