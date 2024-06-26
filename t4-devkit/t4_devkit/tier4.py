@@ -4,8 +4,12 @@ import os.path as osp
 import time
 from typing import TYPE_CHECKING
 
+import matplotlib
 import numpy as np
+from nuscenes.nuscenes import LidarPointCloud, RadarPointCloud
 from pyquaternion import Quaternion
+import rerun as rr
+import rerun.blueprint as rrb
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 from t4_devkit.utils import Box2D, Box3D, is_box_in_image
 
@@ -33,6 +37,14 @@ if TYPE_CHECKING:
     )
 
 __all__ = ("Tier4",)
+
+# currently need to calculate the color manually
+# see https://github.com/rerun-io/rerun/issues/4409
+COLOR_MAP = matplotlib.colormaps["turbo_r"]
+COLOR_NORM = matplotlib.colors.Normalize(
+    vmin=3.0,
+    vmax=75.0,
+)
 
 
 class Tier4:
@@ -158,10 +170,14 @@ class Tier4:
         token2idx: dict[str, dict[str, int]] = {}
         for schema in SchemaName:
             token2idx[schema.value] = {}
-            for idx, member in enumerate(self.get_table(schema.value)):
-                member: SchemaTable
-                token2idx[schema.value][member.token] = idx
+            for idx, table in enumerate(self.get_table(schema.value)):
+                table: SchemaTable
+                token2idx[schema.value][table.token] = idx
         self._token2idx = token2idx
+
+        self._label2id: dict[str, int] = {
+            category.name: idx for idx, category in enumerate(self.category)
+        }
 
         # add shortcuts
         for record in self.sample_annotation:
@@ -250,6 +266,10 @@ class Tier4:
         """
         if isinstance(schema, SchemaName):
             schema = schema.value
+        if self._token2idx.get(schema) is None:
+            raise KeyError(f"{schema} is not registered.")
+        if self._token2idx[schema].get(token) is None:
+            raise KeyError(f"{token} is not registered in {schema}.")
         return self._token2idx[schema][token]
 
     def get_sample_data_path(self, sample_data_token: str) -> str:
@@ -536,3 +556,278 @@ class Tier4:
             return np.array([np.nan, np.nan, np.nan])
         else:
             return pos_diff / time_diff
+
+    def render_scene(self, scene_token: str, max_time_seconds: float = np.inf) -> None:
+        """Render specified scene.
+
+        Args:
+        ----
+            scene_token (str): Unique identifier of scene.
+            max_time_seconds (float, optional): Max time length to be rendered [s]. Defaults to np.inf.
+        """
+        camera_names = [
+            sensor.channel.value
+            for sensor in self.sensor
+            if sensor.modality == SensorModality.CAMERA
+        ]
+
+        sensor_space_views = [
+            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
+            for camera in camera_names
+        ]
+        blueprint = rrb.Vertical(
+            rrb.Horizontal(
+                rrb.Spatial3DView(name="3D", origin="world"),
+                rrb.TextDocumentView(origin="description", name="Description"),
+                column_shares=[3, 1],
+            ),
+            rrb.Grid(*sensor_space_views),
+            row_shares=[4, 2],
+        )
+        rr.init(
+            application_id=f"t4-devkit@{scene_token}",
+            recording_id=None,
+            spawn=True,
+            default_enabled=True,
+            strict=True,
+            default_blueprint=blueprint,
+        )
+
+        # render scene
+        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+
+        scene: Scene = self.get("scene", scene_token)
+        first_sample: Sample = self.get("sample", scene.first_sample_token)
+
+        first_lidar_token = ""
+        first_radar_tokens: list[str] = []
+        first_camera_tokens: list[str] = []
+
+        for channel, sd_token in first_sample.data.items():
+            self._render_sensor_calibration(sd_token)
+            if channel.modality == SensorModality.LIDAR:
+                first_lidar_token = sd_token
+            elif channel.modality == SensorModality.RADAR:
+                first_radar_tokens.append(sd_token)
+            elif channel.modality == SensorModality.CAMERA:
+                first_camera_tokens.append(sd_token)
+
+        first_lidar_sd_record: SampleData = self.get("sample_data", first_lidar_token)
+        max_timestamp_us = (
+            first_lidar_sd_record.timestamp + 1e6 * max_time_seconds
+        )  # TODO: sec2nusec(...)
+
+        self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
+        self._render_radars(first_radar_tokens, max_timestamp_us)
+        self._render_cameras(first_camera_tokens, max_timestamp_us)
+        self._render_annotation_3ds(scene.first_sample_token, max_timestamp_us)
+        self._render_annotation_2ds(scene.first_sample_token, max_timestamp_us)
+
+    def _render_lidar_and_ego(self, first_lidar_token: str, max_timestamp_us: float) -> None:
+        """Render lidar pointcloud and ego transform.
+
+        Args:
+        ----
+            first_lidar_token (str): First sample data token corresponding to the lidar.
+            max_timestamp_us (float): Max time length in [us].
+        """
+        current_lidar_token = first_lidar_token
+
+        while current_lidar_token != "":
+            sample_data: SampleData = self.get("sample_data", current_lidar_token)
+
+            if max_timestamp_us < sample_data.timestamp:
+                break
+
+            rr.set_time_seconds("timestamp", sample_data.timestamp * 1e-6)  # TODO: nusec2sec(...)
+
+            ego_pose: EgoPose = self.get("ego_pose", sample_data.ego_pose_token)
+            rotation_xyzw = np.roll(ego_pose.rotation.q, shift=-1)
+            rr.log(
+                "world/ego_vehicle",
+                rr.Transform3D(
+                    translation=ego_pose.translation,
+                    rotation=rr.Quaternion(xyzw=rotation_xyzw),
+                    from_parent=False,
+                ),
+            )
+
+            sensor_name = sample_data.channel.value
+            pointcloud = LidarPointCloud.from_file(osp.join(self.data_root, sample_data.filename))
+            points = pointcloud.points[:3].T  # (N, 3)
+            point_distances = np.linalg.norm(points, axis=1)
+            point_colors = COLOR_MAP(COLOR_NORM(point_distances))
+            rr.log(f"world/ego_vehicle/{sensor_name}", rr.Points3D(points, colors=point_colors))
+            current_lidar_token = sample_data.next
+
+    def _render_radars(self, first_radar_tokens: list[str], max_timestamp_us: float) -> None:
+        """Render radar pointcloud.
+
+        Args:
+        ----
+            first_radar_tokens (list[str]): List of first sample data tokens corresponding to radars.
+            max_timestamp_us (float): Max time length in [us].
+        """
+        for first_radar_token in first_radar_tokens:
+            current_radar_token = first_radar_token
+            while current_radar_token != "":
+                sample_data: SampleData = self.get("sample_data", current_radar_token)
+
+                if max_timestamp_us < sample_data.timestamp:
+                    break
+
+                rr.set_time_seconds(
+                    "timestamp", sample_data.timestamp * 1e-6
+                )  # TODO: nusec2sec(...)
+
+                sensor_name = sample_data.channel.value
+                pointcloud = RadarPointCloud.from_file(
+                    osp.join(self.data_root, sample_data.filename)
+                )
+                points = pointcloud.points[:3].T  # (N, 3)
+                point_distances = np.linalg.norm(points, axis=1)
+                point_colors = COLOR_MAP(COLOR_NORM(point_distances))
+                rr.log(f"world/ego_pose/{sensor_name}", rr.Points3D(points, colors=point_colors))
+                current_radar_token = sample_data.next
+
+    def _render_cameras(self, first_camera_tokens: list[str], max_timestamp_us: float) -> None:
+        """Render camera images.
+
+        Args:
+        ----
+            first_camera_tokens (list[str]): List of first sample data tokens corresponding to cameras.
+            max_timestamp_us (float): Max time length in [us].
+        """
+        for first_camera_token in first_camera_tokens:
+            current_camera_token = first_camera_token
+            while current_camera_token != "":
+                sample_data: SampleData = self.get("sample_data", current_camera_token)
+
+                if max_timestamp_us < sample_data.timestamp:
+                    break
+
+                rr.set_time_seconds(
+                    "timestamp", sample_data.timestamp * 1e-6
+                )  # TODO: nusec2sec(...)
+
+                sensor_name = sample_data.channel.value
+                rr.log(
+                    f"world/ego_vehicle/{sensor_name}",
+                    rr.ImageEncoded(path=osp.join(self.data_root, sample_data.filename)),
+                )
+                current_camera_token = sample_data.next
+
+    def _render_annotation_3ds(self, first_sample_token: str, max_timestamp_us: float) -> None:
+        """Render annotated 3D boxes.
+
+        Args:
+        ----
+            first_sample_token (str): First sample token.
+            max_timestamp_us (float): Max time length in [us].
+        """
+        current_sample_token = first_sample_token
+        while current_sample_token != "":
+            sample: Sample = self.get("sample", current_sample_token)
+
+            if max_timestamp_us < sample.timestamp:
+                break
+
+            rr.set_time_seconds("timestamp", sample.timestamp * 1e-6)  # TODO: nusec2sec(...)
+
+            centers: list[tuple[float, float, float]] = []
+            rotations: list[rr.Quaternion] = []
+            sizes: list[tuple[float, float, float]] = []
+            class_ids: list[int] = []
+            for ann_token in sample.ann_3ds:
+                ann: SampleAnnotation = self.get("sample_annotation", ann_token)
+
+                centers.append(ann.translation)
+
+                rotation_xyzw = np.roll(ann.rotation.q, shift=-1)
+                rotations.append(rr.Quaternion(xyzw=rotation_xyzw))
+
+                width, length, height = ann.size
+                sizes.append((length, width, height))
+
+                class_ids.append(self._label2id[ann.category_name])
+
+            rr.log(
+                "world/ann3d",
+                rr.Boxes3D(sizes=sizes, centers=centers, rotations=rotations, class_ids=class_ids),
+            )
+            current_sample_token = sample.next
+
+    def _render_annotation_2ds(self, first_sample_token: str, max_timestamp_us: float) -> None:
+        """Render annotated 2D boxes.
+
+        Args:
+        ----
+            first_sample_token (str): First sample token.
+            max_timestamp_us (float): Max time length in [us].
+        """
+        current_sample_token = first_sample_token
+        while current_sample_token != "":
+            sample: Sample = self.get("sample", current_sample_token)
+
+            if max_timestamp_us < sample.timestamp:
+                break
+
+            rr.set_time_seconds("timestamp", sample.timestamp * 1e-6)  # TODO: nusec2sec(...)
+
+            camera_anns: dict[str, dict] = {
+                sd_token: {"sensor_name": channel.value, "boxes": [], "class_ids": []}
+                for channel, sd_token in sample.data.items()
+                if channel.modality == SensorModality.CAMERA
+            }
+            for ann_token in sample.ann_2ds:
+                ann: ObjectAnn = self.get("object_ann", ann_token)
+                camera_anns[ann.sample_data_token]["boxes"].append(ann.bbox)
+                camera_anns[ann.sample_data_token]["class_ids"].append(
+                    self._label2id[ann.category_name]
+                )
+
+            for _, camera_ann in camera_anns.items():
+                sensor_name: str = camera_ann["sensor_name"]
+                rr.log(
+                    f"world/ann2d/{sensor_name}",
+                    rr.Boxes2D(
+                        array=camera_ann["boxes"],
+                        array_format=rr.Box2DFormat.XYXY,
+                        class_ids=camera_ann["class_ids"],
+                    ),
+                )
+            current_sample_token = sample.next
+
+    def _render_sensor_calibration(self, sample_data_token: str) -> None:
+        """Render a fixed calibrated sensor transform.
+
+        Args:
+        -----
+            sample_data_token (str): First sample data token corresponding to the sensor.
+        """
+        sample_data: SampleData = self.get("sample_data", sample_data_token)
+        sensor_name = sample_data.channel.value
+        calibrated_sensor: CalibratedSensor = self.get(
+            "calibrated_sensor", sample_data.calibrated_sensor_token
+        )
+        rotation_xyzw = np.roll(calibrated_sensor.rotation.q, shift=-1)
+        rr.log(
+            f"world/ego_vehicle/{sensor_name}",
+            rr.Transform3D(
+                translation=calibrated_sensor.translation,
+                rotation=rr.Quaternion(
+                    xyzw=rotation_xyzw,
+                ),
+            ),
+            static=True,
+        )
+        if sample_data.modality == SensorModality.CAMERA:
+            rr.log(
+                f"world/ego_vehicle/{sensor_name}",
+                rr.Pinhole(
+                    image_from_camera=calibrated_sensor.camera_intrinsic,
+                    width=sample_data.width,
+                    height=sample_data.height,
+                ),
+                static=True,
+            )
