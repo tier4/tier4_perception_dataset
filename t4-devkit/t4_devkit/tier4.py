@@ -5,10 +5,9 @@ import time
 from typing import TYPE_CHECKING
 
 import numpy as np
-from nuscenes.utils.data_classes import Box as Box3D
 from pyquaternion import Quaternion
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
-from t4_devkit.utils import is_box_in_image
+from t4_devkit.utils import Box2D, Box3D, is_box_in_image
 
 if TYPE_CHECKING:
     from t4_devkit.typing import CamIntrinsicType, VelocityType
@@ -34,8 +33,6 @@ if TYPE_CHECKING:
     )
 
 __all__ = ("Tier4",)
-
-# TODO: add support of retrieving 2D boxes.
 
 
 class Tier4:
@@ -172,6 +169,11 @@ class Tier4:
             category: Category = self.get("category", instance.category_token)
             record.category_name = category.name
 
+        for record in self.object_ann:
+            instance: Instance = self.get("instance", record.instance_token)
+            category: Category = self.get("category", instance.category_token)
+            record.category_name = category.name
+
         for record in self.sample_data:
             cs_record: CalibratedSensor = self.get(
                 "calibrated_sensor", record.calibrated_sensor_token
@@ -187,7 +189,12 @@ class Tier4:
 
         for ann_record in self.sample_annotation:
             sample_record: Sample = self.get("sample", ann_record.sample_token)
-            sample_record.anns.append(ann_record.token)
+            sample_record.ann_3ds.append(ann_record.token)
+
+        for ann_record in self.object_ann:
+            sd_record: SampleData = self.get("sample_data", ann_record.sample_data_token)
+            sample_record: Sample = self.get("sample", sd_record.sample_token)
+            sample_record.ann_2ds.append(ann_record.token)
 
         log_to_map: dict[str, str] = {}
         for map_record in self.map:
@@ -263,12 +270,11 @@ class Tier4:
         self,
         sample_data_token: str,
         selected_ann_tokens: list[str] | None = None,
+        *,
         as_3d: bool = True,
         visibility: VisibilityLevel = VisibilityLevel.NONE,
-    ) -> tuple[str, list[Box3D], CamIntrinsicType | None]:
+    ) -> tuple[str, list[Box3D | Box2D], CamIntrinsicType | None]:
         """Return the data path as well as all annotations related to that `sample_data`.
-
-        # TODO: add support of retrieving 2D boxes.
 
         Args:
         ----
@@ -280,7 +286,7 @@ class Tier4:
 
         Returns:
         -------
-            tuple[str, list[Box3D], CamIntrinsicType | None]: Data path, a list of boxes and 3x3 camera intrinsic matrix.
+            tuple[str, list[Box3D | Box2D], CamIntrinsicType | None]: Data path, a list of boxes and 3x3 camera intrinsic matrix.
         """
         # Retrieve sensor & pose records
         sd_record: SampleData = self.get("sample_data", sample_data_token)
@@ -300,34 +306,41 @@ class Tier4:
             img_size = None
 
         # Retrieve all sample annotations and map to sensor coordinate system.
-        boxes: list[Box3D]
+        boxes: list[Box3D | Box2D]
         if selected_ann_tokens is not None:
-            boxes = list(map(self.get_box3d, selected_ann_tokens)) if as_3d else None
+            boxes = (
+                list(map(self.get_box3d, selected_ann_tokens))
+                if as_3d
+                else list(map(self.get_box2d, selected_ann_tokens))
+            )
         else:
-            boxes = self.get_boxes3d(sample_data_token) if as_3d else None
+            boxes = (
+                self.get_boxes3d(sample_data_token)
+                if as_3d
+                else self.get_boxes2d(sample_data_token)
+            )
+
+        if not as_3d:
+            return data_path, boxes, cam_intrinsic
 
         # Make list of Box objects including coord system transforms.
-        box_list = []
+        box_list: list[Box3D] = []
         for box in boxes:
-            if as_3d:
-                # Move box to ego vehicle coord system.
-                box.translate(-pose_record.translation)
-                box.rotate(pose_record.rotation.inverse)
+            # Move box to ego vehicle coord system.
+            box.translate(-pose_record.translation)
+            box.rotate(pose_record.rotation.inverse)
 
-                #  Move box to sensor coord system.
-                box.translate(-cs_record.translation)
-                box.rotate(cs_record.rotation.inverse)
+            #  Move box to sensor coord system.
+            box.translate(-cs_record.translation)
+            box.rotate(cs_record.rotation.inverse)
 
-                if sensor_record.modality == SensorModality.CAMERA and not is_box_in_image(
-                    box,
-                    cam_intrinsic,
-                    img_size,
-                    visibility=visibility,
-                ):
-                    continue
-            else:
-                raise NotImplementedError("we've not supported 2D boxes yet.")
-
+            if sensor_record.modality == SensorModality.CAMERA and not is_box_in_image(
+                box,
+                cam_intrinsic,
+                img_size,
+                visibility=visibility,
+            ):
+                continue
             box_list.append(box)
 
         return data_path, box_list, cam_intrinsic
@@ -352,6 +365,20 @@ class Tier4:
             token=record.token,
         )
 
+    def get_box2d(self, object_ann_token: str) -> Box2D:
+        """Return a Box2D class from a `object_ann` record.
+
+        Args:
+        ----
+            object_ann_token (str): Token of `object_ann`.
+
+        Returns:
+        -------
+            Box2D: Instantiated Box2D.
+        """
+        record: ObjectAnn = self.get("object_ann", object_ann_token)
+        return Box2D(record.bbox, name=record.category_name, token=record.token)
+
     def get_boxes3d(self, sample_data_token: str) -> list[Box3D]:
         """Rerun a list of Box3D classes for all annotations of a particular `sample_data` record.
         It the `sample_data` is a keyframe, this returns annotations for the corresponding `sample`.
@@ -370,16 +397,16 @@ class Tier4:
 
         if curr_sample_record.prev == "" or sd_record.is_key_frame:
             # If no previous annotations available, or if sample_data is keyframe just return the current ones.
-            boxes = list(map(self.get_box3d, curr_sample_record.anns))  # TODO
+            boxes = list(map(self.get_box3d, curr_sample_record.ann_3ds))
 
         else:
             prev_sample_record: Sample = self.get("sample", curr_sample_record.prev)
 
             curr_ann_recs: list[SampleAnnotation] = [
-                self.get("sample_annotation", token) for token in curr_sample_record.anns  # TODO
+                self.get("sample_annotation", token) for token in curr_sample_record.ann_3ds
             ]
             prev_ann_recs: list[SampleAnnotation] = [
-                self.get("sample_annotation", token) for token in prev_sample_record.anns  # TODO
+                self.get("sample_annotation", token) for token in prev_sample_record.ann_3ds
             ]
 
             # Maps instance tokens to prev_ann records
@@ -429,6 +456,22 @@ class Tier4:
 
                 boxes.append(box)
         return boxes
+
+    def get_boxes2d(self, sample_data_token: str) -> list[Box2D]:
+        """Rerun a list of Box2D classes for all annotations of a particular `sample_data` record.
+        It the `sample_data` is a keyframe, this returns annotations for the corresponding `sample`.
+
+        Args:
+        ----
+            sample_data_token (str): Token of `sample_data`.
+
+        Returns:
+        -------
+            list[Box2D]: List of instantiated Box2D classes.
+        """
+        sd_record: SampleData = self.get("sample_data", sample_data_token)
+        sample_record: Sample = self.get("sample", sd_record.sample_token)
+        return list(map(self.get_box2d, sample_record.ann_2ds))
 
     def box_velocity(
         self, sample_annotation_token: str, max_time_diff: float = 1.5

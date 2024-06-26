@@ -29,7 +29,8 @@ class Sample(SchemaBase):
 
     # shortcuts
     data: dict[SensorChannel, str] = field(default_factory=dict, init=False)
-    anns: list[str] = field(default_factory=list, init=False)
+    ann_3ds: list[str] = field(default_factory=list, init=False)
+    ann_2ds: list[str] = field(default_factory=list, init=False)
 
     @classmethod
     def from_json(cls, filepath: str) -> list[Self]:

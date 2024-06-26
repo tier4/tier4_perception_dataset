@@ -21,7 +21,7 @@ __all__ = (
     "SizeType",
     "CamIntrinsicType",
     "CamDistortionType",
-    "BboxType",
+    "RoiType",
     "MaskType",
     "KeypointType",
 )
@@ -44,6 +44,6 @@ CamIntrinsicType = NewType("CamIntrinsicType", NDArrayF64)
 CamDistortionType = NewType("CamDistortionType", NDArrayF64)
 
 # 2D
-BboxType = NewType("BboxType", tuple[int, int, int, int])
+RoiType = NewType("RoiType", tuple[int, int, int, int])  # (xmin, ymin, xmax, ymax)
 MaskType = NewType("MaskType", list[int])
 KeypointType = NewType("KeypointType", NDArrayF64)
