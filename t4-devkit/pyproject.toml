@@ -11,6 +11,11 @@ python = ">=3.10,<3.13"
 rerun-sdk = "^0.16.1"
 nuscenes-devkit = "^1.1.11"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+pytest-asyncio = "^0.23.7"
+pytest-mock = "^3.14.0"
+lark = "^1.1.9"
 
 [build-system]
 requires = ["poetry-core"]
