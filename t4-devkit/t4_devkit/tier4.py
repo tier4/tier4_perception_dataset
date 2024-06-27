@@ -10,7 +10,7 @@ from nuscenes.nuscenes import LidarPointCloud, RadarPointCloud
 from pyquaternion import Quaternion
 import rerun as rr
 import rerun.blueprint as rrb
-from t4_devkit.common import Box2D, Box3D, is_box_in_image
+from t4_devkit.common import Box2D, Box3D, is_box_in_image, sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 
 if TYPE_CHECKING:
@@ -614,9 +614,7 @@ class Tier4:
                 first_camera_tokens.append(sd_token)
 
         first_lidar_sd_record: SampleData = self.get("sample_data", first_lidar_token)
-        max_timestamp_us = (
-            first_lidar_sd_record.timestamp + 1e6 * max_time_seconds
-        )  # TODO: sec2nusec(...)
+        max_timestamp_us = first_lidar_sd_record.timestamp + sec2us(max_time_seconds)
 
         self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
         self._render_radars(first_radar_tokens, max_timestamp_us)
@@ -640,7 +638,7 @@ class Tier4:
             if max_timestamp_us < sample_data.timestamp:
                 break
 
-            rr.set_time_seconds("timestamp", sample_data.timestamp * 1e-6)  # TODO: nusec2sec(...)
+            rr.set_time_seconds("timestamp", us2sec(sample_data.timestamp))
 
             ego_pose: EgoPose = self.get("ego_pose", sample_data.ego_pose_token)
             rotation_xyzw = np.roll(ego_pose.rotation.q, shift=-1)
@@ -677,9 +675,7 @@ class Tier4:
                 if max_timestamp_us < sample_data.timestamp:
                     break
 
-                rr.set_time_seconds(
-                    "timestamp", sample_data.timestamp * 1e-6
-                )  # TODO: nusec2sec(...)
+                rr.set_time_seconds("timestamp", us2sec(sample_data.timestamp))
 
                 sensor_name = sample_data.channel.value
                 pointcloud = RadarPointCloud.from_file(
@@ -708,9 +704,7 @@ class Tier4:
                 if max_timestamp_us < sample_data.timestamp:
                     break
 
-                rr.set_time_seconds(
-                    "timestamp", sample_data.timestamp * 1e-6
-                )  # TODO: nusec2sec(...)
+                rr.set_time_seconds("timestamp", us2sec(sample_data.timestamp))
 
                 sensor_name = sample_data.channel.value
                 rr.log(
@@ -734,7 +728,7 @@ class Tier4:
             if max_timestamp_us < sample.timestamp:
                 break
 
-            rr.set_time_seconds("timestamp", sample.timestamp * 1e-6)  # TODO: nusec2sec(...)
+            rr.set_time_seconds("timestamp", us2sec(sample.timestamp))
 
             centers: list[tuple[float, float, float]] = []
             rotations: list[rr.Quaternion] = []
@@ -774,7 +768,7 @@ class Tier4:
             if max_timestamp_us < sample.timestamp:
                 break
 
-            rr.set_time_seconds("timestamp", sample.timestamp * 1e-6)  # TODO: nusec2sec(...)
+            rr.set_time_seconds("timestamp", us2sec(sample.timestamp))
 
             camera_anns: dict[str, dict] = {
                 sd_token: {"sensor_name": channel.value, "boxes": [], "class_ids": []}
