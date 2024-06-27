@@ -764,7 +764,7 @@ class Tier4:
                 width, length, height = ann.size
                 sizes.append((length, width, height))
 
-                uuids.append(ann.instance_token)
+                uuids.append(ann.instance_token[:8])
                 class_ids.append(self._label2id[ann.category_name])
 
                 velocities.append(self.box_velocity(ann_token))
@@ -815,7 +815,7 @@ class Tier4:
             for ann_token in sample.ann_2ds:
                 ann: ObjectAnn = self.get("object_ann", ann_token)
                 camera_anns[ann.sample_data_token]["boxes"].append(ann.bbox)
-                camera_anns[ann.sample_data_token]["uuids"].append(ann.instance_token)
+                camera_anns[ann.sample_data_token]["uuids"].append(ann.instance_token[:8])
                 camera_anns[ann.sample_data_token]["class_ids"].append(
                     self._label2id[ann.category_name]
                 )
