@@ -9,7 +9,7 @@ from t4_devkit.schema import VisibilityLevel
 if TYPE_CHECKING:
     from t4_devkit.typing import NDArrayF64
 
-    from .data_classes import Box3D
+    from .box import Box3D
 
 
 __all__ = ("is_box_in_image",)
