@@ -891,7 +891,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     continue
-                    
+
                 if is_fully_rectified:
                     camera_intrinsic = []
                     camera_distortion = []
