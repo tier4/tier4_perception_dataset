@@ -16,7 +16,7 @@ from t4_devkit.common.timestamp import sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 
 if TYPE_CHECKING:
-    from t4_devkit.typing import CamIntrinsicType, VelocityType
+    from t4_devkit.typing import CamIntrinsicType, SizeType, TranslationType, VelocityType
 
     from .schema import (
         Attribute,
@@ -559,13 +559,20 @@ class Tier4:
         else:
             return pos_diff / time_diff
 
-    def render_scene(self, scene_token: str, max_time_seconds: float = np.inf) -> None:
+    def render_scene(
+        self,
+        scene_token: str,
+        max_time_seconds: float = np.inf,
+        *,
+        render_velocity: bool = False,
+    ) -> None:
         """Render specified scene.
 
         Args:
         ----
             scene_token (str): Unique identifier of scene.
             max_time_seconds (float, optional): Max time length to be rendered [s]. Defaults to np.inf.
+            render_velocity (bool, optional): Whether to render box velocity. Defaults to False.
         """
         camera_names = [
             sensor.channel.value
@@ -621,7 +628,9 @@ class Tier4:
         self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
         self._render_radars(first_radar_tokens, max_timestamp_us)
         self._render_cameras(first_camera_tokens, max_timestamp_us)
-        self._render_annotation_3ds(scene.first_sample_token, max_timestamp_us)
+        self._render_annotation_3ds(
+            scene.first_sample_token, max_timestamp_us, render_velocity=render_velocity
+        )
         self._render_annotation_2ds(scene.first_sample_token, max_timestamp_us)
 
     def _render_lidar_and_ego(self, first_lidar_token: str, max_timestamp_us: float) -> None:
@@ -714,13 +723,20 @@ class Tier4:
                 )
                 current_camera_token = sample_data.next
 
-    def _render_annotation_3ds(self, first_sample_token: str, max_timestamp_us: float) -> None:
+    def _render_annotation_3ds(
+        self,
+        first_sample_token: str,
+        max_timestamp_us: float,
+        *,
+        render_velocity: bool = False,
+    ) -> None:
         """Render annotated 3D boxes.
 
         Args:
         ----
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
+            render_velocity (bool): Whether to render velocity arrow. Defaults to False.
         """
         current_sample_token = first_sample_token
         while current_sample_token != "":
@@ -731,10 +747,11 @@ class Tier4:
 
             rr.set_time_seconds("timestamp", us2sec(sample.timestamp))
 
-            centers: list[tuple[float, float, float]] = []
+            centers: list[TranslationType] = []
             rotations: list[rr.Quaternion] = []
-            sizes: list[tuple[float, float, float]] = []
+            sizes: list[SizeType] = []
             class_ids: list[int] = []
+            velocities: list[VelocityType] = []
             for ann_token in sample.ann_3ds:
                 ann: SampleAnnotation = self.get("sample_annotation", ann_token)
 
@@ -748,10 +765,19 @@ class Tier4:
 
                 class_ids.append(self._label2id[ann.category_name])
 
+                velocities.append(self.box_velocity(ann_token))
+
             rr.log(
-                "world/ann3d",
+                "world/ann3d/box",
                 rr.Boxes3D(sizes=sizes, centers=centers, rotations=rotations, class_ids=class_ids),
             )
+
+            if render_velocity:
+                rr.log(
+                    "world/ann3d/velocity",
+                    rr.Arrows3D(vectors=velocities, origins=centers, class_ids=class_ids),
+                )
+
             current_sample_token = sample.next
 
     def _render_annotation_2ds(self, first_sample_token: str, max_timestamp_us: float) -> None:
