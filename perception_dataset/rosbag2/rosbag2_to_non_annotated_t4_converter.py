@@ -362,6 +362,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 topic=camera_sensor["topic"],
                 delay_msec=float(camera_sensor["delay_msec"]),
                 scene_token=scene_token,
+                is_fully_rectified=camera_sensor["is_fully_rectified"],
             )
 
             first_sample_data_token: str = sensor_channel_to_sample_data_token_list[
@@ -601,6 +602,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         delay_msec: float,
         scene_token: str,
+        is_fully_rectified: bool,
     ):
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
@@ -609,7 +611,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # Get calibrated sensor token
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
         calibrated_sensor_token = self._generate_calibrated_sensor(
-            sensor_channel, start_time_in_time, topic
+            sensor_channel, start_time_in_time, topic, is_fully_rectified
         )
 
         if self._sensor_mode != SensorMode.NO_LIDAR:  # w/ LiDAR mode
@@ -817,7 +819,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return ego_pose_token
 
     def _generate_calibrated_sensor(
-        self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
+        self,
+        sensor_channel: str,
+        start_timestamp: builtin_interfaces.msg.Time,
+        topic_name="",
+        is_fully_rectified: bool = False,
     ) -> str:
         calibrated_sensor_token = str()
         for sensor_enum in self._sensor_enums:
@@ -861,8 +867,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     sensor_token=sensor_token,
                     translation=translation,
                     rotation=rotation,
-                    camera_intrinsic=[],
-                    camera_distortion=[],
+                    camera_intrinsic=camera_intrinsic,
+                    camera_distortion=camera_distortion,
                 )
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
                 if self._data_type.value == "synthetic":
@@ -885,8 +891,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     continue
-                camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
-                camera_distortion = info.d.tolist()
+                    
+                if is_fully_rectified:
+                    camera_intrinsic = []
+                    camera_distortion = []
+                else:
+                    camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+                    camera_distortion = info.d.tolist()
 
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                     sensor_token=sensor_token,
