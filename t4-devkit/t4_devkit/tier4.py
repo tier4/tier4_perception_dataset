@@ -803,16 +803,19 @@ class Tier4:
             if max_timestamp_us < sample.timestamp:
                 break
 
+            # FIXME: rendered camera image uses timestamp of sample data, but annotation box uses timestamp of sample
+            # Therefore, 2d box will be shifted.
             rr.set_time_seconds("timestamp", us2sec(sample.timestamp))
 
             camera_anns: dict[str, dict] = {
-                sd_token: {"sensor_name": channel.value, "boxes": [], "class_ids": []}
+                sd_token: {"sensor_name": channel.value, "boxes": [], "uuids": [], "class_ids": []}
                 for channel, sd_token in sample.data.items()
                 if channel.modality == SensorModality.CAMERA
             }
             for ann_token in sample.ann_2ds:
                 ann: ObjectAnn = self.get("object_ann", ann_token)
                 camera_anns[ann.sample_data_token]["boxes"].append(ann.bbox)
+                camera_anns[ann.sample_data_token]["uuids"].append(ann.instance_token)
                 camera_anns[ann.sample_data_token]["class_ids"].append(
                     self._label2id[ann.category_name]
                 )
@@ -820,10 +823,11 @@ class Tier4:
             for _, camera_ann in camera_anns.items():
                 sensor_name: str = camera_ann["sensor_name"]
                 rr.log(
-                    f"world/ann2d/{sensor_name}",
+                    f"world/ego_vehicle/{sensor_name}/ann2d",
                     rr.Boxes2D(
                         array=camera_ann["boxes"],
                         array_format=rr.Box2DFormat.XYXY,
+                        labels=camera_ann["uuids"],
                         class_ids=camera_ann["class_ids"],
                     ),
                 )
