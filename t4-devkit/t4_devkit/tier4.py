@@ -750,6 +750,7 @@ class Tier4:
             centers: list[TranslationType] = []
             rotations: list[rr.Quaternion] = []
             sizes: list[SizeType] = []
+            uuids: list[str] = []
             class_ids: list[int] = []
             velocities: list[VelocityType] = []
             for ann_token in sample.ann_3ds:
@@ -763,13 +764,20 @@ class Tier4:
                 width, length, height = ann.size
                 sizes.append((length, width, height))
 
+                uuids.append(ann.instance_token)
                 class_ids.append(self._label2id[ann.category_name])
 
                 velocities.append(self.box_velocity(ann_token))
 
             rr.log(
                 "world/ann3d/box",
-                rr.Boxes3D(sizes=sizes, centers=centers, rotations=rotations, class_ids=class_ids),
+                rr.Boxes3D(
+                    sizes=sizes,
+                    centers=centers,
+                    rotations=rotations,
+                    labels=uuids,
+                    class_ids=class_ids,
+                ),
             )
 
             if render_velocity:
