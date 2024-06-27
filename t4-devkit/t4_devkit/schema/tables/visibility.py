@@ -3,7 +3,7 @@ import sys
 from typing import Any
 import warnings
 
-from t4_devkit.common import load_json
+from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase

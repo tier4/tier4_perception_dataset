@@ -10,7 +10,9 @@ from nuscenes.nuscenes import LidarPointCloud, RadarPointCloud
 from pyquaternion import Quaternion
 import rerun as rr
 import rerun.blueprint as rrb
-from t4_devkit.common import Box2D, Box3D, is_box_in_image, sec2us, us2sec
+from t4_devkit.common.box import Box2D, Box3D
+from t4_devkit.common.geometry import is_box_in_image
+from t4_devkit.common.timestamp import sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 
 if TYPE_CHECKING:
@@ -695,7 +697,6 @@ class Tier4:
             first_camera_tokens (list[str]): List of first sample data tokens corresponding to cameras.
             max_timestamp_us (float): Max time length in [us].
         """
-        print(len(first_camera_tokens))
         for first_camera_token in first_camera_tokens:
             current_camera_token = first_camera_token
             while current_camera_token != "":
