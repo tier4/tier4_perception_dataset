@@ -559,20 +559,13 @@ class Tier4:
         else:
             return pos_diff / time_diff
 
-    def render_scene(
-        self,
-        scene_token: str,
-        max_time_seconds: float = np.inf,
-        *,
-        render_velocity: bool = False,
-    ) -> None:
+    def render_scene(self, scene_token: str, max_time_seconds: float = np.inf) -> None:
         """Render specified scene.
 
         Args:
         ----
             scene_token (str): Unique identifier of scene.
             max_time_seconds (float, optional): Max time length to be rendered [s]. Defaults to np.inf.
-            render_velocity (bool, optional): Whether to render box velocity. Defaults to False.
         """
         camera_names = [
             sensor.channel.value
@@ -628,9 +621,7 @@ class Tier4:
         self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
         self._render_radars(first_radar_tokens, max_timestamp_us)
         self._render_cameras(first_camera_tokens, max_timestamp_us)
-        self._render_annotation_3ds(
-            scene.first_sample_token, max_timestamp_us, render_velocity=render_velocity
-        )
+        self._render_annotation_3ds(scene.first_sample_token, max_timestamp_us)
         self._render_annotation_2ds(scene.first_sample_token, max_timestamp_us)
 
     def _render_lidar_and_ego(self, first_lidar_token: str, max_timestamp_us: float) -> None:
@@ -723,20 +714,13 @@ class Tier4:
                 )
                 current_camera_token = sample_data.next
 
-    def _render_annotation_3ds(
-        self,
-        first_sample_token: str,
-        max_timestamp_us: float,
-        *,
-        render_velocity: bool = False,
-    ) -> None:
+    def _render_annotation_3ds(self, first_sample_token: str, max_timestamp_us: float) -> None:
         """Render annotated 3D boxes.
 
         Args:
         ----
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
-            render_velocity (bool): Whether to render velocity arrow. Defaults to False.
         """
         current_sample_token = first_sample_token
         while current_sample_token != "":
@@ -780,11 +764,10 @@ class Tier4:
                 ),
             )
 
-            if render_velocity:
-                rr.log(
-                    "world/ann3d/velocity",
-                    rr.Arrows3D(vectors=velocities, origins=centers, class_ids=class_ids),
-                )
+            rr.log(
+                "world/ann3d/velocity",
+                rr.Arrows3D(vectors=velocities, origins=centers, class_ids=class_ids),
+            )
 
             current_sample_token = sample.next
 
