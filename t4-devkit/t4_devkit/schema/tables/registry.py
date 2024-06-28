@@ -41,21 +41,21 @@ class SchemaRegistry:
     def keys(self) -> KeysView[str]:
         return self.__schemas.keys()
 
-    def register(self, name: SchemaName) -> Callable:
+    def register(self, name: SchemaName, *, force: bool = False) -> Callable:
         if not isinstance(name, SchemaName):
             raise TypeError(f"name must be SchemaName, but got {type(name)}.")
 
         def _register_decorator(obj: object) -> object:
-            self._add_module(obj, name=name)
+            self._add_module(obj, name=name, force=force)
             return obj
 
         return _register_decorator
 
-    def _add_module(self, module: object, name: SchemaName) -> None:
+    def _add_module(self, module: object, name: SchemaName, *, force: bool = False) -> None:
         if not inspect.isclass(module):
             raise TypeError(f"module must be a class, but got {type(module)}.")
 
-        if name in self:
+        if not force and name in self:
             raise KeyError(f"{name.value} has already been registered.")
 
         self.__schemas[name.value] = module
