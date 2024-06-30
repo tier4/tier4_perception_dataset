@@ -23,7 +23,16 @@ __all__ = ("Visibility", "VisibilityLevel")
 
 
 class VisibilityLevel(StrEnum):
-    """An enum to represent visibility levels."""
+    """An enum to represent visibility levels.
+
+    Attributes:
+    ----------
+        FULL: No occlusion for the object.
+        MOST: Object is occluded, but by less than 50%.
+        PARTIAL: Object is occluded, but by more than 50%.
+        NONE: Object is 90-100% occluded and no points/pixels are visible in the label.
+        UNAVAILABLE: Visibility level is not specified.
+    """
 
     FULL = "full"
     MOST = "most"
@@ -64,7 +73,14 @@ class VisibilityLevel(StrEnum):
 @dataclass
 @SCHEMAS.register(SchemaName.VISIBILITY)
 class Visibility(SchemaBase):
-    """A dataclass to represent schema table of `visibility.json`."""
+    """A dataclass to represent schema table of `visibility.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        level (VisibilityLevel): Visibility level.
+        description (str): Description of visibility level.
+    """
 
     token: str
     level: VisibilityLevel

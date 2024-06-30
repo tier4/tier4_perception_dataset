@@ -21,7 +21,15 @@ __all__ = ("EgoPose",)
 @dataclass
 @SCHEMAS.register(SchemaName.EGO_POSE)
 class EgoPose(SchemaBase):
-    """A dataclass to represent schema table of `ego_pose.json`."""
+    """A dataclass to represent schema table of `ego_pose.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        translation (TranslationType): Coordinate system origin given as [x, y, z] in [m].
+        rotation (RotationType): Coordinate system orientation given as quaternion [w, x, y, z].
+        timestamp (int): Unix time stamp.
+    """
 
     token: str
     translation: TranslationType

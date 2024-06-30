@@ -63,6 +63,7 @@ class Tier4:
 
         Examples:
         --------
+            >>> from t4_devkit import Tier4
             >>> t4 = Tier4("annotation", "data/tier4")
             ======
             Loading T4 tables in `annotation`...
@@ -401,7 +402,7 @@ class Tier4:
         record: ObjectAnn = self.get("object_ann", object_ann_token)
         return Box2D(record.bbox, name=record.category_name, token=record.token)
 
-    def get_boxes3d(self, sample_data_token: str) -> list[Box3D]:
+    def get_box3ds(self, sample_data_token: str) -> list[Box3D]:
         """Rerun a list of Box3D classes for all annotations of a particular `sample_data` record.
         It the `sample_data` is a keyframe, this returns annotations for the corresponding `sample`.
 
@@ -479,7 +480,7 @@ class Tier4:
                 boxes.append(box)
         return boxes
 
-    def get_boxes2d(self, sample_data_token: str) -> list[Box2D]:
+    def get_box2ds(self, sample_data_token: str) -> list[Box2D]:
         """Rerun a list of Box2D classes for all annotations of a particular `sample_data` record.
         It the `sample_data` is a keyframe, this returns annotations for the corresponding `sample`.
 
@@ -806,7 +807,7 @@ class Tier4:
             for _, camera_ann in camera_anns.items():
                 sensor_name: str = camera_ann["sensor_name"]
                 rr.log(
-                    f"world/ego_vehicle/{sensor_name}/ann2d",
+                    f"world/ego_vehicle/{sensor_name}/ann2d/box",
                     rr.Boxes2D(
                         array=camera_ann["boxes"],
                         array_format=rr.Box2DFormat.XYXY,
@@ -814,6 +815,7 @@ class Tier4:
                         class_ids=camera_ann["class_ids"],
                     ),
                 )
+                # TODO: add support of rendering object/surface mask and keypoints
             current_sample_token = sample.next
 
     def _render_sensor_calibration(self, sample_data_token: str) -> None:

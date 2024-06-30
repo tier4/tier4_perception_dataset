@@ -19,7 +19,15 @@ __all__ = ("SurfaceAnn",)
 @dataclass
 @SCHEMAS.register(SchemaName.SURFACE_ANN)
 class SurfaceAnn(SchemaBase):
-    """A dataclass to represent schema table of `surface_ann.json`."""
+    """A dataclass to represent schema table of `surface_ann.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        sample_data_token (str): Foreign key pointing to the sample data, which must be a keyframe image.
+        category_token (str): Foreign key pointing to the surface category.
+        mask (MaskType): Segmentation mask using the COCO format.
+    """
 
     token: str
     sample_data_token: str

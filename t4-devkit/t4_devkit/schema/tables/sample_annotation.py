@@ -27,7 +27,33 @@ __all__ = ("SampleAnnotation",)
 @dataclass
 @SCHEMAS.register(SchemaName.SAMPLE_ANNOTATION)
 class SampleAnnotation(SchemaBase):
-    """A dataclass to represent schema table of `sample_annotation.json`."""
+    """A dataclass to represent schema table of `sample_annotation.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        sample_token (str): Foreign key pointing the sample.
+        instance_token (str): Foreign key pointing the object instance.
+        attribute_tokens (list[str]): Foreign keys. List of attributes for this annotation.
+        visibility_token (str): Foreign key pointing the object visibility.
+        translation (TranslationType): Bounding box location given as [x, y, z] in [m].
+        size (SizeType): Bounding box size given as [width, length, height] in [m].
+        rotation (RotationType): Bounding box orientation given as quaternion [w, x, y, z].
+        num_lidar_pts (int): Number of lidar points in this box.
+        num_radar_pts (int): Number of radar points in this box.
+        next (str): Foreign key pointing the annotation that follows this in time.
+            Empty if this is the last annotation for this object.
+        prev (str): Foreign key pointing the annotation that precedes this in time.
+            Empty if this the first annotation for this object.
+        velocity (VelocityType | None, optional): Bounding box velocity given as
+            [vx, vy, vz] in [m/s].
+        acceleration (AccelerationType | None, optional): Bonding box acceleration
+            given as [ax, ay, av] in [m/s^2].
+
+    Shortcuts:
+    ---------
+        category_name (str): Category name. This should be set after instantiated.
+    """
 
     token: str
     sample_token: str

@@ -23,7 +23,14 @@ __all__ = ("Sensor", "SensorModality", "SensorChannel")
 
 
 class SensorModality(StrEnum):
-    """An enum to represent sensor modalities."""
+    """An enum to represent sensor modalities.
+
+    Attributes:
+    -----------
+        LIDAR: Lidar sensor.
+        CAMERA: Camera sensor.
+        RADAR: Radar sensor.
+    """
 
     LIDAR = "lidar"
     CAMERA = "camera"
@@ -31,14 +38,34 @@ class SensorModality(StrEnum):
 
 
 class SensorChannel(StrEnum):
-    """An enum to represent sensor channels."""
+    """An enum to represent sensor channels.
 
-    CAM_BACK_LEFT = "CAM_BACK_LEFT"
+    Attributes:
+    ----------
+        CAM_FRONT: Front center camera.
+        CAM_FRONT_RIGHT: Front right camera.
+        CAM_FRONT_LEFT: Front left camera.
+        CAM_BACK: Back center camera.
+        CAM_BACK_RIGHT: Back right camera.
+        CAM_BACK_LEFT: Back left camera.
+        CAM_TRAFFIC_LIGHT_NEAR: Camera for nearer traffic light recognition.
+        CAM_TRAFFIC_LIGHT_FAR: Camera for farther traffic light recognition.
+        LIDAR_TOP: Top lidar.
+        LIDAR_CONCAT: Concatenated lidar.
+        RADAR_FRONT: Front center radar.
+        RADAR_FRONT_RIGHT: Front right radar.
+        RADAR_FRONT_LEFT: Front left radar.
+        RADAR_BACK: Back center radar.
+        RADAR_BACK_RIGHT: Back right radar.
+        RADAR_BACK_LEFT: Back left radar.
+    """
+
     CAM_FRONT = "CAM_FRONT"
     CAM_FRONT_RIGHT = "CAM_FRONT_RIGHT"
-    CAM_BACK_RIGHT = "CAM_BACK_RIGHT"
-    CAM_BACK = "CAM_BACK"
     CAM_FRONT_LEFT = "CAM_FRONT_LEFT"
+    CAM_BACK = "CAM_BACK"
+    CAM_BACK_RIGHT = "CAM_BACK_RIGHT"
+    CAM_BACK_LEFT = "CAM_BACK_LEFT"
     CAM_TRAFFIC_LIGHT_NEAR = "CAM_TRAFFIC_LIGHT_NEAR"
     CAM_TRAFFIC_LIGHT_FAR = "CAM_TRAFFIC_LIGHT_FAR"
     LIDAR_TOP = "LIDAR_TOP"
@@ -47,8 +74,8 @@ class SensorChannel(StrEnum):
     RADAR_FRONT_RIGHT = "RADAR_FRONT_RIGHT"
     RADAR_FRONT_LEFT = "RADAR_FRONT_LEFT"
     RADAR_BACK = "RADAR_BACK"
-    RADAR_BACK_LEFT = "RADAR_BACK_LEFT"
     RADAR_BACK_RIGHT = "RADAR_BACK_RIGHT"
+    RADAR_BACK_LEFT = "RADAR_BACK_LEFT"
 
     @property
     def modality(self) -> SensorModality:
@@ -65,7 +92,14 @@ class SensorChannel(StrEnum):
 @dataclass
 @SCHEMAS.register(SchemaName.SENSOR)
 class Sensor(SchemaBase):
-    """A dataclass to represent schema table of `sensor.json`."""
+    """A dataclass to represent schema table of `sensor.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        channel (SensorChannel): Sensor channel name.
+        modality (SensorModality): Sensor modality.
+    """
 
     token: str
     channel: SensorChannel

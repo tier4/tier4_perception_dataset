@@ -19,7 +19,18 @@ __all__ = ("ObjectAnn",)
 @dataclass
 @SCHEMAS.register(SchemaName.OBJECT_ANN)
 class ObjectAnn(SchemaBase):
-    """A dataclass to represent schema table of `object_ann.json`."""
+    """A dataclass to represent schema table of `object_ann.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        sample_data_token (str): Foreign key pointing to the sample data, which must be a keyframe image.
+        instance_token (str): Foreign key pointing to the instance.
+        category_token (str): Foreign key pointing to the object category.
+        attribute_tokens (list[str]): Foreign keys. List of attributes for this annotation.
+        bbox (RoiType): Annotated bounding box. Given as [xmin, ymin, xmax, ymax].
+        mask (MaskType): Instance mask using the COCO format.
+    """
 
     token: str
     sample_data_token: str

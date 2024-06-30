@@ -14,7 +14,14 @@ __all__ = ("Category",)
 @dataclass
 @SCHEMAS.register(SchemaName.CATEGORY)
 class Category(SchemaBase):
-    """A dataclass to represent schema table of `category.json`."""
+    """A dataclass to represent schema table of `category.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        name (str): Category name.
+        description (str): Category description.
+    """
 
     token: str
     name: str

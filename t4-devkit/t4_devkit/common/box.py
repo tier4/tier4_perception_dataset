@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Tuple
 
 import numpy as np
 from nuscenes.utils.data_classes import Box
+from pyquaternion import Quaternion
 
 if TYPE_CHECKING:
     from t4_devkit.typing import RoiType
@@ -13,6 +14,33 @@ __all__ = ("Box3D", "Box2D")
 
 class Box3D(Box):
     """An wrapper of NuScenes Box."""
+
+    def __init__(
+        self,
+        center: List[float],
+        size: List[float],
+        orientation: Quaternion,
+        label: int = np.nan,
+        score: float = np.nan,
+        velocity: Tuple = (np.nan, np.nan, np.nan),
+        name: str = None,
+        token: str = None,
+    ) -> None:
+        """Construct instance.
+
+        Args:
+        ----
+            center (List[float]): Center of box given as (x, y, z).
+            size (List[float]): Size of box given as (width, length, height).
+            orientation (Quaternion): Box orientation.
+            label (int, optional): Integer label. Defaults to np.nan.
+            score (float, optional): Classification score. Defaults to np.nan.
+            velocity (Tuple, optional): Box velocity given as (vx, vy, vz).
+                Defaults to (np.nan, np.nan, np.nan).
+            name (str, optional): Box category name. Defaults to None.
+            token (str, optional): Unique string identifier. Defaults to None.
+        """
+        super().__init__(center, size, orientation, label, score, velocity, name, token)
 
 
 class Box2D:

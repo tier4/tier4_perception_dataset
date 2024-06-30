@@ -14,7 +14,18 @@ __all__ = ("Scene",)
 @dataclass
 @SCHEMAS.register(SchemaName.SCENE)
 class Scene(SchemaBase):
-    """A dataclass to represent schema table of `scene.json`."""
+    """A dataclass to represent schema table of `scene.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        name (str): Short string identifier.
+        description (str): Longer description for the scene.
+        log_token (str): Foreign key pointing to log from where the data was extracted.
+        nbr_samples (int): Number of samples in the scene.
+        first_sample_token (str): Foreign key pointing to the first sample in scene.
+        last_sample_token (str): Foreign key pointing to the last sample in scene.
+    """
 
     token: str
     name: str

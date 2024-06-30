@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -13,14 +13,7 @@ from .registry import SCHEMAS
 from ..name import SchemaName
 
 if TYPE_CHECKING:
-    from t4_devkit.typing import (
-        AccelerationType,
-        CamDistortionType,
-        CamIntrinsicType,
-        RotationType,
-        TranslationType,
-        VelocityType,
-    )
+    from t4_devkit.typing import CamDistortionType, CamIntrinsicType, RotationType, TranslationType
 
 __all__ = ("CalibratedSensor",)
 
@@ -28,7 +21,17 @@ __all__ = ("CalibratedSensor",)
 @dataclass
 @SCHEMAS.register(SchemaName.CALIBRATED_SENSOR)
 class CalibratedSensor(SchemaBase):
-    """A dataclass to represent schema table of `calibrated_sensor.json`."""
+    """A dataclass to represent schema table of `calibrated_sensor.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        sensor_token (str): Foreign key pointing to the sensor type.
+        translation (TranslationType): Coordinates system origin given as [x, y, z] in [m].
+        rotation (RotationType): Coordinates system orientation given as quaternion [w, x, y, z].
+        camera_intrinsic (CamIntrinsicType): 3x3 camera intrinsic matrix. Empty for sensors that are not cameras.
+        camera_distortion (CamDistortionType): Camera distortion array. Empty for sensors that are not cameras.
+    """
 
     token: str
     sensor_token: str
@@ -36,8 +39,6 @@ class CalibratedSensor(SchemaBase):
     rotation: RotationType
     camera_intrinsic: CamIntrinsicType
     camera_distortion: CamDistortionType
-    velocity: VelocityType | None = field(default=None)
-    acceleration: AccelerationType | None = field(default=None)
 
     @classmethod
     def from_json(cls, filepath: str) -> list[Self]:
@@ -47,8 +48,6 @@ class CalibratedSensor(SchemaBase):
             token: str = record["token"]
             sensor_token: str = record["sensor_token"]
             translation = np.array(record["translation"])
-            velocity = np.array(record["velocity"]) if record.get("velocity") else None
-            acceleration = np.array(record["acceleration"]) if record.get("velocity") else None
             rotation = Quaternion(record["rotation"])
             camera_intrinsic = np.array(record["camera_intrinsic"])
             camera_distortion = np.array(record["camera_distortion"])
@@ -57,8 +56,6 @@ class CalibratedSensor(SchemaBase):
                     token=token,
                     sensor_token=sensor_token,
                     translation=translation,
-                    velocity=velocity,
-                    acceleration=acceleration,
                     rotation=rotation,
                     camera_intrinsic=camera_intrinsic,
                     camera_distortion=camera_distortion,

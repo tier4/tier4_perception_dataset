@@ -19,7 +19,25 @@ __all__ = ("Sample",)
 @dataclass
 @SCHEMAS.register(SchemaName.SAMPLE)
 class Sample(SchemaBase):
-    """A dataclass to represent schema table of `sample.json`."""
+    """A dataclass to represent schema table of `sample.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        timestamp (int): Unix time stamp.
+        scene_token (str): Foreign key pointing to the scene.
+        next (str): Foreign key pointing the sample that follows this in time. Empty if end of scene.
+        prev (str): Foreign key pointing the sample that precedes this in time. Empty if start of scene.
+
+    Shortcuts:
+    ---------
+        data (dict[SensorChannel, str]): Sensor channel and its token.
+            This should be set after instantiated.
+        ann_3ds (list[str]): List of foreign keys pointing the sample annotations.
+            This should be set after instantiated.
+        ann_3ds (list[str]): List of foreign keys pointing the object annotations.
+            This should be set after instantiated.
+    """
 
     token: str
     timestamp: int

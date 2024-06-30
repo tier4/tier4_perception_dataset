@@ -16,21 +16,41 @@ __all__ = ("SchemaName",)
 
 
 class SchemaName(StrEnum):
-    """An enum to represent schema filenames."""
+    """An enum to represent schema filenames.
 
-    CATEGORY = "category"
+    Attributes:
+    ----------
+        ATTRIBUTE: Property of an instance that can change while the category remains the same.
+        CALIBRATED_SENSOR: Definition of a particular sensor as calibrated on a vehicle.
+        CATEGORY: Object categories.
+        EGO_POSE: Ego vehicle pose at at particular timestamp.
+        INSTANCE: An object instance.
+        LOG: Information about the log from which the data aws extracted.
+        MAP: Map data that is stored as binary semantic masks from a top-down view.
+        SAMPLE: A sample is an annotated keyframe at specific Hz.
+        SAMPLE_ANNOTATION: A bounding box defining the position of an object seen in a sample.
+        SAMPLE_DATA: A sensor data e.g. image, pointcloud or radar return.
+        SCENE: A scene is a specific long sequence of consecutive frames extracted from a log.
+        SENSOR: A specific sensor type.
+        VISIBILITY: The visibility of instance is the fraction of annotation visible in all images.
+        OBJECT_ANN (optional): The annotation of a foreground object in an image.
+        SURFACE_ANN (optional): The annotation of a background object in an image.
+        KEYPOINT (optional): The annotation of pose keypoints of an object in an image.
+    """
+
     ATTRIBUTE = "attribute"
-    VISIBILITY = "visibility"
-    INSTANCE = "instance"
-    SENSOR = "sensor"
     CALIBRATED_SENSOR = "calibrated_sensor"
+    CATEGORY = "category"
     EGO_POSE = "ego_pose"
+    INSTANCE = "instance"
     LOG = "log"
-    SCENE = "scene"
-    SAMPLE = "sample"
-    SAMPLE_DATA = "sample_data"
-    SAMPLE_ANNOTATION = "sample_annotation"
     MAP = "map"
+    SAMPLE = "sample"
+    SAMPLE_ANNOTATION = "sample_annotation"
+    SAMPLE_DATA = "sample_data"
+    VISIBILITY = "visibility"
+    SENSOR = "sensor"
+    SCENE = "scene"
     OBJECT_ANN = "object_ann"  # optional
     SURFACE_ANN = "surface_ann"  # optional
     KEYPOINT = "keypoint"  # optional

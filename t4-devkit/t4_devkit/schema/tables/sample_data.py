@@ -27,7 +27,16 @@ __all__ = ("SampleData", "FileFormat")
 
 
 class FileFormat(StrEnum):
-    """An enum to represent file formats."""
+    """An enum to represent file formats.
+
+    Attributes:
+    ----------
+        JPG: JPG format for image data.
+        PNG: PNG format for image data.
+        PCD: PCD format for pointcloud data.
+        BIN: BIN format.
+        PCDBIN: PCD.BIN format for pointcloud data.
+    """
 
     JPG = "jpg"
     PNG = "png"
@@ -72,7 +81,31 @@ class FileFormat(StrEnum):
 @dataclass
 @SCHEMAS.register(SchemaName.SAMPLE_DATA)
 class SampleData(SchemaBase):
-    """A class to represent schema table of `sample_data.json`."""
+    """A class to represent schema table of `sample_data.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        sample_token (str): Foreign key pointing the sample.
+        ego_pose_token (str): Foreign key pointing the ego_pose.
+        calibrated_sensor_token (str): Foreign key pointing the calibrated_sensor.
+        filename (str): Relative path to data-blob on disk.
+        fileformat (FileFormat): Data file format.
+        width (int): If the sample data is an image, this is the image width in [px].
+        height (int): If the sample data is an image, this is the image height in [px].
+        timestamp (int): Unix time stamp.
+        is_key_frame (bool): True if sample_data is part of key frame else, False.
+        next (str): Foreign key pointing the sample_data that follows this in time.
+            Empty if end of scene.
+        prev (str): Foreign key pointing the sample_data that precedes this in time.
+            Empty if start of scene.
+        is_valid (bool): True if this data is valid, else False. Invalid data should be ignored.
+
+    Shortcuts:
+    ---------
+        modality (SensorModality): Sensor modality. This should be set after instantiated.
+        channel (SensorChannel): Sensor channel. This should be set after instantiated.
+    """
 
     token: str
     sample_token: str

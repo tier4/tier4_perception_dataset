@@ -14,7 +14,16 @@ __all__ = ("Log",)
 @dataclass
 @SCHEMAS.register(SchemaName.LOG)
 class Log(SchemaBase):
-    """A dataclass to represent schema table of `log.json`."""
+    """A dataclass to represent schema table of `log.json`.
+
+    Attributes:
+    ----------
+        token (str): Unique record identifier.
+        logfile (str): Log file name.
+        vehicle (str): Vehicle name.
+        data_captured (str): Date of the data was captured (YYYY-MM-DD-HH-mm-ss).
+        location (str): Area where log was captured.
+    """
 
     token: str
     logfile: str
