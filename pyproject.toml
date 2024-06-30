@@ -6,6 +6,10 @@ authors = [
     "Yusuke Muramatsu <yusuke.muramatsu@tier4.jp>",
     "Shunsuke Miura <shunsuke.miura@tier4.jp>",
 ]
+packages = [
+    { include = "perception_dataset" },
+    { include = "t4_devkit", from = "t4-devkit" },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
@@ -26,7 +30,6 @@ matplotlib = "3.5.3"
 pandas = "2.0.2"
 ros2-numpy = "^0.0.4"
 importlib-metadata = "^7.1.0"
-t4-devkit = { path = "t4-devkit" }
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.1"
