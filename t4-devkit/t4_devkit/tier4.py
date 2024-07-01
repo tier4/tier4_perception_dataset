@@ -5,13 +5,13 @@ import os.path as osp
 import time
 from typing import TYPE_CHECKING
 
-import matplotlib
 import numpy as np
 from nuscenes.nuscenes import LidarPointCloud, RadarPointCloud
 from pyquaternion import Quaternion
 import rerun as rr
 import rerun.blueprint as rrb
 from t4_devkit.common.box import Box2D, Box3D
+from t4_devkit.common.color import distance_color
 from t4_devkit.common.geometry import is_box_in_image
 from t4_devkit.common.timestamp import sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
@@ -41,14 +41,6 @@ if TYPE_CHECKING:
     )
 
 __all__ = ("Tier4",)
-
-# currently need to calculate the color manually
-# see https://github.com/rerun-io/rerun/issues/4409
-COLOR_MAP = matplotlib.colormaps["turbo_r"]
-COLOR_NORM = matplotlib.colors.Normalize(
-    vmin=3.0,
-    vmax=75.0,
-)
 
 
 class Tier4:
@@ -659,8 +651,7 @@ class Tier4:
             sensor_name = sample_data.channel.value
             pointcloud = LidarPointCloud.from_file(osp.join(self.data_root, sample_data.filename))
             points = pointcloud.points[:3].T  # (N, 3)
-            point_distances = np.linalg.norm(points, axis=1)
-            point_colors = COLOR_MAP(COLOR_NORM(point_distances))
+            point_colors = distance_color(np.linalg.norm(points, axis=1))
             rr.log(f"world/ego_vehicle/{sensor_name}", rr.Points3D(points, colors=point_colors))
             current_lidar_token = sample_data.next
 
@@ -687,8 +678,7 @@ class Tier4:
                     osp.join(self.data_root, sample_data.filename)
                 )
                 points = pointcloud.points[:3].T  # (N, 3)
-                point_distances = np.linalg.norm(points, axis=1)
-                point_colors = COLOR_MAP(COLOR_NORM(point_distances))
+                point_colors = distance_color(np.linalg.norm(points, axis=1))
                 rr.log(f"world/ego_pose/{sensor_name}", rr.Points3D(points, colors=point_colors))
                 current_radar_token = sample_data.next
 
