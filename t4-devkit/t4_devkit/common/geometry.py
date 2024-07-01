@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from nuscenes.utils.geometry_utils import view_points
 from t4_devkit.schema import VisibilityLevel
 
 if TYPE_CHECKING:
@@ -12,7 +11,69 @@ if TYPE_CHECKING:
     from .box import Box3D
 
 
-__all__ = ("is_box_in_image",)
+__all__ = ("view_points", "is_box_in_image")
+
+
+def view_points(
+    points: NDArrayF64,
+    intrinsic: NDArrayF64,
+    distortion: NDArrayF64 | None = None,
+    *,
+    normalize: bool = True,
+) -> NDArrayF64:
+    """Project 3d points on a 2d plane. It can be used to implement both perspective and orthographic projections.
+
+    It first applies the dot product between the points and the view.
+
+    Args:
+    ----
+        points (NDArrayF64): Matrix of points, which is the shape of (3, n) and (x, y, z) is along each column.
+        intrinsic (NDArrayF64): nxn camera intrinsic matrix (n <= 4).
+        distortion (NDArrayF64 | None, optional): Camera distortion coefficients, which is the shape of (n,) (n >= 5).
+            Defaults to None.
+        normalize (bool, optional): Whether to normalize the remaining coordinate (along the 3rd axis). Defaults to True.
+
+    Returns:
+    -------
+        NDArrayF64: Projected points in the shape of (3, n). If `normalize=False`, the 3rd coordinate is the height.
+    """
+    assert intrinsic.shape[0] <= 4
+    assert intrinsic.shape[1] <= 4
+    assert points.shape[0] == 3
+
+    viewpad = np.eye(4)
+    viewpad[: intrinsic.shape[0], : intrinsic.shape[1]] = intrinsic
+
+    nbr_points = points.shape[1]
+
+    points = np.concatenate((points, np.ones((1, nbr_points))))
+
+    if distortion is not None:
+        assert distortion.shape[0] >= 5
+        D = distortion
+        # distortion is [k1, k2, p1, p2, k3, k4, k5, k6, s1, s2, s3, s4]
+        while len(D) < 12:
+            D = np.insert(D, len(D), 0)
+        x_ = points[0] / points[2]
+        y_ = points[1] / points[2]
+        r2 = x_**2 + y_**2
+        f1 = (1 + D[0] * r2 + D[1] * r2**2 + D[4] * r2**3) / (
+            1 + D[5] * r2 + D[6] * r2**2 + D[7] * r2**3
+        )
+        f2 = x_ * y_
+        x__ = x_ * f1 + 2 * D[2] * f2 + D[3] * (r2 + 2 * x_**2) + D[8] * r2 + D[9] * r2**2
+        y__ = y_ * f1 + D[2] * (r2 + 2 * y_**2) + 2 * D[3] * f2 + D[10] * r2 + D[11] * r2**2
+        u = viewpad[0, 0] * x__ + viewpad[0, 2]
+        v = viewpad[1, 1] * y__ + viewpad[1, 2]
+        points = np.stack([u, v, np.ones(nbr_points)], axis=0)
+    else:
+        points = np.dot(viewpad, points)
+        points = points[:3, :]
+
+    if normalize:
+        points = points / points[2:3, :].repeat(3, 0).reshape(3, nbr_points)
+
+    return points
 
 
 def is_box_in_image(
