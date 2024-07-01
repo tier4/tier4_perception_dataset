@@ -1,6 +1,27 @@
-## Sample usage
+## Initialization
 
-```py
+---
+
+`Tier4` API expects the following dataset directly structure:
+
+```shell
+data/tier4/
+├── annotation ...contains `*.json` files.
+├── data
+│   ├── CAM_BACK
+│   ├── CAM_BACK_LEFT
+│   ├── CAM_BACK_RIGHT
+│   ├── CAM_FRONT
+│   ├── CAM_FRONT_LEFT
+│   ├── CAM_FRONT_RIGHT
+│   ├── LIDAR_CONCAT
+│   └── ...Other sensor channels (must be defined in `SensorChannel`)
+...
+```
+
+You can initialize a `Tier4` instance as follows:
+
+```python
 
 >>> from t4_devkit import Tier4
 
@@ -32,9 +53,183 @@ Done loading in 0.061 seconds.
 
 ### Rendering scene
 
-```py
+---
+
+```python
 >>> scene_token = t4.scene[0].token
 >>> t4.render_scene(scene_token)
 ```
 
-<!-- TODO: add rendering result video -->
+![Render GIF](./assets/render.gif)
+
+### Accessing to fields
+
+---
+
+#### `scene`
+
+```python
+>>> my_scene = t4.scene[0]
+```
+
+#### `sample`
+
+`sample` is an annotated keyframe of a scene at a given timestamp.
+
+```python
+>>> first_sample_token = my_scene.first_sample_token
+>>> my_sample = t4.get("sample", first_sample_token)
+```
+
+You can access to the `sample_data` associated with this `sample`.
+`sample.data` returns a `dict` object consists of `{SensorChannel: <SAMPLE_DATA_TOKEN (str)>}`.
+
+```python
+>>> my_sample.data
+```
+
+#### `sample_data`
+
+`sample_data` is references to a family of data that is collected from specific sensors.
+
+```python
+from t4_devkit.schema import SensorChannel
+>>> sensor = SensorChannel.CAM_FRONT  # "CAM_FRONT": <str> is also available
+>>> t4.get("sample_data", my_sample.data[sensor])
+```
+
+#### `sample_annotation`
+
+`sample_annotation` refers to any 3D bounding box in a corresponding `sample`.
+All location data is given with respect to the global coordinate system.
+You can access to the list of `sample_annotation` tokens with `sample.ann_3ds: list[str]`.
+
+```python
+>>> my_annotation_token = my_sample.ann_3ds[0]
+>>> t4.get("sample_annotation", my_annotation_token)
+```
+
+#### `instance`
+
+Each annotated object is instanced to be tracked.
+
+```python
+>>> t4.instance
+```
+
+#### `category`
+
+A `category` is the object assignment of an annotation.
+
+```python
+>>> t4.category
+```
+
+#### `attribute`
+
+An `attribute` is a property of an instance that may change throughout different parts of a scene while `category` remains the same.
+
+```python
+>>> t4.attribute
+```
+
+#### `visibility`
+
+`visibility` is defined as the fraction of pixels of a particular annotation that are visible over the 6 camera feeds.
+
+```python
+>>> t4.visibility
+```
+
+<!-- prettier-ignore-start -->
+??? WARNING
+    Expected `level` values in `visibility` are as below:
+
+    ```yaml <!-- markdownlint-disable MD046 -->
+    - full    : No occlusion for the object.
+    - most    : Object is occluded, but by less than 50%.
+    - partial : Object is occluded, but by more than 50%.
+    - none    : Object is 90-100% occluded and no points/pixels are visible.
+    ```
+
+    Following old formats are also supported but deprecated:
+
+    ```yaml <!-- markdownlint-disable MD046 -->
+    - v80-100 : full
+    - v60-80  : most
+    - v40-60  : partial
+    - v0-40   : none
+    ```
+
+    If input level does not satisfy any above cases, `VisibilityLevel.UNAVAILABLE` will be assigned.
+
+<!-- markdownlint-ignore-end -->
+<!-- prettier-ignore-end -->
+
+#### `sensor`
+
+T4 dataset consists of several type of sensors.
+The supported sensor modalities and channels are defined in `t4_devkit/schema/tables/sensor.py`.
+
+```python
+>>> t4.sensor
+```
+
+#### `calibrated_sensor`
+
+`calibrated_sensor` consists of the definition of a calibration of a particular sensor based on a vehicle.
+
+```python
+>>> t4.calibrated_sensor
+```
+
+Note that the `translation` and `rotation` parameters are given with respect to the ego vehicle body frame.
+
+#### `ego_pose`
+
+`ego_pose` contains information about the `translation` and `rotation` of the ego vehicle, with respect to the global coordinate system.
+
+```python
+>>> t4.ego_pose
+```
+
+### Customize schema
+
+---
+
+You can customize schema classes on your own code, if you want for some reasons.
+
+For example, you can make `Attribute` allow `attribute.json` not to contain `description` field as follows:
+
+```python title="custom_attribute.py"
+from dataclasses import dataclass
+from typing import Any
+
+from typing_extensions import Self
+
+from t4_devkit.schema import SCHEMAS, SchemaName, SchemaBase
+from t4_devkit.common.io import load_json
+
+
+@dataclass
+@SCHEMAS.register(SchemaName.ATTRIBUTE, force=True)
+class CustomAttribute(SchemaBase):
+    """Custom Attribute class ignoring if there is no description field."""
+
+    token: str
+    name: str
+    description: str | None
+
+    @classmehod
+    def from_json(cls, filepath: str) -> list[Self]:
+        objs: list[Self] = []
+
+        record_list: list[dict[str, Any]] = load_json(filepath)
+        for record in record_list:
+            token: str = record["token"]
+            name: str = record["name"]
+            # Return None if record does not have description field
+            description: str | None = record.get("description")
+            objs.append(cls(token=token, name=name, description=description))
+        return objs
+```
