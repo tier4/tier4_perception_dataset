@@ -51,16 +51,29 @@ Done loading in 0.061 seconds.
 ======
 ```
 
-### Rendering scene
+### Rendering
 
 ---
+
+#### Rendering scene
 
 ```python
 >>> scene_token = t4.scene[0].token
 >>> t4.render_scene(scene_token)
 ```
 
-![Render GIF](./assets/render.gif)
+![Render Scene GIF](./assets/render_scene.gif)
+
+#### Rendering instance
+
+---
+
+```python
+>>> instance_token = t4.instance[0].token
+>>> t4.render_instance(instance_token)
+```
+
+![Render Instance GIF](./assets/render_instance.gif)
 
 ### Accessing to fields
 

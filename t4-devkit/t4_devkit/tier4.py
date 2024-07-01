@@ -562,6 +562,7 @@ class Tier4:
             scene_token (str): Unique identifier of scene.
             max_time_seconds (float, optional): Max time length to be rendered [s]. Defaults to np.inf.
         """
+        # TODO: refactoring initialization of rerun
         camera_names = [
             sensor.channel.value
             for sensor in self.sensor
@@ -618,6 +619,84 @@ class Tier4:
         self._render_cameras(first_camera_tokens, max_timestamp_us)
         self._render_annotation_3ds(scene.first_sample_token, max_timestamp_us)
         self._render_annotation_2ds(scene.first_sample_token, max_timestamp_us)
+
+    def render_instance(self, instance_token: str) -> None:
+        """Render particular instance.
+
+        Args:
+        ----
+            instance_token (str): Instance token.
+        """
+        # TODO: refactoring initialization of rerun
+        camera_names = [
+            sensor.channel.value
+            for sensor in self.sensor
+            if sensor.modality == SensorModality.CAMERA
+        ]
+
+        sensor_space_views = [
+            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
+            for camera in camera_names
+        ]
+        blueprint = rrb.Vertical(
+            rrb.Horizontal(
+                rrb.Spatial3DView(name="3D", origin="world"),
+                rrb.TextDocumentView(origin="description", name="Description"),
+                column_shares=[3, 1],
+            ),
+            rrb.Grid(*sensor_space_views),
+            row_shares=[4, 2],
+        )
+
+        rr.init(
+            application_id=f"t4-devkit@{instance_token}",
+            recording_id=None,
+            spawn=True,
+            default_enabled=True,
+            strict=True,
+            default_blueprint=blueprint,
+        )
+
+        # render scene
+        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+
+        instance: Instance = self.get("instance", instance_token)
+        first_ann: SampleAnnotation = self.get(
+            "sample_annotation", instance.first_annotation_token
+        )
+        first_sample: Sample = self.get("sample", first_ann.sample_token)
+
+        first_lidar_token = ""
+        first_radar_tokens: list[str] = []
+        first_camera_tokens: list[str] = []
+
+        # FIXME: if sample data is not associated with the first sample, all frames are not rendered.
+        for channel, sd_token in first_sample.data.items():
+            self._render_sensor_calibration(sd_token)
+            if channel.modality == SensorModality.LIDAR:
+                first_lidar_token = sd_token
+            elif channel.modality == SensorModality.RADAR:
+                first_radar_tokens.append(sd_token)
+            elif channel.modality == SensorModality.CAMERA:
+                first_camera_tokens.append(sd_token)
+
+        last_ann: SampleAnnotation = self.get("sample_annotation", instance.last_annotation_token)
+        last_sample: Sample = self.get("sample", last_ann.sample_token)
+        max_timestamp_us = last_sample.timestamp
+
+        self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
+        self._render_radars(first_radar_tokens, max_timestamp_us)
+        self._render_cameras(first_camera_tokens, max_timestamp_us)
+        self._render_annotation_3ds(
+            first_sample.token,
+            max_timestamp_us,
+            instance_token=instance_token,
+        )
+        self._render_annotation_2ds(
+            first_sample.token,
+            max_timestamp_us,
+            instance_token=instance_token,
+        )
 
     def _render_lidar_and_ego(self, first_lidar_token: str, max_timestamp_us: float) -> None:
         """Render lidar pointcloud and ego transform.
@@ -707,13 +786,20 @@ class Tier4:
                 )
                 current_camera_token = sample_data.next
 
-    def _render_annotation_3ds(self, first_sample_token: str, max_timestamp_us: float) -> None:
+    def _render_annotation_3ds(
+        self,
+        first_sample_token: str,
+        max_timestamp_us: float,
+        instance_token: str | None = None,
+    ) -> None:
         """Render annotated 3D boxes.
 
         Args:
         ----
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
+            instance_token (str | None, optional): Specify if you want to render only particular instance.
+                Defaults to None.
         """
         current_sample_token = first_sample_token
         while current_sample_token != "":
@@ -732,6 +818,9 @@ class Tier4:
             velocities: list[VelocityType] = []
             for ann_token in sample.ann_3ds:
                 ann: SampleAnnotation = self.get("sample_annotation", ann_token)
+
+                if instance_token is not None and ann.instance_token != instance_token:
+                    continue
 
                 centers.append(ann.translation)
 
@@ -764,13 +853,20 @@ class Tier4:
 
             current_sample_token = sample.next
 
-    def _render_annotation_2ds(self, first_sample_token: str, max_timestamp_us: float) -> None:
+    def _render_annotation_2ds(
+        self,
+        first_sample_token: str,
+        max_timestamp_us: float,
+        instance_token: str | None = None,
+    ) -> None:
         """Render annotated 2D boxes.
 
         Args:
         ----
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
+            instance_token (str | None, optional): Specify if you want to render only particular instance.
+                Defaults to None.
         """
         current_sample_token = first_sample_token
         while current_sample_token != "":
@@ -790,6 +886,10 @@ class Tier4:
             }
             for ann_token in sample.ann_2ds:
                 ann: ObjectAnn = self.get("object_ann", ann_token)
+
+                if instance_token is not None and ann.instance_token != instance_token:
+                    continue
+
                 camera_anns[ann.sample_data_token].boxes.append(ann.bbox)
                 camera_anns[ann.sample_data_token].uuids.append(ann.instance_token[:8])
                 camera_anns[ann.sample_data_token].class_ids.append(
