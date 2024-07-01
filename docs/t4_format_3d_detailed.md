@@ -78,12 +78,14 @@ For this sample, the directory named "sample_dataset" corresponds to the "T4 dat
 ### Point cloud format
 
 - directory
+  - Directory name must be either `LIDAR_CONCAT` or `LIDAR_TOP`
 
 ```yaml
-- /LIDAR_TOP
-  - 0.pcd.bin (point cloud [x, y, z, intensity, ring_idx])
-  - 1.pcd.bin
-  - {frame_id}.pcd.bin
+- /data
+  - /LIDAR_CONCAT
+    - 0.pcd.bin (point cloud [x, y, z, intensity, ring_idx])
+    - 1.pcd.bin
+    - {frame_id}.pcd.bin
 ```
 
 `.pcd.bin` files are originally `numpy.ndarray` `(N, 5)`.
@@ -108,10 +110,10 @@ pcd_data = pcd_data.reshape(-1, 5)
 ```yaml
 - /data
   - /RADAR_FRONT
-  - 0.pcd
-  - {frame_id}.pcd
-  - 0.json
-  - {frame_id}.json
+    - 0.pcd
+    - {frame_id}.pcd
+    - 0.json
+    - {frame_id}.json
   - /RADAR_FRONT_LEFT
   - /RADAR_FRONT_RIGHT
   - /RADAR_BACK_LEFT
