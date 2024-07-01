@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import os.path as osp
 import time
 from typing import TYPE_CHECKING
@@ -16,7 +17,7 @@ from t4_devkit.common.timestamp import sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 
 if TYPE_CHECKING:
-    from t4_devkit.typing import CamIntrinsicType, SizeType, TranslationType, VelocityType
+    from t4_devkit.typing import CamIntrinsicType, RoiType, SizeType, TranslationType, VelocityType
 
     from .schema import (
         Attribute,
@@ -34,6 +35,7 @@ if TYPE_CHECKING:
         Scene,
         SchemaTable,
         Sensor,
+        SensorChannel,
         SurfaceAnn,
         Visibility,
     )
@@ -791,28 +793,28 @@ class Tier4:
             # Therefore, 2d box will be shifted.
             rr.set_time_seconds("timestamp", us2sec(sample.timestamp))
 
-            camera_anns: dict[str, dict] = {
-                sd_token: {"sensor_name": channel.value, "boxes": [], "uuids": [], "class_ids": []}
+            camera_anns: dict[str, _CameraAnn2D] = {
+                sd_token: _CameraAnn2D(channel)
                 for channel, sd_token in sample.data.items()
                 if channel.modality == SensorModality.CAMERA
             }
             for ann_token in sample.ann_2ds:
                 ann: ObjectAnn = self.get("object_ann", ann_token)
-                camera_anns[ann.sample_data_token]["boxes"].append(ann.bbox)
-                camera_anns[ann.sample_data_token]["uuids"].append(ann.instance_token[:8])
-                camera_anns[ann.sample_data_token]["class_ids"].append(
+                camera_anns[ann.sample_data_token].boxes.append(ann.bbox)
+                camera_anns[ann.sample_data_token].uuids.append(ann.instance_token[:8])
+                camera_anns[ann.sample_data_token].class_ids.append(
                     self._label2id[ann.category_name]
                 )
 
             for _, camera_ann in camera_anns.items():
-                sensor_name: str = camera_ann["sensor_name"]
+                sensor_name: str = camera_ann.channel.value
                 rr.log(
                     f"world/ego_vehicle/{sensor_name}/ann2d/box",
                     rr.Boxes2D(
-                        array=camera_ann["boxes"],
+                        array=camera_ann.boxes,
                         array_format=rr.Box2DFormat.XYXY,
-                        labels=camera_ann["uuids"],
-                        class_ids=camera_ann["class_ids"],
+                        labels=camera_ann.uuids,
+                        class_ids=camera_ann.class_ids,
                     ),
                 )
                 # TODO: add support of rendering object/surface mask and keypoints
@@ -835,9 +837,7 @@ class Tier4:
             f"world/ego_vehicle/{sensor_name}",
             rr.Transform3D(
                 translation=calibrated_sensor.translation,
-                rotation=rr.Quaternion(
-                    xyzw=rotation_xyzw,
-                ),
+                rotation=rr.Quaternion(xyzw=rotation_xyzw),
             ),
             static=True,
         )
@@ -851,3 +851,21 @@ class Tier4:
                 ),
                 static=True,
             )
+
+
+@dataclass
+class _CameraAnn2D:
+    """Container of 2D annotations for each camera at a specific frame.
+
+    Attributes:
+    ----------
+        channel (SensorChannel)
+        boxes (list[RoiType]): List of box RoIs given as (xmin, ymin, xmax, ymax).
+        uuids (list[str]): List of unique identifiers.
+        class_ids (list[int]): List of annotation class ids.
+    """
+
+    channel: SensorChannel
+    boxes: list[RoiType] = field(default_factory=list, init=False)
+    uuids: list[str] = field(default_factory=list, init=False)
+    class_ids: list[int] = field(default_factory=list, init=False)
