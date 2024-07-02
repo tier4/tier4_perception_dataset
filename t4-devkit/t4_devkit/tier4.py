@@ -5,6 +5,7 @@ import os.path as osp
 import time
 from typing import TYPE_CHECKING
 
+from PIL import Image
 import numpy as np
 from nuscenes.nuscenes import LidarPointCloud, RadarPointCloud
 from pyquaternion import Quaternion
@@ -12,12 +13,20 @@ import rerun as rr
 import rerun.blueprint as rrb
 from t4_devkit.common.box import Box2D, Box3D
 from t4_devkit.common.color import distance_color
-from t4_devkit.common.geometry import is_box_in_image
+from t4_devkit.common.geometry import is_box_in_image, view_points
 from t4_devkit.common.timestamp import sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 
 if TYPE_CHECKING:
-    from t4_devkit.typing import CamIntrinsicType, RoiType, SizeType, TranslationType, VelocityType
+    from t4_devkit.typing import (
+        CamIntrinsicType,
+        NDArrayF64,
+        NDArrayU8,
+        RoiType,
+        SizeType,
+        TranslationType,
+        VelocityType,
+    )
 
     from .schema import (
         Attribute,
@@ -528,6 +537,88 @@ class Tier4:
         else:
             return pos_diff / time_diff
 
+    def project_pointcloud(
+        self,
+        point_sample_data_token: str,
+        camera_sample_data_token: str,
+        min_dist: float = 1.0,
+        *,
+        ignore_distortion: bool = False,
+    ) -> tuple[NDArrayF64, NDArrayF64, NDArrayU8]:
+        """Project pointcloud on image plane.
+
+        Args:
+            point_sample_data_token (str): Sample data token of lidar or radar sensor.
+            camera_sample_data_token (str): Sample data token of camera.
+            min_dist (float, optional): Distance from the camera below which points are discarded.
+                Defaults to 1.0.
+            ignore_distortion (bool, optional): Whether to ignore distortion parameters.
+                Defaults to False.
+
+        Returns:
+            tuple[NDArrayF64, NDArrayF64, NDArrayU8]: Project pointcloud [2, n], depths [n] and image.
+        """
+        point_sample_data: SampleData = self.get("sample_data", point_sample_data_token)
+        pc_filepath = osp.join(self.data_root, point_sample_data.filename)
+        if point_sample_data.modality == SensorModality.LIDAR:
+            pointcloud = LidarPointCloud.from_file(pc_filepath)
+        elif point_sample_data.modality == SensorModality.RADAR:
+            pointcloud = RadarPointCloud.from_file(pc_filepath)
+        else:
+            raise ValueError(f"Expected sensor lidar/radar, but got {point_sample_data.modality}")
+
+        camera_sample_data: SampleData = self.get("sample_data", camera_sample_data_token)
+        if camera_sample_data.modality != SensorModality.CAMERA:
+            f"Expected camera, but got {camera_sample_data.modality}"
+
+        img = Image.open(osp.join(self.data_root, camera_sample_data.filename))
+
+        # 1. transform the pointcloud to the ego vehicle frame for the timestamp to the sweep.
+        point_cs_record: CalibratedSensor = self.get(
+            "calibrated_sensor", point_sample_data.calibrated_sensor_token
+        )
+        pointcloud.rotate(point_cs_record.rotation.rotation_matrix)
+        pointcloud.translate(point_cs_record.translation)
+
+        # 2. transform from ego to the global frame.
+        point_ego_pose: EgoPose = self.get("ego_pose", point_sample_data.ego_pose_token)
+        pointcloud.rotate(point_ego_pose.rotation.rotation_matrix)
+        pointcloud.translate(point_ego_pose.translation)
+
+        # 3. transform from global into the ego vehicle frame for the timestamp of the image
+        camera_ego_pose: EgoPose = self.get("ego_pose", camera_sample_data.ego_pose_token)
+        pointcloud.translate(-camera_ego_pose.translation)
+        pointcloud.rotate(camera_ego_pose.rotation.rotation_matrix.T)
+
+        # 4. transform from ego into the camera
+        camera_cs_record: CalibratedSensor = self.get(
+            "calibrated_sensor", camera_sample_data.calibrated_sensor_token
+        )
+        pointcloud.translate(-camera_cs_record.translation)
+        pointcloud.rotate(camera_cs_record.rotation.rotation_matrix.T)
+
+        depths = pointcloud.points[2, :]
+
+        distortion = None if ignore_distortion else camera_cs_record.camera_distortion
+
+        points_on_img = view_points(
+            points=pointcloud.points[:3, :],
+            intrinsic=camera_cs_record.camera_intrinsic,
+            distortion=distortion,
+            normalize=True,
+        )[:2]
+
+        mask = np.ones(depths.shape[0], dtype=bool)
+        mask = np.logical_and(mask, depths > min_dist)
+        mask = np.logical_and(mask, 1 < points_on_img[0])
+        mask = np.logical_and(mask, points_on_img[0] < img.size[0] - 1)
+        mask = np.logical_and(mask, 1 < points_on_img[1])
+        mask = np.logical_and(mask, points_on_img[1] < img.size[1] - 1)
+        points_on_img = points_on_img[:, mask]
+        depths = depths[mask]
+
+        return points_on_img, depths, np.array(img, dtype=np.uint8)
+
     def render_scene(self, scene_token: str, max_time_seconds: float = np.inf) -> None:
         """Render specified scene.
 
@@ -676,12 +767,94 @@ class Tier4:
             instance_token=instance_token,
         )
 
-    def _render_lidar_and_ego(self, first_lidar_token: str, max_timestamp_us: float) -> None:
+    def render_pointcloud(
+        self,
+        scene_token: str,
+        max_time_seconds: float = np.inf,
+        *,
+        ignore_distortion: bool = False,
+    ) -> None:
+        """Render pointcloud on 3D and 2D view.
+
+        Args:
+            scene_token (str): Scene token.
+            max_time_seconds (float, optional): Max time length to be rendered [s].
+                Defaults to np.inf.
+            ignore_distortion (bool, optional): Whether to ignore distortion parameters.
+                Defaults to False.
+
+        TODO:
+            Add an option of rendering radar channels.
+        """
+        # TODO: refactoring initialization of rerun
+        camera_names = [
+            sensor.channel.value
+            for sensor in self.sensor
+            if sensor.modality == SensorModality.CAMERA
+        ]
+
+        sensor_space_views = [
+            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
+            for camera in camera_names
+        ]
+        blueprint = rrb.Vertical(
+            rrb.Horizontal(
+                rrb.Spatial3DView(name="3D", origin="world"),
+                rrb.TextDocumentView(origin="description", name="Description"),
+                column_shares=[3, 1],
+            ),
+            rrb.Grid(*sensor_space_views),
+            row_shares=[4, 2],
+        )
+        rr.init(
+            application_id=f"t4-devkit@{scene_token}",
+            recording_id=None,
+            spawn=True,
+            default_enabled=True,
+            strict=True,
+            default_blueprint=blueprint,
+        )
+
+        # render scene
+        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+
+        scene: Scene = self.get("scene", scene_token)
+        first_sample: Sample = self.get("sample", scene.first_sample_token)
+
+        first_lidar_token = ""
+
+        for channel, sd_token in first_sample.data.items():
+            self._render_sensor_calibration(sd_token)
+            if channel.modality != SensorModality.LIDAR:
+                continue
+            first_lidar_token = sd_token
+
+        first_lidar_sd_record: SampleData = self.get("sample_data", first_lidar_token)
+        max_timestamp_us = first_lidar_sd_record.timestamp + sec2us(max_time_seconds)
+
+        self._render_lidar_and_ego(
+            first_lidar_token,
+            max_timestamp_us,
+            project_points=True,
+            ignore_distortion=ignore_distortion,
+        )
+
+    def _render_lidar_and_ego(
+        self,
+        first_lidar_token: str,
+        max_timestamp_us: float,
+        *,
+        project_points: bool = False,
+        ignore_distortion: bool = False,
+    ) -> None:
         """Render lidar pointcloud and ego transform.
 
         Args:
             first_lidar_token (str): First sample data token corresponding to the lidar.
             max_timestamp_us (float): Max time length in [us].
+            project_points (bool, optional): Whether to project 3d points on 2d images. Defaults to False.
+            ignore_distortion (boo, optional): Whether to ignore distortion parameters.
+                This argument is only used if `project_points=True`. Defaults to False.
         """
         current_lidar_token = first_lidar_token
 
@@ -709,6 +882,14 @@ class Tier4:
             points = pointcloud.points[:3].T  # (N, 3)
             point_colors = distance_color(np.linalg.norm(points, axis=1))
             rr.log(f"world/ego_vehicle/{sensor_name}", rr.Points3D(points, colors=point_colors))
+
+            if project_points:
+                self._render_points_on_cameras(
+                    current_lidar_token,
+                    max_timestamp_us,
+                    ignore_distortion=ignore_distortion,
+                )
+
             current_lidar_token = sample_data.next
 
     def _render_radars(self, first_radar_tokens: list[str], max_timestamp_us: float) -> None:
@@ -760,6 +941,52 @@ class Tier4:
                     rr.ImageEncoded(path=osp.join(self.data_root, sample_data.filename)),
                 )
                 current_camera_token = sample_data.next
+
+    def _render_points_on_cameras(
+        self,
+        point_sample_data_token: str,
+        max_timestamp_us: float,
+        *,
+        min_dist: float = 1.0,
+        ignore_distortion: bool = False,
+    ) -> None:
+        """Render points on each camera sensor at a sample.
+
+        Args:
+            point_sample_data_token (str): Sample data token of pointcloud sensor.
+            max_timestamp_us (float): Max time length in [us].
+            min_dist (float, optional): Min focal distance to render points. Defaults to 1.0.
+            ignore_distortion (bool, optional): Whether to ignore distortion parameters. Defaults to False.
+        """
+        point_sample_data: SampleData = self.get("sample_data", point_sample_data_token)
+        sample: Sample = self.get("sample", point_sample_data.sample_token)
+
+        for channel, sd_token in sample.data.items():
+            if channel.modality != SensorModality.CAMERA:
+                continue
+            camera_sample_data: SampleData = self.get("sample_data", sd_token)
+
+            if max_timestamp_us < camera_sample_data.timestamp:
+                break
+
+            points_on_img, depths, img = self.project_pointcloud(
+                point_sample_data_token=point_sample_data_token,
+                camera_sample_data_token=sd_token,
+                min_dist=min_dist,
+                ignore_distortion=ignore_distortion,
+            )
+
+            sensor_name = channel.value
+            rr.set_time_seconds("timestamp", us2sec(camera_sample_data.timestamp))
+            rr.log(f"world/ego_vehicle/{sensor_name}", rr.Image(img))
+
+            rr.log(
+                f"world/ego_vehicle/{sensor_name}/pointcloud",
+                rr.Points2D(
+                    positions=points_on_img.T,
+                    colors=distance_color(depths),
+                ),
+            )
 
     def _render_annotation_3ds(
         self,

@@ -11,6 +11,7 @@ __all__ = (
     "NDArrayF64",
     "NDArrayI64",
     "NDArrayI32",
+    "NDArrayU8",
     "NDArrayBool",
     "NDArrayStr",
     "TranslationType",
@@ -31,6 +32,7 @@ NDArrayF64 = NDArray[np.float64]
 NDArrayF32 = NDArray[np.float32]
 NDArrayI64 = NDArray[np.int64]
 NDArrayI32 = NDArray[np.int32]
+NDArrayU8 = NDArray[np.uint8]
 NDArrayBool = NDArray[np.bool_]
 NDArrayStr = NDArray[np.str_]
 

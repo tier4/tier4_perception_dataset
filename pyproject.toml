@@ -6,7 +6,6 @@ authors = [
     "Yusuke Muramatsu <yusuke.muramatsu@tier4.jp>",
     "Shunsuke Miura <shunsuke.miura@tier4.jp>",
 ]
-packages = [{ include = "perception_dataset" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
