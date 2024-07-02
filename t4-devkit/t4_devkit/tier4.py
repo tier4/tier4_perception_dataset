@@ -661,6 +661,17 @@ class Tier4:
         # render scene
         rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
 
+        rr.log(
+            "world",
+            rr.AnnotationContext(
+                [
+                    rr.AnnotationInfo(id=label_id, label=label)
+                    for label, label_id in self._label2id.items()
+                ]
+            ),
+            static=True,
+        )
+
         scene: Scene = self.get("scene", scene_token)
         first_sample: Sample = self.get("sample", scene.first_sample_token)
 
@@ -728,6 +739,17 @@ class Tier4:
 
         # render scene
         rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+
+        rr.log(
+            "world",
+            rr.AnnotationContext(
+                [
+                    rr.AnnotationInfo(id=label_id, label=label)
+                    for label, label_id in self._label2id.items()
+                ]
+            ),
+            static=True,
+        )
 
         instance: Instance = self.get("instance", instance_token)
         first_ann: SampleAnnotation = self.get(
