@@ -1089,6 +1089,10 @@ class Tier4:
             max_timestamp_us (float): Max time length in [us].
             instance_token (str | None, optional): Specify if you want to render only particular instance.
                 Defaults to None.
+
+        TODO:
+            2D boxes are rendered at sample data timestamp.
+            Then, they remains until next timestamp annotation is coming.
         """
         current_sample_token = first_sample_token
         while current_sample_token != "":
@@ -1097,15 +1101,13 @@ class Tier4:
             if max_timestamp_us < sample.timestamp:
                 break
 
-            # FIXME: rendered camera image uses timestamp of sample data, but annotation box uses timestamp of sample
-            # Therefore, 2d box will be shifted.
-            rr.set_time_seconds("timestamp", us2sec(sample.timestamp))
+            camera_anns: dict[str, _CameraAnn2D] = {}
+            for channel, sd_token in sample.data.items():
+                if channel.modality != SensorModality.CAMERA:
+                    continue
+                sample_data: SampleData = self.get("sample_data", sd_token)
+                camera_anns[sd_token] = _CameraAnn2D(channel, sample_data.timestamp)
 
-            camera_anns: dict[str, _CameraAnn2D] = {
-                sd_token: _CameraAnn2D(channel)
-                for channel, sd_token in sample.data.items()
-                if channel.modality == SensorModality.CAMERA
-            }
             for ann_token in sample.ann_2ds:
                 ann: ObjectAnn = self.get("object_ann", ann_token)
 
@@ -1118,7 +1120,8 @@ class Tier4:
                     self._label2id[ann.category_name]
                 )
 
-            for _, camera_ann in camera_anns.items():
+            for sd_token, camera_ann in camera_anns.items():
+                rr.set_time_seconds("timestamp", us2sec(camera_ann.timestamp))
                 sensor_name: str = camera_ann.channel.value
                 rr.log(
                     f"world/ego_vehicle/{sensor_name}/ann2d/box",
@@ -1169,13 +1172,15 @@ class _CameraAnn2D:
     """Container of 2D annotations for each camera at a specific frame.
 
     Attributes:
-        channel (SensorChannel)
+        channel (SensorChannel): Sensor channel.
+        timestamp (int): Unix time stamp [us].
         boxes (list[RoiType]): List of box RoIs given as (xmin, ymin, xmax, ymax).
         uuids (list[str]): List of unique identifiers.
         class_ids (list[int]): List of annotation class ids.
     """
 
     channel: SensorChannel
+    timestamp: int
     boxes: list[RoiType] = field(default_factory=list, init=False)
     uuids: list[str] = field(default_factory=list, init=False)
     class_ids: list[int] = field(default_factory=list, init=False)
