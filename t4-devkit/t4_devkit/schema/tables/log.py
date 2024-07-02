@@ -17,7 +17,6 @@ class Log(SchemaBase):
     """A dataclass to represent schema table of `log.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         logfile (str): Log file name.
         vehicle (str): Vehicle name.

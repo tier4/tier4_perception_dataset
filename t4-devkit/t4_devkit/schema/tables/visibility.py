@@ -26,7 +26,6 @@ class VisibilityLevel(StrEnum):
     """An enum to represent visibility levels.
 
     Attributes:
-    ----------
         FULL: No occlusion for the object.
         MOST: Object is occluded, but by less than 50%.
         PARTIAL: Object is occluded, but by more than 50%.
@@ -52,7 +51,6 @@ class VisibilityLevel(StrEnum):
         """Load member from alias format of level.
 
         Args:
-        ----
             level (str): Level of visibility.
         """
         if level == "v0-40":
@@ -76,7 +74,6 @@ class Visibility(SchemaBase):
     """A dataclass to represent schema table of `visibility.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         level (VisibilityLevel): Visibility level.
         description (str): Description of visibility level.

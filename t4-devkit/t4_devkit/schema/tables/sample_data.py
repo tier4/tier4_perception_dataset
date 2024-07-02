@@ -30,7 +30,6 @@ class FileFormat(StrEnum):
     """An enum to represent file formats.
 
     Attributes:
-    ----------
         JPG: JPG format for image data.
         PNG: PNG format for image data.
         PCD: PCD format for pointcloud data.
@@ -49,12 +48,10 @@ class FileFormat(StrEnum):
         """Indicate whether the input item is the one of members of FileFormat.
 
         Args:
-        ----
-            item (str):
+            item (str): Any file format name.
 
         Returns:
-        -------
-            bool: Return True if the item is included.
+            Return True if the item is included.
         """
         return item in FileFormat.values()
 
@@ -63,8 +60,7 @@ class FileFormat(StrEnum):
         """Return a list of values of members.
 
         Returns:
-        -------
-            list[str]: List of values.
+            List of values.
         """
         return [v.value for v in FileFormat]
 
@@ -72,8 +68,7 @@ class FileFormat(StrEnum):
         """Return the value as file extension.
 
         Returns:
-        -------
-            str: File extension.
+            File extension.
         """
         return f".{self.value}"
 
@@ -84,7 +79,6 @@ class SampleData(SchemaBase):
     """A class to represent schema table of `sample_data.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         sample_token (str): Foreign key pointing the sample.
         ego_pose_token (str): Foreign key pointing the ego_pose.

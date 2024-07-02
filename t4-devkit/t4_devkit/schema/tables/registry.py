@@ -64,13 +64,11 @@ class SchemaRegistry:
         """Build schema dataclass from json.
 
         Args:
-        ----
             key (str): Name of schema field.
             filepath (str): Path to schema json file.
 
         Returns:
-        -------
-            SchemaTable: Instantiated dataclass.
+            Instantiated dataclass.
         """
         if isinstance(key, SchemaName):
             key = key.value

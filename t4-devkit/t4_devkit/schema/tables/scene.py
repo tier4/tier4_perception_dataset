@@ -17,7 +17,6 @@ class Scene(SchemaBase):
     """A dataclass to represent schema table of `scene.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         name (str): Short string identifier.
         description (str): Longer description for the scene.

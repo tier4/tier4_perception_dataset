@@ -24,7 +24,6 @@ class CalibratedSensor(SchemaBase):
     """A dataclass to represent schema table of `calibrated_sensor.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         sensor_token (str): Foreign key pointing to the sensor type.
         translation (TranslationType): Coordinates system origin given as [x, y, z] in [m].

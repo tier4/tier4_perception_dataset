@@ -32,7 +32,8 @@ plugins:
               - https://docs.python.org/3/objects.inv
               - https://numpy.org/doc/stable/objects.inv
               - https://ipython.readthedocs.io/en/stable/objects.inv
-            docstring_section_style: spacy # list spacy table
+            docstring_style: google
+            docstring_section_style: list # list spacy table
             heading_level: 3
             filters: ["!^_"]
             show_bases: true

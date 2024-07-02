@@ -17,7 +17,6 @@ class Attribute(SchemaBase):
     """A dataclass to represent schema table of `attribute.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         name (str): Attribute name.
         description (str): Attribute description.

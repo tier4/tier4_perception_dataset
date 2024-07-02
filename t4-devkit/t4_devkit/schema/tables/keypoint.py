@@ -23,7 +23,6 @@ class Keypoint(SchemaBase):
     """A dataclass to represent schema table of `keypoint.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         sample_data_token (str): Foreign key pointing to the sample data, which must be a keyframe image.
         instance_token (str): Foreign key pointing to the instance.

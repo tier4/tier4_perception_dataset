@@ -26,7 +26,6 @@ class SensorModality(StrEnum):
     """An enum to represent sensor modalities.
 
     Attributes:
-    -----------
         LIDAR: Lidar sensor.
         CAMERA: Camera sensor.
         RADAR: Radar sensor.
@@ -41,7 +40,6 @@ class SensorChannel(StrEnum):
     """An enum to represent sensor channels.
 
     Attributes:
-    ----------
         CAM_FRONT: Front center camera.
         CAM_FRONT_RIGHT: Front right camera.
         CAM_FRONT_LEFT: Front left camera.
@@ -95,7 +93,6 @@ class Sensor(SchemaBase):
     """A dataclass to represent schema table of `sensor.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         channel (SensorChannel): Sensor channel name.
         modality (SensorModality): Sensor modality.

@@ -19,7 +19,6 @@ class SchemaName(StrEnum):
     """An enum to represent schema filenames.
 
     Attributes:
-    ----------
         ATTRIBUTE: Property of an instance that can change while the category remains the same.
         CALIBRATED_SENSOR: Definition of a particular sensor as calibrated on a vehicle.
         CATEGORY: Object categories.
@@ -60,8 +59,7 @@ class SchemaName(StrEnum):
         """Return the annotation json filename.
 
         Returns:
-        -------
-            str: Annotation json filename.
+            Annotation json filename.
         """
         return f"{self.value}.json"
 
@@ -69,7 +67,6 @@ class SchemaName(StrEnum):
         """Indicates if this schema name is optional.
 
         Returns:
-        -------
-            bool: Return True if this schema is optional.
+            Return True if this schema is optional.
         """
         return self in (SchemaName.OBJECT_ANN, SchemaName.SURFACE_ANN, SchemaName.KEYPOINT)

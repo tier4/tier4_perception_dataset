@@ -1,20 +1,17 @@
 # `schema`
 
+<!-- prettier-ignore-start -->
 ## Name of schemas
 
 ---
 
-<!-- prettier-ignore-start -->
 ::: t4_devkit.schema.name
     options:
         show_docstring_attributes: true
-<!-- prettier-ignore-end -->
 
 ## Table of schemas
 
 ---
-
-<!-- prettier-ignore-start -->
 
 ::: t4_devkit.schema.tables
     options:
@@ -26,6 +23,7 @@
 ::: t4_devkit.schema.tables
     options:
         filters: ["!SchemaBase", "!FileFormat", "!SensorModality", "!SensorChannel", "!VisibilityLevel"]
+        show_root_toc_entry: false
         merge_init_into_class: false
         show_signature_annotations: false
         show_docstring_attributes: true
@@ -37,8 +35,20 @@
 ::: t4_devkit.schema.tables
     options:
         members: ["FileFormat", "SensorModality", "SensorChannel", "VisibilityLevel"]
+        show_root_toc_entry: false
         merge_init_into_class: false
         show_signature_annotations: false
         show_docstring_attributes: true
+
+## Schema registry
+
+---
+
+::: t4_devkit.schema.builder
+
+::: t4_devkit.schema.tables.registry
+    options:
+        members: ["SCHEMAS", "SchemaRegistry"]
+        show_root_toc_entry: false
 
 <!-- prettier-ignore-end -->

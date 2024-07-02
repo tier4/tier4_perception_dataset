@@ -50,13 +50,11 @@ class Tier4:
         """Load database and creates reverse indexes and shortcuts.
 
         Args:
-        ----
             version (str): Directory name of database json files.
             data_root (str): Path to the root directory of dataset.
             verbose (bool, optional): Whether to display status during load. Defaults to True.
 
         Examples:
-        --------
             >>> from t4_devkit import Tier4
             >>> t4 = Tier4("annotation", "data/tier4")
             ======
@@ -133,12 +131,10 @@ class Tier4:
         returns empty list.
 
         Args:
-        ----
             schema (SchemaName): An enum member of `SchemaName`.
 
         Returns:
-        -------
-            list[SchemaTable]: Loaded table data saved in `.json`.
+            Loaded table data saved in `.json`.
         """
         filepath = osp.join(self.data_root, self.version, schema.filename)
         if not osp.exists(filepath) and schema.is_optional():
@@ -153,11 +149,9 @@ class Tier4:
         """De-normalize database to create reverse indices for common cases.
 
         Args:
-        ----
             verbose (bool): Whether to display outputs.
 
         Raises:
-        ------
             ValueError: Expecting `map` table has `log_tokens` key.
         """
         start_time = time.time()
@@ -224,12 +218,10 @@ class Tier4:
         """Return the list of dataclasses of the corresponding schema table.
 
         Args:
-        -----
             schema (str | SchemaName): Name of schema table.
 
         Returns:
-        -------
-            list[SchemaTable]: List of dataclasses.
+            List of dataclasses.
         """
         if isinstance(schema, SchemaName):
             schema = schema.value
@@ -239,13 +231,11 @@ class Tier4:
         """Return a record identified by the associated token.
 
         Args:
-        ----
             schema (str | SchemaName): Name of schema.
             token (str): Token to identify the specific record.
 
         Returns:
-        -------
-            SchemaTable: Table record of the corresponding token.
+            Table record of the corresponding token.
         """
         return self.get_table(schema)[self.get_idx(schema, token)]
 
@@ -253,13 +243,11 @@ class Tier4:
         """Return the index of the record in a table in constant runtime.
 
         Args:
-        ----
             schema (str | SchemaName): Name of schema.
             token (str): Token of record.
 
         Returns:
-        -------
-            int: The index of the record in table.
+            The index of the record in table.
         """
         if isinstance(schema, SchemaName):
             schema = schema.value
@@ -273,12 +261,10 @@ class Tier4:
         """Return the file path to a raw data recorded in `sample_data`.
 
         Args:
-        ----
             sample_data_token (str): Token of `sample_data`.
 
         Returns:
-        -------
-            str: File path.
+            File path.
         """
         sd_record: SampleData = self.get("sample_data", sample_data_token)
         return osp.join(self.data_root, sd_record.filename)
@@ -294,7 +280,6 @@ class Tier4:
         """Return the data path as well as all annotations related to that `sample_data`.
 
         Args:
-        ----
             sample_data_token (str): Token of `sample_data`.
             selected_ann_tokens (list[str] | None, optional)
             as_3d (bool, optional): Whether to return 3D or 2D boxes. Defaults to True.
@@ -302,8 +287,7 @@ class Tier4:
                 this sets required visibility for only 3D boxes.
 
         Returns:
-        -------
-            tuple[str, list[Box3D | Box2D], CamIntrinsicType | None]: Data path, a list of boxes and 3x3 camera intrinsic matrix.
+            Data path, a list of boxes and 3x3 camera intrinsic matrix.
         """
         # Retrieve sensor & pose records
         sd_record: SampleData = self.get("sample_data", sample_data_token)
@@ -366,12 +350,10 @@ class Tier4:
         """Return a Box3D class from a `sample_annotation` record.
 
         Args:
-        ----
             sample_annotation_token (str): Token of `sample_annotation`.
 
         Returns:
-        -------
-            Box3D: Instantiated Box3D.
+            Instantiated Box3D.
         """
         record: SampleAnnotation = self.get("sample_annotation", sample_annotation_token)
         return Box3D(
@@ -386,12 +368,10 @@ class Tier4:
         """Return a Box2D class from a `object_ann` record.
 
         Args:
-        ----
             object_ann_token (str): Token of `object_ann`.
 
         Returns:
-        -------
-            Box2D: Instantiated Box2D.
+            Instantiated Box2D.
         """
         record: ObjectAnn = self.get("object_ann", object_ann_token)
         return Box2D(record.bbox, name=record.category_name, token=record.token)
@@ -401,12 +381,10 @@ class Tier4:
         It the `sample_data` is a keyframe, this returns annotations for the corresponding `sample`.
 
         Args:
-        ----
             sample_data_token (str): Token of `sample_data`.
 
         Returns:
-        -------
-            list[Box3D]: List of instantiated Box3D classes.
+            List of instantiated Box3D classes.
         """
         # Retrieve sensor & pose records
         sd_record: SampleData = self.get("sample_data", sample_data_token)
@@ -479,12 +457,10 @@ class Tier4:
         It the `sample_data` is a keyframe, this returns annotations for the corresponding `sample`.
 
         Args:
-        ----
             sample_data_token (str): Token of `sample_data`.
 
         Returns:
-        -------
-            list[Box2D]: List of instantiated Box2D classes.
+            List of instantiated Box2D classes.
         """
         sd_record: SampleData = self.get("sample_data", sample_data_token)
         sample_record: Sample = self.get("sample", sd_record.sample_token)
@@ -500,13 +476,11 @@ class Tier4:
         If it is failed to estimate the velocity, values are set to np.nan.
 
         Args:
-        ----
             sample_annotation_token (str): Token of `sample_annotation`.
             max_time_diff (float, optional): Max allowed time difference
                 between consecutive samples. Defaults to 1.5.
 
         Returns:
-        -------
             VelocityType: Velocity in the order of (vx, vy, vz) in m/s.
         """
         current: SampleAnnotation = self.get("sample_annotation", sample_annotation_token)
@@ -558,9 +532,11 @@ class Tier4:
         """Render specified scene.
 
         Args:
-        ----
             scene_token (str): Unique identifier of scene.
             max_time_seconds (float, optional): Max time length to be rendered [s]. Defaults to np.inf.
+
+        BUG:
+            If sample data is not associated with the first sample, all frames are not rendered.
         """
         # TODO: refactoring initialization of rerun
         camera_names = [
@@ -601,7 +577,7 @@ class Tier4:
         first_radar_tokens: list[str] = []
         first_camera_tokens: list[str] = []
 
-        # FIXME: if sample data is not associated with the first sample, all frames are not rendered.
+        # BUG: if sample data is not associated with the first sample, all frames are not rendered.
         for channel, sd_token in first_sample.data.items():
             self._render_sensor_calibration(sd_token)
             if channel.modality == SensorModality.LIDAR:
@@ -624,8 +600,10 @@ class Tier4:
         """Render particular instance.
 
         Args:
-        ----
             instance_token (str): Instance token.
+
+        BUG:
+            If sample data is not associated with the first sample, all frames are not rendered.
         """
         # TODO: refactoring initialization of rerun
         camera_names = [
@@ -702,7 +680,6 @@ class Tier4:
         """Render lidar pointcloud and ego transform.
 
         Args:
-        ----
             first_lidar_token (str): First sample data token corresponding to the lidar.
             max_timestamp_us (float): Max time length in [us].
         """
@@ -738,7 +715,6 @@ class Tier4:
         """Render radar pointcloud.
 
         Args:
-        ----
             first_radar_tokens (list[str]): List of first sample data tokens corresponding to radars.
             max_timestamp_us (float): Max time length in [us].
         """
@@ -765,7 +741,6 @@ class Tier4:
         """Render camera images.
 
         Args:
-        ----
             first_camera_tokens (list[str]): List of first sample data tokens corresponding to cameras.
             max_timestamp_us (float): Max time length in [us].
         """
@@ -795,7 +770,6 @@ class Tier4:
         """Render annotated 3D boxes.
 
         Args:
-        ----
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
             instance_token (str | None, optional): Specify if you want to render only particular instance.
@@ -862,7 +836,6 @@ class Tier4:
         """Render annotated 2D boxes.
 
         Args:
-        ----
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
             instance_token (str | None, optional): Specify if you want to render only particular instance.
@@ -914,7 +887,6 @@ class Tier4:
         """Render a fixed calibrated sensor transform.
 
         Args:
-        -----
             sample_data_token (str): First sample data token corresponding to the sensor.
         """
         sample_data: SampleData = self.get("sample_data", sample_data_token)
@@ -948,7 +920,6 @@ class _CameraAnn2D:
     """Container of 2D annotations for each camera at a specific frame.
 
     Attributes:
-    ----------
         channel (SensorChannel)
         boxes (list[RoiType]): List of box RoIs given as (xmin, ymin, xmax, ymax).
         uuids (list[str]): List of unique identifiers.

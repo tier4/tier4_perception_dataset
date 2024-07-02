@@ -29,7 +29,6 @@ class Box3D(Box):
         """Construct instance.
 
         Args:
-        ----
             center (List[float]): Center of box given as (x, y, z).
             size (List[float]): Size of box given as (width, length, height).
             orientation (Quaternion): Box orientation.
@@ -57,7 +56,6 @@ class Box2D:
         """Construct instance.
 
         Args:
-        ----
             roi (RoiType): Roi elements, which is the order of (xmin, ymin, xmax, ymax).
             label (int, optional): Box label. Defaults to -1.
             score (float, optional): Box score. Defaults to np.nan.

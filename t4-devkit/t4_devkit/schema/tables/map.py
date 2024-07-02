@@ -17,7 +17,6 @@ class Map(SchemaBase):
     """A dataclass to represent schema table of `map.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         log_tokens (str): Foreign keys pointing the log tokens.
         category (str): Map category.

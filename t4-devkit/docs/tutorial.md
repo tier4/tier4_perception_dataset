@@ -66,8 +66,6 @@ Done loading in 0.061 seconds.
 
 #### Rendering instance
 
----
-
 ```python
 >>> instance_token = t4.instance[0].token
 >>> t4.render_instance(instance_token)

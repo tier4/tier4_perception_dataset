@@ -19,12 +19,10 @@ class SchemaBase(ABC):
         """Construct dataclass from json file.
 
         Args:
-        ----
             filepath (str): Filepath to json.
 
         Returns:
-        -------
-            list[Self]: List of instantiated schema dataclasses.
+            List of instantiated schema dataclasses.
         """
         ...
 

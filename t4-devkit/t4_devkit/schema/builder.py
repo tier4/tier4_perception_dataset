@@ -19,6 +19,6 @@ def build_schema(name: str | SchemaName, filepath: str) -> list[SchemaTable]:
         filepath (str): Path to json file.
 
     Returns:
-        list[SchemaTable]: List of schema dataclasses.
+        List of schema dataclasses.
     """
     return SCHEMAS.build_from_json(name, filepath)

@@ -22,7 +22,6 @@ class Sample(SchemaBase):
     """A dataclass to represent schema table of `sample.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         timestamp (int): Unix time stamp.
         scene_token (str): Foreign key pointing to the scene.

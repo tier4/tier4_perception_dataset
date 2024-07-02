@@ -26,7 +26,6 @@ def view_points(
     It first applies the dot product between the points and the view.
 
     Args:
-    ----
         points (NDArrayF64): Matrix of points, which is the shape of (3, n) and (x, y, z) is along each column.
         intrinsic (NDArrayF64): nxn camera intrinsic matrix (n <= 4).
         distortion (NDArrayF64 | None, optional): Camera distortion coefficients, which is the shape of (n,) (n >= 5).
@@ -34,8 +33,7 @@ def view_points(
         normalize (bool, optional): Whether to normalize the remaining coordinate (along the 3rd axis). Defaults to True.
 
     Returns:
-    -------
-        NDArrayF64: Projected points in the shape of (3, n). If `normalize=False`, the 3rd coordinate is the height.
+        Projected points in the shape of (3, n). If `normalize=False`, the 3rd coordinate is the height.
     """
     assert intrinsic.shape[0] <= 4
     assert intrinsic.shape[1] <= 4
@@ -85,7 +83,6 @@ def is_box_in_image(
     """Check if a box is visible inside of an image without considering its occlusions.
 
     Args:
-    ----
         box (Box3D): The box to be checked.
         intrinsic (NDArrayF64): 3x3 camera intrinsic matrix.
         img_size (tuple[int, int]): Image size in the order of (width, height).
@@ -93,8 +90,7 @@ def is_box_in_image(
             Defaults to VisibilityLevel.NONE.
 
     Returns:
-    -------
-        bool: Return True if visibility condition is satisfied.
+        Return True if visibility condition is satisfied.
     """
     corners_3d = box.corners()
     corners_on_img = view_points(corners_3d, intrinsic, normalize=True)[:2, :]

@@ -17,7 +17,6 @@ class Instance(SchemaBase):
     """A dataclass to represent schema table of `instance.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         category_token (str): Foreign key pointing to the object category.
         instance_name (str): Dataset name and instance ID defined in annotation tool.

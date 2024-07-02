@@ -30,7 +30,6 @@ class SampleAnnotation(SchemaBase):
     """A dataclass to represent schema table of `sample_annotation.json`.
 
     Attributes:
-    ----------
         token (str): Unique record identifier.
         sample_token (str): Foreign key pointing the sample.
         instance_token (str): Foreign key pointing the object instance.
