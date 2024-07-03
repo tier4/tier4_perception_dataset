@@ -21,13 +21,12 @@ def distance_color(
     Args:
         distances (Number | ArrayLike): Array of distances in the shape of (N,).
         cmap (str | None, optional): Color map name in matplotlib. If None, `turbo_r` will be used.
-            Defaults to False.
-        v_min (float, optional): Min value to normalize. Defaults to 3.0.
-        v_max (float, optional): Max value to normalize. Defaults to 75.0.
+        v_min (float, optional): Min value to normalize.
+        v_max (float, optional): Max value to normalize.
 
     Returns:
-        Color map in the shape of (N,). If input type is any number, returns color with
-            `tuple[float, float, float]`. Otherwise, returns with `NDArrayF64`.
+        Color map in the shape of (N,). If input type is any number, returns a color as
+            `tuple[float, float, float]`. Otherwise, returns colors as `NDArrayF64`.
     """
     color_map = matplotlib.colormaps["turbo_r"] if cmap is None else matplotlib.colormaps[cmap]
     norm = matplotlib.colors.Normalize(v_min, v_max)

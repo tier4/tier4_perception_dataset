@@ -5,6 +5,8 @@
     options:
         show_bases: false
 
+::: t4_devkit.common.color
+
 ::: t4_devkit.common.geometry
 
 ::: t4_devkit.common.io

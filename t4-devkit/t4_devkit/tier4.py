@@ -61,7 +61,7 @@ class Tier4:
         Args:
             version (str): Directory name of database json files.
             data_root (str): Path to the root directory of dataset.
-            verbose (bool, optional): Whether to display status during load. Defaults to True.
+            verbose (bool, optional): Whether to display status during load.
 
         Examples:
             >>> from t4_devkit import Tier4
@@ -224,7 +224,7 @@ class Tier4:
             print(f"Done reverse indexing in {elapsed_time:.3f} seconds.\n======")
 
     def get_table(self, schema: str | SchemaName) -> list[SchemaTable]:
-        """Return the list of dataclasses of the corresponding schema table.
+        """Return the list of dataclasses corresponding to the schema table.
 
         Args:
             schema (str | SchemaName): Name of schema table.
@@ -291,7 +291,7 @@ class Tier4:
         Args:
             sample_data_token (str): Token of `sample_data`.
             selected_ann_tokens (list[str] | None, optional)
-            as_3d (bool, optional): Whether to return 3D or 2D boxes. Defaults to True.
+            as_3d (bool, optional): Whether to return 3D or 2D boxes.
             visibility (VisibilityLevel, optional): If `sample_data` is an image,
                 this sets required visibility for only 3D boxes.
 
@@ -487,7 +487,7 @@ class Tier4:
         Args:
             sample_annotation_token (str): Token of `sample_annotation`.
             max_time_diff (float, optional): Max allowed time difference
-                between consecutive samples. Defaults to 1.5.
+                between consecutive samples.
 
         Returns:
             VelocityType: Velocity in the order of (vx, vy, vz) in m/s.
@@ -551,12 +551,10 @@ class Tier4:
             point_sample_data_token (str): Sample data token of lidar or radar sensor.
             camera_sample_data_token (str): Sample data token of camera.
             min_dist (float, optional): Distance from the camera below which points are discarded.
-                Defaults to 1.0.
             ignore_distortion (bool, optional): Whether to ignore distortion parameters.
-                Defaults to False.
 
         Returns:
-            tuple[NDArrayF64, NDArrayF64, NDArrayU8]: Project pointcloud [2, n], depths [n] and image.
+            Projected points [2, n], their normalized depths [n] and an image.
         """
         point_sample_data: SampleData = self.get("sample_data", point_sample_data_token)
         pc_filepath = osp.join(self.data_root, point_sample_data.filename)
@@ -624,7 +622,7 @@ class Tier4:
 
         Args:
             scene_token (str): Unique identifier of scene.
-            max_time_seconds (float, optional): Max time length to be rendered [s]. Defaults to np.inf.
+            max_time_seconds (float, optional): Max time length to be rendered [s].
 
         BUG:
             If sample data is not associated with the first sample, all frames are not rendered.
@@ -801,9 +799,7 @@ class Tier4:
         Args:
             scene_token (str): Scene token.
             max_time_seconds (float, optional): Max time length to be rendered [s].
-                Defaults to np.inf.
             ignore_distortion (bool, optional): Whether to ignore distortion parameters.
-                Defaults to False.
 
         TODO:
             Add an option of rendering radar channels.
@@ -874,9 +870,9 @@ class Tier4:
         Args:
             first_lidar_token (str): First sample data token corresponding to the lidar.
             max_timestamp_us (float): Max time length in [us].
-            project_points (bool, optional): Whether to project 3d points on 2d images. Defaults to False.
+            project_points (bool, optional): Whether to project 3d points on 2d images.
             ignore_distortion (boo, optional): Whether to ignore distortion parameters.
-                This argument is only used if `project_points=True`. Defaults to False.
+                This argument is only used if `project_points=True`.
         """
         current_lidar_token = first_lidar_token
 
@@ -977,8 +973,8 @@ class Tier4:
         Args:
             point_sample_data_token (str): Sample data token of pointcloud sensor.
             max_timestamp_us (float): Max time length in [us].
-            min_dist (float, optional): Min focal distance to render points. Defaults to 1.0.
-            ignore_distortion (bool, optional): Whether to ignore distortion parameters. Defaults to False.
+            min_dist (float, optional): Min focal distance to render points.
+            ignore_distortion (bool, optional): Whether to ignore distortion parameters.
         """
         point_sample_data: SampleData = self.get("sample_data", point_sample_data_token)
         sample: Sample = self.get("sample", point_sample_data.sample_token)
@@ -1022,7 +1018,6 @@ class Tier4:
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
             instance_token (str | None, optional): Specify if you want to render only particular instance.
-                Defaults to None.
         """
         current_sample_token = first_sample_token
         while current_sample_token != "":
@@ -1088,7 +1083,6 @@ class Tier4:
             first_sample_token (str): First sample token.
             max_timestamp_us (float): Max time length in [us].
             instance_token (str | None, optional): Specify if you want to render only particular instance.
-                Defaults to None.
 
         TODO:
             2D boxes are rendered at sample data timestamp.

@@ -29,8 +29,7 @@ def view_points(
         points (NDArrayF64): Matrix of points, which is the shape of (3, n) and (x, y, z) is along each column.
         intrinsic (NDArrayF64): nxn camera intrinsic matrix (n <= 4).
         distortion (NDArrayF64 | None, optional): Camera distortion coefficients, which is the shape of (n,) (n >= 5).
-            Defaults to None.
-        normalize (bool, optional): Whether to normalize the remaining coordinate (along the 3rd axis). Defaults to True.
+        normalize (bool, optional): Whether to normalize the remaining coordinate (along the 3rd axis).
 
     Returns:
         Projected points in the shape of (3, n). If `normalize=False`, the 3rd coordinate is the height.
@@ -87,7 +86,6 @@ def is_box_in_image(
         intrinsic (NDArrayF64): 3x3 camera intrinsic matrix.
         img_size (tuple[int, int]): Image size in the order of (width, height).
         visibility (VisibilityLevel, optional): Enum member of VisibilityLevel.
-            Defaults to VisibilityLevel.NONE.
 
     Returns:
         Return True if visibility condition is satisfied.

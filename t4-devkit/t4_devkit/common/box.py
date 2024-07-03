@@ -32,12 +32,11 @@ class Box3D(Box):
             center (List[float]): Center of box given as (x, y, z).
             size (List[float]): Size of box given as (width, length, height).
             orientation (Quaternion): Box orientation.
-            label (int, optional): Integer label. Defaults to np.nan.
-            score (float, optional): Classification score. Defaults to np.nan.
+            label (int, optional): Integer label.
+            score (float, optional): Classification score.
             velocity (Tuple, optional): Box velocity given as (vx, vy, vz).
-                Defaults to (np.nan, np.nan, np.nan).
-            name (str, optional): Box category name. Defaults to None.
-            token (str, optional): Unique string identifier. Defaults to None.
+            name (str, optional): Box category name.
+            token (str, optional): Unique string identifier.
         """
         super().__init__(center, size, orientation, label, score, velocity, name, token)
 
@@ -57,11 +56,10 @@ class Box2D:
 
         Args:
             roi (RoiType): Roi elements, which is the order of (xmin, ymin, xmax, ymax).
-            label (int, optional): Box label. Defaults to -1.
-            score (float, optional): Box score. Defaults to np.nan.
-            name (str | None, optional): Category name. Defaults to None.
+            label (int, optional): Box label.
+            score (float, optional): Box score.
+            name (str | None, optional): Category name.
             token (str | None, optional): Unique identifier token corresponding to `token` of `object_ann`.
-                Defaults to None.
         """
         self.xmin, self.ymin, self.xmax, self.ymax = roi
         self.label = int(label)
