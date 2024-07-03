@@ -5,7 +5,7 @@ import os
 import os.path as osp
 import shutil
 import sys
-from typing import Dict, List
+from typing import Dict, List, Tuple, Union
 import warnings
 
 import builtin_interfaces.msg
@@ -668,12 +668,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         image_index_counter += 1
 
                     sample_data_token = self._generate_image_data(
-                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                        image_msg,
                         rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
                         lidar_sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
                         lidar_frame_index,
+                        image_shape,
                     )
                     sample_data_token_list.append(sample_data_token)
         else:  # camera only mode
@@ -745,12 +746,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _generate_image_data(
         self,
-        image_arr: np.ndarray,
+        image_arr: Union[np.ndarray, CompressedImage],
         image_unix_timestamp: float,
         sample_token: str,
         calibrated_sensor_token: str,
         sensor_channel: str,
         frame_index: int,
+        image_shape: Tuple[int, int, int] = (0, 0, 0),
         output_blank_image: bool = False,
         is_key_frame: bool = True,
     ):
@@ -760,6 +762,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         fileformat = EXTENSION_ENUM.JPG.value[1:]  # Note: png for all images
         filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
+        if hasattr(image_arr, "shape"):
+            image_shape = image_arr.shape
         sample_data_token = self._sample_data_table.insert_into_table(
             sample_token=sample_token,
             ego_pose_token=ego_pose_token,
@@ -768,15 +772,23 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             fileformat=fileformat,
             timestamp=misc_utils.unix_timestamp_to_nusc_timestamp(image_unix_timestamp),
             is_key_frame=is_key_frame,
-            height=image_arr.shape[0],
-            width=image_arr.shape[1],
+            height=image_shape[0],
+            width=image_shape[1],
             is_valid=is_key_frame and (not output_blank_image),
         )
 
         sample_data_record: SampleDataRecord = self._sample_data_table.select_record_from_token(
             sample_data_token
         )
-        cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image_arr)
+        if isinstance(image_arr, np.ndarray):
+            cv2.imwrite(
+                osp.join(self._output_scene_dir, sample_data_record.filename),
+                image_arr,
+                [int(cv2.IMWRITE_JPEG_QUALITY), 95],
+            )
+        elif isinstance(image_arr, CompressedImage):
+            with open(osp.join(self._output_scene_dir, sample_data_record.filename), "xb") as fw:
+                fw.write(image_arr.data)
 
         return sample_data_token
 
