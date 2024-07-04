@@ -118,7 +118,7 @@ class Rosbag2Converter:
                 continue
 
             if topic_name == "/tf_static":
-                start_time_in_ns = int(self._start_time_sec*1e9)
+                start_time_in_ns = int(self._start_time_sec * 1e9)
                 timestamp = max(timestamp, start_time_in_ns)
                 writer.write(topic_name, data, timestamp)
             elif message_time <= self._start_time_sec:
