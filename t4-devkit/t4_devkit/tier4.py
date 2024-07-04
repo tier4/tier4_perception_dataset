@@ -290,7 +290,8 @@ class Tier4:
 
         Args:
             sample_data_token (str): Token of `sample_data`.
-            selected_ann_tokens (list[str] | None, optional)
+            selected_ann_tokens (list[str] | None, optional):
+                Specify if you want to extract only particular annotations.
             as_3d (bool, optional): Whether to return 3D or 2D boxes.
             visibility (VisibilityLevel, optional): If `sample_data` is an image,
                 this sets required visibility for only 3D boxes.
