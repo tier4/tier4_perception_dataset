@@ -48,9 +48,7 @@ def create_reader(
 
 
 def create_writer(bag_dir: str) -> SequentialWriter:
-    storage_options = StorageOptions(
-        uri=bag_dir, storage_id="mcap", storage_preset_profile="zstd_fast"
-    )
+    storage_options = StorageOptions(uri=bag_dir, storage_id="sqlite3")
     converter_options = ConverterOptions(
         input_serialization_format="cdr", output_serialization_format="cdr"
     )
