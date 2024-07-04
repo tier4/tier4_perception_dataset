@@ -1,25 +1,26 @@
 from concurrent.futures import ProcessPoolExecutor
 import glob
-import open3d as o3d
 import os
 import os.path as osp
+from pathlib import Path
 import shutil
 import time
 from typing import Any, Dict
-from pathlib import Path
 
 from nptyping import NDArray
 import numpy as np
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import LidarPointCloud
 from nuscenes.utils.geometry_utils import transform_matrix
+import open3d as o3d
 from pyquaternion import Quaternion
 
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.basic_ai.utils import BasicAiCameraConfig, save_pcd
 from perception_dataset.constants import SENSOR_ENUM
+
 # from perception_dataset.deepen.json_format import ConfigData, ImageData
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.basic_ai.utils import BasicAiCameraConfig, save_pcd
 
 logger = configure_logger(modname=__name__)
 
@@ -92,9 +93,13 @@ class NonAnnotatedT4ToBasicAiConverter(AbstractConverter):
         pointcloud: LidarPointCloud = LidarPointCloud.from_file(lidar_path)
         pointcloud.transform(lidar_data_dict["sensor2global_transform"])
         points: NDArray = pointcloud.points.T  # (-1, 4)
-        points = self._transform_points_from_global_to_lidar(points, lidar_data_dict["global2sensor_transform"])
+        points = self._transform_points_from_global_to_lidar(
+            points, lidar_data_dict["global2sensor_transform"]
+        )
 
-        output_pcd_file_path = Path(output_dir) / "lidar_point_cloud_0" / f"data{frame_index + 1}.pcd"
+        output_pcd_file_path = (
+            Path(output_dir) / "lidar_point_cloud_0" / f"data{frame_index + 1}.pcd"
+        )
         output_pcd_file_path.parent.mkdir(parents=True, exist_ok=True)
         save_pcd(points, output_pcd_file_path)
 
@@ -119,11 +124,15 @@ class NonAnnotatedT4ToBasicAiConverter(AbstractConverter):
             input_image_file_path, _, cam_intrinsic = nusc.get_sample_data(camera_token)
             camera_data_dict: Dict[str, Any] = self._get_data(nusc, camera_token)
 
-            output_image_file_path = Path(output_dir) / f"camera_image_{index}" / f"data{frame_index + 1}.jpg"
+            output_image_file_path = (
+                Path(output_dir) / f"camera_image_{index}" / f"data{frame_index + 1}.jpg"
+            )
             output_image_file_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy(input_image_file_path, output_image_file_path)
 
-            camera_external = (camera_data_dict["ego2sensor_transform"] @ lidar_data_dict["sensor2ego_transform"])
+            camera_external = (
+                camera_data_dict["ego2sensor_transform"] @ lidar_data_dict["sensor2ego_transform"]
+            )
             camera_config.set_camera_config(
                 camera_index=index,
                 camera_internal={
@@ -140,11 +149,12 @@ class NonAnnotatedT4ToBasicAiConverter(AbstractConverter):
                 width=camera_data_dict["width"],
                 height=camera_data_dict["height"],
             )
-        
-        output_camera_config_path = Path(output_dir) / "camera_config" / f"data{frame_index + 1}.json"
+
+        output_camera_config_path = (
+            Path(output_dir) / "camera_config" / f"data{frame_index + 1}.json"
+        )
         output_camera_config_path.parent.mkdir(parents=True, exist_ok=True)
         camera_config.dump_json(output_camera_config_path)
-
 
     def _get_data(self, nusc: NuScenes, sensor_channel_token: str) -> Dict[str, Any]:
         sd_record = nusc.get("sample_data", sensor_channel_token)
@@ -167,7 +177,7 @@ class NonAnnotatedT4ToBasicAiConverter(AbstractConverter):
         global2ego_transform = transform_matrix(
             translation=ep_record["translation"],
             rotation=Quaternion(ep_record["rotation"]),
-            inverse=True
+            inverse=True,
         )
         sensor2global_transform = ego2global_transform @ sensor2ego_transform
         sensor2global_translation = sensor2global_transform[:3, 3]
@@ -191,8 +201,7 @@ class NonAnnotatedT4ToBasicAiConverter(AbstractConverter):
         return ret_dict
 
     def _transform_points_from_global_to_lidar(self, points, global_to_lidar):
-        """Transform points
-        """
+        """Transform points"""
         points_out = np.ones_like(points)
         points_out[:, :3] = points[:, :3]
 

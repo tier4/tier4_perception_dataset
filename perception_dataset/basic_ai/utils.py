@@ -1,10 +1,10 @@
-from typing import Dict, Any, List
 import json
+from typing import Any, Dict, List
+
 
 class BasicAiCameraConfig:
-    """See https://docs.basic.ai/docs/data-type-and-format#camera-config
-    """
-    
+    """See https://docs.basic.ai/docs/data-type-and-format#camera-config"""
+
     def __init__(self):
         self._camera_config_dict: Dict[int, Dict[str, Any]] = {}
 
@@ -60,14 +60,14 @@ class BasicAiCameraConfig:
             "height": height,
             "camera_index": camera_index,
         }
-    
+
     def dump_json(self, path):
         """Dump json
         Args:
             path ([type]): path
         """
         # save json while changing dict to list, and preserving the order by key
-        
+
         camera_config_list = [val for key, val in sorted(self._camera_config_dict.items())]
         with open(path, "w") as f:
             json.dump(camera_config_list, f, indent=2)
@@ -75,24 +75,24 @@ class BasicAiCameraConfig:
 
 def save_pcd(points, output_pcd_file_path, fields=["x", "y", "z", "i"], binary=False):
     num_points = len(points)
-    with open(output_pcd_file_path, 'wb' if binary else 'w') as f:
+    with open(output_pcd_file_path, "wb" if binary else "w") as f:
         # heads
         headers = [
-            '# .PCD v0.7 - Point Cloud Data file format',
-            'VERSION 0.7',
+            "# .PCD v0.7 - Point Cloud Data file format",
+            "VERSION 0.7",
             f'FIELDS {" ".join(fields)}',
-            'SIZE 4 4 4 4',
-            'TYPE F F F F',
-            'COUNT 1 1 1 1',
-            f'WIDTH {num_points}',
-            'HEIGHT 1',
-            'VIEWPOINT 0 0 0 1 0 0 0',
-            f'POINTS {num_points}',
-            f'DATA {"binary" if binary else "ascii"}'
+            "SIZE 4 4 4 4",
+            "TYPE F F F F",
+            "COUNT 1 1 1 1",
+            f"WIDTH {num_points}",
+            "HEIGHT 1",
+            "VIEWPOINT 0 0 0 1 0 0 0",
+            f"POINTS {num_points}",
+            f'DATA {"binary" if binary else "ascii"}',
         ]
-        header = '\n'.join(headers) + '\n'
+        header = "\n".join(headers) + "\n"
         if binary:
-            header = bytes(header, 'ascii')
+            header = bytes(header, "ascii")
         f.write(header)
 
         # points
