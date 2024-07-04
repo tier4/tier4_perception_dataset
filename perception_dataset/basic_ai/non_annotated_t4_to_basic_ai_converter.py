@@ -12,7 +12,6 @@ import numpy as np
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import LidarPointCloud
 from nuscenes.utils.geometry_utils import transform_matrix
-import open3d as o3d
 from pyquaternion import Quaternion
 
 from perception_dataset.abstract_converter import AbstractConverter
