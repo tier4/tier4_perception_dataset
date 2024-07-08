@@ -23,6 +23,7 @@ matplotlib = "3.5.3"
 pandas = "2.0.2"
 ros2-numpy = "^0.0.4"
 importlib-metadata = "^7.1.0"
+transforms3d = "^0.4.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.1"
