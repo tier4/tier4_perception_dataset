@@ -17,3 +17,14 @@ def load_json(filename: str) -> Any:
     with open(filename, "r") as f:
         data = json.load(f)
     return data
+
+
+def save_json(data: Any, filename: str) -> None:
+    """Save data into json file.
+
+    Args:
+        data (Any): Data to be saved.
+        filename (str): File path to save as json.
+    """
+    with open(filename, "w") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)

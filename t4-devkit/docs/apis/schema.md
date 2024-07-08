@@ -51,4 +51,10 @@
         members: ["SCHEMAS", "SchemaRegistry"]
         show_root_toc_entry: false
 
+## Serialize schema
+
+---
+
+::: t4_devkit.schema.serialize
+
 <!-- prettier-ignore-end -->
