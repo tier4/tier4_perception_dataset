@@ -112,10 +112,10 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
     # Convert the PointCloud2 message to a numpy structured array
     if hasattr(rnp.point_cloud2, "pointcloud2_to_array"):
         points = rnp.point_cloud2.pointcloud2_to_array(pointcloud_msg)
-        xyz = np.vstack((points['x'], points['y'], points['z'])).T
+        xyz = np.vstack((points["x"], points["y"], points["z"])).T
 
-        if 'intensity' in points.dtype.names:
-            intensity = points['intensity'].reshape(-1, 1)
+        if "intensity" in points.dtype.names:
+            intensity = points["intensity"].reshape(-1, 1)
             points_arr = np.hstack((xyz, intensity))
         else:
             points_arr = xyz
