@@ -110,15 +110,25 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
         return np.zeros((0, NUM_DIMENSIONS), dtype=np.float32)
 
     # Convert the PointCloud2 message to a numpy structured array
-    points = rnp.point_cloud2.point_cloud2_to_array(pointcloud_msg)
+    if hasattr(rnp.point_cloud2, "pointcloud2_to_array"):
+        points = rnp.point_cloud2.pointcloud2_to_array(pointcloud_msg)
+        xyz = np.vstack((points['x'], points['y'], points['z'])).T
 
-    # Extract the x, y, z coordinates and additional fields if available
-    xyz = points["xyz"]
-    if "intensity" in points.keys():
-        intensity = points["intensity"]
-        points_arr = np.hstack((xyz, intensity))
+        if 'intensity' in points.dtype.names:
+            intensity = points['intensity'].reshape(-1, 1)
+            points_arr = np.hstack((xyz, intensity))
+        else:
+            points_arr = xyz
     else:
-        points_arr = xyz
+        points = rnp.point_cloud2.point_cloud2_to_array(pointcloud_msg)
+
+        # Extract the x, y, z coordinates and additional fields if available
+        xyz = points["xyz"]
+        if "intensity" in points.keys():
+            intensity = points["intensity"]
+            points_arr = np.hstack((xyz, intensity))
+        else:
+            points_arr = xyz
 
     # Ensure the resulting array has exactly NUM_DIMENSIONS columns
     if points_arr.shape[1] > NUM_DIMENSIONS:
