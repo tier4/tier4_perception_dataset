@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 import sys
 from typing import TYPE_CHECKING, Any
 
-from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
@@ -120,38 +119,33 @@ class SampleData(SchemaBase):
     channel: SensorChannel = field(init=False)
 
     @classmethod
-    def from_json(cls, filepath: str) -> list[Self]:
-        objs: list[Self] = []
-        record_list: list[dict[str, Any]] = load_json(filepath)
-        for record in record_list:
-            token: str = record["token"]
-            sample_token: str = record["sample_token"]
-            ego_pose_token: str = record["ego_pose_token"]
-            calibrated_sensor_token: str = record["calibrated_sensor_token"]
-            filename: str = record["filename"]
-            fileformat = FileFormat(record["fileformat"])
-            width: int = record["width"]
-            height: int = record["height"]
-            timestamp: int = record["timestamp"]
-            is_key_frame: bool = record["is_key_frame"]
-            next_: str = record["next"]
-            prev: str = record["prev"]
-            is_valid: bool = record.get("is_valid", True)
-            objs.append(
-                cls(
-                    token=token,
-                    sample_token=sample_token,
-                    ego_pose_token=ego_pose_token,
-                    calibrated_sensor_token=calibrated_sensor_token,
-                    filename=filename,
-                    fileformat=fileformat,
-                    width=width,
-                    height=height,
-                    timestamp=timestamp,
-                    is_key_frame=is_key_frame,
-                    next=next_,
-                    prev=prev,
-                    is_valid=is_valid,
-                )
-            )
-        return objs
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        token: str = data["token"]
+        sample_token: str = data["sample_token"]
+        ego_pose_token: str = data["ego_pose_token"]
+        calibrated_sensor_token: str = data["calibrated_sensor_token"]
+        filename: str = data["filename"]
+        fileformat = FileFormat(data["fileformat"])
+        width: int = data["width"]
+        height: int = data["height"]
+        timestamp: int = data["timestamp"]
+        is_key_frame: bool = data["is_key_frame"]
+        next_: str = data["next"]
+        prev: str = data["prev"]
+        is_valid: bool = data.get("is_valid", True)
+
+        return cls(
+            token=token,
+            sample_token=sample_token,
+            ego_pose_token=ego_pose_token,
+            calibrated_sensor_token=calibrated_sensor_token,
+            filename=filename,
+            fileformat=fileformat,
+            width=width,
+            height=height,
+            timestamp=timestamp,
+            is_key_frame=is_key_frame,
+            next=next_,
+            prev=prev,
+            is_valid=is_valid,
+        )

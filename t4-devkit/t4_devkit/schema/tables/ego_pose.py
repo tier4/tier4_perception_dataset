@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from pyquaternion import Quaternion
-from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
@@ -36,15 +35,10 @@ class EgoPose(SchemaBase):
     timestamp: int
 
     @classmethod
-    def from_json(cls, filepath: str) -> list[Self]:
-        objs: list[Self] = []
-        record_list: list[dict[str, Any]] = load_json(filepath)
-        for record in record_list:
-            token: str = record["token"]
-            translation = np.array(record["translation"])
-            rotation = Quaternion(record["rotation"])
-            timestamp: int = record["timestamp"]
-            objs.append(
-                cls(token=token, translation=translation, rotation=rotation, timestamp=timestamp)
-            )
-        return objs
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        token: str = data["token"]
+        translation = np.array(data["translation"])
+        rotation = Quaternion(data["rotation"])
+        timestamp: int = data["timestamp"]
+
+        return cls(token=token, translation=translation, rotation=rotation, timestamp=timestamp)

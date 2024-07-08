@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 import sys
 from typing import Any
 
-from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
@@ -103,12 +104,9 @@ class Sensor(SchemaBase):
     modality: SensorModality
 
     @classmethod
-    def from_json(cls, filepath: str) -> list[Self]:
-        objs: list[Self] = []
-        record_list: list[dict[str, Any]] = load_json(filepath)
-        for record in record_list:
-            token: str = record["token"]
-            channel = SensorChannel(record["channel"])
-            modality = SensorModality(record["modality"])
-            objs.append(cls(token=token, channel=channel, modality=modality))
-        return objs
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        token: str = data["token"]
+        channel = SensorChannel(data["channel"])
+        modality = SensorModality(data["modality"])
+
+        return cls(token=token, channel=channel, modality=modality)

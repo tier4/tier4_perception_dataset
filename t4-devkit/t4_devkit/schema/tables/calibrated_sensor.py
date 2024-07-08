@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from pyquaternion import Quaternion
-from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
@@ -40,24 +39,19 @@ class CalibratedSensor(SchemaBase):
     camera_distortion: CamDistortionType
 
     @classmethod
-    def from_json(cls, filepath: str) -> list[Self]:
-        objs: list[Self] = []
-        record_list: list[dict[str, Any]] = load_json(filepath)
-        for record in record_list:
-            token: str = record["token"]
-            sensor_token: str = record["sensor_token"]
-            translation = np.array(record["translation"])
-            rotation = Quaternion(record["rotation"])
-            camera_intrinsic = np.array(record["camera_intrinsic"])
-            camera_distortion = np.array(record["camera_distortion"])
-            objs.append(
-                cls(
-                    token=token,
-                    sensor_token=sensor_token,
-                    translation=translation,
-                    rotation=rotation,
-                    camera_intrinsic=camera_intrinsic,
-                    camera_distortion=camera_distortion,
-                )
-            )
-        return objs
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        token: str = data["token"]
+        sensor_token: str = data["sensor_token"]
+        translation = np.array(data["translation"])
+        rotation = Quaternion(data["rotation"])
+        camera_intrinsic = np.array(data["camera_intrinsic"])
+        camera_distortion = np.array(data["camera_distortion"])
+
+        return cls(
+            token=token,
+            sensor_token=sensor_token,
+            translation=translation,
+            rotation=rotation,
+            camera_intrinsic=camera_intrinsic,
+            camera_distortion=camera_distortion,
+        )

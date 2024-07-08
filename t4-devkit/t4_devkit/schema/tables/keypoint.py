@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
@@ -39,24 +38,19 @@ class Keypoint(SchemaBase):
     num_keypoints: int
 
     @classmethod
-    def from_json(cls, filepath: str) -> list[Self]:
-        objs: list[Self] = []
-        record_list: list[dict[str, Any]] = load_json(filepath)
-        for record in record_list:
-            token: str = record["token"]
-            sample_data_token: str = record["sample_data_token"]
-            instance_token: str = record["instance_token"]
-            category_tokens: list[str] = record["category_tokens"]
-            keypoints = np.array(record["keypoints"])
-            num_keypoints: int = record["num_keypoints"]
-            objs.append(
-                cls(
-                    token=token,
-                    sample_data_token=sample_data_token,
-                    instance_token=instance_token,
-                    category_tokens=category_tokens,
-                    keypoints=keypoints,
-                    num_keypoints=num_keypoints,
-                )
-            )
-        return objs
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        token: str = data["token"]
+        sample_data_token: str = data["sample_data_token"]
+        instance_token: str = data["instance_token"]
+        category_tokens: list[str] = data["category_tokens"]
+        keypoints = np.array(data["keypoints"])
+        num_keypoints: int = data["num_keypoints"]
+
+        return cls(
+            token=token,
+            sample_data_token=sample_data_token,
+            instance_token=instance_token,
+            category_tokens=category_tokens,
+            keypoints=keypoints,
+            num_keypoints=num_keypoints,
+        )

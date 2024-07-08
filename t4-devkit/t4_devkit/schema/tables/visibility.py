@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 import sys
 from typing import Any
 import warnings
 
-from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
@@ -84,12 +85,9 @@ class Visibility(SchemaBase):
     description: str
 
     @classmethod
-    def from_json(cls, filepath: str) -> list[Self]:
-        objs: list[Self] = []
-        record_list: list[dict[str, Any]] = load_json(filepath)
-        for record in record_list:
-            token: str = record["token"]
-            level = VisibilityLevel.from_value(record["level"])
-            description: str = record["description"]
-            objs.append(cls(token=token, level=level, description=description))
-        return objs
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        token: str = data["token"]
+        level = VisibilityLevel.from_value(data["level"])
+        description: str = data["description"]
+
+        return cls(token=token, level=level, description=description)

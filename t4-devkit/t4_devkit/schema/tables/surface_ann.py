@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from t4_devkit.common.io import load_json
 from typing_extensions import Self
 
 from .base import SchemaBase
@@ -34,6 +33,5 @@ class SurfaceAnn(SchemaBase):
     mask: MaskType
 
     @classmethod
-    def from_json(cls, filepath: str) -> list[Self]:
-        record_list: list[dict[str, Any]] = load_json(filepath)
-        return [cls(**record) for record in record_list]
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        return cls(**data)
