@@ -70,6 +70,10 @@ def validate_scene(nusc: NuScenes):
         nusc, "sample", scene["last_sample_token"]
     ), "scene.last_sample_token isn't found in log"
 
+    assert nusc.scene[0]["nbr_samples"] == len(
+        nusc.sample
+    ), "scene.nbr_samples isn't equal to the number of samples."
+
 
 @_logger_wrapper
 def validate_sample(nusc: NuScenes):
@@ -77,6 +81,9 @@ def validate_sample(nusc: NuScenes):
 
     no_next_token_count: int = 0
     no_prev_token_count: int = 0
+    sample_annotation_refered_sample_tokens = [
+        ann["sample_token"] for ann in nusc.sample_annotation
+    ]
     for sample in nusc.sample:
         assert find_in_table(
             nusc, "scene", sample["scene_token"]
@@ -95,6 +102,10 @@ def validate_sample(nusc: NuScenes):
             assert find_in_table(
                 nusc, "sample", prev_token
             ), "sample.prev_token isn't found in sample."
+
+        assert (
+            sample["token"] in sample_annotation_refered_sample_tokens
+        ), "sample.token isn't found in sample_annotation."
 
     assert no_next_token_count == len(
         nusc.scene
