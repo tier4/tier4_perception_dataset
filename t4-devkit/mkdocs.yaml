@@ -41,7 +41,7 @@ plugins:
             filters: ["!^_"]
             show_bases: true
             show_source: false
-            inherited_members: true
+            inherited_members: false
             members_order: source # The order of class members
             parameter_headings: true
             show_root_heading: false

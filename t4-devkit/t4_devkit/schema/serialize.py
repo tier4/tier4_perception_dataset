@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from functools import partial
+from typing import TYPE_CHECKING, Any, Sequence
 
 import numpy as np
 from pyquaternion import Quaternion
@@ -35,14 +36,18 @@ def serialize_schema(data: SchemaTable) -> dict:
     Returns:
         Serialized dict data.
     """
-    return asdict(data, dict_factory=_schema_as_dict_factory)
+    dict_factory = partial(_schema_as_dict_factory, excludes=data.shortcuts())
+    return asdict(data, dict_factory=dict_factory)
 
 
-def _schema_as_dict_factory(data: SchemaTable) -> dict:
+def _schema_as_dict_factory(
+    data: list[tuple[str, Any]], *, excludes: Sequence[str] | None = None
+) -> dict:
     """A factory to convert schema dataclass field to dict data.
 
     Args:
-        data (SchemaTable): Some data of dataclass field.
+        data (list[tuple[str, Any]]): Some data of dataclass field.
+        excludes (Sequence[str] | None, optional): Sequence of field names to be excluded.
 
     Returns:
         Converted dict data.
@@ -57,4 +62,8 @@ def _schema_as_dict_factory(data: SchemaTable) -> dict:
             return value.value
         return value
 
-    return {k: _convet_value(v) for k, v in data}
+    return (
+        {k: _convet_value(v) for k, v in data}
+        if excludes is None
+        else {k: _convet_value(v) for k, v in data if k not in excludes}
+    )

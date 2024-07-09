@@ -48,6 +48,10 @@ class Sample(SchemaBase):
     ann_3ds: list[str] = field(default_factory=list, init=False)
     ann_2ds: list[str] = field(default_factory=list, init=False)
 
+    @staticmethod
+    def shortcuts() -> tuple[str, str, str]:
+        return ("data", "ann_3ds", "ann_2ds")
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         return cls(**data)

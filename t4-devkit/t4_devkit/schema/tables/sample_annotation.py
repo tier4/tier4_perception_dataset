@@ -71,6 +71,10 @@ class SampleAnnotation(SchemaBase):
     # shortcuts
     category_name: str = field(init=False)
 
+    @staticmethod
+    def shortcuts() -> tuple[str]:
+        return ("category_name",)
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         token: str = data["token"]

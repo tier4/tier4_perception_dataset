@@ -41,6 +41,10 @@ class ObjectAnn(SchemaBase):
     # shortcuts
     category_name: str = field(init=False)
 
+    @staticmethod
+    def shortcuts() -> tuple[str]:
+        return ("category_name",)
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         return cls(**data)

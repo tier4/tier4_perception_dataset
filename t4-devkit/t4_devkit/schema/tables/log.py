@@ -34,6 +34,10 @@ class Log(SchemaBase):
     # shortcuts
     map_token: str = field(init=False)
 
+    @staticmethod
+    def shortcuts() -> tuple[str]:
+        return ("map_token",)
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         return cls(**data)

@@ -118,6 +118,10 @@ class SampleData(SchemaBase):
     modality: SensorModality = field(init=False)
     channel: SensorChannel = field(init=False)
 
+    @staticmethod
+    def shortcuts() -> tuple[str, str]:
+        return ("modality", "channel")
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         token: str = data["token"]
