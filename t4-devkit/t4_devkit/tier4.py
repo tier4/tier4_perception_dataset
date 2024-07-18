@@ -44,7 +44,6 @@ if TYPE_CHECKING:
         Scene,
         SchemaTable,
         Sensor,
-        SensorChannel,
         SurfaceAnn,
         Visibility,
     )
@@ -630,9 +629,7 @@ class Tier4:
         """
         # TODO: refactoring initialization of rerun
         camera_names = [
-            sensor.channel.value
-            for sensor in self.sensor
-            if sensor.modality == SensorModality.CAMERA
+            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
         ]
 
         sensor_space_views = [
@@ -679,13 +676,14 @@ class Tier4:
         first_camera_tokens: list[str] = []
 
         # BUG: if sample data is not associated with the first sample, all frames are not rendered.
-        for channel, sd_token in first_sample.data.items():
+        for _, sd_token in first_sample.data.items():
             self._render_sensor_calibration(sd_token)
-            if channel.modality == SensorModality.LIDAR:
+            sample_data: SampleData = self.get("sample_data", sd_token)
+            if sample_data.modality == SensorModality.LIDAR:
                 first_lidar_token = sd_token
-            elif channel.modality == SensorModality.RADAR:
+            elif sample_data.modality == SensorModality.RADAR:
                 first_radar_tokens.append(sd_token)
-            elif channel.modality == SensorModality.CAMERA:
+            elif sample_data.modality == SensorModality.CAMERA:
                 first_camera_tokens.append(sd_token)
 
         first_lidar_sd_record: SampleData = self.get("sample_data", first_lidar_token)
@@ -708,9 +706,7 @@ class Tier4:
         """
         # TODO: refactoring initialization of rerun
         camera_names = [
-            sensor.channel.value
-            for sensor in self.sensor
-            if sensor.modality == SensorModality.CAMERA
+            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
         ]
 
         sensor_space_views = [
@@ -761,13 +757,14 @@ class Tier4:
         first_camera_tokens: list[str] = []
 
         # FIXME: if sample data is not associated with the first sample, all frames are not rendered.
-        for channel, sd_token in first_sample.data.items():
+        for _, sd_token in first_sample.data.items():
             self._render_sensor_calibration(sd_token)
-            if channel.modality == SensorModality.LIDAR:
+            sample_data: SampleData = self.get("sample_data", sd_token)
+            if sample_data.modality == SensorModality.LIDAR:
                 first_lidar_token = sd_token
-            elif channel.modality == SensorModality.RADAR:
+            elif sample_data.modality == SensorModality.RADAR:
                 first_radar_tokens.append(sd_token)
-            elif channel.modality == SensorModality.CAMERA:
+            elif sample_data.modality == SensorModality.CAMERA:
                 first_camera_tokens.append(sd_token)
 
         last_ann: SampleAnnotation = self.get("sample_annotation", instance.last_annotation_token)
@@ -807,9 +804,7 @@ class Tier4:
         """
         # TODO: refactoring initialization of rerun
         camera_names = [
-            sensor.channel.value
-            for sensor in self.sensor
-            if sensor.modality == SensorModality.CAMERA
+            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
         ]
 
         sensor_space_views = [
@@ -841,14 +836,16 @@ class Tier4:
         first_sample: Sample = self.get("sample", scene.first_sample_token)
 
         first_lidar_token = ""
+        first_lidar_sd_record = None
 
-        for channel, sd_token in first_sample.data.items():
+        for _, sd_token in first_sample.data.items():
             self._render_sensor_calibration(sd_token)
-            if channel.modality != SensorModality.LIDAR:
+            sample_data: SampleData = self.get("sample_data", sd_token)
+            if sample_data.modality != SensorModality.LIDAR:
                 continue
             first_lidar_token = sd_token
+            first_lidar_sd_record = sample_data
 
-        first_lidar_sd_record: SampleData = self.get("sample_data", first_lidar_token)
         max_timestamp_us = first_lidar_sd_record.timestamp + sec2us(max_time_seconds)
 
         self._render_lidar_and_ego(
@@ -896,7 +893,7 @@ class Tier4:
                 ),
             )
 
-            sensor_name = sample_data.channel.value
+            sensor_name = sample_data.channel
             pointcloud = LidarPointCloud.from_file(osp.join(self.data_root, sample_data.filename))
             points = pointcloud.points[:3].T  # (N, 3)
             point_colors = distance_color(np.linalg.norm(points, axis=1))
@@ -928,7 +925,7 @@ class Tier4:
 
                 rr.set_time_seconds("timestamp", us2sec(sample_data.timestamp))
 
-                sensor_name = sample_data.channel.value
+                sensor_name = sample_data.channel
                 pointcloud = RadarPointCloud.from_file(
                     osp.join(self.data_root, sample_data.filename)
                 )
@@ -954,7 +951,7 @@ class Tier4:
 
                 rr.set_time_seconds("timestamp", us2sec(sample_data.timestamp))
 
-                sensor_name = sample_data.channel.value
+                sensor_name = sample_data.channel
                 rr.log(
                     f"world/ego_vehicle/{sensor_name}",
                     rr.ImageEncoded(path=osp.join(self.data_root, sample_data.filename)),
@@ -981,9 +978,9 @@ class Tier4:
         sample: Sample = self.get("sample", point_sample_data.sample_token)
 
         for channel, sd_token in sample.data.items():
-            if channel.modality != SensorModality.CAMERA:
-                continue
             camera_sample_data: SampleData = self.get("sample_data", sd_token)
+            if camera_sample_data.modality != SensorModality.CAMERA:
+                continue
 
             if max_timestamp_us < camera_sample_data.timestamp:
                 break
@@ -995,7 +992,7 @@ class Tier4:
                 ignore_distortion=ignore_distortion,
             )
 
-            sensor_name = channel.value
+            sensor_name = channel
             rr.set_time_seconds("timestamp", us2sec(camera_sample_data.timestamp))
             rr.log(f"world/ego_vehicle/{sensor_name}", rr.Image(img))
 
@@ -1098,9 +1095,9 @@ class Tier4:
 
             camera_anns: dict[str, _CameraAnn2D] = {}
             for channel, sd_token in sample.data.items():
-                if channel.modality != SensorModality.CAMERA:
-                    continue
                 sample_data: SampleData = self.get("sample_data", sd_token)
+                if sample_data.modality != SensorModality.CAMERA:
+                    continue
                 camera_anns[sd_token] = _CameraAnn2D(channel, sample_data.timestamp)
 
             for ann_token in sample.ann_2ds:
@@ -1117,7 +1114,7 @@ class Tier4:
 
             for sd_token, camera_ann in camera_anns.items():
                 rr.set_time_seconds("timestamp", us2sec(camera_ann.timestamp))
-                sensor_name: str = camera_ann.channel.value
+                sensor_name: str = camera_ann.channel
                 rr.log(
                     f"world/ego_vehicle/{sensor_name}/ann2d/box",
                     rr.Boxes2D(
@@ -1137,7 +1134,7 @@ class Tier4:
             sample_data_token (str): First sample data token corresponding to the sensor.
         """
         sample_data: SampleData = self.get("sample_data", sample_data_token)
-        sensor_name = sample_data.channel.value
+        sensor_name = sample_data.channel
         calibrated_sensor: CalibratedSensor = self.get(
             "calibrated_sensor", sample_data.calibrated_sensor_token
         )
@@ -1167,14 +1164,14 @@ class _CameraAnn2D:
     """Container of 2D annotations for each camera at a specific frame.
 
     Attributes:
-        channel (SensorChannel): Sensor channel.
+        channel (str): Sensor channel.
         timestamp (int): Unix time stamp [us].
         boxes (list[RoiType]): List of box RoIs given as (xmin, ymin, xmax, ymax).
         uuids (list[str]): List of unique identifiers.
         class_ids (list[int]): List of annotation class ids.
     """
 
-    channel: SensorChannel
+    channel: str
     timestamp: int
     boxes: list[RoiType] = field(default_factory=list, init=False)
     uuids: list[str] = field(default_factory=list, init=False)
