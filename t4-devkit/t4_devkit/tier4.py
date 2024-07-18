@@ -325,9 +325,7 @@ class Tier4:
             )
         else:
             boxes = (
-                self.get_boxes3d(sample_data_token)
-                if as_3d
-                else self.get_boxes2d(sample_data_token)
+                self.get_box3ds(sample_data_token) if as_3d else self.get_box2ds(sample_data_token)
             )
 
         if not as_3d:
