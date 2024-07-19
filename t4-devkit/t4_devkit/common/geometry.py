@@ -51,8 +51,8 @@ def view_points(
         # distortion is [k1, k2, p1, p2, k3, k4, k5, k6, s1, s2, s3, s4]
         while len(D) < 12:
             D = np.insert(D, len(D), 0)
-        x_ = points[0] / points[2]
-        y_ = points[1] / points[2]
+        x_ = points[0]
+        y_ = points[1]
         r2 = x_**2 + y_**2
         f1 = (1 + D[0] * r2 + D[1] * r2**2 + D[4] * r2**3) / (
             1 + D[5] * r2 + D[6] * r2**2 + D[7] * r2**3
