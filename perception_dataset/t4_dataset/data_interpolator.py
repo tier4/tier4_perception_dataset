@@ -9,6 +9,7 @@ import logging
 import multiprocessing as mp
 import os
 import os.path as osp
+import re
 from secrets import token_hex
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -90,7 +91,18 @@ class DataInterpolator(AbstractConverter):
     def _convert_single(self, data_root: str) -> None:
         self.logger.info(f"Start processing: {data_root}")
 
+        # an integer larger than or eaqual to 0
+        version_pattern = re.compile(r"^\d+$")
+
+        version_dirs = [d for d in os.listdir(data_root) if version_pattern.match(d)]
+
         dataset_id = osp.basename(data_root)
+
+        if version_dirs:
+            version_id = sorted(version_dirs, key=int)[-1]
+            data_root = osp.join(data_root, version_id)
+        nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
+
         output_path = osp.join(self._output_base, dataset_id)
         os.makedirs(output_path, exist_ok=True)
 
@@ -99,10 +111,8 @@ class DataInterpolator(AbstractConverter):
             assert isinstance(self.copy_excludes, list), f"Unexpected type of excludes: {type(self.copy_excludes)}"
             for e in self.copy_excludes:
                 command.extend(["--exclude", e])
-        command.extend([f"{data_root}", f"{self._output_base}"])
+        command.extend([f"{data_root}/", f"{output_path}"])
         subprocess.run(command)
-
-        nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
 
         all_samples, all_sample_data = self.interpolate_sample(nusc)
         self.logger.info("Finish interpolating sample and sample data")
@@ -223,11 +233,14 @@ class DataInterpolator(AbstractConverter):
             accelerations = []
             original_timestamps = []
             for ann in sample_anns:
+                t = original_timestamps_info[ann["sample_token"]]
+                if t in original_timestamps:
+                    continue
+                original_timestamps.append(t)
                 translations.append(ann["translation"])
                 rotations.append(ann["rotation"])
                 velocities.append(ann["velocity"])
                 accelerations.append(ann["acceleration"])
-                original_timestamps.append(original_timestamps_info[ann["sample_token"]])
 
             # skip if there is only one annotation because interpolation is unavailable
             if len(original_timestamps) < 2:
