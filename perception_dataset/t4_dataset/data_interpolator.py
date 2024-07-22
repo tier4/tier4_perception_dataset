@@ -10,6 +10,7 @@ import multiprocessing as mp
 import os
 import os.path as osp
 from secrets import token_hex
+import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -21,7 +22,6 @@ from scipy.spatial.transform import Rotation, Slerp
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.utils.logger import configure_logger
-import subprocess
 
 
 class DataInterpolator(AbstractConverter):
@@ -223,11 +223,14 @@ class DataInterpolator(AbstractConverter):
             accelerations = []
             original_timestamps = []
             for ann in sample_anns:
+                cur_time = original_timestamps_info[ann["sample_token"]]
+                if cur_time in original_timestamps:
+                    continue  # only keep unique timestamps
+                original_timestamps.append(cur_time)
                 translations.append(ann["translation"])
                 rotations.append(ann["rotation"])
                 velocities.append(ann["velocity"])
                 accelerations.append(ann["acceleration"])
-                original_timestamps.append(original_timestamps_info[ann["sample_token"]])
 
             # skip if there is only one annotation because interpolation is unavailable
             if len(original_timestamps) < 2:
