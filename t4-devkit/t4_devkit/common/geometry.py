@@ -62,7 +62,7 @@ def view_points(
         y__ = y_ * f1 + p1 * (r2 + 2 * y_**2) + 2 * p2 * f2 + s3 * r2 + s4 * r2**2
         u = viewpad[0, 0] * x__ + viewpad[0, 2]
         v = viewpad[1, 1] * y__ + viewpad[1, 2]
-        points = np.stack([u, v, np.ones(nbr_points)], axis=0)
+        points = np.stack([u, v, points[2, :]], axis=0)
     else:
         points = np.dot(viewpad, points)
         points = points[:3, :]
