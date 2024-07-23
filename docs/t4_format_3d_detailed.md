@@ -303,8 +303,6 @@ its calibration is not done. So, if cameras used in collecting the data have any
   - "token": [str] -- Unique record identifier.
   - "sensor_token": [str] -- Foreign key pointing to the sensor type.
   - "translation": [float] [3] -- Coordinate system origin in meters: (x, y, z).
-  - "velocity": [Optional[float]] [3] -- Coordinates system origin in m/s: (vx, vy, vz). **(Added)**
-  - "acceleration": [Optional[float]] [3] -- Coordinates system origin in m/s^2: (ax, ay, az). **(Added)**
   - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: (w, x, y, z).
   - "camera_intrinsic": [float] [3, 3] -- Intrinsic camera calibration. Empty list `[]` for sensors other than cameras.
   - "camera_distortion": [float] [5] -- Distortion parameters (k1, k2, p1, p2, k3) Empty list '[]' for sensors other than cameras. **(Added)**
