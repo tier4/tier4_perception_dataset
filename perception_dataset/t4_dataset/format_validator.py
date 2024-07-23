@@ -81,7 +81,7 @@ def validate_sample(nusc: NuScenes):
 
     no_next_token_count: int = 0
     no_prev_token_count: int = 0
-    sample_annotation_refered_sample_tokens = [
+    sample_annotation_referred_sample_tokens = [
         ann["sample_token"] for ann in nusc.sample_annotation
     ]
     for sample in nusc.sample:
