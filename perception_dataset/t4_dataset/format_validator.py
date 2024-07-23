@@ -104,7 +104,7 @@ def validate_sample(nusc: NuScenes):
             ), "sample.prev_token isn't found in sample."
 
         assert (
-            sample["token"] in sample_annotation_refered_sample_tokens
+            sample["token"] in sample_annotation_referred_sample_tokens
         ), "sample.token isn't found in sample_annotation."
 
     assert no_next_token_count == len(
