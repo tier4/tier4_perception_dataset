@@ -357,18 +357,9 @@ For t4 format, "name" should be one of the following:
   - "translation": [float] [3] -- Coordinate system origin in meters: x, y, z. ~~Note that z is always 0~~. **(changed)**
   - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: w, x, y, z.
   - "timestamp": [int] -- Unix time stamp (μ sec).
-
-#### Future extension
-
-- We plan to extend the twist data
-  - make when rosbag to Tier4 dataset
-- ego_pose
-  - "token": [str] -- Unique record identifier.
-  - "translation": [float] [3] -- Coordinate system origin in meters: x, y, z. ~~Note that z is always 0.~~
-  - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: w, x, y, z.
-  - "twist": [float] [6] -- Coordinate system origin in m/s and deg/s : vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate.
-  - "accel": [float] [2] -- Coordinate system origin in m/s^2 : long_accel, lat_accel.
-  - "timestamp": [int] -- Unix time stamp (μ sec).
+  - "twist": [Optional[float]] [6] -- Coordinates system origin in m/s: (vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate). **(Added)**
+  - "acceleration": [Optional[float]] [3] -- Coordinates system origin in m/s^2: (ax, ay, az). **(Added)**
+  - "geocoordinate": [Optional[float]] [3] -- Coordinates system origin in the WGS 84 reference ellipsoid: (latitude, longitude, altitude). **(Added)**
 
 ### instance.json
 
