@@ -5,10 +5,9 @@ These tools facilitate the preparation and transformation of perception data for
 
 ## Table of Contents
 
-1. [Introduction and Purpose](#introduction-and-purpose)
-2. [Dataset Overview](#dataset-overview)
-3. [Usage of T4 dataset](#usage-of-t4-format-dataset)
-4. [Usage of Conversion Tools](#usage-of-conversion-tools)
+1. [Dataset Overview](#dataset-overview)
+2. [Usage of T4 dataset](#usage-of-t4-format-dataset)
+3. [Usage of Conversion Tools](#usage-of-conversion-tools)
    - [Conversion Tools Overview](#conversion-tools-overview)
    - [Setup](#setup)
    - [Test](#test)
