@@ -585,9 +585,9 @@ This file provides comprehensive information about the vehicle's state at a give
 - vehicle_state
   - "token": [str] -- Unique record identifier.
   - "timestamp": [int] -- Unix time stamp (μ sec).
-  - "accel_pedal": [Optional[float]] --	Accel pedal position [%] 
-  - "brake_pedal": [Optional[float]] -- Brake pedal position [%] 
-  - "steer_pedal": [Optional[float]] -- Steering wheel position [%] 
+  - "accel_pedal": [Optional[float]] -- Accel pedal position [%]
+  - "brake_pedal": [Optional[float]] -- Brake pedal position [%]
+  - "steer_pedal": [Optional[float]] -- Steering wheel position [%]
   - "steering_tire_angle": [Optional[float]] -- Steering tire angle [rad]
   - "steering_wheel_angle": [Optional[float]] -- steering wheel angle [rad]
   - "shift_state": [Optional[str]] {PARK, REVERSE, NEUTRAL, HIGH, FORWARD, LOW, NONE} -- Shift state.
@@ -595,7 +595,7 @@ This file provides comprehensive information about the vehicle's state at a give
     - "left": [Optional[str]] -- State of the left indicator ("on" or "off").
     - "right": [Optional[str]] -- State of the right indicator ("on" or "off").
     - "hazard": [Optional[str]] -- State of the hazard lights ("on" or "off").
-  - "additional_info": 
+  - "additional_info":
     - "speed": [Optional[float]] -- Speed of the vehicle in km/h.
 
 ### Reference
