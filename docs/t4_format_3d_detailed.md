@@ -9,11 +9,13 @@
 - (2021.11.30) T4 format ver1.1: Updated format to make it available in ADP
 - (2022.06.03) T4 format ver1.2: Update topics contained in input_bag. Add status.json. Remove occlusion_state in attribute, write to visibility.json
 - (2022.07.26) T4 format ver1.2: Add a topic contained in input_bag.
+- (2024.07.24) T4 Format ver1.3: Added optional values for the T4 format, which are used in the Co-MLOps dataset format.
 
 ## Dataset Sample
 
-You can download one sample dataset manually from [here](https://drive.google.com/file/d/1UjMWZj5Yc55O7BZiGHa0ikZGhwmcfPiS/view).  
-For this sample, the directory named "sample_dataset" corresponds to the "T4 dataset ID" described in the following section.
+You can download one sample T4 format dataset manually from [here](https://drive.google.com/file/d/1UjMWZj5Yc55O7BZiGHa0ikZGhwmcfPiS/view).  
+For this sample, the directory named "sample_dataset" corresponds to the "T4 dataset ID" described in the following section.  
+Note: This sample dataset contains only lidar point cloud sensor data and includes annotations.
 
 ## Directory Structure
 
@@ -36,6 +38,7 @@ For this sample, the directory named "sample_dataset" corresponds to the "T4 dat
     - scene.json
     - sensor.json
     - visibility.json
+    - vehicle_state.json (Optional; Necessary for Co-MLOps dataset)
     - object_ann.json (If 2D annotation exists)
     - surface_ann.json (If 2D annotation exists)
   - data/
@@ -567,6 +570,33 @@ For T4 annotated dataset, visibility is classified into 4 bins below:
   - "token": [str] -- Unique record identifier.
   - "level": [str] -- Visibility level.
   - "description": [str] -- Description of visibility level.
+
+### vehicle_state.json
+
+A description of vehicle status.
+
+#### Description
+
+The vehicle_state.json file is an optional component of the T4 dataset format, necessary for the Co-MLOps dataset.  
+This file provides comprehensive information about the vehicle's state at a given timestamp, including the status of doors, indicators, steering data, and other relevant information.
+
+#### Items
+
+- vehicle_state
+  - "token": [str] -- Unique record identifier.
+  - "timestamp": [int] -- Unix time stamp (μ sec).
+  - "accel_pedal": [Optional[float]] --	Accel pedal position [%] 
+  - "brake_pedal": [Optional[float]] -- Brake pedal position [%] 
+  - "steer_pedal": [Optional[float]] -- Steering wheel position [%] 
+  - "steering_tire_angle"[float] -- Steering tire angle [rad] 
+  - "steering_angle": [Optional[float]] -- Steering angle in degrees.
+  - "shift_state": [Optional[str]] {PARK, REVERSE, NEUTRAL, HIGH, FORWARD, LOW, NONE} -- Shift state.
+  - "indicators": [Optional[str]] [3]
+    - "left": [Optional[str]] -- State of the left indicator ("on" or "off").
+    - "right": [Optional[str]] -- State of the right indicator ("on" or "off").
+    - "hazard": [Optional[str]] -- State of the hazard lights ("on" or "off").
+  - "additional_info": 
+    - "speed": [Optional[float]] -- Speed of the vehicle in km/h.
 
 ### Reference
 
