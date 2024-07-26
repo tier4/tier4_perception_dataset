@@ -51,18 +51,18 @@ def view_points(
         # distortion is [k1, k2, p1, p2, k3, k4, k5, k6, s1, s2, s3, s4]
         while len(D) < 12:
             D = np.insert(D, len(D), 0)
-        x_ = points[0] / points[2]
-        y_ = points[1] / points[2]
+        k1, k2, p1, p2, k3, k4, k5, k6, s1, s2, s3, s4 = D
+
+        x_ = points[0]
+        y_ = points[1]
         r2 = x_**2 + y_**2
-        f1 = (1 + D[0] * r2 + D[1] * r2**2 + D[4] * r2**3) / (
-            1 + D[5] * r2 + D[6] * r2**2 + D[7] * r2**3
-        )
+        f1 = (1 + k1 * r2 + k2 * r2**2 + k3 * r2**3) / (1 + k4 * r2 + k5 * r2**2 + k6 * r2**3)
         f2 = x_ * y_
-        x__ = x_ * f1 + 2 * D[2] * f2 + D[3] * (r2 + 2 * x_**2) + D[8] * r2 + D[9] * r2**2
-        y__ = y_ * f1 + D[2] * (r2 + 2 * y_**2) + 2 * D[3] * f2 + D[10] * r2 + D[11] * r2**2
+        x__ = x_ * f1 + 2 * p1 * f2 + p2 * (r2 + 2 * x_**2) + s1 * r2 + s2 * r2**2
+        y__ = y_ * f1 + p1 * (r2 + 2 * y_**2) + 2 * p2 * f2 + s3 * r2 + s4 * r2**2
         u = viewpad[0, 0] * x__ + viewpad[0, 2]
         v = viewpad[1, 1] * y__ + viewpad[1, 2]
-        points = np.stack([u, v, np.ones(nbr_points)], axis=0)
+        points = np.stack([u, v, points[2, :]], axis=0)
     else:
         points = np.dot(viewpad, points)
         points = points[:3, :]

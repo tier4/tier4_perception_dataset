@@ -9,11 +9,13 @@
 - (2021.11.30) T4 format ver1.1: Updated format to make it available in ADP
 - (2022.06.03) T4 format ver1.2: Update topics contained in input_bag. Add status.json. Remove occlusion_state in attribute, write to visibility.json
 - (2022.07.26) T4 format ver1.2: Add a topic contained in input_bag.
+- (2024.07.24) T4 Format ver1.3: Added optional values for the T4 format, which are used in the Co-MLOps dataset format.
 
 ## Dataset Sample
 
-You can download one sample dataset manually from [here](https://drive.google.com/file/d/1UjMWZj5Yc55O7BZiGHa0ikZGhwmcfPiS/view).  
-For this sample, the directory named "sample_dataset" corresponds to the "T4 dataset ID" described in the following section.
+You can download one sample T4 format dataset manually from [here](https://drive.google.com/file/d/1UjMWZj5Yc55O7BZiGHa0ikZGhwmcfPiS/view).  
+For this sample, the directory named "sample_dataset" corresponds to the "T4 dataset ID" described in the following section.  
+Note: This sample dataset contains only lidar point cloud sensor data and includes annotations.
 
 ## Directory Structure
 
@@ -36,6 +38,7 @@ For this sample, the directory named "sample_dataset" corresponds to the "T4 dat
     - scene.json
     - sensor.json
     - visibility.json
+    - vehicle_state.json (Optional; Necessary for Co-MLOps dataset)
     - object_ann.json (If 2D annotation exists)
     - surface_ann.json (If 2D annotation exists)
   - data/
@@ -303,8 +306,6 @@ its calibration is not done. So, if cameras used in collecting the data have any
   - "token": [str] -- Unique record identifier.
   - "sensor_token": [str] -- Foreign key pointing to the sensor type.
   - "translation": [float] [3] -- Coordinate system origin in meters: (x, y, z).
-  - "velocity": [Optional[float]] [3] -- Coordinates system origin in m/s: (vx, vy, vz). **(Added)**
-  - "acceleration": [Optional[float]] [3] -- Coordinates system origin in m/s^2: (ax, ay, az). **(Added)**
   - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: (w, x, y, z).
   - "camera_intrinsic": [float] [3, 3] -- Intrinsic camera calibration. Empty list `[]` for sensors other than cameras.
   - "camera_distortion": [float] [5] -- Distortion parameters (k1, k2, p1, p2, k3) Empty list '[]' for sensors other than cameras. **(Added)**
@@ -359,18 +360,9 @@ For t4 format, "name" should be one of the following:
   - "translation": [float] [3] -- Coordinate system origin in meters: x, y, z. ~~Note that z is always 0~~. **(changed)**
   - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: w, x, y, z.
   - "timestamp": [int] -- Unix time stamp (μ sec).
-
-#### Future extension
-
-- We plan to extend the twist data
-  - make when rosbag to Tier4 dataset
-- ego_pose
-  - "token": [str] -- Unique record identifier.
-  - "translation": [float] [3] -- Coordinate system origin in meters: x, y, z. ~~Note that z is always 0.~~
-  - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: w, x, y, z.
-  - "twist": [float] [6] -- Coordinate system origin in m/s and deg/s : vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate.
-  - "accel": [float] [2] -- Coordinate system origin in m/s^2 : long_accel, lat_accel.
-  - "timestamp": [int] -- Unix time stamp (μ sec).
+  - "twist": [Optional[float]] [6] -- Coordinates system origin in m/s: (vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate). **(Added)**
+  - "acceleration": [Optional[float]] [3] -- Coordinates system origin in m/s^2: (ax, ay, az). **(Added)**
+  - "geocoordinate": [Optional[float]] [3] -- Coordinates system origin in the WGS 84 reference ellipsoid: (latitude, longitude, altitude). **(Added)**
 
 ### instance.json
 
@@ -578,6 +570,33 @@ For T4 annotated dataset, visibility is classified into 4 bins below:
   - "token": [str] -- Unique record identifier.
   - "level": [str] -- Visibility level.
   - "description": [str] -- Description of visibility level.
+
+### vehicle_state.json
+
+A description of vehicle status.
+
+#### Description
+
+The vehicle_state.json file is an optional component of the T4 dataset format, necessary for the Co-MLOps dataset.  
+This file provides comprehensive information about the vehicle's state at a given timestamp, including the status of doors, indicators, steering data, and other relevant information.
+
+#### Items
+
+- vehicle_state
+  - "token": [str] -- Unique record identifier.
+  - "timestamp": [int] -- Unix time stamp (μ sec).
+  - "accel_pedal": [Optional[float]] -- Accel pedal position [%]
+  - "brake_pedal": [Optional[float]] -- Brake pedal position [%]
+  - "steer_pedal": [Optional[float]] -- Steering wheel position [%]
+  - "steering_tire_angle": [Optional[float]] -- Steering tire angle [rad]
+  - "steering_wheel_angle": [Optional[float]] -- steering wheel angle [rad]
+  - "shift_state": [Optional[str]] {PARK, REVERSE, NEUTRAL, HIGH, FORWARD, LOW, NONE} -- Shift state.
+  - "indicators": [Optional[str]] [3]
+    - "left": [Optional[str]] -- State of the left indicator ("on" or "off").
+    - "right": [Optional[str]] -- State of the right indicator ("on" or "off").
+    - "hazard": [Optional[str]] -- State of the hazard lights ("on" or "off").
+  - "additional_info":
+    - "speed": [Optional[float]] -- Speed of the vehicle in km/h.
 
 ### Reference
 
