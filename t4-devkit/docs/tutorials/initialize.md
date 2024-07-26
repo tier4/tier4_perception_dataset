@@ -15,7 +15,7 @@ data/tier4/
 │   ├── CAM_FRONT_LEFT
 │   ├── CAM_FRONT_RIGHT
 │   ├── LIDAR_CONCAT
-│   └── ...Other sensor channels (must be defined in `SensorChannel`)
+│   └── ...Other sensor channels
 ...
 ```
 
@@ -71,7 +71,7 @@ Done loading in 0.061 seconds.
 ```
 
 You can access to the `sample_data` associated with this `sample`.
-`sample.data` returns a `dict` object consists of `{SensorChannel: <SAMPLE_DATA_TOKEN (str)>}`.
+`sample.data` returns a `dict` object consists of `{str: <SAMPLE_DATA_TOKEN (str)>}`.
 
 ```python
 >>> my_sample.data
@@ -82,8 +82,7 @@ You can access to the `sample_data` associated with this `sample`.
 `sample_data` is references to a family of data that is collected from specific sensors.
 
 ```python
-from t4_devkit.schema import SensorChannel
->>> sensor = SensorChannel.CAM_FRONT  # "CAM_FRONT": <str> is also available
+>>> sensor = "CAM_FRONT"
 >>> t4.get("sample_data", my_sample.data[sensor])
 ```
 

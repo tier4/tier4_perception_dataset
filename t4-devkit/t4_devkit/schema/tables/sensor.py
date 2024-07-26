@@ -20,7 +20,7 @@ else:
     from enum import StrEnum
 
 
-__all__ = ("Sensor", "SensorModality", "SensorChannel")
+__all__ = ("Sensor", "SensorModality")
 
 
 class SensorModality(StrEnum):
@@ -37,57 +37,6 @@ class SensorModality(StrEnum):
     RADAR = "radar"
 
 
-class SensorChannel(StrEnum):
-    """An enum to represent sensor channels.
-
-    Attributes:
-        CAM_FRONT: Front center camera.
-        CAM_FRONT_RIGHT: Front right camera.
-        CAM_FRONT_LEFT: Front left camera.
-        CAM_BACK: Back center camera.
-        CAM_BACK_RIGHT: Back right camera.
-        CAM_BACK_LEFT: Back left camera.
-        CAM_TRAFFIC_LIGHT_NEAR: Camera for nearer traffic light recognition.
-        CAM_TRAFFIC_LIGHT_FAR: Camera for farther traffic light recognition.
-        LIDAR_TOP: Top lidar.
-        LIDAR_CONCAT: Concatenated lidar.
-        RADAR_FRONT: Front center radar.
-        RADAR_FRONT_RIGHT: Front right radar.
-        RADAR_FRONT_LEFT: Front left radar.
-        RADAR_BACK: Back center radar.
-        RADAR_BACK_RIGHT: Back right radar.
-        RADAR_BACK_LEFT: Back left radar.
-    """
-
-    CAM_FRONT = "CAM_FRONT"
-    CAM_FRONT_RIGHT = "CAM_FRONT_RIGHT"
-    CAM_FRONT_LEFT = "CAM_FRONT_LEFT"
-    CAM_BACK = "CAM_BACK"
-    CAM_BACK_RIGHT = "CAM_BACK_RIGHT"
-    CAM_BACK_LEFT = "CAM_BACK_LEFT"
-    CAM_TRAFFIC_LIGHT_NEAR = "CAM_TRAFFIC_LIGHT_NEAR"
-    CAM_TRAFFIC_LIGHT_FAR = "CAM_TRAFFIC_LIGHT_FAR"
-    LIDAR_TOP = "LIDAR_TOP"
-    LIDAR_CONCAT = "LIDAR_CONCAT"
-    RADAR_FRONT = "RADAR_FRONT"
-    RADAR_FRONT_RIGHT = "RADAR_FRONT_RIGHT"
-    RADAR_FRONT_LEFT = "RADAR_FRONT_LEFT"
-    RADAR_BACK = "RADAR_BACK"
-    RADAR_BACK_RIGHT = "RADAR_BACK_RIGHT"
-    RADAR_BACK_LEFT = "RADAR_BACK_LEFT"
-
-    @property
-    def modality(self) -> SensorModality:
-        if "CAM" in self:
-            return SensorModality.CAMERA
-        elif "LIDAR" in self:
-            return SensorModality.LIDAR
-        elif "RADAR" in self:
-            return SensorModality.RADAR
-        else:
-            raise ValueError(f"Cannot find modality for {self.value}")
-
-
 @dataclass
 @SCHEMAS.register(SchemaName.SENSOR)
 class Sensor(SchemaBase):
@@ -95,18 +44,18 @@ class Sensor(SchemaBase):
 
     Attributes:
         token (str): Unique record identifier.
-        channel (SensorChannel): Sensor channel name.
+        channel (str): Sensor channel name.
         modality (SensorModality): Sensor modality.
     """
 
     token: str
-    channel: SensorChannel
+    channel: str
     modality: SensorModality
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         token: str = data["token"]
-        channel = SensorChannel(data["channel"])
+        channel = data["channel"]
         modality = SensorModality(data["modality"])
 
         return cls(token=token, channel=channel, modality=modality)
