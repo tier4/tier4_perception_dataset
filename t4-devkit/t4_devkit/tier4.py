@@ -929,7 +929,9 @@ class Tier4:
                 )
                 points = pointcloud.points[:3].T  # (N, 3)
                 point_colors = distance_color(np.linalg.norm(points, axis=1))
-                rr.log(f"world/ego_pose/{sensor_name}", rr.Points3D(points, colors=point_colors))
+                rr.log(
+                    f"world/ego_vehicle/{sensor_name}", rr.Points3D(points, colors=point_colors)
+                )
                 current_radar_token = sample_data.next
 
     def _render_cameras(self, first_camera_tokens: list[str], max_timestamp_us: float) -> None:
