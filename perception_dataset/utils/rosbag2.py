@@ -110,9 +110,8 @@ def point_cloud2_to_array(msg):
     * intensity -> I
     * other fields are ignored
     """
-    # Get the index of the "rgb" and "intensity" fields in the PointCloud2 message
+    # Get the index of the "intensity" fields in the PointCloud2 message
     field_names = [field.name for field in msg.fields]
-    # Check if the "rgb" field is present
 
     if "intensity" in field_names:
         intensity_idx = field_names.index("intensity")
@@ -131,7 +130,7 @@ def point_cloud2_to_array(msg):
         elif intensity_datatype == PointField.FLOAT32:
             intensity = pc_data[:, intensity_offset : intensity_offset + 4].view(dtype=np.float32)
         else:
-            raise ValueError("Unsupported intensity datatype: {}".format(intensity_datatype))
+            raise ValueError(f"Unsupported intensity datatype: {intensity_datatype}")
 
     # return the arrays in a dictionary
     if intensity_flag:
