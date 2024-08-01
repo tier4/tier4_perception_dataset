@@ -140,6 +140,7 @@ def point_cloud2_to_array(msg):
     else:
         return {"xyz": xyz}
 
+
 def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
     """Convert ROS PointCloud2 message to numpy array using ros2-numpy."""
     NUM_DIMENSIONS = 5
