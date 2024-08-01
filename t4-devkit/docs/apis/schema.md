@@ -22,7 +22,7 @@
 
 ::: t4_devkit.schema.tables
     options:
-        filters: ["!SchemaBase", "!FileFormat", "!SensorModality", "!SensorChannel", "!VisibilityLevel"]
+        filters: ["!SchemaBase", "!FileFormat", "!SensorModality", "!VisibilityLevel"]
         show_root_toc_entry: false
         merge_init_into_class: false
         show_signature_annotations: false
@@ -34,7 +34,7 @@
 
 ::: t4_devkit.schema.tables
     options:
-        members: ["FileFormat", "SensorModality", "SensorChannel", "VisibilityLevel"]
+        members: ["FileFormat", "SensorModality", "VisibilityLevel"]
         show_root_toc_entry: false
         merge_init_into_class: false
         show_signature_annotations: false
