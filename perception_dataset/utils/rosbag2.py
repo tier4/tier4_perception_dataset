@@ -125,7 +125,9 @@ def point_cloud2_to_array(msg):
     pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1, msg.point_step)
     xyz = pc_data[:, 0:12].view(dtype=np.float32).reshape(-1, 3)
     if intensity_flag:
-        if intensity_datatype == PointField.UINT16:
+        if intensity_datatype == PointField.UINT8:
+            intensity = pc_data[:, intensity_offset : intensity_offset + 1].view(dtype=np.uint8)
+        elif intensity_datatype == PointField.UINT16:
             intensity = pc_data[:, intensity_offset : intensity_offset + 2].view(dtype=np.uint16)
         elif intensity_datatype == PointField.FLOAT32:
             intensity = pc_data[:, intensity_offset : intensity_offset + 4].view(dtype=np.float32)
@@ -137,7 +139,6 @@ def point_cloud2_to_array(msg):
         return {"xyz": xyz, "intensity": intensity}
     else:
         return {"xyz": xyz}
-
 
 def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
     """Convert ROS PointCloud2 message to numpy array using ros2-numpy."""
