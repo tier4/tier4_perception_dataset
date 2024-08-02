@@ -1,0 +1,73 @@
+site_name: T4 Perception Dataset devkit
+
+nav:
+  - Home: index.md
+  - Tutorials:
+    - Initialization: tutorials/initialize.md
+    - Rendering: tutorials/render.md
+    - Customization: tutorials/customize.md
+  - API:
+    - TIER IV: apis/tier4.md
+    - Schema: apis/schema.md
+    - Common: apis/common.md
+
+theme:
+  name: material
+  features:
+    - navigation.indexes
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.tracking
+  palette:
+    scheme: default
+  logo: assets/logo.png
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            paths: ["t4_devkit"]
+            import: # Cross-references for python and numpy
+              - https://arrow.apache.org/docs/objects.inv
+              - https://docs.python.org/3/objects.inv
+              - https://numpy.org/doc/stable/objects.inv
+              - https://ipython.readthedocs.io/en/stable/objects.inv
+            docstring_style: google
+            docstring_section_style: list # list spacy table
+            heading_level: 3
+            filters: ["!^_"]
+            show_bases: true
+            show_source: false
+            inherited_members: false
+            members_order: source # The order of class members
+            parameter_headings: true
+            show_root_heading: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.details
+  - admonition
+
+# Some extra styling
+extra_css:
+  - css/mkdocstrings.css
+
+# https://squidfunk.github.io/mkdocs-material/setup/setting-up-versioning/
+extra:
+  version:
+    provider: mike
+    default: latest
