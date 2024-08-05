@@ -137,36 +137,55 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         start_timestamp: float,
         sensor_channel: str,
         topic: str,
+        delay_msec: float,
         scene_token: str,
     ):
+        """Convert image topic to raw image data.
+        This function is based by parent function, but it is modified to generate traffic light label.
+        Modified points are as follows:
+            - There is no implementation when SensorMode.NO_LIDAR is not selected. Therefore delay_msec is not used.
+            - Skip the frame if there is no traffic light label.
+        """
+        assert delay_msec == 0.0, f"delay_msec must be 0.0 (because it is not used), but {delay_msec} is given."
+
         def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
             dx: float = trans1["x"] - trans2["x"]
             dy: float = trans1["y"] - trans2["y"]
             dz: float = trans1["z"] - trans2["z"]
             return (dx * dx + dy * dy + dz * dz) ** 0.5
 
-        """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
-
-        frame_index: int = 0
-        generated_frame_index: int = 0
 
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
+
+        frame_index: int = 0
+        generated_frame_index: int = 0
+
         last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
         for image_msg in self._bag_reader.read_messages(
             topics=[topic],
             start_time=start_time_in_time,
         ):
             image_msg: CompressedImage
-
             if generated_frame_index >= self._num_load_frames:
                 break
 
+            image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(
+                image_msg.header.stamp
+            )
+
+            is_data_found = False
+
+            # camera_only mode
             if (frame_index % self._generate_frame_every) == 0:
-                ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
+                try:
+                    ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
+                except Exception as e:
+                    print(e)
+                    continue
                 ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
                     ego_pose_token
                 )
@@ -174,7 +193,10 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                 distance = get_move_distance(translation, last_translation)
                 if distance >= self._generate_frame_every_meter:
                     last_translation = translation
-                    nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(image_msg.header.stamp)
+
+                    nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(
+                        image_msg.header.stamp
+                    )
                     if self._end_timestamp < nusc_timestamp / 10**6:
                         self._end_timestamp = nusc_timestamp / 10**6
                     if not self._is_traffic_light_label_available(nusc_timestamp):
@@ -182,9 +204,13 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     sample_token: str = self._sample_table.insert_into_table(
                         timestamp=nusc_timestamp, scene_token=scene_token
                     )
+                    is_data_found = True
+
+                if is_data_found:
+                    print(f"frame: {generated_frame_index}, image stamp: {image_unix_timestamp}")
                     sample_data_token = self._generate_image_data(
                         rosbag2_utils.compressed_msg_to_numpy(image_msg),
-                        rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
+                        image_unix_timestamp,
                         sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
@@ -192,8 +218,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     )
                     sample_data_token_list.append(sample_data_token)
                     generated_frame_index += 1
-
-            frame_index += 1
+                frame_index += 1
 
         assert len(sample_data_token_list) > 0
 
