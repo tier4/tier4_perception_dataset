@@ -146,7 +146,9 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
             - There is no implementation when SensorMode.NO_LIDAR is not selected. Therefore delay_msec is not used.
             - Skip the frame if there is no traffic light label.
         """
-        assert delay_msec == 0.0, f"delay_msec must be 0.0 (because it is not used), but {delay_msec} is given."
+        assert (
+            delay_msec == 0.0
+        ), f"delay_msec must be 0.0 (because it is not used), but {delay_msec} is given."
 
         def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
             dx: float = trans1["x"] - trans2["x"]
@@ -173,9 +175,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
             if generated_frame_index >= self._num_load_frames:
                 break
 
-            image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(
-                image_msg.header.stamp
-            )
+            image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
 
             is_data_found = False
 
@@ -194,9 +194,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                 if distance >= self._generate_frame_every_meter:
                     last_translation = translation
 
-                    nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(
-                        image_msg.header.stamp
-                    )
+                    nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(image_msg.header.stamp)
                     if self._end_timestamp < nusc_timestamp / 10**6:
                         self._end_timestamp = nusc_timestamp / 10**6
                     if not self._is_traffic_light_label_available(nusc_timestamp):
