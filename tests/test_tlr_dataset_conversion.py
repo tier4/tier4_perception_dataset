@@ -8,16 +8,19 @@ import yaml
 
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
+from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import (
+    NonAnnotatedT4TlrToDeepenConverter,
+)
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     Rosbag2ToNonAnnotatedT4Converter,
 )
-from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import NonAnnotatedT4TlrToDeepenConverter
 from perception_dataset.utils.rosbag2 import get_topic_count
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
 # Downloaded rosbag name
 TEST_ROSBAG_NAME = "traffic_light_sample_tf"
+
 
 @pytest.fixture(scope="module")
 def non_annotated_t4_dataset_path():
@@ -47,6 +50,7 @@ def non_annotated_t4_dataset_path():
 
     # after test - remove resource
     shutil.rmtree(r2t4_output_base, ignore_errors=True)
+
 
 @pytest.fixture(scope="module")
 def t4_dataset_path(non_annotated_t4_dataset_path):
@@ -83,6 +87,7 @@ def t4_dataset_path(non_annotated_t4_dataset_path):
 
     # after test - remove resource
     shutil.rmtree(d2t4_output_base, ignore_errors=True)
+
 
 @pytest.fixture(scope="module")
 def deepen_dataset_path(non_annotated_t4_dataset_path):
@@ -320,10 +325,11 @@ def test_directory_structure(t4_dataset_path):
     assert "/tf" in topic_count_dict.keys(), "tf is not in input_bag"
     assert "/tf_static" in topic_count_dict.keys(), "tf_static is not in input_bag"
 
-def test_deepen_dataset_image_exists(deepen_dataset_path, allowed_extensions=['.jpg', '.png']):
+
+def test_deepen_dataset_image_exists(deepen_dataset_path, allowed_extensions=[".jpg", ".png"]):
     """
     Check if there are image files with the allowed extensions in the given directory.
-    
+
     Args:
         deepen_dataset_path (str): Path to the deepen dataset directory.
         allowed_extensions (list): List of allowed file extensions.
@@ -333,7 +339,9 @@ def test_deepen_dataset_image_exists(deepen_dataset_path, allowed_extensions=['.
     dir_images = os.listdir(deepen_dataset_path)
 
     # Filter files by allowed extensions
-    image_files = [file for file in dir_images if any(file.endswith(ext) for ext in allowed_extensions)]
+    image_files = [
+        file for file in dir_images if any(file.endswith(ext) for ext in allowed_extensions)
+    ]
 
     # Log the found image files
     print(f"Found image files: {image_files}")
