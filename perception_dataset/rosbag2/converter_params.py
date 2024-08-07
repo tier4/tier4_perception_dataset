@@ -97,9 +97,6 @@ class Rosbag2ConverterParams(BaseModel):
                 "The config of `camera_sensors` field is empty, so disable to load camera data."
             )
             self.with_camera = False
-        for sensor in self.camera_sensors:
-            if not hasattr(sensor, "delay_msec"):
-                sensor["delay_msec"] = 0.0
         self.with_gt_label = self.gt_label_base != ""
 
     @validator("workers_number")
