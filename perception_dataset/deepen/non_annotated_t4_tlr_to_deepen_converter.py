@@ -4,12 +4,10 @@ import os.path as osp
 from pathlib import Path
 import shutil
 import time
-from typing import List
 
 from nuscenes.nuscenes import NuScenes
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
