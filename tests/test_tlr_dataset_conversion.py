@@ -12,13 +12,14 @@ from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     Rosbag2ToNonAnnotatedT4Converter,
 )
+from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import NonAnnotatedT4TlrToDeepenConverter
 from perception_dataset.utils.rosbag2 import get_topic_count
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
+TEST_ROSBAG_NAME = "traffic_light_sample_tf"
 
 @pytest.fixture(scope="module")
-def t4_dataset_path():
-    test_rosbag_name = "traffic_light_sample_tf"
+def non_annotated_t4_dataset_path():
     # before test - convert rosbag2 to t4
     with open(TEST_CONFIG_ROOT_DIR / "convert_rosbag2_to_non_annotated_t4_tlr_test.yaml") as f:
         param_args = yaml.safe_load(f)
@@ -40,6 +41,14 @@ def t4_dataset_path():
     converter = Rosbag2ToNonAnnotatedT4Converter(converter_params)
     converter.convert()
 
+    # provide a path to converted non-annotated t4 dataset
+    yield osp.join(r2t4_output_base, TEST_ROSBAG_NAME, "non_annotated_t4_format")
+
+    # after test - remove resource
+    shutil.rmtree(r2t4_output_base, ignore_errors=True)
+
+@pytest.fixture(scope="module")
+def t4_dataset_path(non_annotated_t4_dataset_path):
     # before test - convert deepen to t4
     with open(TEST_CONFIG_ROOT_DIR / "convert_deepen_to_t4_tlr_test.yaml") as f:
         config_dict = yaml.safe_load(f)
@@ -69,11 +78,31 @@ def t4_dataset_path():
     converter.convert()
 
     # provide a path to converted t4_dataset
-    yield osp.join(d2t4_output_base, test_rosbag_name, "t4_dataset")
+    yield osp.join(d2t4_output_base, TEST_ROSBAG_NAME, "t4_dataset")
 
     # after test - remove resource
-    shutil.rmtree(r2t4_output_base, ignore_errors=True)
     shutil.rmtree(d2t4_output_base, ignore_errors=True)
+
+@pytest.fixture(scope="module")
+def deepen_dataset_path(non_annotated_t4_dataset_path):
+    # before test - convert deepen to t4
+    with open(TEST_CONFIG_ROOT_DIR / "convert_non_annotated_t4_tlr_to_deepen.yaml") as f:
+        config_dict = yaml.safe_load(f)
+
+    t4_to_deepen_input_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["input_base"])
+    t4_to_deepen_output_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["output_base"])
+
+    converter = NonAnnotatedT4TlrToDeepenConverter(
+        input_base=t4_to_deepen_input_base,
+        output_base=t4_to_deepen_output_base,
+    )
+    converter.convert()
+
+    # provide a path to converted t4_dataset
+    yield osp.join(t4_to_deepen_output_base, TEST_ROSBAG_NAME)
+
+    # after test - remove resource
+    shutil.rmtree(t4_to_deepen_output_base, ignore_errors=True)
 
 
 @pytest.fixture
@@ -289,3 +318,24 @@ def test_directory_structure(t4_dataset_path):
     ), "velocity_status is not in input_bag"
     assert "/tf" in topic_count_dict.keys(), "tf is not in input_bag"
     assert "/tf_static" in topic_count_dict.keys(), "tf_static is not in input_bag"
+
+def test_deepen_dataset_image_exists(deepen_dataset_path, allowed_extensions=['.jpg', '.png']):
+    """
+    Check if there are image files with the allowed extensions in the given directory.
+    
+    Args:
+        deepen_dataset_path (str): Path to the deepen dataset directory.
+        allowed_extensions (list): List of allowed file extensions.
+        expected_count (int, optional): Expected number of image files. If None, the count is not checked.
+    """
+    # List all files in the directory
+    dir_images = os.listdir(deepen_dataset_path)
+
+    # Filter files by allowed extensions
+    image_files = [file for file in dir_images if any(file.endswith(ext) for ext in allowed_extensions)]
+
+    # Log the found image files
+    print(f"Found image files: {image_files}")
+
+    # Check if any image files exist
+    assert len(image_files) > 0, "No image files found in the dataset path."
