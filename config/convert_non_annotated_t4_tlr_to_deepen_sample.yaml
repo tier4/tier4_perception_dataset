@@ -2,8 +2,3 @@ task: convert_non_annotated_t4_tlr_to_deepen
 conversion:
   input_base: ./data/non_annotated_t4_format
   output_base: ./data/deepen_format
-  annotation_hz: 10
-  workers_number: 12
-  camera_sensors:
-    - channel: CAM_TRAFFIC_LIGHT_NEAR
-    - channel: CAM_TRAFFIC_LIGHT_FAR

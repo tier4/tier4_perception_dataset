@@ -95,14 +95,10 @@ def main():
 
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
-        camera_sensors = config_dict["conversion"]["camera_sensors"]
-        # annotation_hz = config_dict["conversion"]["annotation_hz"]
 
         converter = NonAnnotatedT4TlrToDeepenConverter(
             input_base=input_base,
             output_base=output_base,
-            camera_sensors=camera_sensors,
-            # annotation_hz=annotation_hz,
         )
 
         logger.info(
