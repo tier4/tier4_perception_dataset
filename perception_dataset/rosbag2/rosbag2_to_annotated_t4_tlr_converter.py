@@ -148,7 +148,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         """
         assert (
             delay_msec == 0.0
-        ), f"delay_msec must be 0.0 (because it is not used), but {delay_msec} is given."
+        ), f"delay_msec must be 0.0 because it is not supported, but {delay_msec} is given."
 
         def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
             dx: float = trans1["x"] - trans2["x"]
