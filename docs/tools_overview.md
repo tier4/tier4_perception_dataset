@@ -64,6 +64,14 @@ python -m perception_dataset.convert --config config/convert_rosbag2_to_non_anno
 # if you want to overwrite t4-format data, use --overwrite option
 ```
 
+For traffic light dataset, you can use the following command:
+
+```bash
+python -m perception_dataset.convert --config config/convert_rosbag2_to_non_annotated_t4_tlr_sample.yaml
+# if you want to overwrite t4-format data, use --overwrite option
+```
+
+
 ### confirm non-annotated format data
 
 Verify that the following directories have the same number of files:
@@ -85,6 +93,12 @@ output: deepen-format data
 
 ```bash
 python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_deepen_sample.yaml
+```
+
+If you are converting T4 TLR dataset, please use the following command instead.
+
+```bash
+python -m perception_dataset.convert --config config/convert_non_annotated_t4_tlr_to_deepen_sample.yaml
 ```
 
 ### Create and update dataset

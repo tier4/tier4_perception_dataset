@@ -88,6 +88,30 @@ def main():
         logger.info(
             f"[Done] Converting T4 dataset ({input_base}) to deepen format dataset ({output_base})"
         )
+    elif task == "convert_non_annotated_t4_tlr_to_deepen":
+        from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import (
+            NonAnnotatedT4TlrToDeepenConverter,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        camera_sensors = config_dict["conversion"]["camera_sensors"]
+        # annotation_hz = config_dict["conversion"]["annotation_hz"]
+
+        converter = NonAnnotatedT4TlrToDeepenConverter(
+            input_base=input_base,
+            output_base=output_base,
+            camera_sensors=camera_sensors,
+            # annotation_hz=annotation_hz,
+        )
+
+        logger.info(
+            f"[BEGIN] Converting T4 dataset ({input_base}) to deepen format dataset ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[Done] Converting T4 dataset ({input_base}) to deepen format dataset ({output_base})"
+        )
     elif task == "convert_annotated_t4_to_deepen":
         from perception_dataset.deepen.annotated_t4_to_deepen_converter import (
             AnnotatedT4ToDeepenConverter,
