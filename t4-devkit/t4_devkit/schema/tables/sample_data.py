@@ -20,7 +20,7 @@ else:
     from enum import StrEnum
 
 if TYPE_CHECKING:
-    from .sensor import SensorChannel, SensorModality
+    from .sensor import SensorModality
 
 __all__ = ("SampleData", "FileFormat")
 
@@ -97,7 +97,7 @@ class SampleData(SchemaBase):
     Shortcuts:
     ---------
         modality (SensorModality): Sensor modality. This should be set after instantiated.
-        channel (SensorChannel): Sensor channel. This should be set after instantiated.
+        channel (str): Sensor channel. This should be set after instantiated.
     """
 
     token: str
@@ -116,7 +116,7 @@ class SampleData(SchemaBase):
 
     # shortcuts
     modality: SensorModality = field(init=False)
-    channel: SensorChannel = field(init=False)
+    channel: str = field(init=False)
 
     @staticmethod
     def shortcuts() -> tuple[str, str]:

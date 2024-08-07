@@ -1,12 +1,37 @@
-# tier4_perception_dataset
+# TIER IV Perception Dataset Conversion Tools
 
-This is the data conversion tools around T4 dataset.
+This repository provides tools for converting ROS2 bag files and TIER IV (T4) dataset files, as well as the design specifications for the T4 dataset format.  
+These tools facilitate the preparation and transformation of perception data for autonomous driving applications.
 
-## Tools Overview
+## Table of Contents
+
+1. [Dataset Overview](#dataset-overview)
+2. [Usage of T4 dataset](#usage-of-t4-format-dataset)
+3. [Usage of Conversion Tools](#usage-of-conversion-tools)
+   - [Conversion Tools Overview](#conversion-tools-overview)
+   - [Setup](#setup)
+   - [Test](#test)
+   - [Pre Commit](#pre-commit)
+
+## Dataset Overview
+
+The T4 dataset is designed to support autonomous driving research and development.  
+It can include various types of perception data such as images and lidar point clouds, radar point clouds, along with annotations for tasks like object detection, segmentation, and tracking.
+
+For detailed information about the T4 dataset format, please refer to the [T4 Dataset Format Documentation](docs/t4_format_3d_detailed.md).
+
+## Usage of T4 format dataset
+
+t4-devkit is a development kit for working with the T4 dataset, providing additional utilities and tools.  
+Please see [t4-devkit](t4-devkit/README.md) about details.
+
+## Usage of Conversion Tools
+
+### Conversion Tools Overview
 
 See [tools_overview](docs/tools_overview.md) about the converters.
 
-## Setup
+### Setup
 
 ```bash
 git clone git@github.com:tier4/tier4_perception_dataset.git perception_dataset
@@ -34,9 +59,9 @@ pip3 install poetry
 poetry install
 ```
 
-## Test
+### Test
 
-### Download test data
+#### Download test data
 
 - [GitHub CLI](https://github.com/cli/cli#installation)
 
@@ -47,7 +72,7 @@ unzip 'tests/data/*.zip' -d tests/data/
 
 or manually download zipped data from [the release page](https://github.com/tier4/tier4_perception_dataset/releases/tag/test-data) to a `test/data` directory
 
-### Run tests
+#### Run tests
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.sh
@@ -55,7 +80,7 @@ source ./install/setup.bash
 poetry run pytest
 ```
 
-## Pre commit
+### Pre commit
 
 ```bash
 # to install hooks of formatter and linter files

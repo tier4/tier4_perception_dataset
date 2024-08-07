@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from typing_extensions import Self
 
 from .base import SchemaBase
 from .registry import SCHEMAS
 from ..name import SchemaName
-
-if TYPE_CHECKING:
-    from .sensor import SensorChannel
 
 __all__ = ("Sample",)
 
@@ -29,7 +26,7 @@ class Sample(SchemaBase):
 
     Shortcuts:
     ---------
-        data (dict[SensorChannel, str]): Sensor channel and its token.
+        data (dict[str, str]): Sensor channel and its token.
             This should be set after instantiated.
         ann_3ds (list[str]): List of foreign keys pointing the sample annotations.
             This should be set after instantiated.
@@ -44,7 +41,7 @@ class Sample(SchemaBase):
     prev: str
 
     # shortcuts
-    data: dict[SensorChannel, str] = field(default_factory=dict, init=False)
+    data: dict[str, str] = field(default_factory=dict, init=False)
     ann_3ds: list[str] = field(default_factory=list, init=False)
     ann_2ds: list[str] = field(default_factory=list, init=False)
 
