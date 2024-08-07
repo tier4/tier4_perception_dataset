@@ -16,6 +16,7 @@ from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import N
 from perception_dataset.utils.rosbag2 import get_topic_count
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
+# Downloaded rosbag name
 TEST_ROSBAG_NAME = "traffic_light_sample_tf"
 
 @pytest.fixture(scope="module")
