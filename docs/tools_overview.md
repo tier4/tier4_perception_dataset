@@ -71,7 +71,6 @@ python -m perception_dataset.convert --config config/convert_rosbag2_to_non_anno
 # if you want to overwrite t4-format data, use --overwrite option
 ```
 
-
 ### confirm non-annotated format data
 
 Verify that the following directories have the same number of files:
