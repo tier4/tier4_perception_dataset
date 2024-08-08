@@ -330,11 +330,10 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
 
         def get_sample_idx(
-            sample_records: List[SampleRecord], 
-            sample_data: SampleRecord
+            sample_records: List[SampleRecord], sample_data: SampleRecord
         ) -> int | None:
             """get the index of the sample in the sample_records under the following conditions:
-                Image data exists and is key frame.
+            Image data exists and is key frame.
             """
             if sample_data.fileformat != "jpg":
                 return None
