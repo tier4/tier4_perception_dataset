@@ -317,7 +317,6 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         frame_index_to_sample_data_token: List[Dict[int, str]] = [{}]
         sample_records = self._sample_table.to_records()
         sample_data_records = self._sample_data_table.to_records()
-        assert sample_records.__len__() == sample_data_records.__len__()
         if sample_data_records.__len__() == 0:
             return
 
@@ -330,8 +329,28 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         object_mask = cocomask.encode(np.asfortranarray(object_mask))
         object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
 
-        for idx, (sample, sample_data) in enumerate(zip(sample_records, sample_data_records)):
-            sample: SampleRecord
+        def get_sample_idx(
+            sample_records: List[SampleRecord], 
+            sample_data: SampleRecord
+        ) -> int | None:
+            """get the index of the sample in the sample_records under the following conditions:
+                Image data exists and is key frame.
+            """
+            if sample_data.fileformat != "jpg":
+                return None
+            if not sample_data.is_key_frame:
+                return None
+            for idx, sample in enumerate(sample_records):
+                if sample.token == sample_data.sample_token:
+                    return idx
+            raise RuntimeError()
+
+        for sample_data in sample_data_records:
+            idx = get_sample_idx(sample_records, sample_data)
+            if idx is None:
+                continue
+            sample = sample_records[idx]
+
             object_dict = self._get_closest_timestamp(
                 scene_timestamp_objects_pair_list,
                 sample.timestamp,
