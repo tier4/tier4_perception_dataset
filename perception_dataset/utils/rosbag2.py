@@ -154,7 +154,7 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
     # Extract the x, y, z coordinates and additional fields if available
     xyz = points["xyz"]
     if "intensity" in points.keys():
-        intensity = points["intensity"]
+        intensity = points["intensity"].astype(np.float32)
         points_arr = np.hstack((xyz, intensity))
     else:
         points_arr = xyz
