@@ -3,8 +3,8 @@ import copy
 import glob
 import os.path as osp
 import sys
-import warnings
 from typing import Any, Dict, List, Set, Union
+import warnings
 
 import numpy as np
 from pycocotools import mask as cocomask
@@ -24,9 +24,9 @@ from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord
 from perception_dataset.t4_dataset.classes.sample import SampleRecord
 from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord
 from perception_dataset.utils.logger import configure_logger
+import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 import perception_dataset.utils.rosbag2 as rosbag2_utils
-import perception_dataset.utils.misc as misc_utils
 
 logger = configure_logger(modname=__name__)
 
@@ -226,7 +226,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         image_shape,
                     )
                     sample_data_token_list.append(sample_data_token)
-        else: # camera only mode
+        else:  # camera only mode
 
             def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
                 dx: float = trans1["x"] - trans2["x"]
@@ -246,7 +246,9 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                 if generated_frame_index >= self._num_load_frames:
                     break
 
-                image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
+                image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(
+                    image_msg.header.stamp
+                )
 
                 is_data_found = False
 
@@ -265,7 +267,9 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     if distance >= self._generate_frame_every_meter:
                         last_translation = translation
 
-                        nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(image_msg.header.stamp)
+                        nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(
+                            image_msg.header.stamp
+                        )
                         if self._end_timestamp < nusc_timestamp / 10**6:
                             self._end_timestamp = nusc_timestamp / 10**6
                         if not self._is_traffic_light_label_available(nusc_timestamp):
@@ -276,7 +280,9 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         is_data_found = True
 
                     if is_data_found:
-                        print(f"frame: {generated_frame_index}, image stamp: {image_unix_timestamp}")
+                        print(
+                            f"frame: {generated_frame_index}, image stamp: {image_unix_timestamp}"
+                        )
                         sample_data_token = self._generate_image_data(
                             rosbag2_utils.compressed_msg_to_numpy(image_msg),
                             image_unix_timestamp,
