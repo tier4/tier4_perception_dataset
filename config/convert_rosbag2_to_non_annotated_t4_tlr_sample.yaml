@@ -16,8 +16,10 @@ conversion:
     - topic: /sensing/camera/camera6/image_raw/compressed
       channel: CAM_TRAFFIC_LIGHT_FAR
       delay_msec: 100
+      is_fully_rectified: False
     - topic: /sensing/camera/camera7/image_raw/compressed
       channel: CAM_TRAFFIC_LIGHT_NEAR
       delay_msec: 100
+      is_fully_rectified: False
   generate_frame_every: 1
   generate_frame_every_meter: 50
