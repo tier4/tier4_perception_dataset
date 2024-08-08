@@ -3,6 +3,7 @@ import copy
 import glob
 import os.path as osp
 import sys
+import warnings
 from typing import Any, Dict, List, Set, Union
 
 import numpy as np
@@ -14,6 +15,7 @@ import yaml
 from perception_dataset.rosbag2.autoware_msgs import parse_traffic_lights
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
+from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import SensorMode
 from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
     Rosbag2ToT4Converter,
     _Rosbag2ToT4Converter,
@@ -24,6 +26,7 @@ from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 import perception_dataset.utils.rosbag2 as rosbag2_utils
+import perception_dataset.utils.misc as misc_utils
 
 logger = configure_logger(modname=__name__)
 
@@ -141,82 +144,150 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         scene_token: str,
     ):
         """Convert image topic to raw image data.
-        This function is based by parent function, but it is modified to generate traffic light label.
-        Modified points are as follows:
-            - There is no implementation when SensorMode.NO_LIDAR is not selected. Therefore delay_msec is not used.
-            - Skip the frame if there is no traffic light label.
+        This function add the method to the parents function to skip the frame if there is no traffic light label.
         """
-        assert (
-            delay_msec == 0.0
-        ), f"delay_msec must be 0.0 because it is not supported, but {delay_msec} is given."
-
-        def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
-            dx: float = trans1["x"] - trans2["x"]
-            dy: float = trans1["y"] - trans2["y"]
-            dz: float = trans1["z"] - trans2["z"]
-            return (dx * dx + dy * dy + dz * dz) ** 0.5
-
         sample_data_token_list: List[str] = []
+        sample_records: List[SampleRecord] = self._sample_table.to_records()
 
+        # Get calibrated sensor token
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
         calibrated_sensor_token = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
 
-        frame_index: int = 0
-        generated_frame_index: int = 0
-
-        last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
-        for image_msg in self._bag_reader.read_messages(
-            topics=[topic],
-            start_time=start_time_in_time,
-        ):
-            image_msg: CompressedImage
-            if generated_frame_index >= self._num_load_frames:
-                break
-
-            image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
-
-            is_data_found = False
-
-            # camera_only mode
-            if (frame_index % self._generate_frame_every) == 0:
-                try:
-                    ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
-                except Exception as e:
-                    print(e)
-                    continue
-                ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
-                    ego_pose_token
+        if self._sensor_mode != SensorMode.NO_LIDAR:
+            image_timestamp_list = [
+                rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
+                for image_msg in self._bag_reader.read_messages(
+                    topics=[topic], start_time=start_time_in_time
                 )
-                translation: Dict[str, float] = ego_pose.translation
-                distance = get_move_distance(translation, last_translation)
-                if distance >= self._generate_frame_every_meter:
-                    last_translation = translation
+            ]
+            lidar_timestamp_list = [
+                misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp)
+                for sample_record in sample_records
+            ]
+            lidar_to_camera_latency_sec = self._lidar_latency + 1e-3 * delay_msec
+
+            synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
+                image_timestamp_list=image_timestamp_list,
+                lidar_timestamp_list=lidar_timestamp_list,
+                lidar_to_camera_latency_sec=lidar_to_camera_latency_sec,
+                system_scan_period_sec=self._system_scan_period_sec,
+                max_camera_jitter_sec=self._max_camera_jitter_sec,
+                num_load_frames=self._num_load_frames,
+                msg_display_interval=self._msg_display_interval,
+            )
+
+            # Get image shape
+            temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
+            image_shape = rosbag2_utils.compressed_msg_to_numpy(temp_image_msg).shape
+
+            # Save image
+            sample_data_token_list: List[str] = []
+            image_index_counter = -1
+            image_generator = self._bag_reader.read_messages(
+                topics=[topic], start_time=start_time_in_time
+            )
+            for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
+                lidar_sample_token: str = sample_records[lidar_frame_index].token
+
+                if image_index is None:  # Image dropped
+                    sample_data_token = self._generate_image_data(
+                        np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
+                        dummy_image_timestamp,
+                        lidar_sample_token,
+                        calibrated_sensor_token,
+                        sensor_channel,
+                        lidar_frame_index,
+                        output_blank_image=True,
+                        is_key_frame=False,
+                    )
+                    sample_data_token_list.append(sample_data_token)
+                elif lidar_frame_index is None:  # LiDAR dropped
+                    warnings.warn(f"LiDAR message dropped at image_index: {image_index}")
+                else:  # Both messages available
+                    image_msg = None
+                    while image_index_counter < image_index:
+                        image_msg = next(image_generator)
+                        image_index_counter += 1
 
                     nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(image_msg.header.stamp)
                     if self._end_timestamp < nusc_timestamp / 10**6:
                         self._end_timestamp = nusc_timestamp / 10**6
                     if not self._is_traffic_light_label_available(nusc_timestamp):
                         continue
-                    sample_token: str = self._sample_table.insert_into_table(
-                        timestamp=nusc_timestamp, scene_token=scene_token
-                    )
-                    is_data_found = True
-
-                if is_data_found:
-                    print(f"frame: {generated_frame_index}, image stamp: {image_unix_timestamp}")
                     sample_data_token = self._generate_image_data(
-                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
-                        image_unix_timestamp,
-                        sample_token,
+                        image_msg,
+                        rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
+                        lidar_sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
-                        generated_frame_index,
+                        lidar_frame_index,
+                        image_shape,
                     )
                     sample_data_token_list.append(sample_data_token)
-                    generated_frame_index += 1
-                frame_index += 1
+        else: # camera only mode
+
+            def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
+                dx: float = trans1["x"] - trans2["x"]
+                dy: float = trans1["y"] - trans2["y"]
+                dz: float = trans1["z"] - trans2["z"]
+                return (dx * dx + dy * dy + dz * dz) ** 0.5
+
+            frame_index: int = 0
+            generated_frame_index: int = 0
+
+            last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
+            for image_msg in self._bag_reader.read_messages(
+                topics=[topic],
+                start_time=start_time_in_time,
+            ):
+                image_msg: CompressedImage
+                if generated_frame_index >= self._num_load_frames:
+                    break
+
+                image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
+
+                is_data_found = False
+
+                # camera_only mode
+                if (frame_index % self._generate_frame_every) == 0:
+                    try:
+                        ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
+                    except Exception as e:
+                        print(e)
+                        continue
+                    ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
+                        ego_pose_token
+                    )
+                    translation: Dict[str, float] = ego_pose.translation
+                    distance = get_move_distance(translation, last_translation)
+                    if distance >= self._generate_frame_every_meter:
+                        last_translation = translation
+
+                        nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(image_msg.header.stamp)
+                        if self._end_timestamp < nusc_timestamp / 10**6:
+                            self._end_timestamp = nusc_timestamp / 10**6
+                        if not self._is_traffic_light_label_available(nusc_timestamp):
+                            continue
+                        sample_token: str = self._sample_table.insert_into_table(
+                            timestamp=nusc_timestamp, scene_token=scene_token
+                        )
+                        is_data_found = True
+
+                    if is_data_found:
+                        print(f"frame: {generated_frame_index}, image stamp: {image_unix_timestamp}")
+                        sample_data_token = self._generate_image_data(
+                            rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                            image_unix_timestamp,
+                            sample_token,
+                            calibrated_sensor_token,
+                            sensor_channel,
+                            generated_frame_index,
+                        )
+                        sample_data_token_list.append(sample_data_token)
+                        generated_frame_index += 1
+                    frame_index += 1
 
         assert len(sample_data_token_list) > 0
 
