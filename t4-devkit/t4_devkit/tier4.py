@@ -18,6 +18,8 @@ from t4_devkit.common.timestamp import sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 
 if TYPE_CHECKING:
+    from rerun.blueprint.api import BlueprintLike
+    from rerun.recording_stream import RecordingStream
     from t4_devkit.typing import (
         CamIntrinsicType,
         NDArrayF64,
@@ -615,56 +617,27 @@ class Tier4:
 
         return points_on_img, depths, np.array(img, dtype=np.uint8)
 
-    def render_scene(self, scene_token: str, max_time_seconds: float = np.inf) -> None:
+    def render_scene(
+        self,
+        scene_token: str,
+        *,
+        max_time_seconds: float = np.inf,
+        save_dir: str | None = None,
+        show: bool = True,
+    ) -> None:
         """Render specified scene.
 
         Args:
             scene_token (str): Unique identifier of scene.
             max_time_seconds (float, optional): Max time length to be rendered [s].
+            save_dir (str | None, optional): Directory path to save the recording.
+            show (bool, optional): Whether to spawn rendering viewer.
 
         BUG:
             If sample data is not associated with the first sample, all frames are not rendered.
         """
-        # TODO: refactoring initialization of rerun
-        camera_names = [
-            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
-        ]
-
-        sensor_space_views = [
-            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
-            for camera in camera_names
-        ]
-        blueprint = rrb.Vertical(
-            rrb.Horizontal(
-                rrb.Spatial3DView(name="3D", origin="world"),
-                rrb.TextDocumentView(origin="description", name="Description"),
-                column_shares=[3, 1],
-            ),
-            rrb.Grid(*sensor_space_views),
-            row_shares=[4, 2],
-        )
-        rr.init(
-            application_id=f"t4-devkit@{scene_token}",
-            recording_id=None,
-            spawn=True,
-            default_enabled=True,
-            strict=True,
-            default_blueprint=blueprint,
-        )
-
-        # render scene
-        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
-
-        rr.log(
-            "world",
-            rr.AnnotationContext(
-                [
-                    rr.AnnotationInfo(id=label_id, label=label)
-                    for label, label_id in self._label2id.items()
-                ]
-            ),
-            static=True,
-        )
+        application_id = f"t4-devkit@{scene_token}"
+        blueprint = self._init_viewer(application_id, render_annotation=True, spawn=show)
 
         scene: Scene = self.get("scene", scene_token)
         first_sample: Sample = self.get("sample", scene.first_sample_token)
@@ -693,56 +666,29 @@ class Tier4:
         self._render_annotation_3ds(scene.first_sample_token, max_timestamp_us)
         self._render_annotation_2ds(scene.first_sample_token, max_timestamp_us)
 
-    def render_instance(self, instance_token: str) -> None:
+        if save_dir is not None:
+            filepath = osp.join(save_dir, application_id + ".rrd")
+            self._save_viewer(filepath, default_blueprint=blueprint)
+
+    def render_instance(
+        self,
+        instance_token: str,
+        *,
+        save_dir: str | None = None,
+        show: bool = True,
+    ) -> None:
         """Render particular instance.
 
         Args:
             instance_token (str): Instance token.
+            save_dir (str | None, optional): Directory path to save the recording.
+            show (bool, optional): Whether to spawn rendering viewer.
 
         BUG:
             If sample data is not associated with the first sample, all frames are not rendered.
         """
-        # TODO: refactoring initialization of rerun
-        camera_names = [
-            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
-        ]
-
-        sensor_space_views = [
-            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
-            for camera in camera_names
-        ]
-        blueprint = rrb.Vertical(
-            rrb.Horizontal(
-                rrb.Spatial3DView(name="3D", origin="world"),
-                rrb.TextDocumentView(origin="description", name="Description"),
-                column_shares=[3, 1],
-            ),
-            rrb.Grid(*sensor_space_views),
-            row_shares=[4, 2],
-        )
-
-        rr.init(
-            application_id=f"t4-devkit@{instance_token}",
-            recording_id=None,
-            spawn=True,
-            default_enabled=True,
-            strict=True,
-            default_blueprint=blueprint,
-        )
-
-        # render scene
-        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
-
-        rr.log(
-            "world",
-            rr.AnnotationContext(
-                [
-                    rr.AnnotationInfo(id=label_id, label=label)
-                    for label, label_id in self._label2id.items()
-                ]
-            ),
-            static=True,
-        )
+        application_id = f"t4-devkit@{instance_token}"
+        blueprint = self._init_viewer(application_id, render_annotation=True, spawn=show)
 
         instance: Instance = self.get("instance", instance_token)
         first_ann: SampleAnnotation = self.get(
@@ -783,52 +729,33 @@ class Tier4:
             instance_token=instance_token,
         )
 
+        if save_dir is not None:
+            filepath = osp.join(save_dir, application_id + ".rrd")
+            self._save_viewer(filepath, default_blueprint=blueprint)
+
     def render_pointcloud(
         self,
         scene_token: str,
-        max_time_seconds: float = np.inf,
         *,
+        max_time_seconds: float = np.inf,
         ignore_distortion: bool = False,
+        save_dir: str | None = None,
+        show: bool = True,
     ) -> None:
         """Render pointcloud on 3D and 2D view.
 
         Args:
             scene_token (str): Scene token.
             max_time_seconds (float, optional): Max time length to be rendered [s].
+            save_dir (str | None, optional): Directory path to save the recording.
             ignore_distortion (bool, optional): Whether to ignore distortion parameters.
+            show (bool, optional): Whether to spawn rendering viewer.
 
         TODO:
             Add an option of rendering radar channels.
         """
-        # TODO: refactoring initialization of rerun
-        camera_names = [
-            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
-        ]
-
-        sensor_space_views = [
-            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
-            for camera in camera_names
-        ]
-        blueprint = rrb.Vertical(
-            rrb.Horizontal(
-                rrb.Spatial3DView(name="3D", origin="world"),
-                rrb.TextDocumentView(origin="description", name="Description"),
-                column_shares=[3, 1],
-            ),
-            rrb.Grid(*sensor_space_views),
-            row_shares=[4, 2],
-        )
-        rr.init(
-            application_id=f"t4-devkit@{scene_token}",
-            recording_id=None,
-            spawn=True,
-            default_enabled=True,
-            strict=True,
-            default_blueprint=blueprint,
-        )
-
-        # render scene
-        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+        application_id = f"t4-devkit@{scene_token}"
+        blueprint = self._init_viewer(application_id, render_annotation=False, spawn=show)
 
         scene: Scene = self.get("scene", scene_token)
         first_sample: Sample = self.get("sample", scene.first_sample_token)
@@ -852,6 +779,92 @@ class Tier4:
             project_points=True,
             ignore_distortion=ignore_distortion,
         )
+
+        if save_dir is not None:
+            filepath = osp.join(save_dir, application_id + ".rrd")
+            self._save_viewer(filepath, default_blueprint=blueprint)
+
+    def _init_viewer(
+        self,
+        application_id: str,
+        *,
+        render_annotation: bool = True,
+        spawn: bool = False,
+    ) -> BlueprintLike:
+        """Initialize rendering viewer.
+
+        Args:
+            application_id (str): Application ID.
+            render_annotation (bool, optional): Whether to render annotations.
+            spawn (bool, optional): Whether to spawn rendering viewer.
+
+        Returns:
+            Recording blueprint.
+        """
+        camera_names = [
+            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
+        ]
+
+        sensor_space_views = [
+            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
+            for camera in camera_names
+        ]
+        blueprint = rrb.Vertical(
+            rrb.Horizontal(
+                rrb.Spatial3DView(name="3D", origin="world"),
+                rrb.TextDocumentView(origin="description", name="Description"),
+                column_shares=[3, 1],
+            ),
+            rrb.Grid(*sensor_space_views),
+            row_shares=[4, 2],
+        )
+        rr.init(
+            application_id=application_id,
+            recording_id=None,
+            spawn=spawn,
+            default_enabled=True,
+            strict=True,
+            default_blueprint=blueprint,
+        )
+
+        # render scene
+        rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Z_UP, static=True)
+
+        if render_annotation:
+            rr.log(
+                "world",
+                rr.AnnotationContext(
+                    [
+                        rr.AnnotationInfo(id=label_id, label=label)
+                        for label, label_id in self._label2id.items()
+                    ]
+                ),
+                static=True,
+            )
+
+        print(f"Finish initializing {application_id} ...")
+
+        return blueprint
+
+    def _save_viewer(
+        self,
+        filepath: str,
+        default_blueprint: BlueprintLike | None = None,
+        recording: RecordingStream | None = None,
+    ) -> None:
+        """Save rendering viewer to `.rrd` file.
+
+        Args:
+            filepath (str): Filepath to save rendering.
+            default_blueprint (BlueprintLike | None, optional): Blueprint of rendering.
+            recording (RecordingStream | None, optional): Recording stream.
+        """
+        ext = osp.splitext(osp.basename(filepath))[-1]
+        if ext != ".rrd":
+            raise ValueError(f"File extension must be .rrd, but got {ext}")
+
+        print(f"Saving rendering record to {filepath} ...")
+        rr.save(filepath, default_blueprint=default_blueprint, recording=recording)
 
     def _render_lidar_and_ego(
         self,
