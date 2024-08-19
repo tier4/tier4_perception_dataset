@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 import os.path as osp
 import time
 from typing import TYPE_CHECKING
@@ -667,8 +668,7 @@ class Tier4:
         self._render_annotation_2ds(scene.first_sample_token, max_timestamp_us)
 
         if save_dir is not None:
-            filepath = osp.join(save_dir, application_id + ".rrd")
-            self._save_viewer(filepath, default_blueprint=blueprint)
+            self._save_viewer(save_dir, application_id + ".rrd", default_blueprint=blueprint)
 
     def render_instance(
         self,
@@ -730,8 +730,7 @@ class Tier4:
         )
 
         if save_dir is not None:
-            filepath = osp.join(save_dir, application_id + ".rrd")
-            self._save_viewer(filepath, default_blueprint=blueprint)
+            self._save_viewer(save_dir, application_id + ".rrd", default_blueprint=blueprint)
 
     def render_pointcloud(
         self,
@@ -781,8 +780,7 @@ class Tier4:
         )
 
         if save_dir is not None:
-            filepath = osp.join(save_dir, application_id + ".rrd")
-            self._save_viewer(filepath, default_blueprint=blueprint)
+            self._save_viewer(save_dir, application_id + ".rrd", default_blueprint=blueprint)
 
     def _init_viewer(
         self,
@@ -848,20 +846,27 @@ class Tier4:
 
     def _save_viewer(
         self,
-        filepath: str,
+        save_dir: str,
+        filename: str,
         default_blueprint: BlueprintLike | None = None,
         recording: RecordingStream | None = None,
     ) -> None:
         """Save rendering viewer to `.rrd` file.
 
         Args:
-            filepath (str): Filepath to save rendering.
+            save_dir (str): Directory path to save the recording.
+            filename (str): Filepath to save rendering.
             default_blueprint (BlueprintLike | None, optional): Blueprint of rendering.
             recording (RecordingStream | None, optional): Recording stream.
         """
-        ext = osp.splitext(osp.basename(filepath))[-1]
+        ext = osp.splitext(osp.basename(filename))[-1]
         if ext != ".rrd":
             raise ValueError(f"File extension must be .rrd, but got {ext}")
+
+        if not osp.exists(save_dir):
+            os.makedirs(save_dir)
+
+        filepath = osp.join(save_dir, filename)
 
         print(f"Saving rendering record to {filepath} ...")
         rr.save(filepath, default_blueprint=default_blueprint, recording=recording)
