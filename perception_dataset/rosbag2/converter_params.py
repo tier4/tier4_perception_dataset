@@ -1,7 +1,7 @@
 import enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 import yaml
 
 from perception_dataset.utils.logger import configure_logger
@@ -17,7 +17,7 @@ class DataType(enum.Enum):
 class Rosbag2ConverterParams(BaseModel):
     task: str
     input_base: str  # path to the input rosbag2 directory (multiple rosbags in the directory)
-    input_bag_path: Optional[str]  # path to the input rosbag2 (a single rosbag)
+    input_bag_path: Optional[str] = None  # path to the input rosbag2 (a single rosbag)
     output_base: str  # path to the output directory
     gt_label_base: str = ""  # path to the gt labels directory
     overwrite_mode: bool = False
@@ -99,28 +99,28 @@ class Rosbag2ConverterParams(BaseModel):
             self.with_camera = False
         self.with_gt_label = self.gt_label_base != ""
 
-    @validator("workers_number")
+    @field_validator("workers_number")
     def check_workers_number(cls, v):
         if v < 1:
             logger.warning("workers_number must be positive, replaced to 1.")
             v = 1
         return v
 
-    @validator("skip_timestamp")
+    @field_validator("skip_timestamp")
     def check_skip_timestamp(cls, v):
         if v < 0:
             logger.warning("skip_timestamp must be positive or zero, replaced to 0.")
             v = 0
         return v
 
-    @validator("crop_frames_unit")
+    @field_validator("crop_frames_unit")
     def check_crop_frames_unit(cls, v):
         if v <= 0:
             logger.warning("crop_frames_unit must be positive, replaced to 1.")
             v = 1
         return v
 
-    @validator("object_msg_type")
+    @field_validator("object_msg_type")
     def check_object_msg_type(cls, v):
         if v not in ["DetectedObjects", "TrackedObjects", "TrafficLights"]:
             raise ValueError(f"Unexpected object message type: {type(v)}")

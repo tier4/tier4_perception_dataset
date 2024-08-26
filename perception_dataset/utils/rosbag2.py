@@ -11,7 +11,6 @@ from nptyping import NDArray
 import numpy as np
 from radar_msgs.msg import RadarTrack, RadarTracks
 from rclpy.time import Time
-import ros2_numpy as rnp
 from rosbag2_py import (
     ConverterOptions,
     Reindexer,
@@ -19,7 +18,7 @@ from rosbag2_py import (
     SequentialWriter,
     StorageOptions,
 )
-from sensor_msgs.msg import CompressedImage, PointCloud2
+from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
 import yaml
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -102,6 +101,46 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
+def point_cloud2_to_array(msg):
+    """
+    Convert a sensor_msgs/PointCloud2 message to a NumPy array. The fields
+    in the PointCloud2 message are mapped to the fields in the NumPy array
+    as follows:
+    * x, y, z -> X, Y, Z
+    * intensity -> I
+    * other fields are ignored
+    """
+    # Get the index of the "intensity" fields in the PointCloud2 message
+    field_names = [field.name for field in msg.fields]
+
+    if "intensity" in field_names:
+        intensity_idx = field_names.index("intensity")
+        intensity_flag = True
+        intensity_offset = msg.fields[intensity_idx].offset
+        intensity_datatype = msg.fields[intensity_idx].datatype
+    else:
+        intensity_flag = False
+
+    # Convert the PointCloud2 message to a NumPy array
+    pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1, msg.point_step)
+    xyz = pc_data[:, 0:12].view(dtype=np.float32).reshape(-1, 3)
+    if intensity_flag:
+        if intensity_datatype == PointField.UINT8:
+            intensity = pc_data[:, intensity_offset : intensity_offset + 1].view(dtype=np.uint8)
+        elif intensity_datatype == PointField.UINT16:
+            intensity = pc_data[:, intensity_offset : intensity_offset + 2].view(dtype=np.uint16)
+        elif intensity_datatype == PointField.FLOAT32:
+            intensity = pc_data[:, intensity_offset : intensity_offset + 4].view(dtype=np.float32)
+        else:
+            raise ValueError(f"Unsupported intensity datatype: {intensity_datatype}")
+
+    # return the arrays in a dictionary
+    if intensity_flag:
+        return {"xyz": xyz, "intensity": intensity}
+    else:
+        return {"xyz": xyz}
+
+
 def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
     """Convert ROS PointCloud2 message to numpy array using ros2-numpy."""
     NUM_DIMENSIONS = 5
@@ -110,12 +149,12 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
         return np.zeros((0, NUM_DIMENSIONS), dtype=np.float32)
 
     # Convert the PointCloud2 message to a numpy structured array
-    points = rnp.point_cloud2.point_cloud2_to_array(pointcloud_msg)
+    points = point_cloud2_to_array(pointcloud_msg)
 
     # Extract the x, y, z coordinates and additional fields if available
     xyz = points["xyz"]
     if "intensity" in points.keys():
-        intensity = points["intensity"]
+        intensity = points["intensity"].astype(np.float32)
         points_arr = np.hstack((xyz, intensity))
     else:
         points_arr = xyz
