@@ -8,8 +8,8 @@ packages = [{ include = "t4_devkit" }]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
-rerun-sdk = "^0.16.1"
-nuscenes-devkit = "^1.1.11"
+rerun-sdk = "0.17.0"
+nuscenes-devkit = "^1.1.9"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
