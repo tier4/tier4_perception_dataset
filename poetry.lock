@@ -1331,16 +1331,16 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "rerun-sdk"
-version = "0.16.1"
+version = "0.17.0"
 description = "The Rerun Logging SDK"
 optional = false
 python-versions = "<3.13,>=3.8"
 files = [
-    {file = "rerun_sdk-0.16.1-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:170c6976634008611753e10dfef8cdc395ce8180e634c169e7c61cef2f89a277"},
-    {file = "rerun_sdk-0.16.1-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:c9a76eab7eb5559276737dad655200e9350df0837158dbc5a896970ab4201454"},
-    {file = "rerun_sdk-0.16.1-cp38-abi3-manylinux_2_31_aarch64.whl", hash = "sha256:4d6436752d57e8b8038489a0e7e37f0c760b088e96db5fb81667d3a376d63fea"},
-    {file = "rerun_sdk-0.16.1-cp38-abi3-manylinux_2_31_x86_64.whl", hash = "sha256:37b7b47948471873e84f224b16f417a94a91c7cbd6c72c68281eeff1ba414b8f"},
-    {file = "rerun_sdk-0.16.1-cp38-abi3-win_amd64.whl", hash = "sha256:be88799c8afdf68eafa99e64e2e4f0a484e187e017a180219abbe6bb988acd4e"},
+    {file = "rerun_sdk-0.17.0-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:abd34f746eada83b8bb0bc50007183151981d7ccf18306f3d42165819a3f6fcb"},
+    {file = "rerun_sdk-0.17.0-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:8b0a8a6feab3f8e679801d158216a71d88a81480021587719330f50d083c4d26"},
+    {file = "rerun_sdk-0.17.0-cp38-abi3-manylinux_2_31_aarch64.whl", hash = "sha256:ad55807abafb01e527846742e087819aac8e103f1ec15aadc563a4038bb44e1d"},
+    {file = "rerun_sdk-0.17.0-cp38-abi3-manylinux_2_31_x86_64.whl", hash = "sha256:9d41f1f475270b1e0d50ddb8cb62e0d828988f0c371ac8457af25c8be5aa1dc0"},
+    {file = "rerun_sdk-0.17.0-cp38-abi3-win_amd64.whl", hash = "sha256:34e5595a326cbdddfebdf00b08e877358c564fce74cc8c6d617fc89ef3a6aa70"},
 ]
 
 [package.dependencies]
@@ -1351,6 +1351,7 @@ pyarrow = ">=14.0.2"
 typing-extensions = ">=4.5"
 
 [package.extras]
+notebook = ["rerun-notebook (==0.17.0)"]
 tests = ["pytest (==7.1.2)"]
 
 [[package]]
@@ -1518,7 +1519,7 @@ develop = false
 
 [package.dependencies]
 nuscenes-devkit = "^1.1.11"
-rerun-sdk = "^0.16.1"
+rerun-sdk = "0.17.0"
 
 [package.source]
 type = "directory"
