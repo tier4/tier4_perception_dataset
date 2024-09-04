@@ -145,6 +145,7 @@ class TestDeepenToT4Converter:
             description={},
             input_bag_base="",
             topic_list=[],
+            format_version="1.2",
             ignore_interpolate_label=False,
         )
 
@@ -165,6 +166,7 @@ class TestDeepenToT4Converter:
             description={},
             input_bag_base="",
             topic_list=[],
+            format_version="1.2",
             ignore_interpolate_label=True,
         )
 
