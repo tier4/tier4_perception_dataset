@@ -127,7 +127,7 @@ class DeepenToT4Converter(AbstractConverter):
         converter.convert()
         shutil.move(output_bag_dir_temp, output_bag_dir)
 
-    def _convert_occulusion_to_visibility(self, name: str) -> str:
+    def _convert_occlusion_to_visibility(self, name: str) -> str:
         if name == "full":
             return "none"
         elif name == "partial":
@@ -213,11 +213,11 @@ class DeepenToT4Converter(AbstractConverter):
             else:
                 anno_attributes: Dict[str, str] = label_dict["attributes"]
             if "Occlusion_State" in anno_attributes:
-                visibility: str = self._convert_occulusion_to_visibility(
+                visibility: str = self._convert_occlusion_to_visibility(
                     anno_attributes["Occlusion_State"]
                 )
             elif "occlusion_state" in anno_attributes:
-                visibility: str = self._convert_occulusion_to_visibility(
+                visibility: str = self._convert_occlusion_to_visibility(
                     anno_attributes["occlusion_state"]
                 )
             else:
