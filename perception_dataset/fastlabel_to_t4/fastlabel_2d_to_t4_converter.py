@@ -13,6 +13,15 @@ logger = configure_logger(modname=__name__)
 
 
 class FastLabel2dToT4Converter(DeepenToT4Converter):
+
+    # Attribution mapping except of object's instance ID and occlusion state.
+    ATTRIBUTE_MAPPING = {
+        "frame_by_frame_left": "left_blinker",
+        "frame_by_frame_right": "right_blinker",
+        "frame_by_frame_brake": "brake_lamp",
+        "facing": "vehicle_front_or_rear_or_side",
+    }
+
     def __init__(
         self,
         input_base: str,
@@ -178,12 +187,14 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     fl_annotations[dataset_name] = defaultdict(list)
 
                 for a in ann["annotations"]:
+                    attribute_names: list[str] = []
+
                     occlusion_state: str = "occlusion_state.none"
                     visibility: str = "Not available"
                     for att in a["attributes"]:
                         if att["key"] == "id":
                             instance_id = att["value"]
-                        if "occlusion_state" in att["key"]:
+                        elif "occlusion_state" in att["key"]:
                             for v in att["value"]:
                                 if frame_no in range(v[0], v[1]):
                                     occlusion_state = (
@@ -193,15 +204,25 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                                         att["key"].split("_")[-1]
                                     )
                                     break
+                        else:
+                            attribute_names.append(
+                                self.ATTRIBUTE_MAPPING[att["key"]] + "." + att["value"]
+                            )
+                    attribute_names.append(occlusion_state)
+
                     label_t4_dict: Dict[str, Any] = {
-                        "category_name": a["title"],
+                        # NOTE: Some annotations are missing "title", use "value" instead
+                        "category_name": (a["title"] if "title" in a else a["value"]),
                         "instance_id": instance_id,
-                        "attribute_names": [occlusion_state],
+                        "attribute_names": attribute_names,
                         "visibility_name": visibility,
                     }
+                    two_d_box: list[float] = (
+                        a["annotations"][0]["points"] if "annotations" in a else a["points"]
+                    )
                     label_t4_dict.update(
                         {
-                            "two_d_box": a["annotations"][0]["points"],
+                            "two_d_box": two_d_box,
                             "sensor_id": self._camera2idx[camera],
                         }
                     )
