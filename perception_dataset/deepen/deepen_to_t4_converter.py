@@ -180,6 +180,9 @@ class DeepenToT4Converter(AbstractConverter):
                         "w": 0.6589105372303157
                     }
                 },
+                "polygons": [[
+                                [800, 936], [795, 938], [803, 939], [794, 904],
+                            ],],
                 "update_time_millis": 1634623252175,
                 "user_id": "grp-mlops-deepen1@tier4.jp",
                 "version": 782
@@ -283,6 +286,21 @@ class DeepenToT4Converter(AbstractConverter):
                             anno_two_d_bbox[0] + anno_two_d_bbox[2],
                             anno_two_d_bbox[1] + anno_two_d_bbox[3],
                         ],
+                        "sensor_id": sensor_id,
+                    }
+                )
+            if label_dict["label_type"] == "polygon":
+                sensor_id = label_dict["sensor_id"][-1]
+                if camera_index is not None:
+                    for k in camera_index.keys():
+                        # overwrite sensor_id for multiple camera only annotation (e.g 2d segmentation)
+                        if k in filename:
+                            sensor_id = camera_index[k]
+                            break
+
+                label_t4_dict.update(
+                    {
+                        "polygons": label_dict["polygons"],
                         "sensor_id": sensor_id,
                     }
                 )

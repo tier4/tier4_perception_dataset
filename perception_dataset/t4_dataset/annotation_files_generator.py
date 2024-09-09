@@ -97,7 +97,7 @@ class AnnotationFilesGenerator:
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
             for anno in anno_list:
-                if "two_d_box" in anno.keys():
+                if "two_d_box" in anno.keys() or "polygons" in anno.keys():
                     has_2d_annotation = True
                     break
 
@@ -295,6 +295,31 @@ class AnnotationFilesGenerator:
                         attribute_tokens=attribute_tokens,
                         bbox=anno_two_d_box,
                         mask=mask[sensor_id][frame_index],
+                    )
+
+                if "polygons" in anno.keys():
+                    sensor_id: int = int(anno["sensor_id"])
+                    if frame_index not in frame_index_to_sample_data_token[sensor_id]:
+                        continue
+                    polygons: List[List[float]] = anno["polygons"]
+                    flattened_polygons: List[List[float]] = [
+                        [coord for point in polygons[0] for coord in point]
+                    ]
+
+                    # TODO(Shin-kyoto): This is tentative implementation
+                    height: float = mask[sensor_id][frame_index]["size"][0]
+                    width: float = mask[sensor_id][frame_index]["size"][1]
+
+                    rle: Dict = cocomask.frPyObjects(flattened_polygons, height, width)
+                    rle: Dict = cocomask.merge(rle)
+                    rle["counts"] = repr(base64.b64encode(rle["counts"]))[2:]
+                    self._object_ann_table.insert_into_table(
+                        sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
+                        instance_token=instance_token,
+                        category_token=category_token,
+                        attribute_tokens=attribute_tokens,
+                        bbox=(0, 0, 0, 0),  # TODO(Shin-kyoto): dummy 2d bbox
+                        mask=rle,
                     )
 
     def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:
