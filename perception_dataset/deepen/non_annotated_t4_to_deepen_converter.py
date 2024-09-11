@@ -99,21 +99,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
 
         for camera_sensor_type in self._camera_sensor_types:
             camera_channel = camera_sensor_type.value["channel"]
-            camera_token = None
-
-            if camera_channel in sample["data"].keys():
-                camera_token = sample["data"][camera_channel]
-            else:
-                sample_data = [s for s in nusc.sample_data if s["sample_token"] == sample["token"]]
-                for sensor in sample_data:
-                    if sensor["channel"] == camera_channel:
-                        camera_token = sensor["token"]
-                        break
-            if camera_token is None:
-                logger.warning(
-                    f"camera: {camera_channel} not found in frame {frame_index}, skipping this frame..."
-                )
-                return
+            camera_token: str | None = self._get_camera_token(camera_channel, sample, nusc)
 
             camera_path, _, cam_intrinsic = nusc.get_sample_data(camera_token)
             data_dict: Dict[str, Any] = self._get_data(nusc, camera_token)
@@ -140,6 +126,28 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
             config_data.add_image_data(image_data)
 
         config_data.save_json(output_dir)
+
+    @staticmethod
+    def _get_camera_token(camera_channel: str, sample, nusc) -> str | None:
+        """Get camera token for `camera_channel` in the given `sample` data from a NuScenes dataset.
+        Args:
+            camera_channel (str): Camera channel name e.g. CAM_FRONT to look for
+            sample: Sample data for a specific frame from NuScenes = `nusc.sample[frame_index]`
+            nusc (NuScenes): NuScenes dataset
+        Return:
+            camera_token: str | None
+                None if not found
+        """
+        camera_token: str | None = None
+        if camera_channel in sample["data"].keys():
+            camera_token = sample["data"][camera_channel]
+        else:
+            sample_data = [s for s in nusc.sample_data if s["sample_token"] == sample["token"]]
+            for sensor in sample_data:
+                if sensor["channel"] == camera_channel:
+                    camera_token = sensor["token"]
+                    break
+        return camera_token
 
     def _get_data(self, nusc: NuScenes, sensor_channel_token: str) -> Dict[str, Any]:
         sd_record = nusc.get("sample_data", sensor_channel_token)
