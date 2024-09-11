@@ -99,6 +99,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
 
         for camera_sensor_type in self._camera_sensor_types:
             camera_channel = camera_sensor_type.value["channel"]
+            camera_token = None
 
             if camera_channel in sample["data"].keys():
                 camera_token = sample["data"][camera_channel]
@@ -108,6 +109,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                     if sensor["channel"] == camera_channel:
                         camera_token = sensor["token"]
                         break
+            if camera_token is None:
                 logger.warning(
                     f"camera: {camera_channel} not found in frame {frame_index}, skipping this frame..."
                 )
