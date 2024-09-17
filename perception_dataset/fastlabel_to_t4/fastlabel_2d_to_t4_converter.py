@@ -71,9 +71,13 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             output_dir = output_dir / "t4_dataset"
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
+
             if osp.exists(output_dir):
                 logger.error(f"{output_dir} already exists.")
                 is_dir_exist = True
+            else:
+                is_dir_exist = False
+
             if self._overwrite_mode or not is_dir_exist:
                 # Remove existing output directory
                 shutil.rmtree(output_dir, ignore_errors=True)
