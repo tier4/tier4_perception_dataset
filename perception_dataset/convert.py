@@ -344,7 +344,7 @@ def main():
         input_anno_base = config_dict["conversion"]["input_anno_base"]
         dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
         description = config_dict["description"]
-        input_bag_base = config_dict["conversion"]["input_bag_base"]
+        input_bag_base = config_dict["conversion"].get("input_bag_base")
         topic_list_yaml_path = config_dict["conversion"]["topic_list"]
         with open(topic_list_yaml_path) as f:
             topic_list_yaml = yaml.safe_load(f)
