@@ -189,7 +189,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                                     occlusion_state = (
                                         "occlusion_state." + att["key"].split("_")[-1]
                                     )
-                                    visibility = self._convert_occulusion_to_visibility(
+                                    visibility = self._convert_occlusion_to_visibility(
                                         att["key"].split("_")[-1]
                                     )
                                     break

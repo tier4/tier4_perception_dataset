@@ -34,3 +34,17 @@
     >>> t4.render_pointcloud(scene_token, ignore_distortion=True)
     ```
 <!-- prettier-ignore-end -->
+
+## Save Recording
+
+You can save the rendering result as follows:
+
+```python
+>>> t4.render_scene(scene_token, save_dir=<DIR_TO_SAVE>)
+```
+
+If you don't want to spawn the viewer, please specify `show=False` as below:
+
+```python
+>>> t4.render_scene(scene_token, save_dir=<DIR_TO_SAVE>, show=False)
+```
