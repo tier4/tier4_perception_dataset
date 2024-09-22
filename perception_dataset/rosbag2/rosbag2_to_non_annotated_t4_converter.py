@@ -904,7 +904,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 cam_info_topic = "/".join(topic_name_splitted[:4]) + "/camera_info"
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
-                    continue
+                    raise ValueError(f"Camera info not found for {cam_info_topic}")
                 if "image_rect" in topic_name:
                     # image is considered as already undistorted
                     camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
