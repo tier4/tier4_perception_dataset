@@ -23,6 +23,14 @@ class SENSOR_ENUM(Enum):
         "channel": "CAM_FRONT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
     }
+    CAM_FRONT_NARROW = {
+        "channel": "CAM_FRONT_NARROW",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
+    CAM_FRONT_WIDE = {
+        "channel": "CAM_FRONT_WIDE",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
     CAM_FRONT_RIGHT = {
         "channel": "CAM_FRONT_RIGHT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
@@ -33,6 +41,14 @@ class SENSOR_ENUM(Enum):
     }
     CAM_BACK = {
         "channel": "CAM_BACK",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
+    CAM_BACK_NARROW = {
+        "channel": "CAM_BACK_NARROW",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
+    CAM_BACK_WIDE = {
+        "channel": "CAM_BACK_WIDE",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
     }
     CAM_FRONT_LEFT = {
