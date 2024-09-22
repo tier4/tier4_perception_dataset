@@ -908,12 +908,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 if "image_rect" in topic_name:
                     # image is considered as already undistorted
                     camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+                    camera_distortion = info.d.tolist()
                 elif self._undistort_image:
                     camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+                    camera_distortion = [0.0, 0.0, 0.0, 0.0, 0.0]
                     camera_info = info
                 else:
                     camera_intrinsic = info.k.reshape(3, 3).tolist()
-                camera_distortion = info.d.tolist()
+                    camera_distortion = info.d.tolist()
 
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                     sensor_token=sensor_token,
