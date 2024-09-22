@@ -5,7 +5,7 @@ import os
 import os.path as osp
 import shutil
 import sys
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
 import builtin_interfaces.msg
@@ -13,7 +13,7 @@ import cv2
 import numpy as np
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
-from sensor_msgs.msg import CompressedImage, PointCloud2
+from sensor_msgs.msg import CameraInfo, CompressedImage, PointCloud2
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
@@ -117,6 +117,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._generate_frame_every_meter: float = params.generate_frame_every_meter
         self._scene_description: str = params.scene_description
         self._accept_frame_drop: bool = params.accept_frame_drop
+        self._undistort_image: bool = params.undistort_image
+        self._exec_undistort: bool = False
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = params.world_frame_id
@@ -608,7 +610,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Get calibrated sensor token
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
-        calibrated_sensor_token = self._generate_calibrated_sensor(
+        calibrated_sensor_token, camera_info = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
 
@@ -675,6 +677,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         sensor_channel,
                         lidar_frame_index,
                         image_shape,
+                        camera_info=camera_info,
                     )
                     sample_data_token_list.append(sample_data_token)
         else:  # camera only mode
@@ -755,6 +758,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         image_shape: Tuple[int, int, int] = (0, 0, 0),
         output_blank_image: bool = False,
         is_key_frame: bool = True,
+        camera_info: Optional[CameraInfo] = None,
     ):
         ego_pose_token = self._generate_ego_pose(
             rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp)
@@ -787,8 +791,23 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 [int(cv2.IMWRITE_JPEG_QUALITY), 95],
             )
         elif isinstance(image_arr, CompressedImage):
-            with open(osp.join(self._output_scene_dir, sample_data_record.filename), "xb") as fw:
-                fw.write(image_arr.data)
+            if camera_info is None:
+                # save compressed image as is
+                with open(
+                    osp.join(self._output_scene_dir, sample_data_record.filename), "xb"
+                ) as fw:
+                    fw.write(image_arr.data)
+            else:
+                # load image and undistort
+                image = rosbag2_utils.compressed_msg_to_numpy(image_arr)
+                image = cv2.undistort(
+                    image,
+                    camera_info.k.reshape(3, 3),
+                    np.array(camera_info.d),
+                    None,
+                    camera_info.p.reshape(3, 4)[:3],
+                )
+                cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image)
 
         return sample_data_token
 
@@ -818,8 +837,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _generate_calibrated_sensor(
         self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
-    ) -> str:
+    ) -> Union[str, Tuple[str, CameraInfo]]:
         calibrated_sensor_token = str()
+        camera_info = None
         for sensor_enum in self._sensor_enums:
             channel = sensor_enum.value["channel"]
             modality = sensor_enum.value["modality"]
@@ -885,7 +905,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     continue
-                camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+                if "image_rect" in topic_name:
+                    # image is considered as already undistorted
+                    camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+                elif self._undistort_image:
+                    camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+                    camera_info = info
+                else:
+                    camera_intrinsic = info.k.reshape(3, 3).tolist()
                 camera_distortion = info.d.tolist()
 
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
@@ -895,6 +922,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_intrinsic=camera_intrinsic,
                     camera_distortion=camera_distortion,
                 )
+                return calibrated_sensor_token, camera_info
             else:
                 raise ValueError(f"Unexpected sensor modality: {modality}")
 
