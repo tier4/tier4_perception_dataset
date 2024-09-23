@@ -65,6 +65,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         with ProcessPoolExecutor(max_workers=self._workers_number) as executor:
             future_list = []
             for frame_index, sample in enumerate(nusc.sample):
+                # self._convert_one_frame(input_dir, output_dir, frame_index)
                 if frame_index % int(10 / self._annotation_hz) != 0:
                     continue
                 future = executor.submit(

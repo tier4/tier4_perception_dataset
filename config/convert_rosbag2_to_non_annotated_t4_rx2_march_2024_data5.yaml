@@ -1,0 +1,40 @@
+task: convert_rosbag2_to_non_annotated_t4
+description:
+  scene: ""
+conversion:
+  input_base: /media/miura/WD-US_22TB_4/sensing_system_data_converted/data5
+  output_base: /media/miura/MS950HSE_1/t4_format_pcd_regen/data5
+  world_frame_id: "base_link"
+  start_timestamp_sec: 0 # Enter here if there is a timestamp for the start time. If not used, enter 0.
+  skip_timestamp: 2.0 # Do not load data for the first point cloud timestamp for skip_timestamp seconds.
+  num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
+  accept_frame_drop: True # If true, the conversion will continue even if the LiDAR frame is dropped.
+  # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
+  lidar_sensor:
+    topic: /sensing/lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors: #  Keep the same order as each camera exposure timing
+    - topic: /sensing/camera/camera2/image_rect_color/compressed
+      channel: CAM_BACK_RIGHT
+      delay_msec: -39.0
+    - topic: /sensing/camera/camera3/image_rect_color/compressed
+      channel: CAM_BACK
+      delay_msec: -23.0
+    - topic: /sensing/camera/camera4/image_rect_color/compressed
+      channel: CAM_BACK_LEFT
+      delay_msec: -6.0
+    - topic: /sensing/camera/camera5/image_rect_color/compressed
+      channel: CAM_FRONT_LEFT
+      delay_msec: 12.0
+    - topic: /sensing/camera/camera0/image_rect_color/compressed
+      channel: CAM_FRONT
+      delay_msec: 27.9
+    - topic: /sensing/camera/camera6/image_raw/compressed
+      channel: CAM_FRONT_NARROW
+      delay_msec: 28.0
+    - topic: /sensing/camera/camera1/image_rect_color/compressed
+      channel: CAM_FRONT_RIGHT
+      delay_msec: 44.0
+    - topic: /sensing/camera/camera7/image_raw/compressed
+      channel: CAM_FRONT_WIDE
+      delay_msec: 47.0

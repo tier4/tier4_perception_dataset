@@ -1,11 +1,13 @@
 task: convert_non_annotated_t4_to_deepen
 conversion:
-  input_base: ./data/non_annotated_t4_format
-  output_base: ./data/deepen_format
+  input_base: /home/miura/data/future_solution/uber_240910/data4
+  output_base: /home/miura/data/future_solution/uber_240910/deepen
   annotation_hz: 10
-  workers_number: 12
+  workers_number: 32
   camera_sensors:
     - channel: CAM_FRONT
+    - channel: CAM_FRONT_WIDE
+    - channel: CAM_FRONT_NARROW
     - channel: CAM_FRONT_RIGHT
     - channel: CAM_BACK_RIGHT
     - channel: CAM_BACK

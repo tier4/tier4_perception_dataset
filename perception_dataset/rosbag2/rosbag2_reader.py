@@ -45,6 +45,7 @@ class Rosbag2Reader:
         first_timestamp = 0
         while reader.has_next():
             topic_name, data, timestamp = reader.read_next()
+            # topic_name = topic_name.replace("camera3", "camera6")
             topic_type = self._topic_name_to_topic_type[topic_name]
 
             # fail to deserialize Marker messages
@@ -108,12 +109,14 @@ class Rosbag2Reader:
             self.camera_info[topic_name] = message
 
     def get_topic_count(self, topic_name: str) -> int:
+        # topic_name = topic_name.replace("camera6", "camera3")
         return self._topic_name_to_topic_count.get(topic_name, 0)
 
     def read_camera_info(self) -> Any:
         reader = create_reader(self._bag_dir)
         while reader.has_next():
             topic_name, data, timestamp = reader.read_next()
+            # topic_name = topic_name.replace("camera3", "camera6")
             topic_type = self._topic_name_to_topic_type[topic_name]
 
             if "sensor_msgs/msg/" in topic_type:
@@ -130,6 +133,21 @@ class Rosbag2Reader:
 
             msg_type = get_message(topic_type)
             msg = deserialize_message(data, msg_type)
+            # if len(msg.d) == 0 or len(msg.p) == 0:
+            #     print(f"Empty CameraInfo message: {topic_name}")
+            #     if topic_name == "/sensing/camera/camera6/camera_info":
+            #         # msg.d = [0.0, 0.0, 0.0, 0.0, 0.0]
+            #         # msg.k = [1173.17774, 0.0, 974.86333, 0.0, 1207.6118, 650.24307, 0.0, 0.0, 1.0]
+            #         # msg.p = [1172.56665, 0.0, 974.35554, 0.0, 0.0, 1206.66846, 649.73509, 0.0, 0.0, 0.0, 1.0, 0.0]
+            #         # msg.r = [1., 0., 0., 0., 1., 0., 0., 0., 1.]
+            #         msg.d = [-0.29825, 0.08146, -8e-05, 0.00011, 0.0]
+            #         msg.k = [2627.31688, 0.0, 1432.40165, 0.0, 2631.4144, 925.62461, 0.0, 0.0, 1.0]
+            #         msg.p = [2627.31688, 0.0, 1432.40165, 0.0, 0.0, 2631.4144, 925.62461, 0.0, 0.0, 0.0, 1.0, 0.0]
+            #         msg.r = [1., 0., 0., 0., 1., 0., 0., 0., 1.]
+            #         msg.width = 2880
+            #         msg.height = 1860
+            #     else:
+            #         raise ValueError(f"Empty CameraInfo message: {topic_name}")
             yield topic_name, msg
 
     def read_messages(
@@ -139,11 +157,15 @@ class Rosbag2Reader:
             start_time = Time.from_msg(start_time)
 
         reader = create_reader(self._bag_dir)
+        # if len(topics) == 1 and topics[0] == "/sensing/camera/camera6/image_rect_color/compressed":
+        #     topic_name = topics[0].replace("camera6", "camera3")
+        #     topics = [topic_name]
         if len(topics) != 0:
             reader.set_filter(StorageFilter(topics=topics))
 
         while reader.has_next():
             topic_name, data, timestamp = reader.read_next()
+            # topic_name = topic_name.replace("camera3", "camera6")
             topic_type = self._topic_name_to_topic_type[topic_name]
 
             # fails to deserialize Marker messages

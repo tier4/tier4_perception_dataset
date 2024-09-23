@@ -67,6 +67,8 @@ def get_topic_type_dict(bag_dir: str) -> Dict[str, str]:
 
     topic_name_to_topic_type: Dict[str, str] = {}
     for topic in reader.get_all_topics_and_types():
+        # if "camera3" in topic.name:
+        #     topic.name = topic.name.replace("camera3", "camera6")
         topic_name_to_topic_type[topic.name] = topic.type
 
     return topic_name_to_topic_type

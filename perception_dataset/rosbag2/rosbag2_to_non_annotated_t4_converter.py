@@ -1,3 +1,5 @@
+import time
+# import turbojpeg
 import enum
 import glob
 import json
@@ -44,6 +46,11 @@ import perception_dataset.utils.rosbag2 as rosbag2_utils
 
 logger = configure_logger(modname=__name__)
 
+error_dicts = {
+    "rosbag2_2024_03_05-10_44_26_50": 1709606069.0282981,
+    "rosbag2_2024_03_05-10_44_26_64": 1709606909.0616343,
+}
+
 
 class SensorMode(enum.Enum):
     DEFAULT = "default"
@@ -76,27 +83,105 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
     def convert(self):
         bag_dirs: List[str] = self._get_bag_dirs()
 
-        if not self._overwrite_mode:
-            dir_exist: bool = False
-            for bag_dir in bag_dirs:
-                bag_name: str = osp.basename(bag_dir)
+        # if not self._overwrite_mode:
+        #     dir_exist: bool = False
+        #     for bag_dir in bag_dirs:
+        #         bag_name: str = osp.basename(bag_dir)
 
-                output_dir = osp.join(self._output_base, bag_name)
-                if osp.exists(output_dir):
-                    logger.error(f"{output_dir} already exists.")
-                    dir_exist = True
+        #         output_dir = osp.join(self._output_base, bag_name)
+        #         if osp.exists(output_dir):
+        #             logger.error(f"{output_dir} already exists.")
+        #             dir_exist = True
 
-            if dir_exist:
-                raise ValueError("If you want to overwrite files, use --overwrite option.")
+        #     if dir_exist:
+        #         raise ValueError("If you want to overwrite files, use --overwrite option.")
 
-        for bag_dir in bag_dirs:
+        for bag_dir in sorted(bag_dirs):
+            bag_name: str = osp.basename(bag_dir)
+            output_dir = osp.join(self._output_base, bag_name)
+            if osp.exists(output_dir):
+                logger.error(f"{output_dir} already exists.")
+                dir_exist = True
+
+            # read status.json
+            is_skip: bool = False
+            status_file = osp.join(output_dir, "status.json")
+            status_file_exists = osp.exists(status_file)
+            if status_file_exists:
+                try:
+                    with open(status_file, "r") as f:
+                        status = json.load(f)
+                        if status["rosbag2_to_non_annotated_t4_converter"]["_camera_sensors"][0]["delay_msec"] == "-39.0":
+                            is_skip = True
+                        else:
+                            shutil.rmtree(output_dir, ignore_errors=True)
+                except Exception as e:
+                    logger.error(f"{e}")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+
+            if osp.exists(output_dir):
+                bag_file_size = self.get_dir_size(bag_dir) / 1024 / 1024 / 1024
+                output_dir_size_gb = self.get_dir_size(output_dir) / 1024 / 1024 / 1024
+                narrow_exists = osp.exists(osp.join(output_dir, "data/CAM_FRONT_NARROW"))
+                if self._overwrite_mode:
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                elif bag_name in error_dicts.keys():
+                    print(f"{bag_name} is in error_dicts. {error_dicts[bag_name]}. It will be overwritten.\n")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                elif not narrow_exists:
+                    logger.warn(f"{output_dir} doesn't have CAM_FRONT_NARROW. It will be overwritten.\n")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                elif not status_file_exists:
+                    logger.warn(f"{output_dir} doesn't have status.json. It will be overwritten.\n")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                elif not osp.exists(osp.join(output_dir, "data/LIDAR_CONCAT")):
+                    logger.warn(f"{output_dir} doesn't have LIDAR_CONCAT. It will be overwritten.\n")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                elif self.count_files_in_directory(osp.join(output_dir, "data/LIDAR_CONCAT")) < 10:
+                    print(f"{output_dir} has less than 300 frames. It will be overwritten.\n\n\n")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                # elif output_dir_size_gb < 1:
+                #     logger.warn(f"{output_dir} size is {output_dir_size_gb:.2f} GB, which is too small. It will be overwritten.\n")
+                #     shutil.rmtree(output_dir, ignore_errors=True)
+                elif output_dir_size_gb < bag_file_size * 0.4:
+                    print(f"{output_dir} size is {output_dir_size_gb:.2f} GB, bag file size is {bag_file_size:.2f} GB. The size ratio is {output_dir_size_gb / bag_file_size:.2f}.")
+                    logger.warn(f"{output_dir} size is {output_dir_size_gb:.2f} GB, bag file size is {bag_file_size:.2f} GB. It will be overwritten.\n")
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                elif not is_skip:
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                else:
+                    # logger.warning(f"Since {output_dir} already exists, skip this rosbag. If you want to overwrite files, use --overwrite option.")
+                    continue
             self._params.input_bag_path = bag_dir
-            bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
+            try:
+                bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
+            except KeyError as e:
+                logger.error(f"{e}")
+                os.makedirs(osp.join(osp.dirname(bag_dir),"topic_dropped"), exist_ok=True)
+                shutil.move(bag_dir, osp.join(osp.dirname(bag_dir),"topic_dropped"))
+                shutil.rmtree(output_dir, ignore_errors=True)
+                continue
+            except Exception as e:
+                raise e
+            logger.info(f"\nStart converting {bag_dir} to {output_dir}\n")
             bag_converter.convert()
 
+    def count_files_in_directory(self, directory):
+        return len([f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))])
+
+    def get_dir_size(self, path='.'):
+        total = 0
+        with os.scandir(path) as it:
+            for entry in it:
+                if entry.is_file():
+                    total += entry.stat().st_size
+                elif entry.is_dir():
+                    total += self.get_dir_size(entry.path)
+        return total
 
 class _Rosbag2ToNonAnnotatedT4Converter:
     def __init__(self, params: Rosbag2ConverterParams) -> None:
+        self._overwrite_mode = params.overwrite_mode
         self._input_bag: str = params.input_bag_path
         self._output_base: str = params.output_base
         self._skip_timestamp: float = params.skip_timestamp
@@ -152,7 +237,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._output_data_dir = osp.join(
             self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.DATA.value
         )
-        self._msg_display_interval = 10
+        self._msg_display_interval = 500
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
@@ -298,6 +383,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             - is_key_frame=True
             - fill in next/prev
         """
+        import time 
+        start = time.time()
         sensor_channel_to_sample_data_token_list: Dict[str, List[str]] = {}
 
         self._init_tables()
@@ -307,10 +394,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
         self._add_scene_description(self._scene_description)
+        print(f"Total elapsed time: {time.time() - start:.2f} sec")
 
     def _calc_start_timestamp(self) -> float:
         if self._start_timestamp < sys.float_info.epsilon:
             start_timestamp = self._bag_reader.start_timestamp + self._skip_timestamp
+            start_timestamp = error_dicts.get(self._bag_name, start_timestamp)
             self._start_timestamp = start_timestamp
         else:
             start_timestamp = self._start_timestamp
@@ -325,6 +414,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         logger.info(f"set start_timestamp to {start_timestamp}")
 
         if self._sensor_mode == SensorMode.DEFAULT:
+            start = time.time()
             lidar_sensor_channel = self._lidar_sensor["channel"]
             sensor_channel_to_sample_data_token_list[lidar_sensor_channel] = (
                 self._convert_pointcloud(
@@ -334,7 +424,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     scene_token=scene_token,
                 )
             )
-
+            print(
+                f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec\n"
+            )
             for radar_sensor in self._radar_sensors:
                 radar_sensor_channel = radar_sensor["channel"]
                 sensor_channel_to_sample_data_token_list[radar_sensor_channel] = (
@@ -359,6 +451,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
         for camera_sensor in self._camera_sensors:
+            start = time.time()
             sensor_channel = camera_sensor["channel"]
             sensor_channel_to_sample_data_token_list[sensor_channel] = self._convert_image(
                 start_timestamp=camera_start_timestamp,
@@ -367,7 +460,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 delay_msec=float(camera_sensor["delay_msec"]),
                 scene_token=scene_token,
             )
-
+            # print(f"elapsed time after _convert_image: {time.time() - start} sec")
             first_sample_data_token: str = sensor_channel_to_sample_data_token_list[
                 sensor_channel
             ][0]
@@ -376,6 +469,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
             camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                 first_sample_data_record.timestamp
+            )
+            print(
+                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec\n"
             )
 
     def _convert_static_data(self):
@@ -427,7 +523,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             else:
                 max_num_points = 0
             topic_check_count += 1
-            if topic_check_count > 100:
+            if topic_check_count > 50:
                 break
 
         # Main iteration
@@ -790,6 +886,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 image_arr,
                 [int(cv2.IMWRITE_JPEG_QUALITY), 95],
             )
+        # temporally skip saving image
         elif isinstance(image_arr, CompressedImage):
             with open(osp.join(self._output_scene_dir, sample_data_record.filename), "xb") as fw:
                 fw.write(image_arr.data)
@@ -838,6 +935,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             translation = {"x": 0.0, "y": 0.0, "z": 0.0}
             rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
+            # topic_name = topic_name.replace("camera3","camera6")
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
             print(
                 f"generate_calib_sensor, start_timestamp:{start_timestamp}, topic name:{topic_name}, frame id:{frame_id}"
@@ -889,7 +987,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     continue
-                camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+                camera_intrinsic = info.k.reshape(
+                    3, 3
+                ).tolist()  # temporarily change to use K matrix
                 camera_distortion = info.d.tolist()
 
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
