@@ -67,6 +67,10 @@ class SENSOR_ENUM(Enum):
         "channel": "LIDAR_TOP",
         "modality": SENSOR_MODALITY_ENUM.LIDAR.value,
     }
+    LIDAR_FRONT = {
+        "channel": "LIDAR_FRONT",
+        "modality": SENSOR_MODALITY_ENUM.LIDAR.value,
+    }
     LIDAR_CONCAT = {
         "channel": "LIDAR_CONCAT",
         "modality": SENSOR_MODALITY_ENUM.LIDAR.value,
