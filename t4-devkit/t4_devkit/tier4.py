@@ -19,7 +19,7 @@ from t4_devkit.common.timestamp import sec2us, us2sec
 from t4_devkit.schema import SchemaName, SensorModality, VisibilityLevel, build_schema
 
 if TYPE_CHECKING:
-    from rerun.blueprint.api import BlueprintLike
+    from rerun.blueprint.api import BlueprintLike, Container, SpaceView
     from rerun.recording_stream import RecordingStream
     from t4_devkit.typing import (
         CamIntrinsicType,
@@ -192,6 +192,7 @@ class Tier4:
             category: Category = self.get("category", instance.category_token)
             record.category_name = category.name
 
+        registered_channels: list[str] = []
         for record in self.sample_data:
             cs_record: CalibratedSensor = self.get(
                 "calibrated_sensor", record.calibrated_sensor_token
@@ -199,8 +200,13 @@ class Tier4:
             sensor_record: Sensor = self.get("sensor", cs_record.sensor_token)
             record.modality = sensor_record.modality
             record.channel = sensor_record.channel
+            # set first sample data token to the corresponding sensor channel,
+            # as premise for sample data is ordered by time stamp order.
+            if sensor_record.channel not in registered_channels:
+                sensor_record.first_sd_token = record.token
+                registered_channels.append(sensor_record.channel)
 
-        for record in self.sample_data:
+            # set sample data
             if record.is_key_frame:
                 sample_record: Sample = self.get("sample", record.sample_token)
                 sample_record.data[record.channel] = record.token
@@ -633,37 +639,44 @@ class Tier4:
             max_time_seconds (float, optional): Max time length to be rendered [s].
             save_dir (str | None, optional): Directory path to save the recording.
             show (bool, optional): Whether to spawn rendering viewer.
-
-        BUG:
-            If sample data is not associated with the first sample, all frames are not rendered.
         """
+        # search first sample data tokens
+        first_lidar_token: str | None = None
+        first_radar_tokens: list[str] = []
+        first_camera_tokens: list[str] = []
+        for sensor in self.sensor:
+            sd_token = sensor.first_sd_token
+            if sensor.modality == SensorModality.LIDAR:
+                first_lidar_token = sd_token
+            elif sensor.modality == SensorModality.RADAR:
+                first_radar_tokens.append(sd_token)
+            elif sensor.modality == SensorModality.CAMERA:
+                first_camera_tokens.append(sd_token)
+
+        render_3d = first_lidar_token is not None or len(first_radar_tokens) > 0
+        render_2d = len(first_camera_tokens) > 0
+
+        # initialize viewer
         application_id = f"t4-devkit@{scene_token}"
-        blueprint = self._init_viewer(application_id, render_annotation=True, spawn=show)
+        blueprint = self._init_viewer(
+            application_id,
+            render_3d=render_3d,
+            render_2d=render_2d,
+            render_annotation=True,
+            spawn=show,
+        )
 
         scene: Scene = self.get("scene", scene_token)
         first_sample: Sample = self.get("sample", scene.first_sample_token)
+        max_timestamp_us = first_sample.timestamp + sec2us(max_time_seconds)
 
-        first_lidar_token = ""
-        first_radar_tokens: list[str] = []
-        first_camera_tokens: list[str] = []
-
-        # BUG: if sample data is not associated with the first sample, all frames are not rendered.
-        for _, sd_token in first_sample.data.items():
-            self._render_sensor_calibration(sd_token)
-            sample_data: SampleData = self.get("sample_data", sd_token)
-            if sample_data.modality == SensorModality.LIDAR:
-                first_lidar_token = sd_token
-            elif sample_data.modality == SensorModality.RADAR:
-                first_radar_tokens.append(sd_token)
-            elif sample_data.modality == SensorModality.CAMERA:
-                first_camera_tokens.append(sd_token)
-
-        first_lidar_sd_record: SampleData = self.get("sample_data", first_lidar_token)
-        max_timestamp_us = first_lidar_sd_record.timestamp + sec2us(max_time_seconds)
-
-        self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
+        # render raw data for each sensor
+        if first_lidar_token is not None:
+            self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
         self._render_radars(first_radar_tokens, max_timestamp_us)
         self._render_cameras(first_camera_tokens, max_timestamp_us)
+
+        # render annotations
         self._render_annotation_3ds(scene.first_sample_token, max_timestamp_us)
         self._render_annotation_2ds(scene.first_sample_token, max_timestamp_us)
 
@@ -683,41 +696,51 @@ class Tier4:
             instance_token (str): Instance token.
             save_dir (str | None, optional): Directory path to save the recording.
             show (bool, optional): Whether to spawn rendering viewer.
-
-        BUG:
-            If sample data is not associated with the first sample, all frames are not rendered.
         """
-        application_id = f"t4-devkit@{instance_token}"
-        blueprint = self._init_viewer(application_id, render_annotation=True, spawn=show)
-
+        # search first sample associated with the instance
         instance: Instance = self.get("instance", instance_token)
         first_ann: SampleAnnotation = self.get(
             "sample_annotation", instance.first_annotation_token
         )
         first_sample: Sample = self.get("sample", first_ann.sample_token)
 
-        first_lidar_token = ""
+        # search first sample data tokens
+        first_lidar_token: str | None = None
         first_radar_tokens: list[str] = []
         first_camera_tokens: list[str] = []
-
-        # FIXME: if sample data is not associated with the first sample, all frames are not rendered.
-        for _, sd_token in first_sample.data.items():
-            self._render_sensor_calibration(sd_token)
-            sample_data: SampleData = self.get("sample_data", sd_token)
-            if sample_data.modality == SensorModality.LIDAR:
+        for sensor in self.sensor:
+            sd_token = sensor.first_sd_token
+            if sensor.modality == SensorModality.LIDAR:
                 first_lidar_token = sd_token
-            elif sample_data.modality == SensorModality.RADAR:
+            elif sensor.modality == SensorModality.RADAR:
                 first_radar_tokens.append(sd_token)
-            elif sample_data.modality == SensorModality.CAMERA:
+            elif sensor.modality == SensorModality.CAMERA:
                 first_camera_tokens.append(sd_token)
+
+        render_3d = first_lidar_token is not None or len(first_radar_tokens) > 0
+        render_2d = len(first_camera_tokens) > 0
+
+        # initialize viewer
+        application_id = f"t4-devkit@{instance_token}"
+        blueprint = self._init_viewer(
+            application_id,
+            render_3d=render_3d,
+            render_2d=render_2d,
+            render_annotation=True,
+            spawn=show,
+        )
 
         last_ann: SampleAnnotation = self.get("sample_annotation", instance.last_annotation_token)
         last_sample: Sample = self.get("sample", last_ann.sample_token)
         max_timestamp_us = last_sample.timestamp
 
-        self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
+        # render sensors
+        if first_lidar_token is not None:
+            self._render_lidar_and_ego(first_lidar_token, max_timestamp_us)
         self._render_radars(first_radar_tokens, max_timestamp_us)
         self._render_cameras(first_camera_tokens, max_timestamp_us)
+
+        # render annotations
         self._render_annotation_3ds(
             first_sample.token,
             max_timestamp_us,
@@ -753,25 +776,24 @@ class Tier4:
         TODO:
             Add an option of rendering radar channels.
         """
+        # search first lidar sample data token
+        first_lidar_token: str | None = None
+        for sensor in self.sensor:
+            if sensor.modality != SensorModality.LIDAR:
+                continue
+            first_lidar_token = sensor.first_sd_token
+
+        if first_lidar_token is None:
+            print("There is no 3D pointcloud data, abort rendering...")
+            return
+
+        # initialize viewer
         application_id = f"t4-devkit@{scene_token}"
         blueprint = self._init_viewer(application_id, render_annotation=False, spawn=show)
-
-        scene: Scene = self.get("scene", scene_token)
-        first_sample: Sample = self.get("sample", scene.first_sample_token)
-
-        first_lidar_token = ""
-        first_lidar_sd_record = None
-
-        for _, sd_token in first_sample.data.items():
-            self._render_sensor_calibration(sd_token)
-            sample_data: SampleData = self.get("sample_data", sd_token)
-            if sample_data.modality != SensorModality.LIDAR:
-                continue
-            first_lidar_token = sd_token
-            first_lidar_sd_record = sample_data
-
+        first_lidar_sd_record: SampleData = self.get("sample_data", first_lidar_token)
         max_timestamp_us = first_lidar_sd_record.timestamp + sec2us(max_time_seconds)
 
+        # render pointcloud
         self._render_lidar_and_ego(
             first_lidar_token,
             max_timestamp_us,
@@ -786,6 +808,8 @@ class Tier4:
         self,
         application_id: str,
         *,
+        render_3d: bool = True,
+        render_2d: bool = True,
         render_annotation: bool = True,
         spawn: bool = False,
     ) -> BlueprintLike:
@@ -793,29 +817,41 @@ class Tier4:
 
         Args:
             application_id (str): Application ID.
+            render_3d (bool, optional): Whether to render 3D space.
+            render_2d (bool, optional): Whether to render 2D space.
             render_annotation (bool, optional): Whether to render annotations.
             spawn (bool, optional): Whether to spawn rendering viewer.
 
         Returns:
             Recording blueprint.
         """
-        camera_names = [
-            sensor.channel for sensor in self.sensor if sensor.modality == SensorModality.CAMERA
-        ]
+        if not (render_3d or render_2d):
+            raise ValueError("At least one of `render_3d` or `render_2d` must be True.")
 
-        sensor_space_views = [
-            rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
-            for camera in camera_names
-        ]
-        blueprint = rrb.Vertical(
-            rrb.Horizontal(
-                rrb.Spatial3DView(name="3D", origin="world"),
-                rrb.TextDocumentView(origin="description", name="Description"),
-                column_shares=[3, 1],
-            ),
-            rrb.Grid(*sensor_space_views),
-            row_shares=[4, 2],
-        )
+        view_container: list[Container | SpaceView] = []
+
+        if render_3d:
+            view_container.append(
+                rrb.Horizontal(
+                    rrb.Spatial3DView(name="3D", origin="world"),
+                    rrb.TextDocumentView(origin="description", name="Description"),
+                    column_shares=[3, 1],
+                )
+            )
+
+        if render_2d:
+            camera_names = [
+                sensor.channel
+                for sensor in self.sensor
+                if sensor.modality == SensorModality.CAMERA
+            ]
+            camera_space_views = [
+                rrb.Spatial2DView(name=camera, origin=f"world/ego_vehicle/{camera}")
+                for camera in camera_names
+            ]
+            view_container.append(rrb.Grid(*camera_space_views))
+
+        blueprint = rrb.Vertical(*view_container, row_shares=[4, 2])
         rr.init(
             application_id=application_id,
             recording_id=None,
@@ -888,6 +924,8 @@ class Tier4:
             ignore_distortion (boo, optional): Whether to ignore distortion parameters.
                 This argument is only used if `project_points=True`.
         """
+        self._render_sensor_calibration(first_lidar_token)
+
         current_lidar_token = first_lidar_token
 
         while current_lidar_token != "":
@@ -932,6 +970,8 @@ class Tier4:
             max_timestamp_us (float): Max time length in [us].
         """
         for first_radar_token in first_radar_tokens:
+            self._render_sensor_calibration(first_radar_token)
+
             current_radar_token = first_radar_token
             while current_radar_token != "":
                 sample_data: SampleData = self.get("sample_data", current_radar_token)
@@ -960,6 +1000,8 @@ class Tier4:
             max_timestamp_us (float): Max time length in [us].
         """
         for first_camera_token in first_camera_tokens:
+            self._render_sensor_calibration(first_camera_token)
+
             current_camera_token = first_camera_token
             while current_camera_token != "":
                 sample_data: SampleData = self.get("sample_data", current_camera_token)
