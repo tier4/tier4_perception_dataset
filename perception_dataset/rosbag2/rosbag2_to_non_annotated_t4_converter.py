@@ -811,7 +811,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     None,
                     camera_info.p.reshape(3, 4)[:3],
                 )
-                cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image)
+                cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image, [cv2.IMWRITE_JPEG_QUALITY, 100])
 
         return sample_data_token
 
