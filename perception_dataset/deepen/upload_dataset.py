@@ -1,17 +1,17 @@
 import argparse
 import glob
-import os.path as osp
-from datetime import date
 import json
 import os
+import os.path as osp
 from typing import List
-
-import yaml
-import httpx
-import requests
 import urllib.parse
 
+import httpx
+import requests
+import yaml
+
 from perception_dataset.utils.logger import configure_logger
+
 logger = configure_logger(modname=__name__)
 RETRIES = 0
 TIMEOUT = 100
@@ -23,12 +23,9 @@ DATSETS_URL = (
     f"https://tools.deepen.ai/api/v2/clients/{CLIENT_ID}/labels_of_dataset_ids?labelSetId=default"
 )
 
-today = str(date.today()).replace("-", "")
 
 class DeepenAccessException(Exception):
-    MSG_TEMPLATE = (
-        "{status_code} from deepen API; request params except secrets: {params_except_secrets}; response {response}"
-    )
+    MSG_TEMPLATE = "{status_code} from deepen API; request params except secrets: {params_except_secrets}; response {response}"
 
     def __init__(
         self,
@@ -48,22 +45,6 @@ class DeepenAccessException(Exception):
 class AnnotationNotFoundException(Exception):
     pass
 
-
-def upload_zipfile(dataset_filename: str, resumable_upload_url: str) -> None:
-    filesize = os.path.getsize(dataset_filename)
-    headers = {
-        "Expect": "",
-    }
-
-    try:
-        response = requests.put(
-            resumable_upload_url, headers=headers, files={"form_field_name": dataset_filename})
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        print(response.text)
-        raise SystemExit(e)
-
-    print(f"response: {response}")
 
 def create_dataset_request(
     labeling_profile_id: str,
@@ -185,6 +166,7 @@ def create_dataset_request(
             )
     return dataset_id
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -212,5 +194,13 @@ if __name__ == "__main__":
         # get basename without extension
         dataset_name = osp.basename(input_dir)
         dataset_name = dataset_name.split(".")[0]
-        dataset_id = create_dataset_request(labeling_profile_id, labeling_mode, dataset_name, dataset_type, file_size, input_dir, tags)
+        dataset_id = create_dataset_request(
+            labeling_profile_id,
+            labeling_mode,
+            dataset_name,
+            dataset_type,
+            file_size,
+            input_dir,
+            tags,
+        )
         print(f"dataset_id: {dataset_id}")

@@ -3,6 +3,5 @@ conversion:
   input_base: /media/miura/WDB_SA510_4TB_4/T4_format_for_annotation/Uber/deepen_format/upload_test
   labeling_profile_id: NtUh5kHCy7Pl9L4HpO5iDrW0
   labeling_mode: label_by_label  #label_by_label or frame_by_frame
-  dataset_type: 3d  #3d or video or images 
+  dataset_type: 3d  #3d or video or images
   tags: [Co-MLOps, rework]
-  
