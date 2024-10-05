@@ -188,8 +188,9 @@ if __name__ == "__main__":
     dataset_type = config["conversion"]["dataset_type"]
     tags = config["conversion"]["tags"]
 
-    # get all dir in input_dir
-    for input_dir in glob.glob(osp.join(input_base, "*")):
+    dataset_name_id_dict = {}
+    # upload dataset
+    for input_dir in sorted(glob.glob(osp.join(input_base, "*"))):
         file_size = os.path.getsize(input_dir)
         # get basename without extension
         dataset_name = osp.basename(input_dir)
@@ -203,4 +204,9 @@ if __name__ == "__main__":
             input_dir,
             tags,
         )
-        print(f"dataset_id: {dataset_id}")
+        logger.info(f"dataset_id: {dataset_id}")
+        dataset_name_id_dict[dataset_name] = dataset_id
+
+    # save dataset_id
+    with open(osp.join(input_base, "dataset_id.json"), "w") as f:
+        json.dump(dataset_name_id_dict, f)
