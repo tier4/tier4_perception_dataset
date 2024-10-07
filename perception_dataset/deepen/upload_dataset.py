@@ -16,12 +16,8 @@ logger = configure_logger(modname=__name__)
 RETRIES = 0
 TIMEOUT = 100
 
-
 CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
 ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
-DATSETS_URL = (
-    f"https://tools.deepen.ai/api/v2/clients/{CLIENT_ID}/labels_of_dataset_ids?labelSetId=default"
-)
 
 
 class DeepenAccessException(Exception):
