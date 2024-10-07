@@ -68,8 +68,8 @@ def reorganize_directory(base_dir: Path, data_dir: Path, logger: logging.Logger)
                 │   └── data_dir/
                 │       ├── Semantic Segmentation - metadata.json
                 │       ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00000_jpg.npy
-                │       ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
-                │       ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
+                │       ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
+                │       ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
 
         After
             base_dir/
@@ -112,15 +112,15 @@ def flatten_directory_structure(base_dir: Path, data_dir: Path, logger: logging.
                 │   └── data_dir/
                 │       ├── Semantic Segmentation - metadata.json
                 │       ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00000_jpg.npy
-                │       ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
-                │       ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
+                │       ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
+                │       ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
 
         After
             base_dir/
                 ├── Semantic Segmentation - metadata.json
                 ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00000_jpg.npy
-                ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
-                ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
+                ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
+                ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
     """
     # Move all files and directories inside data_dir to base_dir
     item: Path
@@ -155,8 +155,8 @@ def remove_prefix(file_path: Path) -> Path:
             base_dir/
                 ├── Semantic Segmentation - metadata.json
                 ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00000_jpg.npy
-                ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
-                ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
+                ├── Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
+                ├── Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
 
         After
             base_dir/
