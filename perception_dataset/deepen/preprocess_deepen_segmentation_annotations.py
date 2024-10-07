@@ -1,10 +1,10 @@
 import argparse
 import logging
+from pathlib import Path
 import re
 import shutil
+from typing import Optional, Tuple
 import zipfile
-from pathlib import Path
-from typing import Tuple, Optional
 
 
 def extract_zip(zip_file: Path, out_dir: Path) -> Tuple[Path]:
@@ -27,21 +27,21 @@ def extract_zip(zip_file: Path, out_dir: Path) -> Tuple[Path]:
     extract_path.mkdir(parents=True, exist_ok=True)
 
     # Extract the zip file
-    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_file, "r") as zip_ref:
         zip_ref.extractall(extract_path)
 
     # Search for base_dir
-    data_dirs: list[Path] = list(extract_path.glob('./tmp/deepenLabels-*'))
+    data_dirs: list[Path] = list(extract_path.glob("./tmp/deepenLabels-*"))
     if not data_dirs:
-        logging.error('Could not find deepenLabels-* directory')
+        logging.error("Could not find deepenLabels-* directory")
         return None
     if len(data_dirs) != 1:
-        logging.error('Multiple data_dirs found in base_dir')
+        logging.error("Multiple data_dirs found in base_dir")
         return None
     data_dir: Path = data_dirs[0]
     base_dir: Path = data_dir.parent.parent
 
-    return base_dir, data_dir 
+    return base_dir, data_dir
 
 
 def reorganize_directory(base_dir: Path, data_dir: Path, logger: logging.Logger) -> None:
@@ -89,7 +89,7 @@ def reorganize_directory(base_dir: Path, data_dir: Path, logger: logging.Logger)
             new_file_path: Path = remove_prefix(file_path)
 
             # If it's an npy file, move it to the appropriate sensor directory
-            if new_file_path.suffix == '.npy':
+            if new_file_path.suffix == ".npy":
                 move_to_sensor_directory(new_file_path, base_dir)
 
 
@@ -100,7 +100,7 @@ def flatten_directory_structure(base_dir: Path, data_dir: Path, logger: logging.
     Args:
     - base_dir (Path): The parent directory where files will be moved.
     - data_dir (Path): The path to the directory containing the data.
-    
+
     Returns:
     - None
 
@@ -127,7 +127,7 @@ def flatten_directory_structure(base_dir: Path, data_dir: Path, logger: logging.
     for item in data_dir.iterdir():
         dest_path: Path = base_dir / item.name
         if dest_path.exists():
-            logger.warning(f'Warning: {dest_path} already exists. Skipping.')
+            logger.warning(f"Warning: {dest_path} already exists. Skipping.")
             continue
         item.replace(dest_path)
 
@@ -167,11 +167,11 @@ def remove_prefix(file_path: Path) -> Path:
     """
     filename: str = file_path.name
     new_filename: str
-    if filename == 'Semantic Segmentation - metadata.json':
-        new_filename = 'metadata.json'
-    elif filename.endswith('.npy') and 'Semantic Segmentation - sensor' in filename:
+    if filename == "Semantic Segmentation - metadata.json":
+        new_filename = "metadata.json"
+    elif filename.endswith(".npy") and "Semantic Segmentation - sensor" in filename:
         # Remove the prefix 'Semantic Segmentation - sensorX - '
-        new_filename = re.sub(r'^Semantic Segmentation - sensor\d+ - ', '', filename)
+        new_filename = re.sub(r"^Semantic Segmentation - sensor\d+ - ", "", filename)
     else:
         new_filename = filename
 
@@ -210,10 +210,10 @@ def move_to_sensor_directory(npy_path: Path, base_dir: Path) -> None:
                 │   ├── data_CAM_TRAFFIC_LIGHT_NEAR_00000_jpg.npy
                 │   ├── data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy
                 ├── CAM_TRAFFIC_LIGHT_FAR/
-                │   └── data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy    
+                │   └── data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy
     """
     filename: str = npy_path.name
-    match: Optional[re.Match] = re.search(r'data_(.+)_\d+_jpg.npy', filename)
+    match: Optional[re.Match] = re.search(r"data_(.+)_\d+_jpg.npy", filename)
     if match:
         sensor_dir_name: str = match.group(1)
         dir_path: Path = base_dir / sensor_dir_name
@@ -222,7 +222,9 @@ def move_to_sensor_directory(npy_path: Path, base_dir: Path) -> None:
         npy_path.replace(dest_npy_path)
 
 
-def preprocess_deepen_segmentation_annotation(zip_file: Path, out_dir: Path, logger: logging.Logger) -> None:
+def preprocess_deepen_segmentation_annotation(
+    zip_file: Path, out_dir: Path, logger: logging.Logger
+) -> None:
     """
     Extracts and reorganizes the annotation data for Deepen's semantic segmentation.
 
@@ -248,16 +250,25 @@ def preprocess_deepen_segmentation_annotation(zip_file: Path, out_dir: Path, log
 
 
 def parse_args(logger: logging.Logger) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description='Extract annotation data for Deepen\'s semantic segmentation.')
-    parser.add_argument('--zip-file', type=Path, help='Path to the zip file to process.')
-    parser.add_argument('--zip-files-dir', type=Path, help='Path to the directory containing multiple zip files.')
-    parser.add_argument('--out-dir', type=Path, required=True, help='Directory where the extracted files will be stored.')
+    parser = argparse.ArgumentParser(
+        description="Extract annotation data for Deepen's semantic segmentation."
+    )
+    parser.add_argument("--zip-file", type=Path, help="Path to the zip file to process.")
+    parser.add_argument(
+        "--zip-files-dir", type=Path, help="Path to the directory containing multiple zip files."
+    )
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        required=True,
+        help="Directory where the extracted files will be stored.",
+    )
     args: argparse.Namespace = parser.parse_args()
     if not args.zip_file and not args.zip_files_dir:
-        logger.error('Please specify either --zip-file or --zip-files-dir.')
+        logger.error("Please specify either --zip-file or --zip-files-dir.")
         return
     if args.zip_file and args.zip_files_dir:
-        logger.error('Please specify either --zip-file or --zip-files-dir, but not both')
+        logger.error("Please specify either --zip-file or --zip-files-dir, but not both")
         return
 
     return args
@@ -275,9 +286,9 @@ def main() -> None:
         # Process all zip files in the directory
         zip_files_dir: Path = args.zip_files_dir
         zip_file_path: Path
-        for zip_file_path in zip_files_dir.glob('*.zip'):
+        for zip_file_path in zip_files_dir.glob("*.zip"):
             preprocess_deepen_segmentation_annotation(zip_file_path, args.out_dir, logger)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
