@@ -51,6 +51,21 @@ def mark_as_done(dataset_id: str) -> None:
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
 
+def get_dataset_status(dataset_id: str) -> str:
+    url = f"https://tools.deepen.ai/api/v2/datasets/{dataset_id}"
+    headers = {
+        "Authorization": "Bearer " + ACCESS_TOKEN,
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise SystemExit(e)
+
+    return response.json()["current_stage_status"]
+
 def import_label(
     dataset_id: str,
     label_set_id: str,
@@ -97,29 +112,36 @@ if __name__ == "__main__":
     dataset_id_dict = config["conversion"]["dataset_ids"]
     change_to_done = config["conversion"]["change_status_to_done"]
 
-    for dataset_name, dataset_id in dataset_id_dict.items():
-        input_jsons = glob.glob(osp.join(input_base, "*.json"))
-        for input_json in input_jsons:
-            if dataset_name in input_json:
-                with open(input_json) as f:
-                    label = yaml.safe_load(f)["labels"]
-                    import_label(dataset_id, label_set_id, label)
-                    if change_to_done:
-                        mark_as_done(dataset_id)
+    if not osp.exists(input_base):
+        logger.error(f"input_base {input_base} does not exist.")
+        raise FileNotFoundError
 
-                    # save log
-                    log_file = "import_label.log"
-                    if change_to_done:
-                        status = "marked as done"
-                    else:
-                        status = "imported"
-                    log_entry = {
-                        "dataset_name": dataset_name,
-                        "dataset_id": dataset_id,
-                        "status": status,
-                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    
-                    with open(log_file, "a") as log:
-                        log.write(json.dumps(log_entry) + "\n")
-                    break
+    log_file = "import_label.log"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    for dataset_name, dataset_id in dataset_id_dict.items():
+        json_file = f"{input_base}/{dataset_name}.json"
+        if not osp.exists(json_file):
+            logger.error(f"{json_file} does not exist.")
+            json_file = f"{input_base}/Dataset - {dataset_name}.json"
+            if not osp.exists(json_file):
+                logger.error(f"{json_file} does not exist.")
+                continue
+        status = get_dataset_status(dataset_id)
+        if status == "done":
+            with open(log_file, "a") as log:
+                log.write(f"{dataset_name}, {dataset_id}, already done, {timestamp}\n")
+            continue
+        with open(json_file) as f:
+            label = yaml.safe_load(f)["labels"]
+            import_label(dataset_id, label_set_id, label)
+            if change_to_done:
+                mark_as_done(dataset_id)
+
+            # save log
+            if change_to_done:
+                status = "marked as done"
+            else:
+                status = "imported"
+
+            with open(log_file, "a") as log:
+                log.write(f"{dataset_name}, {dataset_id}, {status}, {timestamp}\n")
