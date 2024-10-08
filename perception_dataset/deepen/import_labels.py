@@ -4,12 +4,13 @@ import glob
 import json
 import os
 import os.path as osp
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 import requests
 import yaml
 
 from perception_dataset.utils.logger import configure_logger
+
 logger = configure_logger(modname=__name__)
 
 RETRIES = 0
@@ -36,8 +37,10 @@ class DeepenAccessException(Exception):
         )
         super().__init__(msg)
 
+
 class AnnotationNotFoundException(Exception):
     pass
+
 
 def mark_as_done(dataset_id: str) -> None:
     url = f"https://tools.deepen.ai/api/v2/datasets/{dataset_id}/mark_labelling_done"
@@ -50,6 +53,7 @@ def mark_as_done(dataset_id: str) -> None:
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
+
 
 def get_dataset_status(dataset_id: str) -> str:
     url = f"https://tools.deepen.ai/api/v2/datasets/{dataset_id}"
@@ -65,6 +69,7 @@ def get_dataset_status(dataset_id: str) -> str:
         raise SystemExit(e)
 
     return response.json()["current_stage_status"]
+
 
 def import_label(
     dataset_id: str,
@@ -88,9 +93,10 @@ def import_label(
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
- 
+
     logger.info("Import 3D labels for a dataset end.")
     return dataset_id
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
