@@ -44,6 +44,7 @@ class DeepenSegmentationPaints:
 
         self.index_to_category: List[str] = []  # ["category1", "category2"]
         self.dataset_id: str = segmentation_dir_path.stem
+        self.segmentation_masks: Dict[Tuple[str, str], NDArray] = {}
         self.load_data(segmentation_dir_path, input_base_path)
 
     def load_data(self, segmentation_dir: Path, input_base: Path):
@@ -209,3 +210,17 @@ class DeepenSegmentationPaints:
                     )
                     annotations.append(annotation)
         return annotations
+
+    def to_deepen_annotation_dicts(self) -> List[Dict[str, Any]]:
+        """
+        Converts the loaded data into a list of DeepenAnnotation dicts.
+
+        Returns:
+            List[Dict[str, Any]]: A list of DeepenAnnotation dicts.
+        """
+        deepen_annotations: List[DeepenAnnotation] = self.to_deepen_annotations()
+        deepen_annotation_dicts: List[Dict[str, Any]] = []
+        for deepen_annotation in deepen_annotations:
+            deepen_annotation_dicts.append(deepen_annotation.to_dict())
+
+        return deepen_annotation_dicts

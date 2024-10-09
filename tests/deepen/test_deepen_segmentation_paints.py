@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
+from typing import List
 from zipfile import ZipFile
 
 from PIL import Image
 import numpy as np
 import pytest
 
+from perception_dataset.deepen.deepen_annotation import DeepenAnnotation
 from perception_dataset.deepen.segmentation.deepen_segmentation_paints import (
     DeepenSegmentationPaints,
 )
@@ -164,10 +166,56 @@ def test_to_deepen_annotations(input_anno_file: str, input_base: str):
         - Each annotation has the correct dataset ID and label type.
     """
     deepen_segmentation_paints = DeepenSegmentationPaints(input_anno_file, input_base)
-    annotations = deepen_segmentation_paints.to_deepen_annotations()
+    annotations: List[DeepenAnnotation] = deepen_segmentation_paints.to_deepen_annotations()
     assert len(annotations) == 12  # 2 sensors * 2 images * 3 instances
 
     for annotation in annotations:
         assert annotation.label_category_id in ["category1", "category2"]
         assert annotation.dataset_id == "segmentation_prd_uuid_1970-01-01_00-00-00_00-01-00"
         assert annotation.label_type == "2d_segmentation"
+
+
+def test_to_deepen_annotation_dicts(input_anno_file: str, input_base: str):
+    """
+    Tests the to_deepen_annotation_dicts method of DeepenSegmentationPaints.
+
+    Args:
+        input_anno_file (str): The path to the zip file containing the simulated segmentation annotations.
+        input_base (str): The path to the 'input_base' directory containing the simulated image data.
+    """
+    # Instantiate the DeepenSegmentationPaints class
+    deepen_segmentation_paints = DeepenSegmentationPaints(input_anno_file, input_base)
+
+    # Call the to_deepen_annotation_dicts method
+    annotation_dicts = deepen_segmentation_paints.to_deepen_annotation_dicts()
+
+    # Check that the output is a list of dictionaries
+    assert len(annotation_dicts) == 12  # 2 sensors * 2 images * 3 instances
+
+    for annotation_dict in annotation_dicts:
+        assert isinstance(annotation_dict, dict)
+        # Check that required keys are present
+        required_keys = [
+            "dataset_id",
+            "file_id",
+            "label_category_id",
+            "label_id",
+            "label_type",
+            "labeller_email",
+            "sensor_id",
+            "attributes",
+            "three_d_bbox",
+            "box",
+            "two_d_mask",
+        ]
+        for key in required_keys:
+            assert key in annotation_dict
+
+        # Check values
+        assert annotation_dict["label_category_id"] in ["category1", "category2"]
+        assert annotation_dict["dataset_id"] == deepen_segmentation_paints.dataset_id
+        assert annotation_dict["label_type"] == "2d_segmentation"
+        assert annotation_dict["three_d_bbox"] is None
+        assert annotation_dict["box"] is None
+        assert annotation_dict["two_d_mask"] is not None
+        assert isinstance(annotation_dict["two_d_mask"], str)
