@@ -1,16 +1,21 @@
-import re
+import base64
 import json
-import numpy as np
-from PIL import Image
-from typing import Any, Dict, List, Tuple
-from numpy.typing import NDArray
 import logging
 from pathlib import Path
+import re
+from typing import Any, Dict, List, Tuple
+
+from PIL import Image
+import numpy as np
+from numpy.typing import NDArray
 from pycocotools import mask as cocomask
-import base64
 import skimage
+
 from perception_dataset.deepen.deepen_annotation import DeepenAnnotation
-from perception_dataset.deepen.segmentation.preprocess_deepen_segmentation_annotations import preprocess_deepen_segmentation_annotation
+from perception_dataset.deepen.segmentation.preprocess_deepen_segmentation_annotations import (
+    preprocess_deepen_segmentation_annotation,
+)
+
 
 class DeepenSegmentationPaints:
     """
@@ -23,9 +28,11 @@ class DeepenSegmentationPaints:
         base_dir_path = Path(input_anno_file).parent
         input_base_path = Path(input_base)
         segmentation_dir_path = base_dir_path / input_anno_file_path.stem
-        preprocess_deepen_segmentation_annotation(input_anno_file_path, base_dir_path, logging.getLogger(__name__))
+        preprocess_deepen_segmentation_annotation(
+            input_anno_file_path, base_dir_path, logging.getLogger(__name__)
+        )
 
-        self.index_to_category: List[str] = [] # ["category1", "category2"]
+        self.index_to_category: List[str] = []  # ["category1", "category2"]
         self.dataset_id: str = segmentation_dir_path.stem
         self.load_data(segmentation_dir_path, input_base_path)
 
@@ -40,11 +47,11 @@ class DeepenSegmentationPaints:
 
         def _load_metadata(segmentation_dir: Path) -> Tuple[Dict[str, Any], List[str]]:
             # Load metadata.json
-            metadata_file = segmentation_dir / 'metadata.json'
+            metadata_file = segmentation_dir / "metadata.json"
             if not metadata_file.is_file():
                 raise FileNotFoundError(f"metadata.json not found in {segmentation_dir}")
 
-            with open(metadata_file, 'r') as f:
+            with open(metadata_file, "r") as f:
                 metadata_dict = json.load(f)
 
             sensor_names: List[str] = list(metadata_dict.keys())
@@ -52,10 +59,12 @@ class DeepenSegmentationPaints:
             image_names: List[str] = list(metadata_dict[sensor_names[0]].keys())
             # Assume the categories in all images and sensors is the same
             index_to_category: List[str] = metadata_dict[sensor_names[0]][image_names[0]]
-            
+
             return metadata_dict, index_to_category
-        
-        def _load_segmentation_masks(metadata_dict: Dict[str, Any], segmentation_dir: Path, input_base: Path) -> Dict[Tuple[str, str], NDArray]:
+
+        def _load_segmentation_masks(
+            metadata_dict: Dict[str, Any], segmentation_dir: Path, input_base: Path
+        ) -> Dict[Tuple[str, str], NDArray]:
             segmentation_masks = {}
 
             # Assuming all images have the same dimensions
@@ -66,7 +75,7 @@ class DeepenSegmentationPaints:
                 sensor_dir = segmentation_dir / sensor_name
                 for image_name in images.keys():
                     # Load segmentation mask
-                    npy_file = sensor_dir / image_name.replace('.jpg', '_jpg.npy')
+                    npy_file = sensor_dir / image_name.replace(".jpg", "_jpg.npy")
                     if not npy_file.is_file():
                         continue  # Skip if the .npy file doesn't exist
 
@@ -90,14 +99,16 @@ class DeepenSegmentationPaints:
             # For example, from 'data_CAM_TRAFFIC_LIGHT_NEAR_00000.jpg' extract '00000.jpg'
 
             # Use regular expression to match the numeric part followed by '.jpg' at the end
-            match = re.search(r'(\d+\.jpg)$', image_name_in_metadata)
+            match = re.search(r"(\d+\.jpg)$", image_name_in_metadata)
             if match:
                 actual_image_name = match.group(1)
                 return actual_image_name
             else:
                 raise ValueError(f"Cannot extract actual image name from {image_name_in_metadata}")
 
-        def _get_image_dimensions(input_base: str, metadata_dict: Dict[str, Any]) -> Tuple[int, int]:
+        def _get_image_dimensions(
+            input_base: str, metadata_dict: Dict[str, Any]
+        ) -> Tuple[int, int]:
             """
             Retrieves image dimensions from the first image specified in metadata_dict.
 
@@ -113,7 +124,7 @@ class DeepenSegmentationPaints:
                 image_names = list(metadata_dict[sensor_name].keys())
                 if image_names:
                     first_image_name = _extract_actual_image_name(image_names[0])
-                    image_path = input_base / 'data' / sensor_name / first_image_name
+                    image_path = input_base / "data" / sensor_name / first_image_name
                     if image_path.is_file():
                         with Image.open(image_path) as img:
                             width, height = img.size
@@ -124,19 +135,22 @@ class DeepenSegmentationPaints:
 
         metadata_dict, self.index_to_category = _load_metadata(segmentation_dir)
 
-        self.segmentation_masks = _load_segmentation_masks(metadata_dict, segmentation_dir, input_base)
+        self.segmentation_masks = _load_segmentation_masks(
+            metadata_dict, segmentation_dir, input_base
+        )
 
     def to_deepen_annotations(self) -> List[DeepenAnnotation]:
         """
         Converts segmentation data to Deepen annotation format.
         """
+
         def _dummy_instance_id(index_to_category: List[str]) -> Dict[str, int]:
             instance_id = {}
             for category_name in index_to_category:
                 instance_id[category_name] = 0
 
             return instance_id
-        
+
         def _mask_to_rle(object_mask: NDArray) -> List[str]:
             labeled_mask = skimage.measure.label(object_mask, connectivity=1)
             num_instances = labeled_mask.max()
@@ -145,14 +159,14 @@ class DeepenSegmentationPaints:
             for instance_id in range(1, num_instances + 1):
                 instance_mask = (labeled_mask == instance_id).astype(np.uint8)
                 rle = cocomask.encode(np.asfortranarray(instance_mask))
-                rle = base64.b64encode(rle['counts']).decode('ascii')
+                rle = base64.b64encode(rle["counts"]).decode("ascii")
                 rle_list.append(rle)
             return rle_list
 
         annotations = []
         dummy_instance_id: Dict[str, int] = _dummy_instance_id(self.index_to_category)
         for (sensor_name, image_name), segmentation_mask in self.segmentation_masks.items():
-            
+
             for idx, category_name in enumerate(self.index_to_category):
                 category_index = idx + 1  # Categories are indexed starting from 1
 

@@ -1,11 +1,14 @@
 import json
-import numpy as np
-from PIL import Image
 from pathlib import Path
 from zipfile import ZipFile
 
+from PIL import Image
+import numpy as np
 import pytest
-from perception_dataset.deepen.segmentation.deepen_segmentation_paints import DeepenSegmentationPaints
+
+from perception_dataset.deepen.segmentation.deepen_segmentation_paints import (
+    DeepenSegmentationPaints,
+)
 
 
 @pytest.fixture
@@ -26,11 +29,11 @@ def input_anno_file(tmp_path: Path) -> str:
         str: The path to the created zip file containing the simulated segmentation data.
     """
     test_dir = tmp_path
-    base_dir = test_dir / 'base_dir'
+    base_dir = test_dir / "base_dir"
     base_dir.mkdir()
 
     # Create the directory structure inside base_dir/tmp/deepenLabels-*
-    data_dir = base_dir / 'tmp' / 'deepenLabels-c0gc9xbz-DFE7eUiuaocC2WFQ58FjjA7s-1726015539'
+    data_dir = base_dir / "tmp" / "deepenLabels-c0gc9xbz-DFE7eUiuaocC2WFQ58FjjA7s-1726015539"
     data_dir.mkdir(parents=True)
 
     # Create 'Semantic Segmentation - metadata.json'
@@ -44,8 +47,8 @@ def input_anno_file(tmp_path: Path) -> str:
             "data_CAM_TRAFFIC_LIGHT_FAR_00001.jpg": ["category1", "category2"],
         },
     }
-    metadata_file = data_dir / 'Semantic Segmentation - metadata.json'
-    with open(metadata_file, 'w') as f:
+    metadata_file = data_dir / "Semantic Segmentation - metadata.json"
+    with open(metadata_file, "w") as f:
         json.dump(metadata, f)
 
     # Create npy files in data_dir
@@ -53,32 +56,32 @@ def input_anno_file(tmp_path: Path) -> str:
     width: int = 640
     height: int = 480
     npy_filenames = [
-        'Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00000_jpg.npy',
-        'Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy',
-        'Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy',
-        'Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00001_jpg.npy',
+        "Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00000_jpg.npy",
+        "Semantic Segmentation - sensor1 - data_CAM_TRAFFIC_LIGHT_NEAR_00001_jpg.npy",
+        "Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00000_jpg.npy",
+        "Semantic Segmentation - sensor2 - data_CAM_TRAFFIC_LIGHT_FAR_00001_jpg.npy",
     ]
     for npy_filename in npy_filenames:
         npy_file = data_dir / npy_filename
         # Create dummy segmentation data
-        segmentation_mask = np.zeros((width*height,), dtype=np.uint8)
-        segmentation_mask[:int(width*height*0.5)] = 1  # Half the mask is category1
-        segmentation_mask[int(width*height*0.5):] = 2  # Half the mask is 
-        
+        segmentation_mask = np.zeros((width * height,), dtype=np.uint8)
+        segmentation_mask[: int(width * height * 0.5)] = 1  # Half the mask is category1
+        segmentation_mask[int(width * height * 0.5) :] = 2  # Half the mask is
+
         segmentation_mask = np.zeros((width, height), dtype=np.uint8)
         third_height = height // 3
         segmentation_mask[:third_height, :] = 1  # Top third is category 1
-        segmentation_mask[third_height:2*third_height, :] = 2  # Middle third is category 2
-        segmentation_mask[2*third_height:, :] = 1  # Bottom third is category 1
+        segmentation_mask[third_height : 2 * third_height, :] = 2  # Middle third is category 2
+        segmentation_mask[2 * third_height :, :] = 1  # Bottom third is category 1
         # Flatten the segmentation mask to save as 1D array
         segmentation_mask = segmentation_mask.flatten()
 
         np.save(npy_file, segmentation_mask)
 
     # Create a zip file of data_dir
-    zip_file_path = base_dir / 'segmentation_prd_uuid_1970-01-01_00-00-00_00-01-00.zip'
-    with ZipFile(zip_file_path, 'w') as zipf:
-        for file_path in data_dir.rglob('*'):
+    zip_file_path = base_dir / "segmentation_prd_uuid_1970-01-01_00-00-00_00-01-00.zip"
+    with ZipFile(zip_file_path, "w") as zipf:
+        for file_path in data_dir.rglob("*"):
             if file_path.is_file():
                 # Calculate the relative path for the archive name
                 arcname = file_path.relative_to(base_dir)
@@ -86,6 +89,7 @@ def input_anno_file(tmp_path: Path) -> str:
 
     # Return the path to the zip file
     return str(zip_file_path)
+
 
 @pytest.fixture
 def input_base(tmp_path: Path) -> str:
@@ -103,13 +107,13 @@ def input_base(tmp_path: Path) -> str:
     Returns:
         str: The path to the 'input_base' directory containing the simulated image data.
     """
-    input_base = tmp_path / 'input_base'
-    data_dir = input_base / 'data'
+    input_base = tmp_path / "input_base"
+    data_dir = input_base / "data"
     data_dir.mkdir(parents=True)
 
     # Create directories and image files
-    cameras = ['CAM_TRAFFIC_LIGHT_NEAR', 'CAM_TRAFFIC_LIGHT_FAR']
-    images = ['00000.jpg', '00001.jpg']
+    cameras = ["CAM_TRAFFIC_LIGHT_NEAR", "CAM_TRAFFIC_LIGHT_FAR"]
+    images = ["00000.jpg", "00001.jpg"]
     width: int = 640
     height: int = 480
 
@@ -119,10 +123,11 @@ def input_base(tmp_path: Path) -> str:
         for image_name in images:
             image_path = camera_dir / image_name
             # Create dummy image files
-            img = Image.new('RGB', (width, height))
+            img = Image.new("RGB", (width, height))
             img.save(image_path)
 
     return str(input_base)
+
 
 def test_load_data(input_anno_file: str, input_base: str):
     """
@@ -139,8 +144,9 @@ def test_load_data(input_anno_file: str, input_base: str):
         - The number of categories matches the expected count.
     """
     deepen_segmentation_paints = DeepenSegmentationPaints(input_anno_file, input_base)
-    assert len(deepen_segmentation_paints.segmentation_masks) == 4 # 2 sensors * 2 images
-    assert len(deepen_segmentation_paints.index_to_category) == 2 # category1, category2
+    assert len(deepen_segmentation_paints.segmentation_masks) == 4  # 2 sensors * 2 images
+    assert len(deepen_segmentation_paints.index_to_category) == 2  # category1, category2
+
 
 def test_to_deepen_annotations(input_anno_file: str, input_base: str):
     """
@@ -159,7 +165,7 @@ def test_to_deepen_annotations(input_anno_file: str, input_base: str):
     """
     deepen_segmentation_paints = DeepenSegmentationPaints(input_anno_file, input_base)
     annotations = deepen_segmentation_paints.to_deepen_annotations()
-    assert len(annotations) == 12 # 2 sensors * 2 images * 3 instances
+    assert len(annotations) == 12  # 2 sensors * 2 images * 3 instances
 
     for annotation in annotations:
         assert annotation.label_category_id in ["category1", "category2"]

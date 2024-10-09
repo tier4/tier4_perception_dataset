@@ -1,7 +1,9 @@
+from dataclasses import dataclass, field
 import re
 from typing import Any, Dict, List, Optional
+
 from typing_extensions import Self
-from dataclasses import dataclass, field
+
 
 @dataclass
 class DeepenAnnotation:
@@ -42,6 +44,7 @@ class DeepenAnnotation:
     Note:
         Exactly one of `three_d_bbox`, `two_d_box`, or `two_d_mask` must be provided.
     """
+
     dataset_id: str
     file_id: str
     label_category_id: str
@@ -61,19 +64,21 @@ class DeepenAnnotation:
         and that the provided annotation contains the required data.
         """
 
-        def _check_provided_annotations_exists(three_d_bbox: Dict[str, Any], two_d_box: List[float], two_d_mask: str):
+        def _check_provided_annotations_exists(
+            three_d_bbox: Dict[str, Any], two_d_box: List[float], two_d_mask: str
+        ):
             """
             Ensures that exactly one of three_d_bbox, two_d_box, or two_d_mask is provided.
             """
             provided_annotations = [
                 three_d_bbox is not None,
                 two_d_box is not None,
-                two_d_mask is not None
+                two_d_mask is not None,
             ]
             num_provided = sum(provided_annotations)
-            assert num_provided == 1, (
-                "Exactly one of three_d_bbox, two_d_box, or two_d_mask must be provided."
-            )
+            assert (
+                num_provided == 1
+            ), "Exactly one of three_d_bbox, two_d_box, or two_d_mask must be provided."
 
         def _check_label_id(label_category_id: str, label_id: str):
             """
@@ -82,7 +87,7 @@ class DeepenAnnotation:
             Raises:
                 ValueError: If label_id does not match the required format.
             """
-            pattern = rf'^{re.escape(label_category_id)}:\d+$'
+            pattern = rf"^{re.escape(label_category_id)}:\d+$"
             if not re.match(pattern, label_id):
                 raise ValueError(
                     f"label_id '{label_id}' must follow the format '{{label_category_id}}:{{int}}'"
@@ -99,15 +104,17 @@ class DeepenAnnotation:
             Raises:
                 AssertionError: If any required keys are missing.
             """
-            required_keys = ['cx', 'cy', 'cz', 'h', 'l', 'w', 'quaternion']
+            required_keys = ["cx", "cy", "cz", "h", "l", "w", "quaternion"]
             missing_keys = [key for key in required_keys if key not in three_d_bbox]
             assert not missing_keys, f"three_d_bbox is missing keys: {missing_keys}"
 
             # Check quaternion
-            quaternion = three_d_bbox['quaternion']
-            quaternion_keys = ['x', 'y', 'z', 'w']
+            quaternion = three_d_bbox["quaternion"]
+            quaternion_keys = ["x", "y", "z", "w"]
             missing_quaternion_keys = [key for key in quaternion_keys if key not in quaternion]
-            assert not missing_quaternion_keys, f"quaternion is missing keys: {missing_quaternion_keys}"
+            assert (
+                not missing_quaternion_keys
+            ), f"quaternion is missing keys: {missing_quaternion_keys}"
 
         def _check_two_d_box(two_d_box: List[float]):
             """
@@ -220,5 +227,5 @@ class DeepenAnnotation:
             attributes=attributes,
             three_d_bbox=three_d_bbox,
             two_d_box=two_d_box,
-            two_d_mask=two_d_mask
+            two_d_mask=two_d_mask,
         )
