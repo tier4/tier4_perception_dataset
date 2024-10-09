@@ -1,10 +1,13 @@
+import base64
 import json
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import Any, Dict, List, Tuple
+
 from PIL import Image
-import base64
 from pycocotools import mask as cocomask
+
 from perception_dataset.deepen.deepen_annotation import DeepenAnnotation
+
 
 class DeepenSegmentationPolygons:
     """
@@ -42,9 +45,9 @@ class DeepenSegmentationPolygons:
         if not json_path.is_file():
             raise FileNotFoundError(f"Annotation file not found: {json_path}")
 
-        with json_path.open('r') as f:
+        with json_path.open("r") as f:
             self.annotations_data = json.load(f)
-        
+
     def _get_image_dimensions(self, input_base: Path) -> Tuple[int, int]:
         # Get image dimensions from the first image
         labels = self.annotations_data.get("labels", [])
@@ -52,7 +55,7 @@ class DeepenSegmentationPolygons:
             first_label = labels[0]
             file_id = first_label["file_id"]
             sensor_id = first_label["sensor_id"]
-            image_path = input_base / 'data' / sensor_id / file_id
+            image_path = input_base / "data" / sensor_id / file_id
             if not image_path.is_file():
                 raise FileNotFoundError(f"Image file not found: {image_path}")
 
@@ -60,7 +63,7 @@ class DeepenSegmentationPolygons:
                 width, height = img.size
         else:
             raise ValueError("No labels found in the annotation data.")
-        
+
         return width, height
 
     def to_deepen_annotations(self) -> List[DeepenAnnotation]:
@@ -88,14 +91,16 @@ class DeepenSegmentationPolygons:
             for polygon in polygons:
                 # Create DeepenAnnotation instance
 
-                flattened_polygon: List[List[float]] = [[coord for point in polygon for coord in point]]
+                flattened_polygon: List[List[float]] = [
+                    [coord for point in polygon for coord in point]
+                ]
                 # Create RLE mask from polygons
                 rle_objs = cocomask.frPyObjects(flattened_polygon, self.height, self.width)
                 rle = cocomask.merge(rle_objs)
                 # Encode the 'counts' to base64 string
-                rle_counts_encoded = base64.b64encode(rle['counts']).decode('ascii')
+                rle_counts_encoded = base64.b64encode(rle["counts"]).decode("ascii")
                 # Replace the 'counts' with the encoded string
-                rle['counts'] = rle_counts_encoded
+                rle["counts"] = rle_counts_encoded
 
                 annotation = DeepenAnnotation(
                     dataset_id=dataset_id,
@@ -106,12 +111,12 @@ class DeepenSegmentationPolygons:
                     sensor_id=sensor_id,
                     labeller_email=labeller_email,
                     attributes=attributes,
-                    two_d_mask=rle['counts'],
+                    two_d_mask=rle["counts"],
                 )
             annotations.append(annotation)
 
         return annotations
-    
+
     def to_deepen_annotation_dicts(self) -> List[Dict[str, Any]]:
         """
         Converts the loaded data into a list of DeepenAnnotation dicts.

@@ -1,13 +1,17 @@
+import base64
 import json
 from pathlib import Path
 from typing import List
-import pytest
+
 from PIL import Image
 import numpy as np
 from pycocotools import mask as cocomask
-import base64
+import pytest
+
 from perception_dataset.deepen.deepen_annotation import DeepenAnnotation
-from perception_dataset.deepen.segmentation.deepen_segmentation_polygons import DeepenSegmentationPolygons
+from perception_dataset.deepen.segmentation.deepen_segmentation_polygons import (
+    DeepenSegmentationPolygons,
+)
 
 
 @pytest.fixture
@@ -21,16 +25,16 @@ def input_base(tmp_path: Path) -> str:
     Returns:
         str: The path to the 'input_base' directory containing the simulated image data.
     """
-    input_base = tmp_path / 'input_base'
-    data_dir = input_base / 'data' / 'sensor1'
+    input_base = tmp_path / "input_base"
+    data_dir = input_base / "data" / "sensor1"
     data_dir.mkdir(parents=True)
 
     # Create a dummy image file
-    file_id = '1.jpg'
+    file_id = "1.jpg"
     width: int = 640
     height: int = 480
     image_path = data_dir / file_id
-    img = Image.new('RGB', (width, height))
+    img = Image.new("RGB", (width, height))
     img.save(image_path)
 
     return str(input_base)
@@ -45,12 +49,7 @@ def test_deepen_segmentation_polygons(input_base: str, tmp_path: Path):
         tmp_path (Path): Temporary directory provided by pytest.
     """
     # Create test annotation data with simplified polygons (4 points)
-    test_polygon = [
-        [100.0, 100.0],
-        [200.0, 100.0],
-        [200.0, 200.0],
-        [100.0, 200.0]
-    ]
+    test_polygon = [[100.0, 100.0], [200.0, 100.0], [200.0, 200.0], [100.0, 200.0]]
     test_data = {
         "labels": [
             {
@@ -64,21 +63,23 @@ def test_deepen_segmentation_polygons(input_base: str, tmp_path: Path):
                 "labeller_email": "annotator@example.com",
                 "polygons": [test_polygon],
                 "sensor_id": "sensor1",
-                "dataset_name": "test_dataset"
+                "dataset_name": "test_dataset",
             }
         ]
     }
 
     # Write test annotation data to a JSON file
-    annotations_file = tmp_path / 'annotations.json'
-    with annotations_file.open('w') as f:
+    annotations_file = tmp_path / "annotations.json"
+    with annotations_file.open("w") as f:
         json.dump(test_data, f)
 
     # Instantiate the DeepenSegmentationPolygons class
     deepen_segmentation_polygons = DeepenSegmentationPolygons(str(annotations_file), input_base)
 
     # Process the annotations
-    deepen_annotations: List[DeepenAnnotation] = deepen_segmentation_polygons.to_deepen_annotations()
+    deepen_annotations: List[DeepenAnnotation] = (
+        deepen_segmentation_polygons.to_deepen_annotations()
+    )
 
     # Verify the output annotations
     assert len(deepen_annotations) == 1
@@ -98,8 +99,8 @@ def test_deepen_segmentation_polygons(input_base: str, tmp_path: Path):
     # Decode the RLE counts from base64
     rle_counts = base64.b64decode(annotation.two_d_mask)
     rle = {
-        'counts': rle_counts,
-        'size': [deepen_segmentation_polygons.height, deepen_segmentation_polygons.width]
+        "counts": rle_counts,
+        "size": [deepen_segmentation_polygons.height, deepen_segmentation_polygons.width],
     }
 
     # Convert RLE to binary mask
@@ -107,17 +108,22 @@ def test_deepen_segmentation_polygons(input_base: str, tmp_path: Path):
 
     # Generate binary mask from original polygon using pycocotools
     formatted_polygon = [[coord for point in test_polygon for coord in point]]
-    rle_original = cocomask.frPyObjects(formatted_polygon, deepen_segmentation_polygons.height, deepen_segmentation_polygons.width)
+    rle_original = cocomask.frPyObjects(
+        formatted_polygon, deepen_segmentation_polygons.height, deepen_segmentation_polygons.width
+    )
     rle_original = cocomask.merge(rle_original)
     binary_mask_from_polygon = cocomask.decode(rle_original)
 
     # Ensure the masks are the same
-    assert np.array_equal(binary_mask_from_rle, binary_mask_from_polygon), "The generated mask does not match the original polygon."
+    assert np.array_equal(
+        binary_mask_from_rle, binary_mask_from_polygon
+    ), "The generated mask does not match the original polygon."
 
     # Verify that the mask contains the expected number of pixels
     expected_area = np.sum(binary_mask_from_polygon)
     actual_area = np.sum(binary_mask_from_rle)
     assert actual_area == expected_area
+
 
 def test_to_deepen_annotation_dicts(input_base: str, tmp_path: Path):
     """
@@ -128,12 +134,7 @@ def test_to_deepen_annotation_dicts(input_base: str, tmp_path: Path):
         tmp_path (Path): Temporary directory provided by pytest.
     """
     # Create test annotation data with polygons
-    test_polygon = [
-        [100.0, 100.0],
-        [200.0, 100.0],
-        [200.0, 200.0],
-        [100.0, 200.0]
-    ]
+    test_polygon = [[100.0, 100.0], [200.0, 100.0], [200.0, 200.0], [100.0, 200.0]]
     test_data = {
         "labels": [
             {
@@ -150,14 +151,14 @@ def test_to_deepen_annotation_dicts(input_base: str, tmp_path: Path):
                 "sensor_id": "sensor1",
                 "update_time_millis": 1724327319897,
                 "user_id": "tester@example.com",
-                "dataset_name": "test_dataset"
+                "dataset_name": "test_dataset",
             }
         ]
     }
 
     # Write test annotation data to a JSON file
-    annotations_file = tmp_path / 'annotations.json'
-    with annotations_file.open('w') as f:
+    annotations_file = tmp_path / "annotations.json"
+    with annotations_file.open("w") as f:
         json.dump(test_data, f)
 
     # Instantiate the DeepenSegmentationPolygons class
@@ -203,13 +204,16 @@ def test_to_deepen_annotation_dicts(input_base: str, tmp_path: Path):
         # Decode the RLE counts from base64
         rle_counts = base64.b64decode(rle_counts_encoded)
         rle = {
-            'counts': rle_counts,
-            'size': [deepen_segmentation_polygons.height, deepen_segmentation_polygons.width]
+            "counts": rle_counts,
+            "size": [deepen_segmentation_polygons.height, deepen_segmentation_polygons.width],
         }
         # Convert RLE to binary mask
         binary_mask = cocomask.decode(rle)
         # Verify that the mask has the expected shape
-        assert binary_mask.shape == (deepen_segmentation_polygons.height, deepen_segmentation_polygons.width)
+        assert binary_mask.shape == (
+            deepen_segmentation_polygons.height,
+            deepen_segmentation_polygons.width,
+        )
         # Verify that the mask contains the expected area
         expected_area = 10000  # Area of the square polygon (100x100 pixels)
         actual_area = np.sum(binary_mask)
