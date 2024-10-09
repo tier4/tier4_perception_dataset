@@ -67,9 +67,7 @@ class DeepenAnnotation:
         def _check_provided_annotations_exists(
             three_d_bbox: Dict[str, Any], two_d_box: List[float], two_d_mask: str
         ):
-            """
-            Ensures that exactly one of three_d_bbox, two_d_box, or two_d_mask is provided.
-            """
+            # Ensures that exactly one of three_d_bbox, two_d_box, or two_d_mask is provided.
             provided_annotations = [
                 three_d_bbox is not None,
                 two_d_box is not None,
@@ -157,9 +155,7 @@ class DeepenAnnotation:
             _check_two_d_mask(self.two_d_mask)
 
     def to_dict(self) -> Dict[str, Any]:
-        """
-        Converts the dataclass instance to a dictionary.
-        """
+        # Converts the dataclass instance to a dictionary.
         return {
             "dataset_id": self.dataset_id,
             "file_id": self.file_id,

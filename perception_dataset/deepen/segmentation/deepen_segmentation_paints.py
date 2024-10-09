@@ -18,9 +18,7 @@ from perception_dataset.deepen.segmentation.preprocess_deepen_segmentation_annot
 
 
 class DeepenSegmentationPaints:
-    """
-    Class to handle Deepen segmentation paints data.
-    """
+    # Class to handle Deepen segmentation paints data.
 
     def __init__(self, input_anno_file: str, input_base: str):
         # Preprocess the input annotation file
@@ -119,7 +117,6 @@ class DeepenSegmentationPaints:
             Returns:
                 Tuple[int, int]: The width and height of the images.
             """
-
             for sensor_name in metadata_dict.keys():
                 image_names = list(metadata_dict[sensor_name].keys())
                 if image_names:
@@ -140,9 +137,7 @@ class DeepenSegmentationPaints:
         )
 
     def to_deepen_annotations(self) -> List[DeepenAnnotation]:
-        """
-        Converts segmentation data to Deepen annotation format.
-        """
+        # Converts segmentation data to Deepen annotation format.
 
         def _dummy_instance_id(index_to_category: List[str]) -> Dict[str, int]:
             instance_id = {}

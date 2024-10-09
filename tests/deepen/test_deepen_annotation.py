@@ -4,9 +4,7 @@ from perception_dataset.deepen.deepen_annotation import DeepenAnnotation
 
 
 def test_deepen_annotation_valid_three_d_bbox():
-    """
-    Test that a DeepenAnnotation with a valid three_d_bbox is created successfully.
-    """
+    # Test that a DeepenAnnotation with a valid three_d_bbox is created successfully.
     three_d_bbox = {
         "cx": 1.0,
         "cy": 2.0,
@@ -31,9 +29,7 @@ def test_deepen_annotation_valid_three_d_bbox():
 
 
 def test_deepen_annotation_valid_two_d_box():
-    """
-    Test that a DeepenAnnotation with a valid two_d_box is created successfully.
-    """
+    # Test that a DeepenAnnotation with a valid two_d_box is created successfully.
     two_d_box = [100.0, 200.0, 50.0, 150.0]
     annotation = DeepenAnnotation(
         dataset_id="dataset_002",
@@ -50,9 +46,7 @@ def test_deepen_annotation_valid_two_d_box():
 
 
 def test_deepen_annotation_valid_two_d_mask():
-    """
-    Test that a DeepenAnnotation with a valid two_d_mask is created successfully.
-    """
+    # Test that a DeepenAnnotation with a valid two_d_mask is created successfully.
     two_d_mask = "RLE_string_here"
     annotation = DeepenAnnotation(
         dataset_id="dataset_003",
@@ -69,9 +63,7 @@ def test_deepen_annotation_valid_two_d_mask():
 
 
 def test_deepen_annotation_no_annotation_provided():
-    """
-    Test that creating a DeepenAnnotation without any annotation data raises an AssertionError.
-    """
+    # Test that creating a DeepenAnnotation without any annotation data raises an AssertionError.
     with pytest.raises(AssertionError) as excinfo:
         DeepenAnnotation(
             dataset_id="dataset_004",
@@ -88,9 +80,7 @@ def test_deepen_annotation_no_annotation_provided():
 
 
 def test_deepen_annotation_multiple_annotations_provided():
-    """
-    Test that providing multiple annotation types raises an AssertionError.
-    """
+    # Test that providing multiple annotation types raises an AssertionError.
     with pytest.raises(AssertionError) as excinfo:
         DeepenAnnotation(
             dataset_id="dataset_005",
@@ -108,9 +98,7 @@ def test_deepen_annotation_multiple_annotations_provided():
 
 
 def test_deepen_annotation_invalid_three_d_bbox():
-    """
-    Test that missing required keys in three_d_bbox raises an AssertionError.
-    """
+    # Test that missing required keys in three_d_bbox raises an AssertionError.
     three_d_bbox = {
         "cx": 1.0,
         "cy": 2.0,
@@ -134,9 +122,7 @@ def test_deepen_annotation_invalid_three_d_bbox():
 
 
 def test_deepen_annotation_invalid_quaternion():
-    """
-    Test that missing required keys in quaternion raises an AssertionError.
-    """
+    # Test that missing required keys in quaternion raises an AssertionError.
     three_d_bbox = {
         "cx": 1.0,
         "cy": 2.0,
@@ -160,9 +146,7 @@ def test_deepen_annotation_invalid_quaternion():
 
 
 def test_deepen_annotation_invalid_two_d_box():
-    """
-    Test that an invalid two_d_box (incorrect length) raises an AssertionError.
-    """
+    # Test that an invalid two_d_box (incorrect length) raises an AssertionError.
     two_d_box = [100.0, 200.0, 50.0]  # Only three elements
     with pytest.raises(AssertionError) as excinfo:
         DeepenAnnotation(
@@ -178,9 +162,7 @@ def test_deepen_annotation_invalid_two_d_box():
 
 
 def test_deepen_annotation_invalid_two_d_mask():
-    """
-    Test that an empty two_d_mask string raises an AssertionError.
-    """
+    # Test that an empty two_d_mask string raises an AssertionError.
     two_d_mask = ""
     with pytest.raises(AssertionError) as excinfo:
         DeepenAnnotation(
@@ -196,9 +178,7 @@ def test_deepen_annotation_invalid_two_d_mask():
 
 
 def test_deepen_annotation_valid_attributes():
-    """
-    Test that attributes are correctly assigned.
-    """
+    # Test that attributes are correctly assigned.
     attributes = {"state": "moving", "occlusion": "none", "cycle_state": "with_rider"}
     two_d_box = [150.0, 250.0, 60.0, 180.0]
     annotation = DeepenAnnotation(
@@ -215,9 +195,7 @@ def test_deepen_annotation_valid_attributes():
 
 
 def test_deepen_annotation_to_dict():
-    """
-    Test that the to_dict method returns the correct dictionary representation.
-    """
+    # Test that the to_dict method returns the correct dictionary representation.
     two_d_box = [120.0, 220.0, 70.0, 160.0]
     annotation = DeepenAnnotation(
         dataset_id="dataset_011",
@@ -246,9 +224,7 @@ def test_deepen_annotation_to_dict():
 
 
 def test_deepen_annotation_from_dict_valid():
-    """
-    Test that a DeepenAnnotation instance is correctly created from a valid dictionary.
-    """
+    # Test that a DeepenAnnotation instance is correctly created from a valid dictionary.
     data = {
         "dataset_id": "dataset_012",
         "file_id": "image_009.jpg",
@@ -275,9 +251,7 @@ def test_deepen_annotation_from_dict_valid():
 
 
 def test_deepen_annotation_from_dict_missing_required_fields():
-    """
-    Test that missing required fields in the input dictionary raises a KeyError.
-    """
+    # Test that missing required fields in the input dictionary raises a KeyError.
     data = {
         # Missing 'dataset_id' and 'file_id'
         "label_category_id": "pedestrian",
@@ -292,9 +266,7 @@ def test_deepen_annotation_from_dict_missing_required_fields():
 
 
 def test_deepen_annotation_from_dict_invalid_annotation_data():
-    """
-    Test that invalid annotation data in the input dictionary raises an AssertionError.
-    """
+    # Test that invalid annotation data in the input dictionary raises an AssertionError.
     data = {
         "dataset_id": "dataset_013",
         "file_id": "image_010.jpg",
