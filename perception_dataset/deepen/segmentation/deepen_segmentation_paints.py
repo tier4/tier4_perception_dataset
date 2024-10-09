@@ -16,6 +16,18 @@ from perception_dataset.deepen.segmentation.preprocess_deepen_segmentation_annot
     preprocess_deepen_segmentation_annotation,
 )
 
+"""
+TODO(Shin-kyoto): !!!Tentative Implementation. Please remove it before merge!!!
+
+Motivation to add this mode:
+
+- When annotating with semantic paints, annotation data is not saved for each instance.Therefore, even if the same object appears in different frames, it will be a different instance. It will not be consistent between frames.
+- However, if it is confirmed that there is only one instance per scene at the time of data collection, it is possible to make it consistent between frames by assuming that there is only one instance in the scene. can.
+- If you have annotated with semantic paints, but there is only one object, and you want it to be consistent, please use ONE_INSTANCE_PER_SCENE.
+- This workaround should be tentative, so don't merge it into main. Please use Polygons from now on.
+"""
+ONE_INSTANCE_PER_SCENE = True
+
 
 class DeepenSegmentationPaints:
     # Class to handle Deepen segmentation paints data.
@@ -177,6 +189,10 @@ class DeepenSegmentationPaints:
                     # Create a unique label_id
                     label_id = f"{category_name}:{dummy_instance_id[category_name]}"
                     dummy_instance_id[category_name] += 1
+
+                    # TODO(Shin-kyoto): !!!Tentative Implementation. Please remove it before merge!!!
+                    if ONE_INSTANCE_PER_SCENE:
+                        dummy_instance_id[category_name] -= 1  # ALWAYS INSTANCE ID IS ZERO
 
                     # Create DeepenAnnotation instance
                     annotation = DeepenAnnotation(
