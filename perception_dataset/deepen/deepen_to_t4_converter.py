@@ -9,6 +9,12 @@ from typing import Any, Dict, List, Optional, Union
 from nuscenes.nuscenes import NuScenes
 
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.deepen.segmentation.deepen_segmentation_paints import (
+    DeepenSegmentationPaints,
+)
+from perception_dataset.deepen.segmentation.deepen_segmentation_polygons import (
+    DeepenSegmentationPolygons,
+)
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
 from perception_dataset.t4_dataset.keyframe_consistency_resolver import KeyFrameConsistencyResolver
@@ -46,9 +52,34 @@ class DeepenToT4Converter(AbstractConverter):
 
         self._topic_list_yaml: Union[List, Dict] = topic_list
 
+    def _load_data(self, input_anno_path, input_base):
+        if osp.isfile(input_anno_path) and input_anno_path.endswith(".json"):
+            # Input is a JSON annotation file
+            with open(input_anno_path, "r") as f:
+                deepen_anno_json = json.load(f)
+
+            if deepen_anno_json["label_type"] == "polygon":
+                deepen_segmentation_polygons = DeepenSegmentationPolygons(
+                    input_anno_path, input_base
+                )
+                deepen_anno_json = deepen_segmentation_polygons.to_deepen_annotation_dicts()
+
+        elif osp.isfile(input_anno_path) and input_anno_path.endswith(".zip"):
+            # Input is a directory, proceed to load segmentation data
+            deepen_segmentation_paints = DeepenSegmentationPaints(
+                input_anno_path, input_base, self._t4data_name_to_deepen_dataset_id
+            )
+            deepen_anno_json = deepen_segmentation_paints.to_deepen_annotation_dicts()
+
+        else:
+            raise ValueError(
+                "Invalid input_anno_path: must be a JSON file or a segmentation ZIP file"
+            )
+
+        return deepen_anno_json
+
     def convert(self):
-        with open(self._input_anno_file) as f:
-            deepen_anno_json = json.load(f)
+        deepen_anno_json = self._load_data(self._input_anno_file, self._input_base)
 
         # format deepen annotation
         scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
@@ -180,9 +211,7 @@ class DeepenToT4Converter(AbstractConverter):
                         "w": 0.6589105372303157
                     }
                 },
-                "polygons": [[
-                                [800, 936], [795, 938], [803, 939], [794, 904],
-                            ],],
+                "2d_segmentation": "bVBiYjIzUGoxM04xTzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDBPMk5UYmReMg==",
                 "update_time_millis": 1634623252175,
                 "user_id": "grp-mlops-deepen1@tier4.jp",
                 "version": 782
@@ -261,7 +290,7 @@ class DeepenToT4Converter(AbstractConverter):
                         "num_radar_pts": 0,
                     }
                 )
-            if label_dict["sensor_id"][:6] == "camera" or label_dict["label_type"] == "box":
+            if label_dict["sensor_id"][:6] == "camera" and label_dict["label_type"] == "box":
                 sensor_id = label_dict["sensor_id"][-1]
                 if camera_index is not None:
                     for k in camera_index.keys():
@@ -289,7 +318,8 @@ class DeepenToT4Converter(AbstractConverter):
                         "sensor_id": sensor_id,
                     }
                 )
-            if label_dict["label_type"] == "polygon":
+
+            if label_dict["label_type"] == "2d_segmentation":
                 sensor_id = label_dict["sensor_id"][-1]
                 if camera_index is not None:
                     for k in camera_index.keys():
@@ -300,11 +330,10 @@ class DeepenToT4Converter(AbstractConverter):
 
                 label_t4_dict.update(
                     {
-                        "polygons": label_dict["polygons"],
+                        "two_d_segmentation": label_dict["two_d_mask"],
                         "sensor_id": sensor_id,
                     }
                 )
-
             anno_dict[dataset_id][file_id].append(label_t4_dict)
 
         return anno_dict

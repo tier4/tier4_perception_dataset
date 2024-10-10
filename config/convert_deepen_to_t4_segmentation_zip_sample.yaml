@@ -1,0 +1,20 @@
+task: convert_deepen_to_t4
+description:
+  visibility:
+    full: "No occlusion of the object."
+    most: "Object is occluded, but by less than 50%."
+    partial: "The object is occluded by more than 50% (but not completely)."
+    none: "The object is 90-100% occluded and no points/pixels are visible in the label."
+  camera_index:
+    CAM_TRAFFIC_LIGHT_NEAR: 1
+  with_lidar: false
+
+conversion:
+  input_base: ./data/sample_segmentation_paints/non_annotated_dataset/
+  # if you want to convert depen_segmentation.zip, depen_segmentation.zip and t4dataset must have a one-to-one correspondence
+  input_anno_file: data/sample_segmentation_paints/segmentation_x2_dev_c94c9405-edde-4fd9-8316-91091575d839_2024-05-09_15-19-28_15-19-48.zip
+  input_bag_base: ./data/sample_segmentation_paints/filtered_rosbag
+  output_base: ./data/sample_segmentation_paints/
+  topic_list: ./config/topic_list_tlr.yaml
+  dataset_corresponding:
+    x2_dev_c94c9405-edde-4fd9-8316-91091575d839_2024-05-09T15:19:28+09:00_2024-05-09T15:19:48+09:00: XIbgWw0egDi8PAxRtOmRI6qH

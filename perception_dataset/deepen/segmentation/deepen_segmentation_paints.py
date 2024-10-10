@@ -31,29 +31,84 @@ ONE_INSTANCE_PER_SCENE = True
 
 class DeepenSegmentationPaints:
     # Class to handle Deepen segmentation paints data.
+    # Assumption: depen_segmentation.zip and t4dataset must have a one-to-one correspondence
 
-    def __init__(self, input_anno_file: str, input_base: str):
+    def __init__(
+        self,
+        input_anno_file: str,
+        input_base: str,
+        t4data_name_to_deepen_dataset_id: Dict[str, str],
+    ):
         # Preprocess the input annotation file
         input_anno_file_path = Path(input_anno_file)
         base_dir_path = Path(input_anno_file).parent
-        input_base_path = Path(input_base)
         segmentation_dir_path = base_dir_path / input_anno_file_path.stem
         preprocess_deepen_segmentation_annotation(
             input_anno_file_path, base_dir_path, logging.getLogger(__name__)
         )
 
         self.index_to_category: List[str] = []  # ["category1", "category2"]
-        self.dataset_id: str = segmentation_dir_path.stem
+        t4dataset_name: str = self.convert_dataset_name(segmentation_dir_path.stem)
+        self.deepen_dataset_id: str = t4data_name_to_deepen_dataset_id[t4dataset_name]
+        dataset_dir_path = Path(input_base) / t4dataset_name
         self.segmentation_masks: Dict[Tuple[str, str], NDArray] = {}
-        self.load_data(segmentation_dir_path, input_base_path)
+        self.load_data(segmentation_dir_path, dataset_dir_path)
 
-    def load_data(self, segmentation_dir: Path, input_base: Path):
+    def convert_dataset_name(self, input_name: str) -> str:
+        """
+        Converts a dataset name by changing the time-related part.
+
+        Args:
+            input_name (str): The original dataset name.
+
+        Returns:
+            str: The converted dataset name.
+        """
+        # Remove the 'segmentation_' prefix
+        if input_name.startswith("segmentation_"):
+            input_name = input_name[len("segmentation_") :]
+
+        # Define the regular expression pattern
+        pattern = re.compile(
+            r"^(.*?)_"  # Non-greedy match of any characters (identifier)
+            r"(\d{4}-\d{2}-\d{2})_"  # Date part YYYY-MM-DD
+            r"(\d{2}-\d{2}-\d{2})_"  # Start time HH-MM-SS
+            r"(\d{2}-\d{2}-\d{2})$"  # End time HH-MM-SS
+        )
+        match = pattern.match(input_name)
+        if not match:
+            raise ValueError("Input string does not match the expected format.")
+
+        identifier = match.group(1)
+        date_part = match.group(2)
+        start_time = match.group(3)
+        end_time = match.group(4)
+
+        # Convert time parts to 'HH:MM:SS' format
+        start_time_formatted = start_time.replace("-", ":")
+        end_time_formatted = end_time.replace("-", ":")
+
+        # Assemble datetime strings with timezone '+09:00'
+        start_datetime = f"{date_part}T{start_time_formatted}+09:00"
+        end_datetime = f"{date_part}T{end_time_formatted}+09:00"
+
+        # Construct the new dataset name
+        new_dataset_name = f"{identifier}_{start_datetime}_{end_datetime}"
+
+        return new_dataset_name
+
+    def load_data(self, segmentation_dir: Path, dataset_dir: Path):
         """
         Loads metadata and segmentation masks from the directory.
 
         Args:
             segmentation_dir (Path): The directory containing segmentation data.
-            input_base (Path): The base directory containing image data.
+            dataset_dir (Path): The dataset directory.
+
+        Assumptions:
+            - Assume the number of images in all sensors is the same.
+            - Assume the categories in all images and sensors is the same.
+            - Assume all images have the same dimensions.
         """
 
         def _load_metadata(segmentation_dir: Path) -> Tuple[Dict[str, Any], List[str]]:
@@ -65,6 +120,8 @@ class DeepenSegmentationPaints:
             with open(metadata_file, "r") as f:
                 metadata_dict = json.load(f)
 
+            metadata_dict = _update_sensor_name(metadata_dict)
+
             sensor_names: List[str] = list(metadata_dict.keys())
             # Assume the number of images in all sensors is the same
             image_names: List[str] = list(metadata_dict[sensor_names[0]].keys())
@@ -73,13 +130,43 @@ class DeepenSegmentationPaints:
 
             return metadata_dict, index_to_category
 
+        def _extract_sensor_name_from_image_name(image_name: str) -> str:
+            """
+            Extracts the actual sensor name from the image name.
+            Example: 'data_CAM_TRAFFIC_LIGHT_NEAR_00000.jpg' -> 'CAM_TRAFFIC_LIGHT_NEAR'
+            """
+            match = re.match(r"data_([A-Z_]+)_\d+\.jpg$", image_name)
+            if match:
+                return match.group(1)
+            else:
+                raise ValueError(f"Cannot extract sensor name from image name {image_name}")
+
+        def _update_sensor_name(metadata_dict: Dict[str, Any]) -> Dict[str, Any]:
+            # Copy of original sensor names (e.g., 'sensor1', 'sensor2')
+            original_sensor_names: List[str] = list(metadata_dict.keys())
+
+            # Update metadata_dict keys to actual sensor names
+            for sensor_name in original_sensor_names:
+                image_names = list(metadata_dict[sensor_name].keys())
+                if not image_names:
+                    raise ValueError(f"No images found under sensor {sensor_name} in metadata.")
+
+                # Extract actual sensor name from image names
+                first_image_name = image_names[0]
+                actual_sensor_name = _extract_sensor_name_from_image_name(first_image_name)
+
+                # Update the key in metadata_dict
+                metadata_dict[actual_sensor_name] = metadata_dict.pop(sensor_name)
+
+            return metadata_dict
+
         def _load_segmentation_masks(
-            metadata_dict: Dict[str, Any], segmentation_dir: Path, input_base: Path
+            metadata_dict: Dict[str, Any], segmentation_dir: Path, dataset_dir: Path
         ) -> Dict[Tuple[str, str], NDArray]:
             segmentation_masks = {}
 
-            # Assuming all images have the same dimensions
-            height, width = _get_image_dimensions(input_base, metadata_dict)
+            # Assume all images have the same dimensions
+            height, width = _get_image_dimensions(dataset_dir, metadata_dict)
 
             # Load segmentation masks and create index_to_category mapping
             for sensor_name, images in metadata_dict.items():
@@ -98,13 +185,13 @@ class DeepenSegmentationPaints:
 
         def _extract_actual_image_name(image_name_in_metadata: str) -> str:
             """
-            Extracts the actual image name used in input_base from the image name in metadata.
+            Extracts the actual image name used in dataset directory from the image name in metadata.
 
             Args:
                 image_name_in_metadata (str): The image name as found in metadata.
 
             Returns:
-                str: The actual image name used in input_base.
+                str: The actual image name used in dataset.
             """
             # Assuming the image names in metadata have a prefix and we need to get the last part
             # For example, from 'data_CAM_TRAFFIC_LIGHT_NEAR_00000.jpg' extract '00000.jpg'
@@ -118,13 +205,13 @@ class DeepenSegmentationPaints:
                 raise ValueError(f"Cannot extract actual image name from {image_name_in_metadata}")
 
         def _get_image_dimensions(
-            input_base: str, metadata_dict: Dict[str, Any]
+            dataset_dir: Path, metadata_dict: Dict[str, Any]
         ) -> Tuple[int, int]:
             """
             Retrieves image dimensions from the first image specified in metadata_dict.
 
             Args:
-                input_base (str): The base directory containing image data.
+                dataset_dir (Path): The dataset directory.
                 metadata_dict (Dict[str, Any]): The metadata dictionary containing sensor and image information.
 
             Returns:
@@ -134,7 +221,7 @@ class DeepenSegmentationPaints:
                 image_names = list(metadata_dict[sensor_name].keys())
                 if image_names:
                     first_image_name = _extract_actual_image_name(image_names[0])
-                    image_path = input_base / "data" / sensor_name / first_image_name
+                    image_path = dataset_dir / "data" / sensor_name / first_image_name
                     if image_path.is_file():
                         with Image.open(image_path) as img:
                             width, height = img.size
@@ -144,9 +231,8 @@ class DeepenSegmentationPaints:
             raise ValueError("No images found in metadata_dict to retrieve dimensions.")
 
         metadata_dict, self.index_to_category = _load_metadata(segmentation_dir)
-
         self.segmentation_masks = _load_segmentation_masks(
-            metadata_dict, segmentation_dir, input_base
+            metadata_dict, segmentation_dir, dataset_dir
         )
 
     def to_deepen_annotations(self) -> List[DeepenAnnotation]:
@@ -197,7 +283,7 @@ class DeepenSegmentationPaints:
 
                     # Create DeepenAnnotation instance
                     annotation = DeepenAnnotation(
-                        dataset_id=self.dataset_id,
+                        dataset_id=self.deepen_dataset_id,
                         file_id=image_name,
                         label_category_id=category_name,
                         label_id=label_id,
@@ -211,7 +297,7 @@ class DeepenSegmentationPaints:
                     annotations.append(annotation)
         return annotations
 
-    def to_deepen_annotation_dicts(self) -> List[Dict[str, Any]]:
+    def to_deepen_annotation_dicts(self) -> Dict[str, List[Dict[str, Any]]]:
         """
         Converts the loaded data into a list of DeepenAnnotation dicts.
 
@@ -223,4 +309,4 @@ class DeepenSegmentationPaints:
         for deepen_annotation in deepen_annotations:
             deepen_annotation_dicts.append(deepen_annotation.to_dict())
 
-        return deepen_annotation_dicts
+        return {"labels": deepen_annotation_dicts}

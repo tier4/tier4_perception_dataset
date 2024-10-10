@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 from zipfile import ZipFile
 
 from PIL import Image
@@ -110,7 +110,7 @@ def input_base(tmp_path: Path) -> str:
         str: The path to the 'input_base' directory containing the simulated image data.
     """
     input_base = tmp_path / "input_base"
-    data_dir = input_base / "data"
+    data_dir = input_base / "prd_uuid_1970-01-01T00:00:00+09:00_1970-01-01T00:01:00+09:00" / "data"
     data_dir.mkdir(parents=True)
 
     # Create directories and image files
@@ -131,7 +131,17 @@ def input_base(tmp_path: Path) -> str:
     return str(input_base)
 
 
-def test_load_data(input_anno_file: str, input_base: str):
+@pytest.fixture
+def t4data_name_to_deepen_dataset_id() -> Dict[str, str]:
+    t4data_name_to_deepen_dataset_id: Dict[str, str] = {
+        "prd_uuid_1970-01-01T00:00:00+09:00_1970-01-01T00:01:00+09:00": "VvdcLzIKuo1hb4tOJmDW5ZzC"
+    }
+    return t4data_name_to_deepen_dataset_id
+
+
+def test_load_data(
+    input_anno_file: str, input_base: str, t4data_name_to_deepen_dataset_id: Dict[str, str]
+):
     """
     Tests the data loading functionality of the DeepenSegmentationPaints class.
 
@@ -145,12 +155,16 @@ def test_load_data(input_anno_file: str, input_base: str):
         - The number of loaded segmentation masks matches the expected count.
         - The number of categories matches the expected count.
     """
-    deepen_segmentation_paints = DeepenSegmentationPaints(input_anno_file, input_base)
+    deepen_segmentation_paints = DeepenSegmentationPaints(
+        input_anno_file, input_base, t4data_name_to_deepen_dataset_id
+    )
     assert len(deepen_segmentation_paints.segmentation_masks) == 4  # 2 sensors * 2 images
     assert len(deepen_segmentation_paints.index_to_category) == 2  # category1, category2
 
 
-def test_to_deepen_annotations(input_anno_file: str, input_base: str):
+def test_to_deepen_annotations(
+    input_anno_file: str, input_base: str, t4data_name_to_deepen_dataset_id: Dict[str, str]
+):
     """
     Tests the conversion of segmentation data to Deepen annotations.
 
@@ -165,17 +179,21 @@ def test_to_deepen_annotations(input_anno_file: str, input_base: str):
         - Each annotation has the correct label category.
         - Each annotation has the correct dataset ID and label type.
     """
-    deepen_segmentation_paints = DeepenSegmentationPaints(input_anno_file, input_base)
+    deepen_segmentation_paints = DeepenSegmentationPaints(
+        input_anno_file, input_base, t4data_name_to_deepen_dataset_id
+    )
     annotations: List[DeepenAnnotation] = deepen_segmentation_paints.to_deepen_annotations()
     assert len(annotations) == 12  # 2 sensors * 2 images * 3 instances
 
     for annotation in annotations:
         assert annotation.label_category_id in ["category1", "category2"]
-        assert annotation.dataset_id == "segmentation_prd_uuid_1970-01-01_00-00-00_00-01-00"
+        assert annotation.dataset_id == "VvdcLzIKuo1hb4tOJmDW5ZzC"
         assert annotation.label_type == "2d_segmentation"
 
 
-def test_to_deepen_annotation_dicts(input_anno_file: str, input_base: str):
+def test_to_deepen_annotation_dicts(
+    input_anno_file: str, input_base: str, t4data_name_to_deepen_dataset_id: Dict[str, str]
+):
     """
     Tests the to_deepen_annotation_dicts method of DeepenSegmentationPaints.
 
@@ -184,10 +202,12 @@ def test_to_deepen_annotation_dicts(input_anno_file: str, input_base: str):
         input_base (str): The path to the 'input_base' directory containing the simulated image data.
     """
     # Instantiate the DeepenSegmentationPaints class
-    deepen_segmentation_paints = DeepenSegmentationPaints(input_anno_file, input_base)
+    deepen_segmentation_paints = DeepenSegmentationPaints(
+        input_anno_file, input_base, t4data_name_to_deepen_dataset_id
+    )
 
     # Call the to_deepen_annotation_dicts method
-    annotation_dicts = deepen_segmentation_paints.to_deepen_annotation_dicts()
+    annotation_dicts = deepen_segmentation_paints.to_deepen_annotation_dicts()["labels"]
 
     # Check that the output is a list of dictionaries
     assert len(annotation_dicts) == 12  # 2 sensors * 2 images * 3 instances
@@ -213,7 +233,7 @@ def test_to_deepen_annotation_dicts(input_anno_file: str, input_base: str):
 
         # Check values
         assert annotation_dict["label_category_id"] in ["category1", "category2"]
-        assert annotation_dict["dataset_id"] == deepen_segmentation_paints.dataset_id
+        assert annotation_dict["dataset_id"] == "VvdcLzIKuo1hb4tOJmDW5ZzC"
         assert annotation_dict["label_type"] == "2d_segmentation"
         assert annotation_dict["three_d_bbox"] is None
         assert annotation_dict["box"] is None
