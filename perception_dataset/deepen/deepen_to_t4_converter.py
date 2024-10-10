@@ -58,13 +58,14 @@ class DeepenToT4Converter(AbstractConverter):
             with open(input_anno_path, "r") as f:
                 deepen_anno_json = json.load(f)
 
-            # TODO(Shin-kyoto): !!!Tentative Implementation. Please remove it before merge!!!
-            if "label_type" in deepen_anno_json:
-                if deepen_anno_json["label_type"] == "polygon":
-                    deepen_segmentation_polygons = DeepenSegmentationPolygons(
-                        input_anno_path, input_base
-                    )
-                    deepen_anno_json = deepen_segmentation_polygons.to_deepen_annotation_dicts()
+            if deepen_anno_json["labels"][0]["label_type"] == "polygon":
+                deepen_segmentation_polygons = DeepenSegmentationPolygons(
+                    input_anno_path,
+                    input_base,
+                    self._t4data_name_to_deepen_dataset_id,
+                    self._description["camera_index"],
+                )
+                deepen_anno_json = deepen_segmentation_polygons.to_deepen_annotation_dicts()
 
         elif osp.isfile(input_anno_path) and input_anno_path.endswith(".zip"):
             # Input is a directory, proceed to load segmentation data
