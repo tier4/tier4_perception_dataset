@@ -110,18 +110,20 @@ class AnnotationFilesGenerator:
                     cam_idx = self._camera2idx[cam]
 
                     frame_index = int((sample_nuim["filename"].split("/")[2]).split(".")[0])
-                    frame_index_to_sample_data_token[cam_idx].update(
-                        {frame_index: sample_nuim["token"]}
-                    )
+                    # !!!!!This is tentative implementation!!!
+                    if len(frame_index_to_sample_data_token) > cam_idx:
+                        frame_index_to_sample_data_token[cam_idx].update(
+                            {frame_index: sample_nuim["token"]}
+                        )
 
-                    width: int = sample_nuim["width"]
-                    height: int = sample_nuim["height"]
-                    object_mask: NDArray = np.array(
-                        [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
-                    )
-                    object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                    object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
-                    mask[cam_idx].update({frame_index: object_mask})
+                        width: int = sample_nuim["width"]
+                        height: int = sample_nuim["height"]
+                        object_mask: NDArray = np.array(
+                            [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
+                        )
+                        object_mask = cocomask.encode(np.asfortranarray(object_mask))
+                        object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
+                        mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
             scene_anno_dict=scene_anno_dict,
