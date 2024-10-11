@@ -303,12 +303,15 @@ class AnnotationFilesGenerator:
                     sensor_id: int = int(anno["sensor_id"])
                     if frame_index not in frame_index_to_sample_data_token[sensor_id]:
                         continue
+                    anno_two_d_box: List[float] = self._clip_bbox(
+                        anno["two_d_box"], mask[sensor_id][frame_index]
+                    )
                     self._object_ann_table.insert_into_table(
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                         instance_token=instance_token,
                         category_token=category_token,
                         attribute_tokens=attribute_tokens,
-                        bbox=(0, 0, 0, 0),  # TODO(Shin-kyoto): dummy 2d bbox
+                        bbox=anno_two_d_box,
                         mask=anno["two_d_segmentation"],
                     )
 

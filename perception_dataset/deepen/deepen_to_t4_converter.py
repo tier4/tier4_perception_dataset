@@ -330,9 +330,23 @@ class DeepenToT4Converter(AbstractConverter):
                         if k in filename:
                             sensor_id = camera_index[k]
                             break
+                anno_two_d_bbox: List = label_dict["box"]
+
+                if anno_two_d_bbox[2] < 0 or anno_two_d_bbox[3] < 0:
+                    logger.error(f"bbox width or height:{anno_two_d_bbox} < 0")
+                    continue
+                if len(anno_two_d_bbox) != 4:
+                    logger.error(f"bbox length {len(anno_two_d_bbox)} != 4")
+                    continue
 
                 label_t4_dict.update(
                     {
+                        "two_d_box": [
+                            anno_two_d_bbox[0],
+                            anno_two_d_bbox[1],
+                            anno_two_d_bbox[0] + anno_two_d_bbox[2],
+                            anno_two_d_bbox[1] + anno_two_d_bbox[3],
+                        ],
                         "two_d_segmentation": label_dict["two_d_mask"],
                         "sensor_id": sensor_id,
                     }

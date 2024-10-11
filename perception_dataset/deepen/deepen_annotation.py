@@ -75,8 +75,8 @@ class DeepenAnnotation:
             ]
             num_provided = sum(provided_annotations)
             assert (
-                num_provided == 1
-            ), "Exactly one of three_d_bbox, two_d_box, or two_d_mask must be provided."
+                num_provided > 0
+            ), "At least, one of three_d_bbox, two_d_box, or two_d_mask must be provided."
 
         def _check_label_id(label_category_id: str, label_id: str):
             """
@@ -139,8 +139,8 @@ class DeepenAnnotation:
             Raises:
                 AssertionError: If two_d_mask is not a valid non-empty string.
             """
-            assert isinstance(two_d_mask, str), "two_d_mask must be a string."
-            assert two_d_mask.strip(), "two_d_mask must not be an empty string."
+            assert isinstance(two_d_mask["counts"], str), "two_d_mask['counts'] must be a string."
+            assert two_d_mask["counts"].strip(), "two_d_mask['counts'] must not be an empty string."
 
         # Ensures that exactly one of three_d_bbox, two_d_box, or two_d_mask is provided.
         _check_provided_annotations_exists(self.three_d_bbox, self.two_d_box, self.two_d_mask)

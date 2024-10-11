@@ -88,7 +88,7 @@ def test_deepen_segmentation_polygons(input_base: str, tmp_path: Path):
     assert annotation.file_id == "1.jpg"
     assert annotation.label_category_id == "vehicle_car"
     assert annotation.label_id == "vehicle_car:2"
-    assert annotation.label_type == "polygon"
+    assert annotation.label_type == "2d_segmentation"
     assert annotation.sensor_id == "sensor1"
     assert annotation.labeller_email == "annotator@example.com"
     assert annotation.attributes == {}
@@ -191,7 +191,7 @@ def test_to_deepen_annotation_dicts(input_base: str, tmp_path: Path):
         assert annotation_dict["file_id"] == "1.jpg"
         assert annotation_dict["label_category_id"] == "vehicle_car"
         assert annotation_dict["label_id"] == "vehicle_car:1"
-        assert annotation_dict["label_type"] == "polygon"
+        assert annotation_dict["label_type"] == "2d_segmentation"
         assert annotation_dict["sensor_id"] == "sensor1"
         assert annotation_dict["attributes"] == {}
         assert annotation_dict["three_d_bbox"] is None
