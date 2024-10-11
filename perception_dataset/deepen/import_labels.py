@@ -1,6 +1,5 @@
 import argparse
 from datetime import datetime
-import glob
 import json
 import os
 import os.path as osp
@@ -12,9 +11,6 @@ import yaml
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
-
-RETRIES = 0
-TIMEOUT = 100
 
 CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
 ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
