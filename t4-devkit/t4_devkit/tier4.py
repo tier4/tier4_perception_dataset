@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass, field
 import os
 import os.path as osp
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict
 
 from PIL import Image
 import numpy as np
 from nuscenes.nuscenes import LidarPointCloud, RadarPointCloud
+from pycocotools import mask as cocomask
 from pyquaternion import Quaternion
 import rerun as rr
 import rerun.blueprint as rrb
@@ -1125,6 +1127,7 @@ class Tier4:
                     continue
 
                 camera_anns[ann.sample_data_token].boxes.append(ann.bbox)
+                camera_anns[ann.sample_data_token].masks.append(ann.mask)
                 camera_anns[ann.sample_data_token].uuids.append(ann.instance_token[:8])
                 camera_anns[ann.sample_data_token].class_ids.append(
                     self._label2id[ann.category_name]
@@ -1143,6 +1146,37 @@ class Tier4:
                     ),
                 )
                 # TODO: add support of rendering object/surface mask and keypoints
+                b64masks = camera_ann.masks
+                if len(b64masks) > 0:
+                    # !!!Tentative Implementation!!! Please check width and height.
+                    width = b64masks[0]["size"][0]
+                    height = b64masks[0]["size"][1]
+                    masks = b64masks.copy()
+                    for mask_index, b64mask in enumerate(b64masks):
+                        masks[mask_index]["counts"] = base64.b64decode(b64mask["counts"])
+                        masks[mask_index]["size"] = b64masks[1]["size"]
+
+                    # Log all the masks stacked together as a tensor
+                    mask_tensor = (
+                        np.dstack(
+                            [np.zeros((height, width))] + [cocomask.decode(m) for m in masks]
+                        ).astype("uint8")
+                        * 128
+                    )
+                    rr.log("mask_tensor", rr.Tensor(mask_tensor))
+
+                    # Sort masks by area (largest to smallest) to handle overlapping masks
+                    masks_with_ids = [(i + 1, cocomask.decode(m)) for i, m in enumerate(masks)]
+                    masks_with_ids.sort(key=(lambda x: np.sum(x[1])), reverse=True)  # Sort by area
+
+                    # Layer all of the masks together, using the id as class-id in the segmentation image
+                    segmentation_img = np.zeros((height, width))
+                    for mask_id, decoded_mask in masks_with_ids:
+                        segmentation_img[decoded_mask == 1] = mask_id
+                    rr.log(
+                        f"world/ego_vehicle/{sensor_name}/mask",
+                        rr.SegmentationImage(segmentation_img.astype(np.uint8)),
+                    )
             current_sample_token = sample.next
 
     def _render_sensor_calibration(self, sample_data_token: str) -> None:
@@ -1192,5 +1226,6 @@ class _CameraAnn2D:
     channel: str
     timestamp: int
     boxes: list[RoiType] = field(default_factory=list, init=False)
+    masks: list[Dict[str, Any]] = field(default_factory=list, init=False)
     uuids: list[str] = field(default_factory=list, init=False)
     class_ids: list[int] = field(default_factory=list, init=False)
