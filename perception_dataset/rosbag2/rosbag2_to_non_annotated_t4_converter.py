@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shutil
 import sys
+import time
 from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
@@ -156,7 +157,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._output_data_dir = osp.join(
             self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.DATA.value
         )
-        self._msg_display_interval = 10
+        self._msg_display_interval = 100
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
@@ -302,6 +303,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             - is_key_frame=True
             - fill in next/prev
         """
+        start = time.time()
         sensor_channel_to_sample_data_token_list: Dict[str, List[str]] = {}
 
         self._init_tables()
@@ -311,6 +313,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
         self._add_scene_description(self._scene_description)
+        print(f"Total elapsed time: {time.time() - start:.2f} sec")
 
     def _calc_start_timestamp(self) -> float:
         if self._start_timestamp < sys.float_info.epsilon:
@@ -329,6 +332,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         logger.info(f"set start_timestamp to {start_timestamp}")
 
         if self._sensor_mode == SensorMode.DEFAULT:
+            start = time.time()
             lidar_sensor_channel = self._lidar_sensor["channel"]
             sensor_channel_to_sample_data_token_list[lidar_sensor_channel] = (
                 self._convert_pointcloud(
@@ -338,7 +342,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     scene_token=scene_token,
                 )
             )
-
+            print(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec\n")
             for radar_sensor in self._radar_sensors:
                 radar_sensor_channel = radar_sensor["channel"]
                 sensor_channel_to_sample_data_token_list[radar_sensor_channel] = (
@@ -363,6 +367,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
         for camera_sensor in self._camera_sensors:
+            start = time.time()
             sensor_channel = camera_sensor["channel"]
             sensor_channel_to_sample_data_token_list[sensor_channel] = self._convert_image(
                 start_timestamp=camera_start_timestamp,
@@ -380,6 +385,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
             camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                 first_sample_data_record.timestamp
+            )
+            print(
+                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec\n"
             )
 
     def _convert_static_data(self):
