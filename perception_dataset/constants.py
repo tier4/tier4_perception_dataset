@@ -23,6 +23,14 @@ class SENSOR_ENUM(Enum):
         "channel": "CAM_FRONT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
     }
+    CAM_FRONT_NARROW = {
+        "channel": "CAM_FRONT_NARROW",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
+    CAM_FRONT_WIDE = {
+        "channel": "CAM_FRONT_WIDE",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
     CAM_FRONT_RIGHT = {
         "channel": "CAM_FRONT_RIGHT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
@@ -49,6 +57,10 @@ class SENSOR_ENUM(Enum):
     }
     LIDAR_TOP = {
         "channel": "LIDAR_TOP",
+        "modality": SENSOR_MODALITY_ENUM.LIDAR.value,
+    }
+    LIDAR_FRONT = {
+        "channel": "LIDAR_FRONT",
         "modality": SENSOR_MODALITY_ENUM.LIDAR.value,
     }
     LIDAR_CONCAT = {
