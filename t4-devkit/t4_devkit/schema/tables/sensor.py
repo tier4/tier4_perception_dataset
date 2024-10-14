@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 import sys
 from typing import Any
@@ -46,11 +46,22 @@ class Sensor(SchemaBase):
         token (str): Unique record identifier.
         channel (str): Sensor channel name.
         modality (SensorModality): Sensor modality.
+
+    Shortcuts:
+    ---------
+        first_sd_token (str): The first sample data token corresponding to its sensor channel.
     """
 
     token: str
     channel: str
     modality: SensorModality
+
+    # shortcuts
+    first_sd_token: str = field(init=False)
+
+    @staticmethod
+    def shortcuts() -> tuple[str] | None:
+        return ("first_sd_token",)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:

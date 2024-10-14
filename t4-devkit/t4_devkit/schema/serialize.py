@@ -53,7 +53,7 @@ def _schema_as_dict_factory(
         Converted dict data.
     """
 
-    def _convet_value(value: Any) -> Any:
+    def _convert_value(value: Any) -> Any:
         if isinstance(value, np.ndarray):
             return value.tolist()
         elif isinstance(value, Quaternion):
@@ -63,7 +63,7 @@ def _schema_as_dict_factory(
         return value
 
     return (
-        {k: _convet_value(v) for k, v in data}
+        {k: _convert_value(v) for k, v in data}
         if excludes is None
-        else {k: _convet_value(v) for k, v in data if k not in excludes}
+        else {k: _convert_value(v) for k, v in data if k not in excludes}
     )
