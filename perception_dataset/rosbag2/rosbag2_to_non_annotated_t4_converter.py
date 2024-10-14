@@ -78,18 +78,20 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
 
         if not self._overwrite_mode:
             dir_exist: bool = False
-            for bag_dir in bag_dirs:
+            for bag_dir in bag_dirs[:]:  # copy to avoid modifying list while iterating
                 bag_name: str = osp.basename(bag_dir)
 
                 output_dir = osp.join(self._output_base, bag_name)
                 if osp.exists(output_dir):
                     logger.error(f"{output_dir} already exists.")
                     dir_exist = True
-
-            if dir_exist:
+                    bag_dirs.remove(bag_dir)
+            if dir_exist and len(bag_dirs) == 0:
+                logger.error(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
         for bag_dir in bag_dirs:
+            logger.info(f"Start converting {bag_dir} to T4 format.")
             self._params.input_bag_path = bag_dir
             bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
             bag_converter.convert()
