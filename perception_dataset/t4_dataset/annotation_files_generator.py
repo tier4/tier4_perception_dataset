@@ -97,7 +97,7 @@ class AnnotationFilesGenerator:
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
             for anno in anno_list:
-                if "two_d_box" in anno.keys():
+                if "two_d_box" in anno.keys() or "two_d_segmentation" in anno.keys():
                     has_2d_annotation = True
                     break
 
@@ -110,18 +110,20 @@ class AnnotationFilesGenerator:
                     cam_idx = self._camera2idx[cam]
 
                     frame_index = int((sample_nuim["filename"].split("/")[2]).split(".")[0])
-                    frame_index_to_sample_data_token[cam_idx].update(
-                        {frame_index: sample_nuim["token"]}
-                    )
+                    # !!!!!This is tentative implementation!!!
+                    if len(frame_index_to_sample_data_token) > cam_idx:
+                        frame_index_to_sample_data_token[cam_idx].update(
+                            {frame_index: sample_nuim["token"]}
+                        )
 
-                    width: int = sample_nuim["width"]
-                    height: int = sample_nuim["height"]
-                    object_mask: NDArray = np.array(
-                        [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
-                    )
-                    object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                    object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
-                    mask[cam_idx].update({frame_index: object_mask})
+                        width: int = sample_nuim["width"]
+                        height: int = sample_nuim["height"]
+                        object_mask: NDArray = np.array(
+                            [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
+                        )
+                        object_mask = cocomask.encode(np.asfortranarray(object_mask))
+                        object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
+                        mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
             scene_anno_dict=scene_anno_dict,
@@ -295,6 +297,22 @@ class AnnotationFilesGenerator:
                         attribute_tokens=attribute_tokens,
                         bbox=anno_two_d_box,
                         mask=mask[sensor_id][frame_index],
+                    )
+
+                if "two_d_segmentation" in anno.keys():
+                    sensor_id: int = int(anno["sensor_id"])
+                    if frame_index not in frame_index_to_sample_data_token[sensor_id]:
+                        continue
+                    anno_two_d_box: List[float] = self._clip_bbox(
+                        anno["two_d_box"], mask[sensor_id][frame_index]
+                    )
+                    self._object_ann_table.insert_into_table(
+                        sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
+                        instance_token=instance_token,
+                        category_token=category_token,
+                        attribute_tokens=attribute_tokens,
+                        bbox=anno_two_d_box,
+                        mask=anno["two_d_segmentation"],
                     )
 
     def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:

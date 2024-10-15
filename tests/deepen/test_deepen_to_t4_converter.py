@@ -126,6 +126,57 @@ def deepen_anno_list():
     return deepen_anno_list
 
 
+@pytest.fixture(scope="function")
+def deepen_anno_list_segmentation():
+    deepen_anno_list_segmentation = [
+        {
+            "dataset_id": "dataset_xxx",
+            "file_id": "0.jpg",
+            "label_category_id": "debris",
+            "label_id": "debris:1",
+            "label_type": "2d_segmentation",
+            "attributes": {},
+            "labeller_email": "test@aaa.bbb",
+            "sensor_id": "camera1",
+            "two_d_mask": "encoded_rle_string_1",
+        },
+        {
+            "dataset_id": "dataset_xxx",
+            "file_id": "0.jpg",
+            "label_category_id": "car",
+            "label_id": "car:1",
+            "label_type": "2d_segmentation",
+            "attributes": {},
+            "labeller_email": "test@aaa.bbb",
+            "sensor_id": "camera1",
+            "two_d_mask": "encoded_rle_string_2",
+        },
+        {
+            "dataset_id": "dataset_xxx",
+            "file_id": "1.jpg",
+            "label_category_id": "road",
+            "label_id": "road:1",
+            "label_type": "2d_segmentation",
+            "attributes": {},
+            "labeller_email": "test@aaa.bbb",
+            "sensor_id": "camera1",
+            "two_d_mask": "encoded_rle_string_3",
+        },
+        {
+            "dataset_id": "dataset_xxx",
+            "file_id": "1.jpg",
+            "label_category_id": "car",
+            "label_id": "car:1",
+            "label_type": "2d_segmentation",
+            "attributes": {},
+            "labeller_email": "auto_interpolation",
+            "sensor_id": "camera1",
+            "two_d_mask": "encoded_rle_string_4",
+        },
+    ]
+    return deepen_anno_list_segmentation
+
+
 class TestDeepenToT4Converter:
     @pytest.fixture(scope="function")
     def converter_for_test(self):
@@ -192,6 +243,35 @@ class TestDeepenToT4Converter:
             isinstance(frame_index, list)
             for frame_index in scenes_anno_dict["dataset_xxx"].values()
         )
+
+    def test__format_deepen_annotation_segmentation(
+        self,
+        converter_for_test: DeepenToT4Converter,
+        deepen_anno_list_segmentation: List[Dict[str, Any]],
+    ):
+        scenes_anno_dict = converter_for_test._format_deepen_annotation(
+            deepen_anno_list_segmentation
+        )
+
+        assert len(scenes_anno_dict) == 1
+        assert len(scenes_anno_dict["dataset_xxx"]) == 2  # 0.jpg and 1.jpg
+        assert len(scenes_anno_dict["dataset_xxx"][0]) == 2  # 2 annotations in frame 0
+        assert len(scenes_anno_dict["dataset_xxx"][1]) == 2  # 2 annotations in frame 1
+
+        assert isinstance(scenes_anno_dict, dict)
+        assert all(isinstance(dataset_id, str) for dataset_id in scenes_anno_dict.keys())
+        assert all(
+            isinstance(frame_index, int) for frame_index in scenes_anno_dict["dataset_xxx"].keys()
+        )
+        assert all(
+            isinstance(annotations, list)
+            for annotations in scenes_anno_dict["dataset_xxx"].values()
+        )
+
+        for frame_index, annotations in scenes_anno_dict["dataset_xxx"].items():
+            for annotation in annotations:
+                assert annotation["category_name"] in ["debris", "road", "car"]
+                assert annotation["two_d_segmentation"].startswith("encoded_rle_string_")
 
     def test__format_deepen_annotation_ignore_interpolate(
         self,
