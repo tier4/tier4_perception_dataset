@@ -22,6 +22,8 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
+from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
+from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import VehicleStatusHandler
 from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -37,6 +39,7 @@ from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnota
 from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
 from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
+from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
 from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
@@ -161,6 +164,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._bag_reader = Rosbag2Reader(self._input_bag, with_world_frame_conversion)
         self._calc_actual_num_load_frames()
 
+        # for Co-MLOps
+        self._with_ins = params.with_ins
+        self._with_vehicle_status = params.with_vehicle_status
+
+        self._ins_handler = INSHandler(params.input_bag_path) if self._with_ins else None
+        self._vehicle_status_handler = (
+            VehicleStatusHandler(params.input_bag_path) if self._with_vehicle_status else None
+        )
+
     def _calc_actual_num_load_frames(self):
         topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
         if self._sensor_mode == SensorMode.DEFAULT:
@@ -236,6 +248,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._category_table = CategoryTable(name_to_description={}, default_value="")
         self._attribute_table = AttributeTable(name_to_description={}, default_value="")
         self._visibility_table = VisibilityTable(level_to_description={}, default_value="")
+
+        # additional (used in Co-MLops)
+        self._vehicle_state_table = VehicleStateTable()
 
     def convert(self):
         self._convert()
@@ -797,11 +812,18 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return sample_data_token
 
     def _generate_ego_pose(self, stamp: builtin_interfaces.msg.Time) -> str:
-        transform_stamped = self._bag_reader.get_transform_stamped(
-            target_frame=self._ego_pose_target_frame,
-            source_frame=self._ego_pose_source_frame,
-            stamp=stamp,
-        )
+        if self._with_ins:
+            transform_stamped = self._ins_handler.get_transform_stamped(
+                target_frame=self._ego_pose_target_frame,
+                source_frame=self._ego_pose_source_frame,
+                stamp=stamp,
+            )
+        else:
+            transform_stamped = self._bag_reader.get_transform_stamped(
+                target_frame=self._ego_pose_target_frame,
+                source_frame=self._ego_pose_source_frame,
+                stamp=stamp,
+            )
 
         ego_pose_token = self._ego_pose_table.insert_into_table(
             translation={
@@ -819,6 +841,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
 
         return ego_pose_token
+
+    def _generate_vehicle_state(self, stamp: builtin_interfaces.msg.Time) -> str | None:
+        if not self._with_vehicle_status:
+            return None
+
+        # TODO(ktro2828): Implement operation to insert vehicle state into table
 
     def _generate_calibrated_sensor(
         self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
