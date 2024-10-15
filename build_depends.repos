@@ -17,3 +17,13 @@ repositories:
     type: git
     url: https://github.com/tier4/autoware_auto_msgs.git
     version: tier4/main
+
+  # for Co-MLOps features
+  oxts_ros2_driver:
+    type: git
+    url: https://github.com/tier4/oxts_ros2_driver.git
+    version: feat/data_recording_system
+  pacmod_interface:
+    type: git
+    url: https://github.com/tier4/pacmod_interface.git
+    version: feat/comlops_drs
