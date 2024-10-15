@@ -23,7 +23,7 @@ For detailed information about the T4 dataset format, please refer to the [T4 Da
 ## Usage of T4 format dataset
 
 t4-devkit is a development kit for working with the T4 dataset, providing additional utilities and tools.  
-Please see [t4-devkit](t4-devkit/README.md) about details.
+Please see [t4-devkit](https://tier4.github.io/t4-devkit) about details.
 
 ## Usage of Conversion Tools
 
