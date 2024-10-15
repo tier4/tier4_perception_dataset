@@ -1,0 +1,30 @@
+task: convert_deepen_to_t4
+description:
+  visibility:
+    full: "No occlusion of the object."
+    most: "Object is occluded, but by less than 50%."
+    partial: "The object is occluded by more than 50% (but not completely)."
+    none: "The object is 90-100% occluded and no points/pixels are visible in the label."
+  camera_index:
+    CAM_BACK_RIGHT: 1
+    CAM_BACK: 2
+    CAM_BACK_LEFT: 3
+    CAM_FRONT: 4
+    CAM_FRONT_LEFT: 5
+    CAM_FRONT_NARROW: 6
+    CAM_FRONT_RIGHT: 7
+    CAM_FRONT_WIDE: 8
+  with_lidar: false
+  surface_categories: ./config/label/surface.yaml
+
+conversion:
+  label_info: # for 3D/2D box only annotations, it is OK to skip specifying this field
+    label_type: 2d_segmentation
+    label_format: polygon
+  input_base: /media/kotarouetake/Volume/DATASET/comlops/segmentation/sample_segmentation_polygons/non_annotated_dataset # ./data/sample_segmentation_polygon/non_annotated_dataset/
+  input_anno_file: /media/kotarouetake/Volume/DATASET/comlops/segmentation/sample_segmentation_polygons/lidar_annotations_accepted_deepen.json # ./data/deepen_format/lidar_annotations_accepted_deepen.json
+  input_bag_base: /media/kotarouetake/Volume/DATASET/comlops/segmentation/sample_segmentation_polygons/filtered_rosbag # ./data/rosbag2
+  output_base: ./data/deepen/t4_format # ./data/t4_format
+  topic_list: ./config/topic_list_tlr.yaml
+  dataset_corresponding:
+    rosbag2_2024_03_06-16_28_13_72: VvdcLzIKuo1hb4tOJmDW5ZzC

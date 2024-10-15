@@ -150,12 +150,18 @@ def main():
         )
 
     elif task == "convert_deepen_to_t4":
+        from perception_dataset.deepen.deepen_annotation import LabelInfo
         from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 
         input_base = config_dict["conversion"]["input_base"]
         input_anno_file = config_dict["conversion"]["input_anno_file"]
         output_base = config_dict["conversion"]["output_base"]
         dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
+        label_info = (
+            LabelInfo(**config_dict["conversion"]["label_info"])
+            if config_dict["conversion"].get("label_info")
+            else None
+        )
         description = config_dict["description"]
         input_bag_base = config_dict["conversion"]["input_bag_base"]
         topic_list_yaml_path = config_dict["conversion"]["topic_list"]
@@ -170,6 +176,7 @@ def main():
             output_base=output_base,
             input_anno_file=input_anno_file,
             dataset_corresponding=dataset_corresponding,
+            label_info=label_info,
             overwrite_mode=args.overwrite,
             description=description,
             input_bag_base=input_bag_base,
