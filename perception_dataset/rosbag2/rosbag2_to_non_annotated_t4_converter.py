@@ -22,6 +22,8 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
+from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
+from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import VehicleStatusHandler
 from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -37,6 +39,7 @@ from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnota
 from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
 from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
+from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
 from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
@@ -157,9 +160,21 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
 
+        # NOTE: even if `with_world_frame_conversion=True`, `/tf` topic is not needed and
+        # it is retrieved from INS messages.
         with_world_frame_conversion = self._ego_pose_target_frame != self._ego_pose_source_frame
-        self._bag_reader = Rosbag2Reader(self._input_bag, with_world_frame_conversion)
+        is_tf_needed = with_world_frame_conversion and not params.with_ins
+        self._bag_reader = Rosbag2Reader(self._input_bag, is_tf_needed)
         self._calc_actual_num_load_frames()
+
+        # for Co-MLOps
+        self._with_ins = params.with_ins
+        self._with_vehicle_status = params.with_vehicle_status
+
+        self._ins_handler = INSHandler(params.input_bag_path) if self._with_ins else None
+        self._vehicle_status_handler = (
+            VehicleStatusHandler(params.input_bag_path) if self._with_vehicle_status else None
+        )
 
     def _calc_actual_num_load_frames(self):
         topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
@@ -237,6 +252,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._attribute_table = AttributeTable(name_to_description={}, default_value="")
         self._visibility_table = VisibilityTable(level_to_description={}, default_value="")
 
+        # additional (used in Co-MLops)
+        self._vehicle_state_table = VehicleStateTable()
+
     def convert(self):
         self._convert()
         self._save_tables()
@@ -307,6 +325,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
         self._add_scene_description(self._scene_description)
+
+        if self._with_vehicle_status:
+            self._convert_vehicle_state()
 
     def _calc_start_timestamp(self) -> float:
         if self._start_timestamp < sys.float_info.epsilon:
@@ -748,6 +769,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return sample_data_token_list
 
+    def _convert_vehicle_state(self) -> None:
+        msgs = self._vehicle_status_handler.get_actuation_statuses()
+        stamps = [msg.header.stamp for msg in msgs]
+        for stamp in stamps:
+            self._generate_vehicle_state(stamp)
+
     def _generate_image_data(
         self,
         image_arr: Union[np.ndarray, CompressedImage],
@@ -797,28 +824,123 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return sample_data_token
 
     def _generate_ego_pose(self, stamp: builtin_interfaces.msg.Time) -> str:
-        transform_stamped = self._bag_reader.get_transform_stamped(
-            target_frame=self._ego_pose_target_frame,
-            source_frame=self._ego_pose_source_frame,
+        if self._with_ins:
+            ego_state = self._ins_handler.get_ego_state(stamp=stamp)
+            geocoordinate = self._ins_handler.lookup_nav_sat_fixes(stamp)
+
+            ego_pose_token = self._ego_pose_table.insert_into_table(
+                translation={
+                    "x": ego_state.translation.x,
+                    "y": ego_state.translation.y,
+                    "z": ego_state.translation.z,
+                },
+                rotation={
+                    "w": ego_state.rotation.w,
+                    "x": ego_state.rotation.x,
+                    "y": ego_state.rotation.y,
+                    "z": ego_state.rotation.z,
+                },
+                timestamp=rosbag2_utils.stamp_to_nusc_timestamp(ego_state.header.stamp),
+                twist={
+                    "vx": ego_state.twist.linear.x,
+                    "vy": ego_state.twist.linear.y,
+                    "vz": ego_state.twist.linear.z,
+                    "yaw_rate": ego_state.twist.angular.z,
+                    "pitch_rate": ego_state.twist.angular.y,
+                    "roll_rate": ego_state.twist.angular.x,
+                },
+                acceleration={
+                    "ax": ego_state.accel.x,
+                    "ay": ego_state.accel.y,
+                    "az": ego_state.accel.z,
+                },
+                geocoordinate={
+                    "latitude": geocoordinate.latitude,
+                    "longitude": geocoordinate.longitude,
+                    "altitude": geocoordinate.altitude,
+                },
+            )
+        else:
+            transform_stamped = self._bag_reader.get_transform_stamped(
+                target_frame=self._ego_pose_target_frame,
+                source_frame=self._ego_pose_source_frame,
+                stamp=stamp,
+            )
+
+            ego_pose_token = self._ego_pose_table.insert_into_table(
+                translation={
+                    "x": transform_stamped.transform.translation.x,
+                    "y": transform_stamped.transform.translation.y,
+                    "z": transform_stamped.transform.translation.z,
+                },
+                rotation={
+                    "w": transform_stamped.transform.rotation.w,
+                    "x": transform_stamped.transform.rotation.x,
+                    "y": transform_stamped.transform.rotation.y,
+                    "z": transform_stamped.transform.rotation.z,
+                },
+                timestamp=rosbag2_utils.stamp_to_nusc_timestamp(transform_stamped.header.stamp),
+            )
+
+        return ego_pose_token
+
+    def _generate_vehicle_state(self, stamp: builtin_interfaces.msg.Time) -> str:
+        nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(stamp)
+
+        # TODO(ktro2828): Implement operation to insert vehicle state into table
+        actuation_msg = self._vehicle_status_handler.get_closest_msg(
+            key="actuation_status", stamp=stamp
+        )
+
+        # steering tire
+        steering_tire_msg = self._vehicle_status_handler.get_closest_msg(
+            key="steering_status",
             stamp=stamp,
         )
 
-        ego_pose_token = self._ego_pose_table.insert_into_table(
-            translation={
-                "x": transform_stamped.transform.translation.x,
-                "y": transform_stamped.transform.translation.y,
-                "z": transform_stamped.transform.translation.z,
-            },
-            rotation={
-                "w": transform_stamped.transform.rotation.w,
-                "x": transform_stamped.transform.rotation.x,
-                "y": transform_stamped.transform.rotation.y,
-                "z": transform_stamped.transform.rotation.z,
-            },
-            timestamp=rosbag2_utils.stamp_to_nusc_timestamp(transform_stamped.header.stamp),
+        # steering wheel
+        steering_wheel_msg = self._vehicle_status_handler.get_closest_msg(
+            key="steering_wheel_status",
+            stamp=stamp,
         )
 
-        return ego_pose_token
+        # gear -> shift
+        gear_msg = self._vehicle_status_handler.get_closest_msg(key="gear_status", stamp=stamp)
+        shift_state = self._vehicle_status_handler.gear_to_shift(gear_msg.report)
+
+        # indicators
+        turn_indicators_msg = self._vehicle_status_handler.get_closest_msg(
+            key="turn_indicators_status", stamp=stamp
+        )
+        indicators_state = self._vehicle_status_handler.indicator_to_state(
+            turn_indicators_msg.report
+        )
+
+        # additional info
+        # --- speed ---
+        velocity_report_msg = self._vehicle_status_handler.get_closest_msg(
+            key="velocity_status", stamp=stamp
+        )
+        speed = np.linalg.norm(
+            [
+                velocity_report_msg.longitudinal_velocity,
+                velocity_report_msg.lateral_velocity,
+            ]
+        )
+
+        vehicle_state_token = self._vehicle_state_table.insert_into_table(
+            timestamp=nusc_timestamp,
+            accel_pedal=actuation_msg.status.accel_status,
+            brake_pedal=actuation_msg.status.brake_status,
+            steer_pedal=actuation_msg.status.steer_status,
+            steering_tire_angle=steering_tire_msg.steering_tire_angle,
+            steering_wheel_angle=steering_wheel_msg.data,
+            shift_state=shift_state,
+            indicators=indicators_state,
+            additional_info={"speed": speed},
+        )
+
+        return vehicle_state_token
 
     def _generate_calibrated_sensor(
         self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
@@ -946,6 +1068,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 prev_token: str = sample_data_token_list[token_i - 1]
                 cur_token: str = sample_data_token_list[token_i]
 
+                prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
+                    prev_token
+                )
+                prev_rec.next = cur_token
+                self._sample_data_table.set_record_to_table(prev_rec)
+
+                cur_rec: SampleRecord = self._sample_data_table.select_record_from_token(cur_token)
+                cur_rec.prev = prev_token
+                self._sample_data_table.set_record_to_table(cur_rec)
                 prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
                     prev_token
                 )
