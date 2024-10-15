@@ -4,19 +4,23 @@ import base64
 from dataclasses import dataclass
 import json
 import os.path as osp
-from typing import Any, Dict, List, Tuple, TypeVar
+from typing import Any, Dict, List, Optional
 
 from PIL import Image
 import numpy as np
 import pycocotools.mask as cocomask
 
 from perception_dataset.deepen.deepen_annotation import DeepenAnnotation
+from perception_dataset.deepen.deepen_to_t4_converter import LabelType
 
-Polygons2DLike = TypeVar("Polygon2DLike", List[List[List[float]]])
+__all__ = ["DeepenSegmentationPolygon2D"]
+
+
+Polygons2DLike = list[list[list[float]]]
 
 
 @dataclass
-class DeepenSegmentationPolygon(DeepenAnnotation):
+class DeepenSegmentationPolygon2D(DeepenAnnotation):
 
     @classmethod
     def from_file(
@@ -24,30 +28,38 @@ class DeepenSegmentationPolygon(DeepenAnnotation):
         ann_file: str,
         data_root: str,
         camera2index: Dict[str, int],
-    ) -> List[DeepenSegmentationPolygon]:
-        """Return a list of `DeepenSegmentationPolygon`s from files.
+        dataset_corresponding: Dict[str, str],
+        *,
+        as_dict: bool = True,
+    ) -> List[DeepenSegmentationPolygon2D | Dict[str, Any]]:
+        """Return a list of `DeepenSegmentationPolygon2D`s from files.
 
         Args:
             ann_file (str): Annotation file (.json).
             data_dir (str): Root directory path of the T4 dataset.
-            camera2index (Dict[str, int]):
+            camera2index (Dict[str, int]): Key-value mapping of camera and its index.
+            dataset_corresponding (Dict[str, str]): Key-value mapping of T4 dataset name and Deepen ID.
+            as_dict (bool, optional): Whether to output objects as dict or its instance.
+                Defaults to True.
 
         Returns:
-            List[DeepenSegmentationPolygon]: List of converted `DeepenSegmentationPolygon`s.
+            List[DeepenSegmentationPolygon2D | Dict[str, Any]]: If `as_dict=False`,
+                returns a list of converted `DeepenSegmentationPolygon2D`s.
+                Otherwise, returns a list of converted dicts.
         """
         with open(ann_file, "r") as f:
             data: Dict[str, Any] = json.load(f)
 
         labels: List[Dict[str, Any]] = data["labels"]
 
-        output: List[DeepenSegmentationPolygon] = []
+        output: List[DeepenSegmentationPolygon2D] = []
         for label in labels:
             # Extract required fields with defaults where appropriate
             dataset_id = label["dataset_id"]
             file_id = label["file_id"]
             label_category_id = label["label_category_id"]
             label_id = label["label_id"]
-            label_type = "2d_segmentation"
+            label_type = LabelType.SEGMENTATION_2D.value
             sensor_id = label["sensor_id"]
             labeller_email = label["labeller_email"]
             attributes = label.get("attributes", {})
@@ -55,14 +67,23 @@ class DeepenSegmentationPolygon(DeepenAnnotation):
             # Convert sensor_id to camera name
             camera_name: str | None = None
             for name, index in camera2index.items():
-                if f"sensor_{index}" == sensor_id:
+                if f"sensor{index}" == sensor_id:
                     camera_name = name
                     break
             if camera_name is None:
                 raise ValueError("There is no corresponding sensor ID.")
 
+            dataset_name: Optional[str] = None
+            for t4_name, deepen_id in dataset_corresponding.items():
+                if deepen_id == dataset_id:
+                    dataset_name = t4_name
+                    break
+
+            if dataset_name is None:
+                raise ValueError(f"There is no T4 dataset corresponding to {dataset_id}.")
+
             # Get image size
-            image = Image.open(osp.join(data_root, "data", camera_name, file_id))
+            image = Image.open(osp.join(data_root, dataset_name, "data", camera_name, file_id))
             width, height = image.size
 
             # Extract polygons
@@ -70,7 +91,7 @@ class DeepenSegmentationPolygon(DeepenAnnotation):
             two_d_box = _bbox_from_polygons(polygons)
             two_d_mask = _rle_from_polygons(polygons, width, height)
 
-            ann = DeepenSegmentationPolygon(
+            ann = DeepenSegmentationPolygon2D(
                 dataset_id=dataset_id,
                 file_id=file_id,
                 label_category_id=label_category_id,
@@ -79,28 +100,31 @@ class DeepenSegmentationPolygon(DeepenAnnotation):
                 sensor_id=sensor_id,
                 labeller_email=labeller_email,
                 attributes=attributes,
-                two_d_box=two_d_box,
+                box=two_d_box,
                 two_d_mask=two_d_mask,
             )
-            output.append(ann)
+            if as_dict:
+                output.append(ann.to_dict())
+            else:
+                output.append(ann)
         return output
 
 
-def _bbox_from_polygons(polygons: Polygons2DLike) -> Tuple[float, float, float, float]:
+def _bbox_from_polygons(polygons: Polygons2DLike) -> List[float]:
     """Calculate bounding box corners from polygon vertices.
 
     Args:
         polygons (Polygons2DLike): 2D polygon vertices, such as `[[[x1, y1], [x2, y2], ...]]`.
 
     Returns:
-        Tuple[float, float, float, float]: Bounding box corners, ordering `[xmin, ymin, xmax, ymax]`.
+        List[float]: Bounding box corners, ordering `[xmin, ymin, width, height]`.
     """
     xy = np.array([point for polygon in polygons for point in polygon])
 
     xmin, ymin = xy.min(axis=0)
     xmax, ymax = xy.max(axis=0)
 
-    return xmin, ymin, xmax, ymax
+    return [xmin, ymin, xmax - xmin, ymax - ymin]
 
 
 def _rle_from_polygons(polygons: Polygons2DLike, width: int, height: int) -> Dict[str, Any]:
@@ -114,7 +138,7 @@ def _rle_from_polygons(polygons: Polygons2DLike, width: int, height: int) -> Dic
     Returns:
         Dict[str, Any]: RLE format mask.
     """
-    flattened = [coord for polygon in polygons for point in polygon for coord in point]
+    flattened = [[coord for point in polygon for coord in point] for polygon in polygons]
 
     rle_objects = cocomask.frPyObjects(flattened, height, width)
     rle = cocomask.merge(rle_objects)

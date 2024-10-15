@@ -8,6 +8,7 @@ from nuimages import NuImages
 import numpy as np
 from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
+import yaml
 
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -60,6 +61,12 @@ class AnnotationFilesGenerator:
             self._camera2idx = description.get("camera_index")
         self._with_lidar = description.get("with_lidar", True)
 
+        if description.get("surface_categories"):
+            with open(description["surface_categories"], "r") as f:
+                self._surface_categories: List[str] = yaml.safe_load(f)
+        else:
+            self._surface_categories = []
+
     def save_tables(self, anno_dir: str):
         for cls_attr in self.__dict__.values():
             if isinstance(cls_attr, AbstractTable):
@@ -90,6 +97,7 @@ class AnnotationFilesGenerator:
             print(e)
 
         nuim = NuImages(version="annotation", dataroot=input_dir, verbose=False)
+        # FIXME: Avoid hard coding the number of cameras
         frame_index_to_sample_data_token: List[Dict[int, str]] = [{} for x in range(6)]
         mask: List[Dict[int, str]] = [{} for x in range(6)]
 
@@ -97,11 +105,13 @@ class AnnotationFilesGenerator:
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
             for anno in anno_list:
-                if "two_d_box" in anno.keys():
+                if "two_d_box" in anno.keys() or "two_d_segmentation" in anno.keys():
                     has_2d_annotation = True
                     break
 
         if has_2d_annotation:
+            # NOTE: num_cameras is always 6, because it is hard coded above.
+            num_cameras = len(frame_index_to_sample_data_token)
             for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
                 if (
                     sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg"
@@ -110,18 +120,19 @@ class AnnotationFilesGenerator:
                     cam_idx = self._camera2idx[cam]
 
                     frame_index = int((sample_nuim["filename"].split("/")[2]).split(".")[0])
-                    frame_index_to_sample_data_token[cam_idx].update(
-                        {frame_index: sample_nuim["token"]}
-                    )
+                    if cam_idx < num_cameras:
+                        frame_index_to_sample_data_token[cam_idx].update(
+                            {frame_index: sample_nuim["token"]}
+                        )
 
-                    width: int = sample_nuim["width"]
-                    height: int = sample_nuim["height"]
-                    object_mask: NDArray = np.array(
-                        [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
-                    )
-                    object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                    object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
-                    mask[cam_idx].update({frame_index: object_mask})
+                        width: int = sample_nuim["width"]
+                        height: int = sample_nuim["height"]
+                        object_mask: NDArray = np.array(
+                            [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
+                        )
+                        object_mask = cocomask.encode(np.asfortranarray(object_mask))
+                        object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
+                        mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
             scene_anno_dict=scene_anno_dict,
@@ -281,7 +292,9 @@ class AnnotationFilesGenerator:
                     )
 
                 # Object Annotation
-                if "two_d_box" in anno.keys():
+                if ("two_d_box" in anno.keys() or "two_d_segmentation" in anno.keys()) and anno[
+                    "category_name"
+                ] not in self._surface_categories:
                     sensor_id: int = int(anno["sensor_id"])
                     if frame_index not in frame_index_to_sample_data_token[sensor_id]:
                         continue
@@ -295,6 +308,20 @@ class AnnotationFilesGenerator:
                         attribute_tokens=attribute_tokens,
                         bbox=anno_two_d_box,
                         mask=mask[sensor_id][frame_index],
+                    )
+
+                # Surface Annotation
+                if (
+                    "two_d_segmentation" in anno.keys()
+                    and anno["category_name"] in self._surface_categories
+                ):
+                    sensor_id: int = int(anno["sensor_id"])
+                    if frame_index not in frame_index_to_sample_data_token[sensor_id]:
+                        continue
+                    self._surface_ann_table.insert_into_table(
+                        category_token=category_token,
+                        mask=mask[sensor_id][frame_index],
+                        sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                     )
 
     def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:

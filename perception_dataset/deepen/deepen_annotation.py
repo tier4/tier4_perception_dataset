@@ -1,16 +1,44 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import asdict, dataclass, field
+from enum import Enum
+import json
 from numbers import Number
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar
+
+from typing_extensions import Self
+
+__all__ = ["DeepenAnnotation", "DeepenAnnotationLike"]
+
+
+class LabelType(str, Enum):
+    BBOX_3D = "3d_bbox"
+    BBOX_2D = "box"
+    SEGMENTATION_2D = "2d_segmentation"
+
+
+class LabelFormat(str, Enum):
+    POLYGON = "polygon"
+    PAINTING = "painting"
+
+
+@dataclass
+class LabelInfo:
+    label_type: LabelType
+    label_format: LabelFormat
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> Self:
+        return cls(**data)
 
 
 @dataclass
 class DeepenAnnotation(ABC):
     """
     Represents a single segmentation annotation in Deepen format.
+
     Attributes:
         dataset_id (str): The ID of the dataset.
         file_id (str): The file identifier, e.g., "0.pcd".
@@ -35,8 +63,9 @@ class DeepenAnnotation(ABC):
                 "w": ...,
                 "quaternion": {"x": ..., "y": ..., "z": ..., "w": 0}
             }.
-        two_d_box (Optional[List[float]]): The 2D bounding box data, e.g., [corner_x, corner_y, width, height].
+        box (Optional[List[float]]): The 2D bounding box data, e.g., [corner_x, corner_y, width, height].
         two_d_mask (Optional[str]): Run-length encoding (RLE) of the 2D mask.
+
     Note:
         Exactly one of `three_d_bbox`, `two_d_box`, or `two_d_mask` must be provided.
     """
@@ -50,7 +79,7 @@ class DeepenAnnotation(ABC):
     labeller_email: str = "default@tier4.jp"
     attributes: Optional[Dict[str, Any]] = field(default_factory=dict)
     three_d_bbox: Optional[Dict[str, Any]] = None
-    two_d_box: Optional[List[float]] = None
+    box: Optional[List[float]] = None
     two_d_mask: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -64,7 +93,7 @@ class DeepenAnnotation(ABC):
             # Ensures that exactly one of three_d_bbox, two_d_box, or two_d_mask is provided.
             provided_annotations = (
                 self.three_d_bbox is not None,
-                self.two_d_box is not None,
+                self.box is not None,
                 self.two_d_mask is not None,
             )
             assert any(
@@ -113,13 +142,13 @@ class DeepenAnnotation(ABC):
             Raises:
                 AssertionError: If the list does not have exactly four numerical elements.
             """
-            if self.two_d_box is None:
+            if self.box is None:
                 return
 
-            assert isinstance(self.two_d_box, list), "two_d_box must be a list."
-            assert len(self.two_d_box) == 4, "two_d_box must be a list of four elements."
+            assert isinstance(self.box, list), "two_d_box must be a list."
+            assert len(self.box) == 4, "two_d_box must be a list of four elements."
             assert all(
-                isinstance(value, Number) and value >= 0 for value in self.two_d_box
+                isinstance(value, Number) and value >= 0 for value in self.box
             ), "two_d_box elements must be numbers and greater than 0."
 
         def _check_two_d_mask() -> None:
@@ -160,11 +189,34 @@ class DeepenAnnotation(ABC):
         return asdict(self)
 
     @classmethod
-    @abstractmethod
-    def from_file(cls, *args, **kwargs) -> List[DeepenAnnotation]:
+    def from_file(
+        cls,
+        ann_file: str,
+        *,
+        as_dict: bool = True,
+    ) -> List[DeepenAnnotationLike | Dict[str, Any]]:
         """Load annotations from file(s).
 
+        Args:
+            ann_file (str): Annotation file (.json).
+            as_dict (bool, optional): Whether to output objects as dict or its instance.
+                Defaults to True.
+
         Returns:
-            List[Self]: List of annotations.
+            List[DeepenAnnotationLike | Dict[str, Any]]: List of annotations or dicts.
         """
-        pass
+        with open(ann_file, "r") as f:
+            data = json.load(f)
+
+        labels: List[Dict[str, Any]] = data["labels"]
+
+        output = []
+        for label in labels:
+            if as_dict:
+                output.append(label)
+            else:
+                output.append(DeepenAnnotation(**label))
+        return output
+
+
+DeepenAnnotationLike = TypeVar("DeepenAnnotationLike", bound=DeepenAnnotation)
