@@ -243,17 +243,28 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._visibility_table = VisibilityTable(level_to_description={}, default_value="")
 
     def convert(self):
-        self._convert()
+        try:
+            self._convert()
+        except Exception as e:
+            logger.error(f"Error occurred during conversion: {e}")
+            return
+
         self._save_tables()
         self._save_config()
         if not self._without_compress:
             self._compress_directory()
 
     def _save_tables(self):
+        print(
+            "--------------------------------------------------------------------------------------------------------------------------"
+        )
         for cls_attr in self.__dict__.values():
             if isinstance(cls_attr, AbstractTable):
                 print(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
                 cls_attr.save_json(self._output_anno_dir)
+        print(
+            "--------------------------------------------------------------------------------------------------------------------------"
+        )
 
     def _save_config(self):
         config_data = {
@@ -821,7 +832,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     None,
                     camera_info.p.reshape(3, 4)[:3],
                 )
-                cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image, [cv2.IMWRITE_JPEG_QUALITY, 100])
+                cv2.imwrite(
+                    osp.join(self._output_scene_dir, sample_data_record.filename),
+                    image,
+                    [cv2.IMWRITE_JPEG_QUALITY, 100],
+                )
 
         return sample_data_token
 
