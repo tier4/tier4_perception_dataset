@@ -26,7 +26,6 @@ matplotlib = "3.5.3"
 pandas = "2.0.2"
 importlib-metadata = "^7.1.0"
 transforms3d = "^0.4.2"
-t4-devkit = { path = "t4-devkit" }
 scikit-image = "^0.24.0"
 
 [tool.poetry.dev-dependencies]
