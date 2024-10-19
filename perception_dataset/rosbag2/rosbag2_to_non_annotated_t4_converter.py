@@ -94,8 +94,12 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
         for bag_dir in bag_dirs:
             logger.info(f"Start converting {bag_dir} to T4 format.")
             self._params.input_bag_path = bag_dir
-            bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
-            bag_converter.convert()
+            try:
+                bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
+                bag_converter.convert()
+            except Exception as e:
+                logger.error(f"Error occurred during conversion: {e}")
+                continue
 
 
 class _Rosbag2ToNonAnnotatedT4Converter:
@@ -243,11 +247,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._visibility_table = VisibilityTable(level_to_description={}, default_value="")
 
     def convert(self):
-        try:
-            self._convert()
-        except Exception as e:
-            logger.error(f"Error occurred during conversion: {e}")
-            return
+        self._convert()
 
         self._save_tables()
         self._save_config()
