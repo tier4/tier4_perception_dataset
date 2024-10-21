@@ -17,25 +17,25 @@ conversion:
   camera_sensors: #  Keep the same order as each camera exposure timing
     - topic: /sensing/camera/camera0/image_raw/compressed
       channel: CAM_FRONT_NARROW
-      delay_msec: 60.0
+      delay_msec: 16.0
     - topic: /sensing/camera/camera1/image_raw/compressed
       channel: CAM_FRONT_WIDE
-      delay_msec: 60.0
+      delay_msec: 16.0
     - topic: /sensing/camera/camera2/image_raw/compressed
       channel: CAM_FRONT_RIGHT
-      delay_msec: 35.0
+      delay_msec: -9.0
     - topic: /sensing/camera/camera3/image_raw/compressed
       channel: CAM_BACK_RIGHT
-      delay_msec: 85.0
+      delay_msec: -59.0
     - topic: /sensing/camera/camera4/image_raw/compressed
       channel: CAM_BACK_NARROW
-      delay_msec: 60.0
+      delay_msec: -34.0
     - topic: /sensing/camera/camera5/image_raw/compressed
       channel: CAM_BACK_WIDE
-      delay_msec: 60.0
+      delay_msec: -84.0
     - topic: /sensing/camera/camera6/image_raw/compressed
       channel: CAM_BACK_LEFT
-      delay_msec: 35.0
+      delay_msec: -59.0
     - topic: /sensing/camera/camera7/image_raw/compressed
       channel: CAM_FRONT_LEFT
-      delay_msec: 85.0
+      delay_msec: -59.0
