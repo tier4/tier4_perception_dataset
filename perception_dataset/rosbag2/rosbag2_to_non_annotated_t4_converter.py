@@ -1,3 +1,4 @@
+import datetime
 import enum
 import glob
 import json
@@ -100,6 +101,11 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
             except Exception as e:
                 logger.error(f"Error occurred during conversion: {e}")
                 continue
+            dt_now = datetime.datetime.now()
+            logger.info(f"Conversion of {bag_dir} is completed at {dt_now.isoformat()}")
+            print(
+                "--------------------------------------------------------------------------------------------------------------------------"
+            )
 
 
 class _Rosbag2ToNonAnnotatedT4Converter:
