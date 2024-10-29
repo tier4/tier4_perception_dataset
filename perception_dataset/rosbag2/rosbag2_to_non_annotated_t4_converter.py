@@ -1,4 +1,3 @@
-import datetime
 import enum
 import glob
 import json
@@ -92,7 +91,7 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
                 logger.error(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
-        for bag_dir in bag_dirs:
+        for bag_dir in sorted(bag_dirs):
             logger.info(f"Start converting {bag_dir} to T4 format.")
             self._params.input_bag_path = bag_dir
             try:
@@ -101,8 +100,7 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
             except Exception as e:
                 logger.error(f"Error occurred during conversion: {e}")
                 continue
-            dt_now = datetime.datetime.now()
-            logger.info(f"Conversion of {bag_dir} is completed at {dt_now.isoformat()}")
+            logger.info(f"Conversion of {bag_dir} is completed")
             print(
                 "--------------------------------------------------------------------------------------------------------------------------"
             )
