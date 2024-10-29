@@ -9,6 +9,7 @@ from rclpy.serialization import deserialize_message
 from rclpy.time import Time
 from rosbag2_py import StorageFilter
 from rosidl_runtime_py.utilities import get_message
+from sensor_msgs.msg import CameraInfo
 import tf2_ros
 
 from perception_dataset.utils.rosbag2 import create_reader, get_topic_count, get_topic_type_dict
@@ -106,6 +107,54 @@ class Rosbag2Reader:
             if cam_info_available and frame_id_available:
                 return
             self.camera_info[topic_name] = message
+
+        import numpy as np
+
+        for i in range(8):
+            topic_name = f"/sensing/camera/camera{i}/camera_info"
+            camera_info_msg = CameraInfo()
+            camera_info_msg.header.frame_id = f"camera{i}/camera_optical_link"
+            camera_info_msg.header.stamp = builtin_interfaces.msg.Time(
+                sec=int(self.start_timestamp + 1), nanosec=0
+            )
+            camera_info_msg.distortion_model = "plumb_bob"
+            camera_info_msg.r = np.array([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0])
+            camera_info_msg.width = 2880
+            camera_info_msg.height = 1860
+            if "camera0" in topic_name:
+                camera_info_msg.k = np.array([5368.25873, 0.0, 1412.70938, 0.0, 5364.46693, 958.59729, 0.0, 0.0, 1.0])
+                camera_info_msg.p = np.array([5305.15088, 0.0, 1412.64275, 0.0, 0.0, 5342.61084, 958.70113, 0.0, 0.0, 0.0, 1.0, 0.0])
+                camera_info_msg.d = [-0.08849, -0.90255, 0.00075, 0.00111, 0.0]
+            elif "camera1" in topic_name:
+                camera_info_msg.k = np.array([1496.73395, 0.0, 1424.70018, 0.0, 1497.10726, 945.6712, 0.0, 0.0, 1.0])
+                camera_info_msg.p = np.array([1015.1003418, 0.0, 1466.52248505, 0.0, 0.0, 1284.54455566, 950.87123341, 0.0, 0.0, 0.0, 1.0, 0.0])
+                camera_info_msg.d = [-0.08989, -0.1186, -0.00016, -0.00007, 0.0067, 0.30995, -0.24648, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            elif "camera2" in topic_name:
+                camera_info_msg.k = np.array([1502.98471, 0.0, 1422.35349, 0.0, 1504.5042, 931.99575, 0.0, 0.0, 1.0])
+                camera_info_msg.p = np.array([878.42378, 0.0, 1402.49031, 0.0, 0.0, 1258.01633, 933.10245, 0.0, 0.0, 0.0, 1.0, 0.0])
+                camera_info_msg.d = [0.32864, -0.03183, 2e-05, 0.0002, 0.00267, 0.73261, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            elif "camera3" in topic_name:
+                camera_info_msg.k = np.array([1500.05060, 0.00000, 1430.78876, 0.00000, 1499.95752, 940.95613, 0.00000, 0.00000, 1.00000])
+                camera_info_msg.p = np.array([877.863525, 0.00000000, 1418.95998, 0.00000000, 0.0, 1254.34375, 945.262686, 0.00000000, 0.00000000, 0.0, 1.00000000, 0.0])
+                camera_info_msg.d = [0.27430142, -0.02073177, 0.00007407, 0.00008116, 0.00128976, 0.67045534, 0.00000000, 0.00000000, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            elif "camera4" in topic_name:
+                camera_info_msg.k = np.array([5363.43736, 0.0, 1507.51202, 0.0, 5341.55785, 1076.26984, 0.0, 0.0, 1.0])
+                camera_info_msg.p = np.array([5296.04052734, 0.0, 1511.62903545, 0.0, 0.0, 5311.76367188, 1077.67061308, 0.0, 0.0, 0.0, 1.0, 0.0])
+                camera_info_msg.d = [-0.12858, -0.44056, 0.00123, 0.00215, 0.0]
+            elif "camera5" in topic_name:
+                camera_info_msg.k = np.array([1500.35853, 0.0, 1419.21658, 0.0, 1501.15968, 936.4509, 0.0, 0.0, 1.0])
+                camera_info_msg.p = np.array([871.67853, 0.0, 1390.37965, 0.0, 0.0, 1251.62366, 939.62595, 0.0, 0.0, 0.0, 1.0, 0.0])
+                camera_info_msg.d = [3.49528, 0.71004, 0.00028, 0.0001, -0.03621, 3.91361, 1.98308, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            elif "camera6" in topic_name:
+                camera_info_msg.k = np.array([1543.88646, 0.0, 1455.51234, 0.0, 1542.117, 955.83491, 0.0, 0.0, 1.0])
+                camera_info_msg.p = np.array([940.59991455, 0.0, 1472.20666395, 0.0, 0.0, 1302.85144043, 965.17800362, 0.0, 0.0, 0.0, 1.0, 0.0])
+                camera_info_msg.d = [0.45661, -0.00186, -0.00003, -0.00015, 0.00153, 0.85654, 0.08203, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            elif "camera7" in topic_name:
+                camera_info_msg.k = np.array([1493.89305, 0.0, 1434.05368, 0.0, 1494.11047, 938.13478, 0.0, 0.0, 1.0])
+                camera_info_msg.p = np.array([870.17737, 0.0, 1421.48751, 0.0, 0.0, 1247.0332, 940.93758, 0.0, 0.0, 0.0, 1.0, 0.0])
+                camera_info_msg.d = [0.45661, -0.00186, -0.00003, -0.00015, 0.00153, 0.85654, 0.08203, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+            self.camera_info[topic_name] = camera_info_msg
 
     def get_topic_count(self, topic_name: str) -> int:
         return self._topic_name_to_topic_count.get(topic_name, 0)
