@@ -72,7 +72,7 @@ jobs:
         uses: autowarefoundation/autoware-github-actions/colcon-build@v1
         with:
           rosdistro: ${{ matrix.rosdistro }}
-          target-packages: autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs
+          target-packages: autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs oxts_msgs vehicle_msgs
           build-depends-repos: build_depends.repos
 
       - name: Install dependencies
@@ -80,7 +80,7 @@ jobs:
           apt update -yqq
           apt install -yqq curl python3-venv python-is-python3 \
             libgl1-mesa-dev ros-${ROS_DISTRO}-sensor-msgs-py \
-            ros-humble-radar-msgs
+            ros-humble-radar-msgs ros-${ROS_DISTRO}-tf-transformations
 
       - name: Check python version
         run: |
