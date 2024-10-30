@@ -319,7 +319,7 @@ class DeepenToT4Converter(AbstractConverter):
                 )
 
             if label_dict["label_type"] == LabelType.SEGMENTATION_2D:
-                sensor_id = int(label_dict["sensor_id"].strip("sensor_"))
+                sensor_id = int(label_dict["sensor_id"].strip("sensor"))
                 # overwrite sensor_id for multiple camera only annotation (e.g 2d segmentation)
                 if camera_index is not None:
                     for camera in camera_index.keys():
