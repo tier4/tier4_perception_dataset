@@ -26,5 +26,6 @@ conversion:
   input_bag_base: ./data/rosbag2
   output_base: ./data/t4_format
   topic_list: ./config/topic_list_tlr.yaml
+  ignore_interpolate_label: True
   dataset_corresponding:
     Dataset_name: dataset_id_in_Deepen_AI
