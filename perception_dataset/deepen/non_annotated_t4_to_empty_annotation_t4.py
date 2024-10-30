@@ -28,7 +28,7 @@ class NonAnnotatedT4ToEmptyAnnotationT4Converter(AbstractConverter):
         output_base: str,
         camera_sensors: list,
         annotation_hz: int = 10,
-        workers_number: int = 32,
+        workers_number: int = 16,
     ):
         super().__init__(input_base, output_base)
 
