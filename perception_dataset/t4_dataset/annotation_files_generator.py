@@ -1,14 +1,14 @@
 import base64
-from collections import defaultdict
 import os.path as osp
+from collections import defaultdict
 from typing import Any, Dict, List, Optional
 
+import numpy as np
+import yaml
 from nptyping import NDArray
 from nuimages import NuImages
-import numpy as np
 from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
-import yaml
 
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -59,6 +59,8 @@ class AnnotationFilesGenerator:
 
         if with_camera:
             self._camera2idx = description.get("camera_index")
+        else:
+            self._camera2idx = None
         self._with_lidar = description.get("with_lidar", True)
 
         if description.get("surface_categories"):
@@ -98,8 +100,9 @@ class AnnotationFilesGenerator:
 
         nuim = NuImages(version="annotation", dataroot=input_dir, verbose=False)
         # FIXME: Avoid hard coding the number of cameras
-        frame_index_to_sample_data_token: List[Dict[int, str]] = [{} for x in range(6)]
-        mask: List[Dict[int, str]] = [{} for x in range(6)]
+        num_cameras = 6 if self._camera2idx is None else len(self._camera2idx)
+        frame_index_to_sample_data_token: List[Dict[int, str]] = [{} for _ in range(num_cameras)]
+        mask: List[Dict[int, str]] = [{} for x in range(num_cameras)]
 
         has_2d_annotation: bool = False
         for frame_index in sorted(scene_anno_dict.keys()):
@@ -111,28 +114,26 @@ class AnnotationFilesGenerator:
 
         if has_2d_annotation:
             # NOTE: num_cameras is always 6, because it is hard coded above.
-            num_cameras = len(frame_index_to_sample_data_token)
             for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
                 if (
                     sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg"
                 ) and sample_nuim["is_key_frame"]:
                     cam = sample_nuim["filename"].split("/")[1]
-                    cam_idx = self._camera2idx[cam]
+                    cam_idx = self._camera2idx[cam] - 1
 
                     frame_index = int((sample_nuim["filename"].split("/")[2]).split(".")[0])
-                    if cam_idx < num_cameras:
-                        frame_index_to_sample_data_token[cam_idx].update(
-                            {frame_index: sample_nuim["token"]}
-                        )
+                    frame_index_to_sample_data_token[cam_idx].update(
+                        {frame_index: sample_nuim["token"]}
+                    )
 
-                        width: int = sample_nuim["width"]
-                        height: int = sample_nuim["height"]
-                        object_mask: NDArray = np.array(
-                            [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
-                        )
-                        object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                        object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
-                        mask[cam_idx].update({frame_index: object_mask})
+                    width: int = sample_nuim["width"]
+                    height: int = sample_nuim["height"]
+                    object_mask: NDArray = np.array(
+                        [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
+                    )
+                    object_mask = cocomask.encode(np.asfortranarray(object_mask))
+                    object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
+                    mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
             scene_anno_dict=scene_anno_dict,
