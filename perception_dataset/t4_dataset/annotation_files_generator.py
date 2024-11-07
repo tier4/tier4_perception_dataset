@@ -308,7 +308,11 @@ class AnnotationFilesGenerator:
                         category_token=category_token,
                         attribute_tokens=attribute_tokens,
                         bbox=anno_two_d_box,
-                        mask=mask[sensor_id][frame_index],
+                        mask=(
+                            anno["two_d_segmentation"]
+                            if "two_d_segmentation" in anno.keys()
+                            else mask[sensor_id][frame_index]
+                        ),
                     )
 
                 # Surface Annotation
@@ -321,7 +325,7 @@ class AnnotationFilesGenerator:
                         continue
                     self._surface_ann_table.insert_into_table(
                         category_token=category_token,
-                        mask=mask[sensor_id][frame_index],
+                        mask=anno["two_d_segmentation"],
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                     )
 
