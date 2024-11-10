@@ -472,7 +472,7 @@ An annotation for objects in a sample. All location data is given with respect t
   - "rotation": [float] [4] -- Bounding box orientation as quaternion: w, x, y, z.
   - "num_lidar_pts": [int] -- Number of lidar points in this box. Points are counted during the lidar sweep identified with this sample.
   - "num_radar_pts": [int] -- Number of radar points in this box. Points are counted during the radar sweep identified with this sample. This number is summed across all radar sensors without any invalid point filtering. **(fixed to `0`)**
-  - "automatic_annotation": [bool] -- True if the annotation is done by an automatic annotation tool, else False. **(Added)**
+  - "automatic_annotation": [bool] -- True if the annotation is done by an automatic annotation tool, False if manually annotated. **(Added)**
   - "next": [str] -- Foreign key. Sample annotation from the same object instance that follows this in time. Empty string `""`if this is the last annotation for this object.
   - "prev": [str] -- Foreign key. Sample annotation from the same object instance that precedes this in time. Empty string `""` if this is the first annotation for this object.
 
@@ -632,7 +632,7 @@ The instance_token is a unique identifier assigned to each object instance, allo
     "attribute_tokens":       <str> [n] -- Foreign keys. List of attributes for this annotation.
     "bbox":                   <int> [4] -- Annotated amodal bounding box. Given as [xmin, ymin, xmax, ymax].
     "mask":                   <RLE> -- Run length encoding of instance mask using the pycocotools package.
-    "automatic_annotation":   <bool> -- True if the annotation is done by an automatic annotation tool, else False.
+    "automatic_annotation":   <bool> -- True if the annotation is done by an automatic annotation tool, False if manually annotated.
   }
 ]
 ```
@@ -646,7 +646,7 @@ The instance_token is a unique identifier assigned to each object instance, allo
     "sample_data_token":      <str> -- Foreign key pointing to the sample data, which must be a keyframe image.
     "category_token":         <str> -- Foreign key pointing to the surface category.
     "mask":                   <RLE> -- Run length encoding of segmentation mask using the pycocotools package.
-    "automatic_annotation":   <bool> -- True if the annotation is done by an automatic annotation tool, else False.
+    "automatic_annotation":   <bool> -- True if the annotation is done by an automatic annotation tool, False if manually annotated.
   }
 ]
 ```
