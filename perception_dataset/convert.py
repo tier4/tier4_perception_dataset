@@ -157,11 +157,6 @@ def main():
         input_anno_file = config_dict["conversion"]["input_anno_file"]
         output_base = config_dict["conversion"]["output_base"]
         dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
-        label_info = (
-            LabelInfo(**config_dict["conversion"]["label_info"])
-            if config_dict["conversion"].get("label_info")
-            else None
-        )
         description = config_dict["description"]
         input_bag_base = config_dict["conversion"]["input_bag_base"]
         topic_list_yaml_path = config_dict["conversion"]["topic_list"]
@@ -170,18 +165,23 @@ def main():
             ignore_interpolate_label = config_dict["conversion"]["ignore_interpolate_label"]
         with open(topic_list_yaml_path) as f:
             topic_list_yaml = yaml.safe_load(f)
+        label_info = (
+            LabelInfo(**config_dict["conversion"]["label_info"])
+            if config_dict["conversion"].get("label_info")
+            else None
+        )
 
         converter = DeepenToT4Converter(
             input_base=input_base,
             output_base=output_base,
             input_anno_file=input_anno_file,
             dataset_corresponding=dataset_corresponding,
-            label_info=label_info,
             overwrite_mode=args.overwrite,
             description=description,
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
             ignore_interpolate_label=ignore_interpolate_label,
+            label_info=label_info,
         )
 
         logger.info(f"[BEGIN] Converting Deepen data ({input_base}) to T4 data ({output_base})")
