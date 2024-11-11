@@ -795,11 +795,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 [int(cv2.IMWRITE_JPEG_QUALITY), 95],
             )
         elif isinstance(image_arr, CompressedImage):
+            output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
             if camera_info is None or not self._undistort_image:
                 # save compressed image as is
-                with open(
-                    osp.join(self._output_scene_dir, sample_data_record.filename), "xb"
-                ) as fw:
+                with open(output_image_path, "xb") as fw:
                     fw.write(image_arr.data)
             else:
                 # load image and undistort
@@ -811,7 +810,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     None,
                     camera_info.p.reshape(3, 4)[:3],
                 )
-                cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image)
+                cv2.imwrite(output_image_path, image)
 
         return sample_data_token
 
