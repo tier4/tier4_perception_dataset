@@ -887,6 +887,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_intrinsic=[],
                     camera_distortion=[],
                 )
+                return calibrated_sensor_token
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
                 if self._data_type.value == "synthetic":
                     # fix of the orientation of camera view
@@ -924,8 +925,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 return calibrated_sensor_token, camera_info
             else:
                 raise ValueError(f"Unexpected sensor modality: {modality}")
-
-        return calibrated_sensor_token
+        raise ValueError(f"Sensor channel {sensor_channel} not found in the sensor list.")
 
     def _parse_camera_info(
         self,
