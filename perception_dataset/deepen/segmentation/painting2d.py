@@ -14,8 +14,7 @@ from numpy.typing import NDArray
 import pycocotools.mask as cocomask
 import skimage
 
-from perception_dataset.deepen.deepen_annotation import DeepenAnnotation
-from perception_dataset.deepen.deepen_to_t4_converter import LabelType
+from perception_dataset.deepen.deepen_annotation import DeepenAnnotation, LabelType
 
 __all__ = ["DeepenSegmentationPainting2D"]
 
