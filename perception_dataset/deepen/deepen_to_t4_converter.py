@@ -262,7 +262,8 @@ class DeepenToT4Converter(AbstractConverter):
                 ],
                 "visibility_name": visibility,
             }
-            if label_dict["sensor_id"] == "lidar" or label_dict["label_type"] == "3d_bbox":
+
+            if label_dict["label_type"] == LabelType.BBOX_3D:
                 anno_three_d_bbox: Dict[str, str] = label_dict["three_d_bbox"]
                 label_t4_dict.update(
                     {
@@ -290,7 +291,7 @@ class DeepenToT4Converter(AbstractConverter):
                         "num_radar_pts": 0,
                     }
                 )
-            if label_dict["sensor_id"][:6] == "camera" and label_dict["label_type"] == "box":
+            elif label_dict["label_type"] == LabelType.BBOX_2D:
                 sensor_id = label_dict["sensor_id"][-1]
                 if camera_index is not None:
                     for k in camera_index.keys():
@@ -318,8 +319,7 @@ class DeepenToT4Converter(AbstractConverter):
                         "sensor_id": sensor_id,
                     }
                 )
-
-            if label_dict["label_type"] == LabelType.SEGMENTATION_2D:
+            elif label_dict["label_type"] == LabelType.SEGMENTATION_2D:
                 sensor_id = int(label_dict["sensor_id"].strip("sensor"))
                 # overwrite sensor_id for multiple camera only annotation (e.g 2d segmentation)
                 if camera_index is not None:
