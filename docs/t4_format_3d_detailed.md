@@ -351,18 +351,20 @@ For t4 format, "name" should be one of the following:
 
 #### Description
 
-> Ego vehicle poses at a particular timestamp. Given with respect to the global coordinate system of the log's map. The ego_pose is the output of a lidar map-based localization algorithm described in [the paper](https://arxiv.org/abs/1903.11027).
+Ego_pose represents the pose of the ego vehicle at a specific timestamp.  
+This includes both the vehicle's position and orientation in space, typically referenced in a global coordinate system such as the map or odometry frame.  
+The concept is based on [nuScenes](https://arxiv.org/pdf/1903.11027) and [nuPlan](https://nuplan-devkit.readthedocs.io/en/latest/nuplan_schema.html#ego-pose).
 
 #### Items
 
 - ego_pose
   - "token": [str] -- Unique record identifier.
-  - "translation": [float] [3] -- Coordinate system origin in meters: x, y, z. ~~Note that z is always 0~~. **(changed)**
-  - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: w, x, y, z.
+  - "translation": [float] [3] -- Position of the ego vehicle in the odometry or map coordinate system (in meters): x, y, z.
+  - "rotation": [float] [4] -- Quaternion representing the orientation of the ego vehicle in the odometry or map coordinate system: w, x, y, z.
   - "timestamp": [int] -- Unix time stamp (μ sec).
-  - "twist": [Optional[float]] [6] -- Coordinates system origin in m/s: (vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate). **(Added)**
-  - "acceleration": [Optional[float]] [3] -- Coordinates system origin in m/s^2: (ax, ay, az). **(Added)**
-  - "geocoordinate": [Optional[float]] [3] -- Coordinates system origin in the WGS 84 reference ellipsoid: (latitude, longitude, altitude). **(Added)**
+  - "twist": [Optional[float]] [6] -- Linear and angular velocities in the **local** coordinate system of the ego vehicle (in m/s for linear and rad/sec for angular): (vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate). **(Added)**
+  - "acceleration": [Optional[float]] [3] -- Acceleration in the **local** coordinate system of the ego vehicle (in m/s²): (ax, ay, az). **(Added)**
+  - "geocoordinate": [Optional[float]] [3] -- Coordinates in the WGS 84 reference ellipsoid (latitude, longitude, altitude) in degrees and meters. **(Added)**
 
 ### instance.json
 
