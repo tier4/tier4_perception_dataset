@@ -264,9 +264,9 @@ class EgoStateBuffer:
             twist_msg.linear.x = twist[0]
             twist_msg.linear.y = twist[1]
             twist_msg.linear.z = twist[2]
-            twist_msg.angular.x = twist[0]
-            twist_msg.angular.y = twist[1]
-            twist_msg.angular.z = twist[2]
+            twist_msg.angular.x = twist[3]
+            twist_msg.angular.y = twist[4]
+            twist_msg.angular.z = twist[5]
 
             ego_state = EgoState(
                 header=header,
