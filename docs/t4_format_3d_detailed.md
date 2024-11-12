@@ -362,8 +362,8 @@ The concept is based on [nuScenes](https://arxiv.org/pdf/1903.11027) and [nuPlan
   - "translation": [float] [3] -- Position of the ego vehicle in the odometry or map coordinate system (in meters): x, y, z.
   - "rotation": [float] [4] -- Quaternion representing the orientation of the ego vehicle in the odometry or map coordinate system: w, x, y, z.
   - "timestamp": [int] -- Unix time stamp (μ sec).
-  - "twist": [Optional[float]] [6] -- Linear and angular velocities in the local coordinate system of the ego vehicle (in m/s for linear and rad/sec for angular): (vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate). **(Added)**
-  - "acceleration": [Optional[float]] [3] -- Acceleration in the local coordinate system of the ego vehicle (in m/s²): (ax, ay, az). **(Added)**
+  - "twist": [Optional[float]] [6] -- Linear and angular velocities in the **local** coordinate system of the ego vehicle (in m/s for linear and rad/sec for angular): (vel_x, vel_y, vel_z, yaw_rate, pitch_rate, roll_rate). **(Added)**
+  - "acceleration": [Optional[float]] [3] -- Acceleration in the **local** coordinate system of the ego vehicle (in m/s²): (ax, ay, az). **(Added)**
   - "geocoordinate": [Optional[float]] [3] -- Coordinates in the WGS 84 reference ellipsoid (latitude, longitude, altitude) in degrees and meters. **(Added)**
 
 ### instance.json
