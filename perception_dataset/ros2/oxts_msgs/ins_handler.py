@@ -9,11 +9,11 @@ from builtin_interfaces.msg import Time as RosTime
 from geometry_msgs.msg import Quaternion, Twist, Vector3
 from nav_msgs.msg import Odometry
 import numpy as np
+from pyquaternion import Quaternion as PyQuaternion
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation, Slerp
 from sensor_msgs.msg import Imu, NavSatFix
 from std_msgs.msg import Header
-import tf_transformations as tf
 
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.utils.rosbag2 import stamp_to_unix_timestamp, unix_timestamp_to_stamp
@@ -21,10 +21,18 @@ from perception_dataset.utils.rosbag2 import stamp_to_unix_timestamp, unix_times
 
 @dataclass
 class EgoState:
-    """A dataclass to represent a set of ego status."""
+    """A dataclass to represent a set of ego status.
+
+    Attributes:
+        header (Header): Message header.
+        translation (Vector3): 3D position in global coordinates.
+        rotation (Quaternion): Quaternion in global coordinates.
+        twist (Twist): Twist in local coordinates.
+            Linear velocities are in (m/s), and angular velocities in (rad/s).
+        accel (Vector3): Acceleration in local coordinates in (m/s2).
+    """
 
     header: Header
-    child_frame_id: str
     translation: Vector3
     rotation: Quaternion
     twist: Twist
@@ -270,7 +278,6 @@ class EgoStateBuffer:
 
             ego_state = EgoState(
                 header=header,
-                child_frame_id="base_link",
                 translation=Vector3(
                     x=translation[0],
                     y=translation[1],
@@ -363,40 +370,29 @@ class INSHandler:
                 current_pose.orientation.w,
             ]
 
-            cur_matrix = tf.compose_matrix(
-                translate=current_translation,
-                angles=tf.euler_from_quaternion(current_rotation),
-            )
-
+            # acceleration from imu
             imu: Imu = self.get_closest_msg(key="imu", stamp=odometry.header.stamp)
 
-            # NOTE: rotate acceleration from IMU coords to map coords
-            b_H_m = cur_matrix  # base_link -> map
-            i_H_b = tf.compose_matrix(
-                angles=tf.euler_from_quaternion(
-                    [
-                        imu.orientation.x,
-                        imu.orientation.y,
-                        imu.orientation.z,
-                        imu.orientation.w,
-                    ]
-                )
-            )  # imu -> base_link
+            # rotate acceleration from imu to base_link
+            b_Q_i = PyQuaternion(
+                [
+                    imu.orientation.w,
+                    imu.orientation.x,
+                    imu.orientation.y,
+                    imu.orientation.z,
+                ]
+            )  # base_link -> imu
 
-            i_H_m = tf.concatenate_matrices(i_H_b, b_H_m)  # imu -> map
-            # rotate acceleration
-            relative_acceleration = np.matmul(
-                i_H_m[:3, :3],
+            current_acceleration = b_Q_i.inverse.rotate(
                 [
                     imu.linear_acceleration.x,
                     imu.linear_acceleration.y,
                     imu.linear_acceleration.z,
-                ],
+                ]
             )
 
             ego_state = EgoState(
                 header=odometry.header,
-                child_frame_id="base_link",
                 translation=Vector3(
                     x=current_translation[0],
                     y=current_translation[1],
@@ -410,9 +406,9 @@ class INSHandler:
                 ),
                 twist=odometry.twist.twist,
                 accel=Vector3(
-                    x=relative_acceleration[0],
-                    y=relative_acceleration[1],
-                    z=relative_acceleration[2],
+                    x=current_acceleration[0],
+                    y=current_acceleration[1],
+                    z=current_acceleration[2],
                 ),
             )
 
