@@ -9,7 +9,6 @@ from builtin_interfaces.msg import Time as RosTime
 from geometry_msgs.msg import Quaternion, Twist, Vector3
 from nav_msgs.msg import Odometry
 import numpy as np
-from pyquaternion import Quaternion as PyQuaternion
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation, Slerp
 from sensor_msgs.msg import Imu, NavSatFix
@@ -370,26 +369,16 @@ class INSHandler:
                 current_pose.orientation.w,
             ]
 
+            current_twist = odometry.twist.twist
+
             # acceleration from imu
+            # TODO: update with imu bias
             imu: Imu = self.get_closest_msg(key="imu", stamp=odometry.header.stamp)
-
-            # rotate acceleration from imu to base_link
-            b_Q_i = PyQuaternion(
-                [
-                    imu.orientation.w,
-                    imu.orientation.x,
-                    imu.orientation.y,
-                    imu.orientation.z,
-                ]
-            )  # base_link -> imu
-
-            current_acceleration = b_Q_i.inverse.rotate(
-                [
-                    imu.linear_acceleration.x,
-                    imu.linear_acceleration.y,
-                    imu.linear_acceleration.z,
-                ]
-            )
+            current_acceleration = [
+                imu.linear_acceleration.x,
+                imu.linear_acceleration.y,
+                imu.linear_acceleration.z,
+            ]
 
             ego_state = EgoState(
                 header=odometry.header,
@@ -404,7 +393,7 @@ class INSHandler:
                     z=current_rotation[2],
                     w=current_rotation[3],
                 ),
-                twist=odometry.twist.twist,
+                twist=current_twist,
                 accel=Vector3(
                     x=current_acceleration[0],
                     y=current_acceleration[1],
