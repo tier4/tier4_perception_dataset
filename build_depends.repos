@@ -23,6 +23,10 @@ repositories:
     type: git
     url: https://github.com/tier4/oxts_ros2_driver.git
     version: feat/data_recording_system
+  pacmod3_msgs:
+    type: git
+    url: https://github.com/astuff/pacmod3_msgs.git
+    version: 1.0.0
   pacmod_interface:
     type: git
     url: https://github.com/tier4/pacmod_interface.git
