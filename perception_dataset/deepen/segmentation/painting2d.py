@@ -107,7 +107,7 @@ def _parse_annotation(
 
     Annotation file details:
     ```
-    - Before:
+    - Directory structure in .zip file:
         annotation.zip/
             ├── tmp/
             │   └── data_dir/
