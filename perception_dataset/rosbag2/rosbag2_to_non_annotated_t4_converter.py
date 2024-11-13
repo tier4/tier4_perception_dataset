@@ -820,11 +820,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 [int(cv2.IMWRITE_JPEG_QUALITY), 95],
             )
         elif isinstance(image_arr, CompressedImage):
-            if camera_info is None:
+            output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
+            if camera_info is None or not self._undistort_image:
                 # save compressed image as is
-                with open(
-                    osp.join(self._output_scene_dir, sample_data_record.filename), "xb"
-                ) as fw:
+                with open(output_image_path, "xb") as fw:
                     fw.write(image_arr.data)
             else:
                 # load image and undistort
@@ -836,11 +835,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     None,
                     camera_info.p.reshape(3, 4)[:3],
                 )
-                cv2.imwrite(
-                    osp.join(self._output_scene_dir, sample_data_record.filename),
-                    image,
-                    [cv2.IMWRITE_JPEG_QUALITY, 100],
-                )
+                cv2.imwrite(output_image_path, image)
 
         return sample_data_token
 
@@ -917,6 +912,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_intrinsic=[],
                     camera_distortion=[],
                 )
+                return calibrated_sensor_token
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
                 if self._data_type.value == "synthetic":
                     # fix of the orientation of camera view
@@ -938,17 +934,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     raise ValueError(f"Camera info not found for {cam_info_topic}")
-                if "image_rect" in topic_name:
-                    # image is considered as already undistorted
-                    camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
-                    camera_distortion = info.d.tolist()
-                elif self._undistort_image:
-                    camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
-                    camera_distortion = [0.0, 0.0, 0.0, 0.0, 0.0]
-                    camera_info = info
-                else:
-                    camera_intrinsic = info.k.reshape(3, 3).tolist()
-                    camera_distortion = info.d.tolist()
+                camera_intrinsic, camera_distortion, camera_info = self._parse_camera_info(
+                    info,
+                    undistort_image=self._undistort_image,
+                    is_already_rectified="image_rect" in topic_name,
+                )
 
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                     sensor_token=sensor_token,
@@ -960,8 +950,27 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 return calibrated_sensor_token, camera_info
             else:
                 raise ValueError(f"Unexpected sensor modality: {modality}")
+        raise ValueError(f"Sensor channel {sensor_channel} not found in the sensor list.")
 
-        return calibrated_sensor_token
+    def _parse_camera_info(
+        self,
+        info: CameraInfo,
+        undistort_image: bool = False,
+        is_already_rectified: bool = False,
+    ) -> Tuple[List[float], List[float], CameraInfo]:
+        camera_info = None
+        if is_already_rectified:
+            # image is already undistorted
+            camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+            camera_distortion = info.d.tolist()
+        elif undistort_image:
+            camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+            camera_distortion = [0.0, 0.0, 0.0, 0.0, 0.0]
+            camera_info = info
+        else:
+            camera_intrinsic = info.k.reshape(3, 3).tolist()
+            camera_distortion = info.d.tolist()
+        return camera_intrinsic, camera_distortion, camera_info
 
     def _set_scene_data(self):
         scene_records: List[SceneRecord] = self._scene_table.to_records()
