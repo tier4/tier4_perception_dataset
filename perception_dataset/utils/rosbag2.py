@@ -116,20 +116,20 @@ def point_cloud2_to_array(msg):
 
     def get_field_data(pc_data, msg, field_name, dtype_map):
         if field_name in field_names:
-            field_idx =  field_names.index(field_name)
+            field_idx = field_names.index(field_name)
             offset = msg.fields[field_idx].offset
             datatype = msg.fields[field_idx].datatype
             dtype = dtype_map.get(datatype)
             if dtype is None:
                 raise ValueError(f"Unsupported {field_name} datatype: {datatype}")
-            return pc_data[:, offset:offset + np.dtype(dtype).itemsize].view(dtype=dtype)
+            return pc_data[:, offset : offset + np.dtype(dtype).itemsize].view(dtype=dtype)
         return None
 
     # Mapping for PointField datatypes
     dtype_map = {
         PointField.UINT8: np.uint8,
         PointField.UINT16: np.uint16,
-        PointField.FLOAT32: np.float32
+        PointField.FLOAT32: np.float32,
     }
 
     # Convert PointCloud2 data to NumPy
