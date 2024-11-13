@@ -101,7 +101,7 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
-def point_cloud2_to_array(msg):
+def point_cloud2_to_array(msg: PointCloud2) -> Dict[str, NDArray]:
     """
     Convert a sensor_msgs/PointCloud2 message to a NumPy array. The fields
     in the PointCloud2 message are mapped to the fields in the NumPy array
