@@ -6,14 +6,14 @@ description:
     partial: "The object is occluded by more than 50% (but not completely)."
     none: "The object is 90-100% occluded and no points/pixels are visible in the label."
   camera_index:
-    CAM_BACK_RIGHT: 1
-    CAM_BACK: 2
-    CAM_BACK_LEFT: 3
-    CAM_FRONT: 4
-    CAM_FRONT_LEFT: 5
-    CAM_FRONT_NARROW: 6
-    CAM_FRONT_RIGHT: 7
-    CAM_FRONT_WIDE: 8
+    CAM_BACK_RIGHT: 0
+    CAM_BACK: 1
+    CAM_BACK_LEFT: 2
+    CAM_FRONT: 3
+    CAM_FRONT_LEFT: 4
+    CAM_FRONT_NARROW: 5
+    CAM_FRONT_RIGHT: 6
+    CAM_FRONT_WIDE: 7
   with_lidar: false
   surface_categories: ./config/label/surface.yaml
 
