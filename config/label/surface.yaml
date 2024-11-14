@@ -3,7 +3,9 @@
 - road
 - sidewalk
 - building
-- wall/fence
+- wall_fence
 - pole
-- vegetation/terrain
+- vegetation_terrain
 - sky
+- road_paint_lane_solid_white
+- road_paint_lane_dash_white
