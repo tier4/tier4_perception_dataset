@@ -65,8 +65,9 @@ class DeepenSegmentationPolygon2D(DeepenAnnotation):
 
             # Convert sensor_id to camera name
             camera_name: str | None = None
+            # NOTE: camera2index starts from 0, but deepen sensor id starts from 1.
             for name, index in camera2index.items():
-                if f"sensor{index}" == sensor_id:
+                if f"sensor{index + 1}" == sensor_id:
                     camera_name = name
                     break
             if camera_name is None:
