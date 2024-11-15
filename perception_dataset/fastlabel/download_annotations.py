@@ -1,9 +1,9 @@
+import json
+import os
 from pprint import pprint
 import time
-import json
+from typing import Dict, List
 
-import os
-from typing import List, Dict
 import fastlabel
 
 client = fastlabel.Client()
@@ -76,4 +76,3 @@ for project in project_dict["cuboid"]:
         cuboid_tasks.extend(tasks)
 with open("annotation_cuboid.json", "w") as f:
     json.dump(cuboid_tasks, f, indent=4)
-
