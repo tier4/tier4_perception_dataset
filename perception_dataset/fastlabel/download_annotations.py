@@ -18,7 +18,7 @@ trial_project_slugs = [
     "202405-panoptic-segmentation-trial-3",
     "202405-panoptic-segmentation-trial-4",
     "202405-license-plate-person-head-bbox-trial",
-    "202405-traffic-light-recognition-trial    ",
+    "202405-traffic-light-recognition-trial",
 ]
 
 
