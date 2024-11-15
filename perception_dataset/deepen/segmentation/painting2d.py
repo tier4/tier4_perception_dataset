@@ -141,8 +141,9 @@ def _parse_annotation(
         for image, categories in items.items():
             id2category = {i + 1: name for i, name in enumerate(categories)}
             camera_name = None
+            # NOTE: camera2index starts from 0, but deepen sensor id starts from 1.
             for name, sensor_idx in camera2index.items():
-                if f"sensor{sensor_idx}" == sensor_id:
+                if f"sensor{sensor_idx + 1}" == sensor_id:
                     camera_name = name
             if camera_name is None:
                 raise ValueError(f"There is no corresponding camera for {image}")
