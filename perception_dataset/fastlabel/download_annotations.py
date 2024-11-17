@@ -32,6 +32,8 @@ def get_large_size_tasks(project: Dict, limit: int = None) -> List[Dict]:
 
         if limit is not None:
             donwload_limit = limit
+        else:
+            donwload_limit = 100
         print(f"Downloading label: {project['slug']}, offset: {offset:05d}. Please wait...")
         if "image" in project["type"]:
             tasks = client.get_image_tasks(
