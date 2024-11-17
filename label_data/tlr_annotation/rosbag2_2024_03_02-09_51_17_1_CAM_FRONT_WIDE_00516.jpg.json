@@ -1,0 +1,119 @@
+[
+    {
+        "id": "33fdfb2f-bef1-4853-962f-f559f21cf43d",
+        "name": "rosbag2_2024_03_02-09_51_17_1/CAM_FRONT_WIDE/00516.jpg",
+        "status": "approved",
+        "externalStatus": "approved",
+        "url": "https://annotations.fastlabel.ai/workspaces/f9001482-4648-4648-8ed2-cb021a91173a/5d213fab-ec19-4257-9d35-0c78aafe6eb5/tasks/rosbag2_2024_03_02-09_51_17_1%2F00516_0_CAM_FRONT_WIDE.jpg?updatedAt=1719887383610&Expires=1731923171&Key-Pair-Id=K25YS2907X9Z7Z&Signature=mJtR6me-eX6UVaqq3eWWoAxOBggzPHVBQGtAAn2pZ83SQ6xzVKnI~83ypC3UDTeuqyUH8Qunuxz72Vd2c93pgh0CjGlTLLrvZ8JSVYLHwOq4uUoV~qD1x~gFRg0kX01INXs5NvjGptp5cZSIlJHaSzRuiHgPCv2GEXJ2Dtvwxnl~qfGBSPImMpjPtsae6uNtfFu7Vh6Ga1z~BLPiwP05I~irscrZITLkUocqdJw0ZmvgxFZ7khsjUCoiKEjiqUBAihfEgcB0nu3Nsb9IinHYDNM~N17ws7XRLvrB~q6lBcY-UGcxHI4wJX1nnwQ~KzqXvS3TK5CxFyrqgVGUdL5tJg__",
+        "width": 2880,
+        "height": 1860,
+        "annotations": [
+            {
+                "id": "d9dc8a57-cfb3-45d6-a074-0008a9e741cc",
+                "type": "bbox",
+                "title": "red",
+                "value": "red",
+                "color": "#FF0000",
+                "attributes": [
+                    {
+                        "type": "select",
+                        "name": "Type",
+                        "key": "type",
+                        "title": "circle",
+                        "value": "circle"
+                    },
+                    {
+                        "type": "select",
+                        "name": "Orientation",
+                        "key": "orientation",
+                        "title": "N/A",
+                        "value": "n_a"
+                    },
+                    {
+                        "type": "number",
+                        "name": "Number",
+                        "key": "number",
+                        "title": "",
+                        "value": 0
+                    },
+                    {
+                        "type": "switch",
+                        "name": "difficult",
+                        "key": "difficult",
+                        "title": "",
+                        "value": "0"
+                    }
+                ],
+                "points": [
+                    1484.99,
+                    759.07,
+                    1497.57,
+                    772.24
+                ],
+                "rotation": 0,
+                "keypoints": [],
+                "confidenceScore": -1
+            },
+            {
+                "id": "0d5ed747-b3e6-42f2-b051-0e1a5ebc1eea",
+                "type": "bbox",
+                "title": "green",
+                "value": "green",
+                "color": "#69D100",
+                "attributes": [
+                    {
+                        "type": "select",
+                        "name": "Type",
+                        "key": "type",
+                        "title": "circle",
+                        "value": "circle"
+                    },
+                    {
+                        "type": "select",
+                        "name": "Orientation",
+                        "key": "orientation",
+                        "title": "N/A",
+                        "value": "n_a"
+                    },
+                    {
+                        "type": "number",
+                        "name": "Number",
+                        "key": "number",
+                        "title": "",
+                        "value": 0
+                    },
+                    {
+                        "type": "switch",
+                        "name": "difficult",
+                        "key": "difficult",
+                        "title": "",
+                        "value": "0"
+                    }
+                ],
+                "points": [
+                    2583.47,
+                    758.55,
+                    2595.78,
+                    770.55
+                ],
+                "rotation": 0,
+                "keypoints": [],
+                "confidenceScore": -1
+            }
+        ],
+        "relations": [],
+        "tags": [
+            "0702\u767b\u9332",
+            "0707\u30a8\u30af\u30b9\u30dd\u30fc\u30c8"
+        ],
+        "assignee": "megumi.niiyama",
+        "reviewer": null,
+        "approver": "dan.umeda",
+        "externalAssignee": "annotator002",
+        "externalReviewer": "jonnah",
+        "externalApprover": "megumi.niiyama",
+        "priority": 0,
+        "createdAt": "2024-07-02T02:29:42.348Z",
+        "updatedAt": "2024-07-08T04:51:59.000Z"
+    }
+]
