@@ -6,21 +6,14 @@ import time
 from typing import Dict, List
 
 import fastlabel
+import yaml
 
 client = fastlabel.Client()
 
-trial_project_slugs = [
-    "202405-lidar-3d-bbox-trial",
-    "202405-lidar-3d-bbox-trial-2",
-    "202405-lidar-3d-bbox-trial-3",
-    "202405-lidar-3d-bbox-trial-4",
-    "202405-panoptic-segmentation-trial",
-    "202405-panoptic-segmentation-trial-2",
-    "202405-panoptic-segmentation-trial-3",
-    "202405-panoptic-segmentation-trial-4",
-    "202405-license-plate-person-head-bbox-trial",
-    "202405-traffic-light-recognition-trial",
-]
+
+def load_yaml_config(yaml_path: str) -> Dict:
+    with open(yaml_path, "r") as f:
+        return yaml.safe_load(f)
 
 
 def get_large_size_tasks(project: Dict, limit: int = None) -> List[Dict]:
@@ -87,11 +80,11 @@ def rename_image_task_name(name: str) -> str:
 
 
 def download_completed_annotations(
-    project: Dict, output_dir: str, save_each: bool = False
+    project: Dict, output_dir: str, target_project_slugs: List[str], save_each: bool = False
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
     completed_tasks = []
-    if project["slug"] in trial_project_slugs:
+    if project["slug"] in target_project_slugs:
         tasks = get_large_size_tasks(project=project)
         for task in tasks:
             if is_task_completed(task):
@@ -106,7 +99,7 @@ def download_completed_annotations(
     return completed_tasks
 
 
-def get_labels(output_dir: str) -> None:
+def get_labels(output_dir: str, target_project_slugs: List[str]) -> None:
     projects = client.get_projects()
     project_dict = split_project_pcd_image(projects)
     os.makedirs(output_dir, exist_ok=True)
@@ -114,9 +107,11 @@ def get_labels(output_dir: str) -> None:
     cuboid_tasks = []
     pcd_out_dir = osp.join(output_dir, "pcd_annotation")
     for project in project_dict["cuboid"]:
-        if project["slug"] in trial_project_slugs:
+        if project["slug"] in target_project_slugs:
             cuboid_tasks.extend(
-                download_completed_annotations(project, pcd_out_dir, save_each=True)
+                download_completed_annotations(
+                    project, pcd_out_dir, target_project_slugs, save_each=True
+                )
             )
     with open(osp.join(output_dir, "all_label_lidar_cuboid.json"), "w") as f:
         json.dump(cuboid_tasks, f, indent=4)
@@ -124,9 +119,11 @@ def get_labels(output_dir: str) -> None:
     segmentation_tasks = []
     pcd_out_dir = osp.join(output_dir, "segmentation_annotation")
     for project in project_dict["segmentation"]:
-        if project["slug"] in trial_project_slugs:
+        if project["slug"] in target_project_slugs:
             segmentation_tasks.extend(
-                download_completed_annotations(project, pcd_out_dir, save_each=True)
+                download_completed_annotations(
+                    project, pcd_out_dir, target_project_slugs, save_each=True
+                )
             )
     with open(osp.join(output_dir, "all_label_segmentation.json"), "w") as f:
         json.dump(segmentation_tasks, f, indent=4)
@@ -134,17 +131,23 @@ def get_labels(output_dir: str) -> None:
     tlr_tasks = []
     pcd_out_dir = osp.join(output_dir, "tlr_annotation")
     for project in project_dict["bbox"]:
-        if project["slug"] in trial_project_slugs and "traffic-light" in project["slug"]:
-            tlr_tasks.extend(download_completed_annotations(project, pcd_out_dir, save_each=True))
+        if project["slug"] in target_project_slugs and "traffic-light" in project["slug"]:
+            tlr_tasks.extend(
+                download_completed_annotations(
+                    project, pcd_out_dir, target_project_slugs, save_each=True
+                )
+            )
     with open(osp.join(output_dir, "all_label_traffic_light.json"), "w") as f:
         json.dump(tlr_tasks, f, indent=4)
 
     anonymization_tasks = []
     pcd_out_dir = osp.join(output_dir, "tlr_annotation")
     for project in project_dict["bbox"]:
-        if project["slug"] in trial_project_slugs and "license-plate" in project["slug"]:
+        if project["slug"] in target_project_slugs and "license-plate" in project["slug"]:
             anonymization_tasks.extend(
-                download_completed_annotations(project, pcd_out_dir, save_each=True)
+                download_completed_annotations(
+                    project, pcd_out_dir, target_project_slugs, save_each=True
+                )
             )
     with open(osp.join(output_dir, "all_label_anonymization.json"), "w") as f:
         json.dump(anonymization_tasks, f, indent=4)
@@ -153,10 +156,20 @@ def get_labels(output_dir: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--output_dir",
+        "--config",
         type=str,
-        default="label_data",
-        help="the directory where the annotation file is saved.",
+        required=True,
+        help="Path to the YAML configuration file.",
     )
     args = parser.parse_args()
-    get_labels(args.output_dir)
+
+    config = load_yaml_config(args.config)
+
+    output_dir = config.get("conversion", {}).get("output", "label_data")
+    target_project_slugs = config.get("conversion", {}).get("target_project_slugs", [])
+
+    if not target_project_slugs:
+        print("No target project slugs found in the YAML file. Exiting.")
+        exit(1)
+
+    get_labels(output_dir, target_project_slugs)
