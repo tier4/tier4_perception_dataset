@@ -139,7 +139,7 @@ def get_labels(output_dir: str, target_project_slugs: List[str]) -> None:
         json.dump(tlr_tasks, f, indent=4)
 
     anonymization_tasks = []
-    pcd_out_dir = osp.join(output_dir, "tlr_annotation")
+    pcd_out_dir = osp.join(output_dir, "anonymization")
     for project in project_dict["bbox"]:
         if project["slug"] in target_project_slugs and "license-plate" in project["slug"]:
             anonymization_tasks.extend(
