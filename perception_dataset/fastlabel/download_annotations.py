@@ -8,8 +8,6 @@ from typing import Dict, List
 import fastlabel
 import yaml
 
-client = fastlabel.Client()
-
 
 def load_yaml_config(yaml_path: str) -> Dict:
     with open(yaml_path, "r") as f:
@@ -167,6 +165,10 @@ if __name__ == "__main__":
 
     output_dir = config.get("conversion", {}).get("output", "label_data")
     target_project_slugs = config.get("conversion", {}).get("target_project_slugs", [])
+    access_token = config.get("conversion", {}).get("access_token", "")
+    if access_token is not None and access_token != "":
+        os.environ['FASTLABEL_ACCESS_TOKEN'] = access_token
+    client = fastlabel.Client()
 
     if not target_project_slugs:
         print("No target project slugs found in the YAML file. Exiting.")

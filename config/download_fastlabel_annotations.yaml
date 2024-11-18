@@ -1,6 +1,7 @@
 task: donwload_fastlabel
 conversion:
   output: label_data_241118
+  access_token:
   target_project_slugs:
     - 202405-lidar-3d-bbox-trial
     - 202405-lidar-3d-bbox-trial-2
