@@ -167,7 +167,7 @@ if __name__ == "__main__":
     target_project_slugs = config.get("conversion", {}).get("target_project_slugs", [])
     access_token = config.get("conversion", {}).get("access_token", "")
     if access_token is not None and access_token != "":
-        os.environ['FASTLABEL_ACCESS_TOKEN'] = access_token
+        os.environ["FASTLABEL_ACCESS_TOKEN"] = access_token
     client = fastlabel.Client()
 
     if not target_project_slugs:
