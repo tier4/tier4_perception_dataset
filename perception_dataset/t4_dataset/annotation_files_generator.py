@@ -119,7 +119,7 @@ class AnnotationFilesGenerator:
                     sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg"
                 ) and sample_nuim["is_key_frame"]:
                     cam = sample_nuim["filename"].split("/")[1]
-                    cam_idx = self._camera2idx[cam] - 1
+                    cam_idx = self._camera2idx[cam]
 
                     frame_index = int((sample_nuim["filename"].split("/")[2]).split(".")[0])
                     frame_index_to_sample_data_token[cam_idx].update(
