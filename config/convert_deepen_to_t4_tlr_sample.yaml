@@ -16,5 +16,6 @@ conversion:
   input_bag_base: ./data/rosbag2
   output_base: ./data/t4_format
   topic_list: ./config/topic_list_tlr.yaml
+  format_version: "1.2"
   dataset_corresponding:
     TLR_test: TyevxBgbnTplOa9A8NQXPuzp
