@@ -379,7 +379,32 @@ def main():
         logger.info(f"[BEGIN] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
         converter.convert()
         logger.info(f"[Done] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
+    elif task == "convert_non_annotated_t4_to_basic_ai":
+        from perception_dataset.basic_ai.non_annotated_t4_to_basic_ai_converter import (
+            NonAnnotatedT4ToBasicAiConverter,
+        )
 
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        camera_sensors = config_dict["conversion"]["camera_sensors"]
+        annotation_hz = config_dict["conversion"]["annotation_hz"]
+        workers_number = config_dict["conversion"]["workers_number"]
+
+        converter = NonAnnotatedT4ToBasicAiConverter(
+            input_base=input_base,
+            output_base=output_base,
+            camera_sensors=camera_sensors,
+            annotation_hz=annotation_hz,
+            workers_number=workers_number,
+        )
+
+        logger.info(
+            f"[BEGIN] Converting T4 dataset ({input_base}) to Basic.ai format dataset ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[Done] Converting T4 dataset ({input_base}) to Basic.ai format dataset ({output_base})"
+        )
     else:
         raise NotImplementedError()
 
