@@ -69,6 +69,7 @@ class DeepenSegmentationPolygon2D(DeepenAnnotation):
             for name, index in camera2index.items():
                 if f"sensor{index + 1}" == sensor_id:
                     camera_name = name
+                    t4_sensor_id: str = f"sensor{index}"
                     break
             if camera_name is None:
                 raise ValueError("There is no corresponding sensor ID.")
