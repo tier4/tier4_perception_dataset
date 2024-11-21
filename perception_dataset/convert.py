@@ -150,6 +150,7 @@ def main():
         )
 
     elif task == "convert_deepen_to_t4":
+        from perception_dataset.deepen.deepen_annotation import LabelInfo
         from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 
         input_base = config_dict["conversion"]["input_base"]
@@ -164,6 +165,11 @@ def main():
             ignore_interpolate_label = config_dict["conversion"]["ignore_interpolate_label"]
         with open(topic_list_yaml_path) as f:
             topic_list_yaml = yaml.safe_load(f)
+        label_info = (
+            LabelInfo(**config_dict["conversion"]["label_info"])
+            if config_dict["conversion"].get("label_info")
+            else None
+        )
 
         converter = DeepenToT4Converter(
             input_base=input_base,
@@ -175,6 +181,7 @@ def main():
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
             ignore_interpolate_label=ignore_interpolate_label,
+            label_info=label_info,
         )
 
         logger.info(f"[BEGIN] Converting Deepen data ({input_base}) to T4 data ({output_base})")
