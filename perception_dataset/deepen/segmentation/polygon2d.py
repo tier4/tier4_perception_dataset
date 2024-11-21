@@ -97,7 +97,7 @@ class DeepenSegmentationPolygon2D(DeepenAnnotation):
                 label_category_id=label_category_id,
                 label_id=label_id,
                 label_type=label_type,
-                sensor_id=sensor_id,
+                sensor_id=t4_sensor_id,
                 labeller_email=labeller_email,
                 attributes=attributes,
                 box=two_d_box,
