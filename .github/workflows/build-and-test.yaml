@@ -51,7 +51,7 @@ jobs:
         run: |
           apt update -yqq
           apt install -yqq curl python3-venv python-is-python3 \
-            libgl1-mesa-dev ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap \
+            libgl1-mesa-dev libboost-dev ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap \
             ros-${ROS_DISTRO}-radar-msgs unzip tree
 
       - name: Download test data
