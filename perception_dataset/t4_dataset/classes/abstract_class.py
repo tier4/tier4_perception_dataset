@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 import json
 import os.path as osp
@@ -14,9 +16,16 @@ class AbstractRecord(metaclass=ABCMeta):
     def token(self) -> str:
         return self._token
 
+    @token.setter
+    def token(self, token: str):
+        self._token = token
+
     @abstractmethod
     def to_dict(self) -> Dict[str, Any]:
         raise NotImplementedError()
+
+    def __eq__(self, value: T) -> bool:
+        return self.__dict__ == value.__dict__
 
 
 T = TypeVar("T", bound=AbstractRecord)
@@ -37,6 +46,10 @@ class AbstractTable(Generic[T], metaclass=ABCMeta):
         raise NotImplementedError()
 
     def set_record_to_table(self, record: T):
+        same_tokens = [token for token, v in self._token_to_record.items() if v == record]
+        assert len(same_tokens) in (0, 1)
+        if len(same_tokens) == 1:
+            record.token = same_tokens[0]  # overwrite record token with the existing one
         self._token_to_record[record.token] = record
 
     def insert_into_table(self, **kwargs) -> str:
@@ -46,6 +59,19 @@ class AbstractTable(Generic[T], metaclass=ABCMeta):
         ), "_to_record function must return the instance of RecordClass"
         self.set_record_to_table(record)
         return record.token
+
+    def insert_from_json(self, filepath: str):
+        with open(filepath, "r") as f:
+            table_data: List[Dict[str, Any]] = json.load(f)
+
+        for data in table_data:
+            token: str = data.pop("token")
+            record = self._to_record(**data)
+            record.token = token
+            assert isinstance(
+                record, AbstractRecord
+            ), "_to_record function must return the instance of RecordClass"
+            self.set_record_to_table(record)
 
     def select_record_from_token(self, token: str) -> T:
         assert (

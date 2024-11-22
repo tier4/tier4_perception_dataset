@@ -1,0 +1,24 @@
+task: update_t4_with_fastlabel
+description:
+  visibility:
+    full: "No occlusion of the object."
+    most: "Object is occluded, but by less than 50%."
+    partial: "The object is occluded by more than 50% (but not completely)."
+    none: "The object is 90-100% occluded and no points/pixels are visible in the label."
+  camera_index:
+    CAM_FRONT: 0
+    CAM_FRONT_RIGHT: 1
+    CAM_BACK_RIGHT: 2
+    CAM_BACK: 3
+    CAM_BACK_LEFT: 4
+    CAM_FRONT_LEFT: 5
+
+conversion:
+  input_base: ./data/input/t4_format_2d_annotated # could be non_annotated_t4_format or t4_format_3d_annotated
+  input_anno_base: ./data/fastlabel
+  input_bag_base: ./data/rosbag2
+  output_base: ./data/output/t4_format_2d_annotated # this only includes the 2D annotations
+  topic_list: ./config/topic_list_sample.yaml
+  dataset_corresponding:
+    # input t4dataset_name: FastLabel json file name
+    DBv2.0-2-4: 2-4.json
