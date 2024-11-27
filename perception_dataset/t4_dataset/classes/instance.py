@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Any, Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -59,3 +62,19 @@ class InstanceTable(AbstractTable[InstanceRecord]):
             self._id_to_token[instance_id] = token
 
         return token
+
+    @classmethod
+    def from_json(cls, filepath: str) -> InstanceTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = InstanceRecord(
+                category_token=item["category_token"],
+                instance_name=item.get("instance_name", ""),
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

@@ -380,10 +380,6 @@ def main():
         input_anno_base = config_dict["conversion"]["input_anno_base"]
         dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
         description = config_dict["description"]
-        input_bag_base = config_dict["conversion"]["input_bag_base"]
-        topic_list_yaml_path = config_dict["conversion"]["topic_list"]
-        with open(topic_list_yaml_path) as f:
-            topic_list_yaml = yaml.safe_load(f)
 
         converter = FastLabel2dToUpdater(
             input_base=input_base,
@@ -392,8 +388,6 @@ def main():
             dataset_corresponding=dataset_corresponding,
             overwrite_mode=args.overwrite,
             description=description,
-            input_bag_base=input_bag_base,
-            topic_list=topic_list_yaml,
         )
         logger.info(
             f"[BEGIN] Updating T4 dataset ({input_base}) with FastLabel {input_anno_base} into T4 data ({output_base})"

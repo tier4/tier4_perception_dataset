@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import os.path as osp
 from pathlib import Path
 import shutil
-from typing import Dict, List
+from typing import Dict
 
 from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import (
     FastLabel2dToT4Converter,
@@ -23,8 +24,6 @@ class FastLabel2dToUpdater(FastLabel2dToT4Converter):
         dataset_corresponding: Dict[str, int],
         overwrite_mode: bool,
         description: Dict[str, Dict[str, str]],
-        input_bag_base: str | None,
-        topic_list: Dict[str, List[str]] | List[str],
     ):
         super().__init__(
             input_base,
@@ -33,13 +32,13 @@ class FastLabel2dToUpdater(FastLabel2dToT4Converter):
             dataset_corresponding,
             overwrite_mode,
             description,
-            input_bag_base,
-            topic_list,
+            input_bag_base=None,
+            topic_list=None,
         )
 
     def convert(self) -> None:
         anno_jsons_dict = self._load_annotation_jsons()
-        fl_annotations = self._format_deepen_annotation(anno_jsons_dict)
+        fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
 
         for t4dataset_name in self._t4dataset_name_to_merge:
             # Check if input directory exists
@@ -53,9 +52,13 @@ class FastLabel2dToUpdater(FastLabel2dToT4Converter):
             output_dir = self._output_base / t4dataset_name / "t4_dataset"
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
+
             if osp.exists(output_dir):
                 logger.error(f"{output_dir} already exists.")
                 is_dir_exist = True
+            else:
+                is_dir_exist = False
+
             if self._overwrite_mode or not is_dir_exist:
                 # Remove existing output directory
                 shutil.rmtree(output_dir, ignore_errors=True)
@@ -78,3 +81,16 @@ class FastLabel2dToUpdater(FastLabel2dToT4Converter):
                 scene_anno_dict=fl_annotations[t4dataset_name],
                 dataset_name=t4dataset_name,
             )
+
+    def _load_annotation_jsons(self):
+        anno_dict = {}
+        for file in self._input_anno_files:
+            t4_dataset_name = None
+            for name, ann_filename in self._t4dataset_name_to_merge.items():
+                if ann_filename == file.name:
+                    t4_dataset_name = name
+
+            assert t4_dataset_name is not None
+            with open(file) as f:
+                anno_dict[t4_dataset_name] = json.load(f)
+        return anno_dict

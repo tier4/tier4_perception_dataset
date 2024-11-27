@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -47,3 +50,20 @@ class SurfaceAnnTable(AbstractTable[SurfaceAnnRecord]):
             sample_data_token=sample_data_token,
         )
         return record
+
+    @classmethod
+    def from_json(cls, filepath: str) -> SurfaceAnnTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = SurfaceAnnRecord(
+                category_token=item["category_token"],
+                mask=item["mask"],
+                sample_data_token=item["sample_data_token"],
+            )
+            record.token = item["token"]
+            table.select_record_from_token(record)
+
+        return table

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Any, Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -46,3 +49,23 @@ class SceneTable(AbstractTable[SceneRecord]):
 
     def _to_record(self, **kwargs) -> SceneRecord:
         return SceneRecord(**kwargs)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> SceneTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = SceneRecord(
+                name=item["name"],
+                description=item["description"],
+                log_token=item["log_token"],
+                nbr_samples=item["nbr_samples"],
+                first_sample_token=item["first_sample_token"],
+                last_sample_token=item["last_sample_token"],
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table
