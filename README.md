@@ -5,13 +5,17 @@ These tools facilitate the preparation and transformation of perception data for
 
 ## Table of Contents
 
-1. [Dataset Overview](#dataset-overview)
-2. [Usage of T4 dataset](#usage-of-t4-format-dataset)
-3. [Usage of Conversion Tools](#usage-of-conversion-tools)
-   - [Conversion Tools Overview](#conversion-tools-overview)
-   - [Setup](#setup)
-   - [Test](#test)
-   - [Pre Commit](#pre-commit)
+- [TIER IV Perception Dataset Conversion Tools](#tier-iv-perception-dataset-conversion-tools)
+  - [Table of Contents](#table-of-contents)
+  - [Dataset Overview](#dataset-overview)
+  - [Usage of T4 format dataset](#usage-of-t4-format-dataset)
+  - [Usage of Conversion Tools](#usage-of-conversion-tools)
+    - [Conversion Tools Overview](#conversion-tools-overview)
+    - [Setup](#setup)
+    - [Test](#test)
+      - [Download test data](#download-test-data)
+      - [Run tests](#run-tests)
+    - [Pre commit](#pre-commit)
 
 ## Dataset Overview
 
@@ -45,7 +49,7 @@ source /opt/ros/${ROS_DISTRO}/setup.sh
 sudo apt install -y ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap ros-${ROS_DISTRO}-radar-msgs
 
 mkdir src -p && vcs import src < build_depends.repos
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-up-to autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-up-to autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs oxts_msgs vehicle_msgs
 source ./install/setup.bash
 ```
 
