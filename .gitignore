@@ -4,6 +4,7 @@ tests/scale_to_t4/data_test_scale_to_t4_converter/output_base
 /data*/
 /notebooks/data/
 /tests/data
+/label_data*
 
 # ros
 /src
