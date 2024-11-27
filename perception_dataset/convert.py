@@ -372,7 +372,7 @@ def main():
 
     elif task == "update_t4_with_fastlabel":
         from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_updater import (
-            FastLabel2dToUpdater,
+            FastLabel2dToT4Updater,
         )
 
         input_base = config_dict["conversion"]["input_base"]
@@ -381,7 +381,7 @@ def main():
         dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
         description = config_dict["description"]
 
-        converter = FastLabel2dToUpdater(
+        converter = FastLabel2dToT4Updater(
             input_base=input_base,
             output_base=output_base,
             input_anno_base=input_anno_base,

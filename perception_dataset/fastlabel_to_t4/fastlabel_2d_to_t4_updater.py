@@ -15,7 +15,8 @@ from perception_dataset.utils.logger import configure_logger
 logger = configure_logger(modname=__name__)
 
 
-class FastLabel2dToUpdater(FastLabel2dToT4Converter):
+# TODO: add support of 3D annotation format
+class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
     def __init__(
         self,
         input_base: str,

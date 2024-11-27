@@ -81,4 +81,4 @@ class AbstractTable(Generic[T], metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def from_json(cls, filepath: str):
-        raise NotImplementedError
+        raise NotImplementedError()

@@ -26,6 +26,10 @@ class AbstractTableForTest(AbstractTable):
     def _to_record(self, **kwargs) -> str:
         return AbstractRecordForTest()
 
+    @classmethod
+    def from_json(cls, filepath: str):
+        return AbstractTableForTest()
+
 
 class TestAbstractRecord:
     def test_token(self):
