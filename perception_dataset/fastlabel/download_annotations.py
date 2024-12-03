@@ -89,6 +89,9 @@ def download_completed_annotations(
                 task["name"] = rename_image_task_name(task["name"])
                 completed_tasks.append(task)
                 each_task_file_name = task["name"].replace(" ", "_").replace("/", "_") + ".json"
+                task["project_name"] = project["name"]
+                task["project_slug"] = project["slug"]
+                task["project_id"] = project["id"]
                 if save_each:
                     with open(osp.join(output_dir, each_task_file_name), "w") as f:
                         json.dump([task], f, indent=4)
