@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Any, Dict, List
 
 import numpy as np
@@ -58,3 +61,31 @@ class CalibratedSensorTable(AbstractTable[CalibratedSensorRecord]):
 
     def _to_record(self, **kwargs) -> CalibratedSensorRecord:
         return CalibratedSensorRecord(**kwargs)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> CalibratedSensorTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = CalibratedSensorRecord(
+                sensor_token=item["sensor_token"],
+                translation={
+                    "x": item["translation"][0],
+                    "y": item["translation"][1],
+                    "z": item["translation"][2],
+                },
+                rotation={
+                    "w": item["rotation"][0],
+                    "x": item["rotation"][1],
+                    "y": item["rotation"][2],
+                    "z": item["rotation"][3],
+                },
+                camera_intrinsic=item["camera_intrinsic"],
+                camera_distortion=item["camera_distortion"],
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

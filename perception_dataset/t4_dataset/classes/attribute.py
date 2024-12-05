@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -46,3 +49,22 @@ class AttributeTable(AbstractTable[AttributeRecord]):
             self._name_to_token[name] = token
 
         return token
+
+    @classmethod
+    def from_json(
+        cls,
+        filepath: str,
+        name_to_description: Dict[str, str],
+        default_value: str,
+    ) -> AttributeTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls(name_to_description=name_to_description, default_value=default_value)
+
+        for item in items:
+            record = AttributeRecord(name=item["name"], description=item["description"])
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

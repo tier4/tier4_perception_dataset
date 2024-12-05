@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 import json
 import os.path as osp
@@ -13,6 +15,10 @@ class AbstractRecord(metaclass=ABCMeta):
     @property
     def token(self) -> str:
         return self._token
+
+    @token.setter
+    def token(self, token: str):
+        self._token = token
 
     @abstractmethod
     def to_dict(self) -> Dict[str, Any]:
@@ -71,3 +77,8 @@ class AbstractTable(Generic[T], metaclass=ABCMeta):
         table_data = self.to_data()
         with open(osp.join(output_dir, self.FILENAME), "w") as f:
             json.dump(table_data, f, indent=4)
+
+    @classmethod
+    @abstractmethod
+    def from_json(cls, filepath: str):
+        raise NotImplementedError()
