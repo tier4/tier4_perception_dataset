@@ -418,19 +418,20 @@ class INSHandler:
     def get_imus(self) -> List[Imu]:
         return self._buffer["imu"]
 
-    def lookup_nav_sat_fixes(self, stamp: RosTime) -> NavSatFix:
+    def lookup_nav_sat_fixes(self, stamp: RosTime) -> Optional[NavSatFix]:
         return self.interpolate_nav_sat_fixes(stamp)
 
     def interpolate_nav_sat_fixes(
         self, query_stamp: Union[RosTime, List[RosTime]]
-    ) -> Union[NavSatFix | List[NavSatFix]]:
+    ) -> Optional[Union[NavSatFix | List[NavSatFix]]]:
         """Interpolate NavSatFix.
 
         Args:
             query_stamp (RosTime | List[RosTime]): Query stamp(s).
 
         Returns:
-            Union[NavSatFix, List[NavSatFix]]: Interpolated message(s).
+            Optional[Union[NavSatFix, List[NavSatFix]]]: Interpolated message(s).
+                Note that it returns `None`, if there is no observed NavSatFix messages.
 
         Warnings:
             If the value in `query_stamps` is out of range of the observed timestamps,
@@ -453,6 +454,9 @@ class INSHandler:
         for msg in observed:
             timestamps.append(stamp_to_unix_timestamp(msg.header.stamp))
             geo_coordinates.append((msg.latitude, msg.longitude, msg.altitude))
+
+        if len(timestamps) == 0:
+            return None
 
         if min(query_timestamps) < min(timestamps) or max(timestamps) < max(query_timestamps):
             warnings.warn(
