@@ -111,7 +111,7 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
                 try:
                     with open(status_file, "r") as f:
                         status = json.load(f)
-                        if status["rosbag2_to_non_annotated_t4_converter"]["_camera_sensors"][0]["delay_msec"] == "-39.0":
+                        if status["rosbag2_to_non_annotated_t4_converter"]["_camera_sensors"][0]["delay_msec"] == -39.0:
                             is_skip = True
                         else:
                             shutil.rmtree(output_dir, ignore_errors=True)
