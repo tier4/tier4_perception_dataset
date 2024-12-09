@@ -10,9 +10,9 @@ class EgoPoseRecord(AbstractRecord):
         translation: Dict[str, float],
         rotation: Dict[str, float],
         timestamp: int,
-        twist: Optional[Dict[str, float]],
-        acceleration: Optional[Dict[str, float]],
-        geocoordinate: Optional[Dict[str, float]],
+        twist: Optional[Dict[str, float]] = None,
+        acceleration: Optional[Dict[str, float]] = None,
+        geocoordinate: Optional[Dict[str, float]] = None,
     ):
         super().__init__()
 

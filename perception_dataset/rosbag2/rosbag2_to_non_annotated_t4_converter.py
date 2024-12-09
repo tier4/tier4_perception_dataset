@@ -351,6 +351,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         if self._with_vehicle_status:
             self._convert_vehicle_state()
 
+        if self._with_vehicle_status:
+            self._convert_vehicle_state()
+
     def _calc_start_timestamp(self) -> float:
         if self._start_timestamp < sys.float_info.epsilon:
             start_timestamp = self._bag_reader.start_timestamp + self._skip_timestamp
