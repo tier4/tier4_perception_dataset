@@ -170,11 +170,13 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
 
     # Extract the x, y, z coordinates and additional fields if available
     xyz = points["xyz"]
+    points_arr = xyz
     if "intensity" in points.keys():
         intensity = points["intensity"].astype(np.float32)
-        points_arr = np.hstack((xyz, intensity))
-    else:
-        points_arr = xyz
+        points_arr = np.hstack((points_arr, intensity))
+    if "lidar_index" in points.keys():
+        lidar_index = points["lidar_index"].astype(np.float32)
+        points_arr = np.hstack((points_arr, lidar_index))
 
     # Ensure the resulting array has exactly NUM_DIMENSIONS columns
     if points_arr.shape[1] > NUM_DIMENSIONS:
