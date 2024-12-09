@@ -900,11 +900,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     "ay": ego_state.accel.y,
                     "az": ego_state.accel.z,
                 },
-                geocoordinate={
-                    "latitude": geocoordinate.latitude,
-                    "longitude": geocoordinate.longitude,
-                    "altitude": geocoordinate.altitude,
-                },
+                geocoordinate=(
+                    {
+                        "latitude": geocoordinate.latitude,
+                        "longitude": geocoordinate.longitude,
+                        "altitude": geocoordinate.altitude,
+                    }
+                    if geocoordinate is not None
+                    else None
+                ),
             )
         else:
             transform_stamped = self._bag_reader.get_transform_stamped(
