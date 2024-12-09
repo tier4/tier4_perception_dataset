@@ -891,9 +891,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     "vx": ego_state.twist.linear.x,
                     "vy": ego_state.twist.linear.y,
                     "vz": ego_state.twist.linear.z,
-                    "yaw_rate": -ego_state.twist.angular.z / 180 * np.pi,
-                    "pitch_rate": ego_state.twist.angular.y / 180 * np.pi,
-                    "roll_rate": ego_state.twist.angular.x / 180 * np.pi,
+                    "yaw_rate": ego_state.twist.angular.z,
+                    "pitch_rate": ego_state.twist.angular.y,
+                    "roll_rate": ego_state.twist.angular.x,
                 },
                 acceleration={
                     "ax": ego_state.accel.x,
