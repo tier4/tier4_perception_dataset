@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Dict, List
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -69,3 +72,23 @@ class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
             mask=mask,
         )
         return record
+
+    @classmethod
+    def from_json(cls, filepath: str) -> ObjectAnnTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = ObjectAnnRecord(
+                sample_data_token=item["sample_data_token"],
+                instance_token=item["instance_token"],
+                category_token=item["category_token"],
+                attribute_tokens=item["attribute_tokens"],
+                bbox=item["bbox"],
+                mask=item["mask"],
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

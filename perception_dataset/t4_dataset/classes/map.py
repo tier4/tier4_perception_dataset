@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Any, Dict, List
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -37,3 +40,20 @@ class MapTable(AbstractTable[MapRecord]):
 
     def _to_record(self, **kwargs) -> MapRecord:
         return MapRecord(**kwargs)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> MapTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = MapRecord(
+                log_tokens=item["log_tokens"],
+                category=item["category"],
+                filename=item["filename"],
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

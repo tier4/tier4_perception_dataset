@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -46,3 +49,21 @@ class CategoryTable(AbstractTable[CategoryRecord]):
             self._name_to_token[name] = token
 
         return token
+
+    @classmethod
+    def from_json(
+        cls,
+        filepath: str,
+        name_to_description: Dict[str, str],
+        default_value: str,
+    ) -> CategoryTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls(name_to_description=name_to_description, default_value=default_value)
+        for item in items:
+            record = CategoryRecord(name=item["name"], description=item["description"])
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table
