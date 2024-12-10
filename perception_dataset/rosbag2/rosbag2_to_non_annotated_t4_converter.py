@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shutil
 import sys
+import time
 from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
@@ -81,21 +82,31 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
 
         if not self._overwrite_mode:
             dir_exist: bool = False
-            for bag_dir in bag_dirs:
+            for bag_dir in bag_dirs[:]:  # copy to avoid modifying list while iterating
                 bag_name: str = osp.basename(bag_dir)
 
                 output_dir = osp.join(self._output_base, bag_name)
                 if osp.exists(output_dir):
                     logger.error(f"{output_dir} already exists.")
                     dir_exist = True
-
-            if dir_exist:
+                    bag_dirs.remove(bag_dir)
+            if dir_exist and len(bag_dirs) == 0:
+                logger.error(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
-        for bag_dir in bag_dirs:
+        for bag_dir in sorted(bag_dirs):
+            logger.info(f"Start converting {bag_dir} to T4 format.")
             self._params.input_bag_path = bag_dir
-            bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
-            bag_converter.convert()
+            try:
+                bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
+                bag_converter.convert()
+            except Exception as e:
+                logger.error(f"Error occurred during conversion: {e}")
+                continue
+            logger.info(f"Conversion of {bag_dir} is completed")
+            print(
+                "--------------------------------------------------------------------------------------------------------------------------"
+            )
 
 
 class _Rosbag2ToNonAnnotatedT4Converter:
@@ -157,7 +168,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._output_data_dir = osp.join(
             self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.DATA.value
         )
-        self._msg_display_interval = 10
+        self._msg_display_interval = 100
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
@@ -259,16 +270,23 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def convert(self):
         self._convert()
+
         self._save_tables()
         self._save_config()
         if not self._without_compress:
             self._compress_directory()
 
     def _save_tables(self):
+        print(
+            "--------------------------------------------------------------------------------------------------------------------------"
+        )
         for cls_attr in self.__dict__.values():
             if isinstance(cls_attr, AbstractTable):
                 print(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
                 cls_attr.save_json(self._output_anno_dir)
+        print(
+            "--------------------------------------------------------------------------------------------------------------------------"
+        )
 
     def _save_config(self):
         config_data = {
@@ -318,6 +336,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             - is_key_frame=True
             - fill in next/prev
         """
+        start = time.time()
         sensor_channel_to_sample_data_token_list: Dict[str, List[str]] = {}
 
         self._init_tables()
@@ -327,6 +346,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
         self._add_scene_description(self._scene_description)
+        print(f"Total elapsed time: {time.time() - start:.2f} sec")
 
         if self._with_vehicle_status:
             self._convert_vehicle_state()
@@ -348,6 +368,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         logger.info(f"set start_timestamp to {start_timestamp}")
 
         if self._sensor_mode == SensorMode.DEFAULT:
+            start = time.time()
             lidar_sensor_channel = self._lidar_sensor["channel"]
             sensor_channel_to_sample_data_token_list[lidar_sensor_channel] = (
                 self._convert_pointcloud(
@@ -357,7 +378,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     scene_token=scene_token,
                 )
             )
-
+            print(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec\n")
             for radar_sensor in self._radar_sensors:
                 radar_sensor_channel = radar_sensor["channel"]
                 sensor_channel_to_sample_data_token_list[radar_sensor_channel] = (
@@ -382,6 +403,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
         for camera_sensor in self._camera_sensors:
+            start = time.time()
             sensor_channel = camera_sensor["channel"]
             sensor_channel_to_sample_data_token_list[sensor_channel] = self._convert_image(
                 start_timestamp=camera_start_timestamp,
@@ -399,6 +421,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
             camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                 first_sample_data_record.timestamp
+            )
+            print(
+                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec\n"
             )
 
     def _convert_static_data(self):
@@ -968,6 +993,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
     ) -> Union[str, Tuple[str, CameraInfo]]:
         calibrated_sensor_token = str()
+        camera_info = None
         for sensor_enum in self._sensor_enums:
             channel = sensor_enum.value["channel"]
             modality = sensor_enum.value["modality"]
