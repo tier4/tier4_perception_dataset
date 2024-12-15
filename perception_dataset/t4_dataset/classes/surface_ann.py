@@ -64,6 +64,6 @@ class SurfaceAnnTable(AbstractTable[SurfaceAnnRecord]):
                 sample_data_token=item["sample_data_token"],
             )
             record.token = item["token"]
-            table.select_record_from_token(record)
+            table.set_record_to_table(record)
 
         return table
