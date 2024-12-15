@@ -6,12 +6,15 @@ description:
     partial: "The object is occluded by more than 50% (but not completely)."
     none: "The object is 90-100% occluded and no points/pixels are visible in the label."
   camera_index:
-    CAM_FRONT: 0
-    CAM_FRONT_RIGHT: 1
-    CAM_BACK_RIGHT: 2
-    CAM_BACK: 3
-    CAM_BACK_LEFT: 4
-    CAM_FRONT_LEFT: 5
+    CAM_FRONT_NARROW: 0
+    CAM_FRONT_WIDE: 1
+    CAM_FRONT_RIGHT: 2
+    CAM_BACK_RIGHT: 3
+    CAM_BACK_NARROW: 4
+    CAM_BACK_WIDE: 5
+    CAM_BACK_LEFT: 6
+    CAM_FRONT_LEFT: 7
+  surface_categories: ./config/label/surface.yaml
 
 conversion:
   input_base: ./data/input_t4_format # could be non_annotated_t4_format or t4_format_3d_annotated
