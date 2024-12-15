@@ -287,6 +287,7 @@ class AnnotationFilesGenerator:
                         rotation=anno_three_d_bbox["rotation"],
                         num_lidar_pts=anno["num_lidar_pts"],
                         num_radar_pts=anno["num_radar_pts"],
+                        automatic_annotation=False,
                     )
                     self._instance_token_to_annotation_token_list[instance_token].append(
                         sample_annotation_token
@@ -313,6 +314,7 @@ class AnnotationFilesGenerator:
                             if "two_d_segmentation" in anno.keys()
                             else mask[sensor_id][frame_index]
                         ),
+                        automatic_annotation=False,
                     )
 
                 # Surface Annotation
@@ -327,6 +329,7 @@ class AnnotationFilesGenerator:
                         category_token=category_token,
                         mask=anno["two_d_segmentation"],
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
+                        automatic_annotation=False,
                     )
 
     def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:
