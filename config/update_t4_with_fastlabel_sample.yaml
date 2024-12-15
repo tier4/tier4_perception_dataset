@@ -17,9 +17,7 @@ description:
   surface_categories: ./config/label/surface.yaml
 
 conversion:
+  make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
   input_base: ./data/input_t4_format # could be non_annotated_t4_format or t4_format_3d_annotated
   input_anno_base: ./data/fastlabel
   output_base: ./data/output_t4_format # currently, this only includes the 2D annotations
-  dataset_corresponding:
-    # input t4dataset_name: FastLabel json file name
-    T4DatasetName: FastLabelAnnotationFile

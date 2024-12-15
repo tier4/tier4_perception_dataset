@@ -378,16 +378,16 @@ def main():
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
         input_anno_base = config_dict["conversion"]["input_anno_base"]
-        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
         description = config_dict["description"]
+        make_t4_dataset_dir = config_dict["conversion"]["make_t4_dataset_dir"]
 
         converter = FastLabel2dToT4Updater(
             input_base=input_base,
             output_base=output_base,
             input_anno_base=input_anno_base,
-            dataset_corresponding=dataset_corresponding,
             overwrite_mode=args.overwrite,
             description=description,
+            make_t4_dataset_dir=make_t4_dataset_dir,
         )
         logger.info(
             f"[BEGIN] Updating T4 dataset ({input_base}) with FastLabel {input_anno_base} into T4 data ({output_base})"
