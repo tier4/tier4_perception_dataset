@@ -11,6 +11,8 @@ import pycocotools.mask as cocomask
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.constants import LABEL_PATH_ENUM
+from perception_dataset.utils.label_converter import LabelConverter
 
 logger = configure_logger(modname=__name__)
 
@@ -48,6 +50,10 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         self._input_anno_files: List[Path] = []
         for f in Path(input_anno_base).rglob("*.json"):
             self._input_anno_files.append(f)
+        self._label_converter = LabelConverter(
+            label_path=LABEL_PATH_ENUM.OBJECT_LABEL,
+            attribute_path=LABEL_PATH_ENUM.ATTRIBUTE,
+        )
 
     def convert(self):
         # Load and format Fastlabel annotations
@@ -197,8 +203,9 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                                         att["key"].split("_")[-1]
                                     )
                                     break
+                    category_label = self._label_converter.convert_label(a["title"])
                     label_t4_dict: Dict[str, Any] = {
-                        "category_name": a["title"],
+                        "category_name": category_label,
                         "instance_id": instance_id,
                         "attribute_names": [occlusion_state],
                         "visibility_name": visibility,
