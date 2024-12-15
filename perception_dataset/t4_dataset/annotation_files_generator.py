@@ -128,11 +128,9 @@ class AnnotationFilesGenerator:
 
                     width: int = sample_nuim["width"]
                     height: int = sample_nuim["height"]
-                    object_mask: NDArray = np.array(
-                        [[0 for _ in range(height)] for __ in range(width)], dtype=np.uint8
-                    )
+                    object_mask: NDArray = np.zeros((width, height), dtype=np.uint8)
                     object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                    object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
+                    object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode("ascii")
                     mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
