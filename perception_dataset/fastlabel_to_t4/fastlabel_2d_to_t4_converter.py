@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import pycocotools.mask as cocomask
 
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
@@ -190,6 +191,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                 for a in ann["annotations"]:
                     occlusion_state: str = "occlusion_state.none"
                     visibility: str = "Not available"
+                    instance_id = ""
                     for att in a["attributes"]:
                         if att["key"] == "id":
                             instance_id = att["value"]
@@ -224,6 +226,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                                 "sensor_id": self._camera2idx[camera],
                             }
                         )
+                        label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
                     fl_annotations[dataset_name][file_id].append(label_t4_dict)
 
         return fl_annotations
@@ -254,11 +257,41 @@ def _rle_from_points(points: Points2DLike, width: int, height: int) -> Dict[str,
     Returns:
         Dict[str, Any]: RLE format mask.
     """
-    flattened = [[coord for p in point for coord in p] for point in points]
+    final_mask = np.zeros((height, width, 1), dtype=np.uint8)
 
-    rle_objects = cocomask.frPyObjects(flattened, height, width)
-    rle = cocomask.merge(rle_objects)
+    for polygon in points:
+        outer_polygon = polygon[0]  # outer points
 
+        outer_rle = cocomask.frPyObjects([outer_polygon], height, width)
+        outer_mask = cocomask.decode(outer_rle)
+        if len(polygon) == 2:
+            hollow_polygon = polygon[1]  # hollowed out points
+            hollow_rle = cocomask.frPyObjects([hollow_polygon], height, width)
+            hollow_mask = cocomask.decode(hollow_rle)
+            combined_mask = outer_mask - hollow_mask
+        else:
+            combined_mask = outer_mask
+        final_mask = np.maximum(final_mask, combined_mask)
+    # encode RLE
+    rle = cocomask.encode(np.asfortranarray(np.squeeze(final_mask)))
     rle["counts"] = base64.b64encode(rle["counts"]).decode("ascii")
-
     return rle
+
+
+def _convert_polygon_to_bbox(polygon: List[int]) -> List[float]:
+    """Convert polygon points to bounding box.
+
+    Args:
+        polygon: 2D points, such as `[x1, y1, x2, y2 ....]`.
+
+    Returns:
+        List[float]: Bounding box in [x1, y1, x2, y2] format.
+    """
+    x_coords = polygon[0::2]
+    y_coords = polygon[1::2]
+
+    xmin = min(x_coords)
+    xmax = max(x_coords)
+    ymin = min(y_coords)
+    ymax = max(y_coords)
+    return [xmin, ymin, xmax, ymax]
