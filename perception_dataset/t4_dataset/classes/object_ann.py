@@ -28,7 +28,7 @@ class ObjectAnnRecord(AbstractRecord):
         self._attribute_tokens: List[str] = attribute_tokens
         self._bbox: List[float] = bbox
         self._mask: Dict[str, any] = mask
-        self.automatic_annotation: bool = automatic_annotation
+        self._automatic_annotation: bool = automatic_annotation
 
     def to_dict(self):
         d = {
@@ -48,7 +48,7 @@ class ObjectAnnRecord(AbstractRecord):
                 else None
             ),
             "mask": self._mask,
-            "automatic_annotation": self.automatic_annotation,
+            "automatic_annotation": self._automatic_annotation,
         }
         return d
 
@@ -69,7 +69,7 @@ class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
         attribute_tokens: str,
         bbox: List[float],
         mask: Dict[str, any],
-        automatic_annotation: bool,
+        automatic_annotation: bool = False,
     ):
         record = ObjectAnnRecord(
             sample_data_token=sample_data_token,

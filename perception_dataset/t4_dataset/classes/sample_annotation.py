@@ -21,6 +21,7 @@ class SampleAnnotationRecord(AbstractRecord):
         rotation: Dict[str, float],
         num_lidar_pts: int,
         num_radar_pts: int,
+        automatic_annotation: bool,
     ):
         super().__init__()
 
@@ -43,6 +44,7 @@ class SampleAnnotationRecord(AbstractRecord):
         self._rotation: Dict[str, float] = rotation
         self._num_lidar_pts: int = num_lidar_pts
         self._num_radar_pts: int = num_radar_pts
+        self._automatic_annotation: bool = automatic_annotation
         self._next: str = ""
         self._prev: str = ""
 
@@ -105,6 +107,7 @@ class SampleAnnotationRecord(AbstractRecord):
             ],
             "num_lidar_pts": self._num_lidar_pts,
             "num_radar_pts": self._num_radar_pts,
+            "automatic_annotation": self._automatic_annotation,
             "next": self._next,
             "prev": self._prev,
         }
@@ -132,6 +135,7 @@ class SampleAnnotationTable(AbstractTable[SampleAnnotationRecord]):
         rotation: Dict[str, float],
         num_lidar_pts: int,
         num_radar_pts: int,
+        automatic_annotation: bool = False,
     ):
         record = SampleAnnotationRecord(
             sample_token=sample_token,
@@ -145,6 +149,7 @@ class SampleAnnotationTable(AbstractTable[SampleAnnotationRecord]):
             rotation=rotation,
             num_lidar_pts=num_lidar_pts,
             num_radar_pts=num_radar_pts,
+            automatic_annotation=automatic_annotation,
         )
         return record
 
@@ -196,6 +201,7 @@ class SampleAnnotationTable(AbstractTable[SampleAnnotationRecord]):
                 },
                 num_lidar_pts=item["num_lidar_pts"],
                 num_radar_pts=item["num_radar_pts"],
+                automatic_annotation=item["automatic_annotation"],
             )
             record.token = item["token"]
             table.set_record_to_table(record)

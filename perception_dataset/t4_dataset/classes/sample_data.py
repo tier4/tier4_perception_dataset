@@ -21,7 +21,6 @@ class SampleDataRecord(AbstractRecord):
         next_token: str = "",
         prev_token: str = "",
         is_valid: bool = True,
-        automatic_annotation: bool = False,
     ):
         super().__init__()
 
@@ -37,7 +36,6 @@ class SampleDataRecord(AbstractRecord):
         self.next: str = next_token
         self.prev: str = prev_token
         self._is_valid: bool = is_valid
-        self.automatic_annotation: bool = automatic_annotation
 
     def to_dict(self):
         d = {
@@ -54,7 +52,6 @@ class SampleDataRecord(AbstractRecord):
             "next": self.next,
             "prev": self.prev,
             "is_valid": self._is_valid,
-            "automatic_annotation": self.automatic_annotation,
         }
         return d
 
@@ -90,7 +87,6 @@ class SampleDataTable(AbstractTable[SampleDataRecord]):
                 next_token=item["next"],
                 prev_token=item["prev"],
                 is_valid=item["is_valid"],
-                automatic_annotation=item["automatic_annotation"],
             )
             record.token = item["token"]
             table.set_record_to_table(record)
