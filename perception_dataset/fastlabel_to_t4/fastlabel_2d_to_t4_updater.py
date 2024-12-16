@@ -39,10 +39,10 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
         self._make_t4_dataset_dir = make_t4_dataset_dir
 
     def convert(self) -> None:
-        anno_jsons_dict = self._load_annotation_jsons()
+        t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
+        anno_jsons_dict = self._load_annotation_jsons(t4_datasets)
         fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
 
-        t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
         for t4dataset_name in t4_datasets:
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
@@ -91,10 +91,12 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
                 dataset_name=t4dataset_name,
             )
 
-    def _load_annotation_jsons(self):
+    def _load_annotation_jsons(self, t4_datasets: list[str]) -> dict[str, list[dict[str, any]]]:
         anno_dict = {}
         for file in self._input_anno_files:
             t4_dataset_name = file.name.split("_CAM")[0]
+            if t4_dataset_name not in t4_datasets:
+                continue
             with open(file) as f:
                 one_label = json.load(f)
                 if t4_dataset_name not in anno_dict.keys():
