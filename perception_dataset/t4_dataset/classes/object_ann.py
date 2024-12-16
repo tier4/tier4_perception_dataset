@@ -20,7 +20,7 @@ class ObjectAnnRecord(AbstractRecord):
     ):
         super().__init__()
 
-        assert len(bbox) == 4
+        assert bbox is None or len(bbox) == 4
 
         self._sample_data_token: str = sample_data_token
         self._instance_token: str = instance_token
@@ -42,7 +42,7 @@ class ObjectAnnRecord(AbstractRecord):
                 self._bbox[1],
                 self._bbox[2],
                 self._bbox[3],
-            ],
+            ] if self._bbox is not None else None,
             "mask": self._mask,
             "automatic_annotation": self.automatic_annotation
         }

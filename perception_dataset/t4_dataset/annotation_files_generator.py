@@ -1,7 +1,7 @@
 import base64
 from collections import defaultdict
 import os.path as osp
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from nptyping import NDArray
 from nuimages import NuImages
@@ -113,6 +113,8 @@ class AnnotationFilesGenerator:
                     break
 
         if has_2d_annotation:
+            object_mask: NDArray = np.zeros((0, 0), dtype=np.uint8)
+            prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
             for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
                 if (
@@ -126,11 +128,12 @@ class AnnotationFilesGenerator:
                         {frame_index: sample_nuim["token"]}
                     )
 
-                    width: int = sample_nuim["width"]
-                    height: int = sample_nuim["height"]
-                    object_mask: NDArray = np.zeros((width, height), dtype=np.uint8)
-                    object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                    object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode("ascii")
+                    wid_hgt = (sample_nuim["width"], sample_nuim["height"])
+                    if wid_hgt != prev_wid_hgt:
+                        prev_wid_hgt = wid_hgt
+                        object_mask = np.zeros(wid_hgt, dtype=np.uint8)
+                        object_mask = cocomask.encode(np.asfortranarray(object_mask))
+                        object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode("ascii")
                     mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
@@ -300,7 +303,7 @@ class AnnotationFilesGenerator:
                         continue
                     anno_two_d_box: List[float] = self._clip_bbox(
                         anno["two_d_box"], mask[sensor_id][frame_index]
-                    )
+                    ) if "two_d_box" in anno.keys() else None
                     self._object_ann_table.insert_into_table(
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                         instance_token=instance_token,

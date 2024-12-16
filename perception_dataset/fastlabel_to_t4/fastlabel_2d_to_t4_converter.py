@@ -226,7 +226,8 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                                 "sensor_id": self._camera2idx[camera],
                             }
                         )
-                        label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
+                        if self._label_converter.is_object_label(category_label):
+                            label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
                     fl_annotations[dataset_name][file_id].append(label_t4_dict)
 
         return fl_annotations
