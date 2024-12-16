@@ -133,7 +133,9 @@ class AnnotationFilesGenerator:
                         prev_wid_hgt = wid_hgt
                         object_mask = np.zeros(wid_hgt, dtype=np.uint8)
                         object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                        object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode("ascii")
+                        object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode(
+                            "ascii"
+                        )
                     mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
@@ -301,9 +303,11 @@ class AnnotationFilesGenerator:
                     sensor_id: int = int(anno["sensor_id"])
                     if frame_index not in frame_index_to_sample_data_token[sensor_id]:
                         continue
-                    anno_two_d_box: List[float] = self._clip_bbox(
-                        anno["two_d_box"], mask[sensor_id][frame_index]
-                    ) if "two_d_box" in anno.keys() else None
+                    anno_two_d_box: List[float] = (
+                        self._clip_bbox(anno["two_d_box"], mask[sensor_id][frame_index])
+                        if "two_d_box" in anno.keys()
+                        else None
+                    )
                     self._object_ann_table.insert_into_table(
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                         instance_token=instance_token,

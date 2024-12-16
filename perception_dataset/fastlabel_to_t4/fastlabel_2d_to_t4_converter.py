@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 import pycocotools.mask as cocomask
 
+from perception_dataset.constants import LABEL_PATH_ENUM
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.utils.logger import configure_logger
-from perception_dataset.constants import LABEL_PATH_ENUM
 from perception_dataset.utils.label_converter import LabelConverter
+from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
 
@@ -227,7 +227,9 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                             }
                         )
                         if self._label_converter.is_object_label(category_label):
-                            label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
+                            label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(
+                                a["points"][0][0]
+                            )
                     fl_annotations[dataset_name][file_id].append(label_t4_dict)
 
         return fl_annotations

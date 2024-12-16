@@ -37,14 +37,18 @@ class ObjectAnnRecord(AbstractRecord):
             "instance_token": self._instance_token,
             "category_token": self._category_token,
             "attribute_tokens": self._attribute_tokens,
-            "bbox": [
-                self._bbox[0],
-                self._bbox[1],
-                self._bbox[2],
-                self._bbox[3],
-            ] if self._bbox is not None else None,
+            "bbox": (
+                [
+                    self._bbox[0],
+                    self._bbox[1],
+                    self._bbox[2],
+                    self._bbox[3],
+                ]
+                if self._bbox is not None
+                else None
+            ),
             "mask": self._mask,
-            "automatic_annotation": self.automatic_annotation
+            "automatic_annotation": self.automatic_annotation,
         }
         return d
 
