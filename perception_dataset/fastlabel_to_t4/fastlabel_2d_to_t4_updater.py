@@ -22,26 +22,28 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
         input_base: str,
         output_base: str,
         input_anno_base: str,
-        dataset_corresponding: Dict[str, int],
         overwrite_mode: bool,
         description: Dict[str, Dict[str, str]],
+        make_t4_dataset_dir: bool = True,
     ):
         super().__init__(
             input_base,
             output_base,
             input_anno_base,
-            dataset_corresponding,
-            overwrite_mode,
-            description,
+            dataset_corresponding=None,
+            overwrite_mode=overwrite_mode,
+            description=description,
             input_bag_base=None,
             topic_list=None,
         )
+        self._make_t4_dataset_dir = make_t4_dataset_dir
 
     def convert(self) -> None:
-        anno_jsons_dict = self._load_annotation_jsons()
+        t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
+        anno_jsons_dict = self._load_annotation_jsons(t4_datasets)
         fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
 
-        for t4dataset_name in self._t4dataset_name_to_merge:
+        for t4dataset_name in t4_datasets:
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
@@ -50,7 +52,9 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
                 continue
 
             # Check if output directory already exists
-            output_dir = self._output_base / t4dataset_name / "t4_dataset"
+            output_dir = self._output_base / t4dataset_name
+            if self._make_t4_dataset_dir:
+                output_dir = output_dir / "t4_dataset"
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
 
@@ -74,6 +78,10 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
             else:
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
+            if t4dataset_name not in fl_annotations.keys():
+                logger.warning(f"No annotation for {t4dataset_name}")
+                continue
+
             # Start updating annotations
             annotation_files_updater = AnnotationFilesUpdater(description=self._description)
             annotation_files_updater.convert_one_scene(
@@ -83,15 +91,15 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
                 dataset_name=t4dataset_name,
             )
 
-    def _load_annotation_jsons(self):
+    def _load_annotation_jsons(self, t4_datasets: list[str]) -> dict[str, list[dict[str, any]]]:
         anno_dict = {}
         for file in self._input_anno_files:
-            t4_dataset_name = None
-            for name, ann_filename in self._t4dataset_name_to_merge.items():
-                if ann_filename == file.name:
-                    t4_dataset_name = name
-
-            assert t4_dataset_name is not None
+            t4_dataset_name = file.name.split("_CAM")[0]
+            if t4_dataset_name not in t4_datasets:
+                continue
             with open(file) as f:
-                anno_dict[t4_dataset_name] = json.load(f)
+                one_label = json.load(f)
+                if t4_dataset_name not in anno_dict.keys():
+                    anno_dict[t4_dataset_name] = []
+                anno_dict[t4_dataset_name].extend(one_label)
         return anno_dict

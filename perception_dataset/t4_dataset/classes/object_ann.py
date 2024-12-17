@@ -16,10 +16,11 @@ class ObjectAnnRecord(AbstractRecord):
         attribute_tokens: str,
         bbox: List[float],
         mask: Dict[str, any],
+        automatic_annotation: bool = False,
     ):
         super().__init__()
 
-        assert len(bbox) == 4
+        assert bbox is None or len(bbox) == 4
 
         self._sample_data_token: str = sample_data_token
         self._instance_token: str = instance_token
@@ -27,6 +28,7 @@ class ObjectAnnRecord(AbstractRecord):
         self._attribute_tokens: List[str] = attribute_tokens
         self._bbox: List[float] = bbox
         self._mask: Dict[str, any] = mask
+        self._automatic_annotation: bool = automatic_annotation
 
     def to_dict(self):
         d = {
@@ -35,13 +37,18 @@ class ObjectAnnRecord(AbstractRecord):
             "instance_token": self._instance_token,
             "category_token": self._category_token,
             "attribute_tokens": self._attribute_tokens,
-            "bbox": [
-                self._bbox[0],
-                self._bbox[1],
-                self._bbox[2],
-                self._bbox[3],
-            ],
+            "bbox": (
+                [
+                    self._bbox[0],
+                    self._bbox[1],
+                    self._bbox[2],
+                    self._bbox[3],
+                ]
+                if self._bbox is not None
+                else None
+            ),
             "mask": self._mask,
+            "automatic_annotation": self._automatic_annotation,
         }
         return d
 
@@ -62,6 +69,7 @@ class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
         attribute_tokens: str,
         bbox: List[float],
         mask: Dict[str, any],
+        automatic_annotation: bool = False,
     ):
         record = ObjectAnnRecord(
             sample_data_token=sample_data_token,
@@ -70,6 +78,7 @@ class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
             attribute_tokens=attribute_tokens,
             bbox=bbox,
             mask=mask,
+            automatic_annotation=automatic_annotation,
         )
         return record
 
@@ -87,6 +96,7 @@ class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
                 attribute_tokens=item["attribute_tokens"],
                 bbox=item["bbox"],
                 mask=item["mask"],
+                automatic_annotation=item["automatic_annotation"],
             )
             record.token = item["token"]
             table.set_record_to_table(record)
