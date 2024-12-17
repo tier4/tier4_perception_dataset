@@ -26,7 +26,7 @@ from perception_dataset.utils.calculate_num_points import calculate_num_points
 
 
 class AnnotationFilesGenerator:
-    def __init__(self, with_camera: bool = True, description: Dict[str, Dict[str, str]] = {}):
+    def __init__(self, with_camera: bool = True, description: Dict[str, Dict[str, str]] = {}, surface_categories: List[str] = []):
         # TODO(yukke42): remove the hard coded attribute description
         self._attribute_table = AttributeTable(
             name_to_description={},
@@ -62,12 +62,7 @@ class AnnotationFilesGenerator:
         else:
             self._camera2idx = None
         self._with_lidar = description.get("with_lidar", True)
-
-        if description.get("surface_categories"):
-            with open(description["surface_categories"], "r") as f:
-                self._surface_categories: List[str] = yaml.safe_load(f)
-        else:
-            self._surface_categories = []
+        self._surface_categories: List[str] = surface_categories
 
     def save_tables(self, anno_dir: str):
         for cls_attr in self.__dict__.values():
