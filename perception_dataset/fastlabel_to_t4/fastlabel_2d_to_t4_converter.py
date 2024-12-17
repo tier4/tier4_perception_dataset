@@ -267,13 +267,12 @@ def _rle_from_points(points: Points2DLike, width: int, height: int) -> Dict[str,
 
         outer_rle = cocomask.frPyObjects([outer_polygon], height, width)
         outer_mask = cocomask.decode(outer_rle)
-        if len(polygon) == 2:
-            hollow_polygon = polygon[1]  # hollowed out points
+        combined_mask = outer_mask
+        for i in range(1, len(polygon)):
+            hollow_polygon = polygon[i]  # hollowed out points
             hollow_rle = cocomask.frPyObjects([hollow_polygon], height, width)
             hollow_mask = cocomask.decode(hollow_rle)
-            combined_mask = outer_mask - hollow_mask
-        else:
-            combined_mask = outer_mask
+            combined_mask = combined_mask - hollow_mask
         final_mask = np.maximum(final_mask, combined_mask)
     # encode RLE
     rle = cocomask.encode(np.asfortranarray(np.squeeze(final_mask)))
