@@ -8,7 +8,6 @@ from nuimages import NuImages
 import numpy as np
 from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
-import yaml
 
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
