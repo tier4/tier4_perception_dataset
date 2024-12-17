@@ -4,9 +4,9 @@ from pathlib import Path
 import re
 import shutil
 from typing import Any, Dict, List, Optional, Union
-import yaml
 
 from nuscenes.nuscenes import NuScenes
+import yaml
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.deepen.deepen_annotation import (
@@ -118,7 +118,9 @@ class DeepenToT4Converter(AbstractConverter):
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             input_dir = osp.join(self._input_base, t4data_name)
 
-            annotation_files_generator = AnnotationFilesGenerator(description=self._description, surface_categories=self._surface_categories)
+            annotation_files_generator = AnnotationFilesGenerator(
+                description=self._description, surface_categories=self._surface_categories
+            )
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,

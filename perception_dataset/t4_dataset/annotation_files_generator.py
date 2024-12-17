@@ -25,7 +25,12 @@ from perception_dataset.utils.calculate_num_points import calculate_num_points
 
 
 class AnnotationFilesGenerator:
-    def __init__(self, with_camera: bool = True, description: Dict[str, Dict[str, str]] = {}, surface_categories: List[str] = []):
+    def __init__(
+        self,
+        with_camera: bool = True,
+        description: Dict[str, Dict[str, str]] = {},
+        surface_categories: List[str] = [],
+    ):
         # TODO(yukke42): remove the hard coded attribute description
         self._attribute_table = AttributeTable(
             name_to_description={},
