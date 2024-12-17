@@ -13,7 +13,7 @@ class SurfaceAnnRecord(AbstractRecord):
         category_token: str,
         mask: Dict[str, any],
         sample_data_token: str,
-        automatic_annotation: bool,
+        automatic_annotation: bool = False,
     ):
         super().__init__()
 

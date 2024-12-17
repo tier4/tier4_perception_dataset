@@ -16,7 +16,7 @@ class ObjectAnnRecord(AbstractRecord):
         attribute_tokens: str,
         bbox: List[float],
         mask: Dict[str, any],
-        automatic_annotation: bool,
+        automatic_annotation: bool = False,
     ):
         super().__init__()
 

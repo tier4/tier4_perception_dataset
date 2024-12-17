@@ -21,7 +21,7 @@ class SampleAnnotationRecord(AbstractRecord):
         rotation: Dict[str, float],
         num_lidar_pts: int,
         num_radar_pts: int,
-        automatic_annotation: bool,
+        automatic_annotation: bool = False,
     ):
         super().__init__()
 
