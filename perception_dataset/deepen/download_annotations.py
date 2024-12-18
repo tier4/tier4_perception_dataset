@@ -9,24 +9,11 @@ import yaml
 
 CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
 ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
-DATSETS_URL = (
+DATASETS_URL = (
     f"https://tools.deepen.ai/api/v2/clients/{CLIENT_ID}/labels_of_dataset_ids?labelSetId=default"
 )
 
 today = str(date.today()).replace("-", "")
-
-
-# def get_dataset():
-#     URL = f"https://tools.deepen.ai/api/v2/datasets/{DATASET_ID}/labels?filter_existing_categories=true&final=true&all=true"
-#     print(URL)
-
-#     headers = {
-#         "Authorization": f"Bearer {os.environ['DEEPEN_ACCESS_TOKEN']}",
-#     }
-#     response = requests.get(URL, headers=headers)
-#     print(response.status_code)
-#     pprint(response.json())
-
 
 def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str):
     headers = {
@@ -36,7 +23,7 @@ def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str):
     data = {"dataset_ids": dataset_ids}
 
     try:
-        response = requests.post(DATSETS_URL, headers=headers, data=json.dumps(data))
+        response = requests.post(DATASETS_URL, headers=headers, data=json.dumps(data))
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise SystemExit(e)
@@ -72,5 +59,7 @@ if __name__ == "__main__":
     ), f"use config file of convert_deepen_to_t4 task: {config['task']}"
     dataset_ids = list(config["conversion"]["dataset_corresponding"].values())
     output_name = config["conversion"]["input_anno_file"]
+
+    print("Requesting annotated json for: ", dataset_ids)
 
     get_datasets(dataset_ids, args.output_dir, output_name)
