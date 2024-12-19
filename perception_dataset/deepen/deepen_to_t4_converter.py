@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import shutil
 from typing import Any, Dict, List, Optional, Union
+import yaml
 
 from nuscenes.nuscenes import NuScenes
 import yaml
