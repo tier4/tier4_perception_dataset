@@ -218,16 +218,23 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
 
         # bbox or segmentation type processing
         if a["type"] == "bbox":
-            label_t4_dict.update({
-                "two_d_box": a["points"],
-                "sensor_id": self._camera2idx[camera],
-            })
+            label_t4_dict.update(
+                {
+                    "two_d_box": a["points"],
+                    "sensor_id": self._camera2idx[camera],
+                }
+            )
         elif a["type"] == "segmentation":
-            label_t4_dict.update({
-                "two_d_segmentation": _rle_from_points(a["points"], width, height),
-                "sensor_id": self._camera2idx[camera],
-            })
-            if self._label_converter.is_object_label(category_label) and category_label not in self._surface_categories:
+            label_t4_dict.update(
+                {
+                    "two_d_segmentation": _rle_from_points(a["points"], width, height),
+                    "sensor_id": self._camera2idx[camera],
+                }
+            )
+            if (
+                self._label_converter.is_object_label(category_label)
+                and category_label not in self._surface_categories
+            ):
                 label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
                 print(f"Converted polygon to bbox for {category_label}")
 
@@ -249,7 +256,9 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
 
                 for a in ann["annotations"]:
                     futures.append(
-                        executor.submit(self.process_annotation, a, frame_no, camera, width, height)
+                        executor.submit(
+                            self.process_annotation, a, frame_no, camera, width, height
+                        )
                     )
 
             for future in as_completed(futures):
@@ -257,6 +266,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                 file_annotations[file_id].append(label_t4_dict)
 
         return file_annotations
+
 
 def _rle_from_points(points: Points2DLike, width: int, height: int) -> Dict[str, Any]:
     """Encode points to RLE format mask.
