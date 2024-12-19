@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import json
+
 from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractRecord, AbstractTable
 
@@ -38,3 +42,21 @@ class SampleTable(AbstractTable[SampleRecord]):
 
     def _to_record(self, **kwargs) -> SampleRecord:
         return SampleRecord(**kwargs)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> SampleTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = SampleRecord(
+                timestamp=item["timestamp"],
+                scene_token=item["scene_token"],
+                next_token=item["next"],
+                prev_token=item["prev"],
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

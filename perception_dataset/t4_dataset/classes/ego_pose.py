@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Any, Dict, Optional
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -92,3 +95,59 @@ class EgoPoseTable(AbstractTable[EgoPoseRecord]):
 
     def _to_record(self, **kwargs) -> EgoPoseRecord:
         return EgoPoseRecord(**kwargs)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> EgoPoseTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = EgoPoseRecord(
+                translation={
+                    "x": item["translation"][0],
+                    "y": item["translation"][1],
+                    "z": item["translation"][2],
+                },
+                rotation={
+                    "w": item["rotation"][0],
+                    "x": item["rotation"][1],
+                    "y": item["rotation"][2],
+                    "z": item["rotation"][3],
+                },
+                timestamp=item["timestamp"],
+                twist=(
+                    {
+                        "vx": item["twist"][0],
+                        "vy": item["twist"][1],
+                        "vz": item["twist"][2],
+                        "yaw_rate": item["twist"][3],
+                        "pitch_rate": item["twist"][4],
+                        "roll_rate": item["twist"][5],
+                    }
+                    if item.get("twist") is not None
+                    else None
+                ),
+                acceleration=(
+                    {
+                        "ax": item["acceleration"][0],
+                        "ay": item["acceleration"][1],
+                        "az": item["acceleration"][2],
+                    }
+                    if item.get("acceleration") is not None
+                    else None
+                ),
+                geocoordinate=(
+                    {
+                        "latitude": item["geocoordinate"][0],
+                        "longitude": item["geocoordinate"][1],
+                        "altitude": item["geocoordinate"][2],
+                    }
+                    if item.get("geocoordinate") is not None
+                    else None
+                ),
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

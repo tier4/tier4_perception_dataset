@@ -52,6 +52,9 @@ class LabelConverter(BaseConverter):
         return_attribute: str = self.attribute_map[attribute]
         return return_attribute
 
+    def is_object_label(self, label: str) -> bool:
+        return label in self.label_map
+
 
 class TrafficLightLabelConverter(BaseConverter):
     def __init__(

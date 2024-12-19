@@ -4,8 +4,10 @@
 - sidewalk
 - building
 - wall_fence
+- wall/fence
 - pole
 - vegetation_terrain
+- vegetation/terrain
 - sky
 - road_paint_lane_solid_white
 - road_paint_lane_dash_white

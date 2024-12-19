@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -46,3 +49,16 @@ class SensorTable(AbstractTable[SensorRecord]):
             self._channel_to_token[channel] = token
 
         return token
+
+    @classmethod
+    def from_json(cls, filepath: str, channel_to_modality: Dict[str, str]) -> SensorTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls(channel_to_modality=channel_to_modality)
+        for item in items:
+            record = SensorRecord(channel=item["channel"], modality=item["modality"])
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table
