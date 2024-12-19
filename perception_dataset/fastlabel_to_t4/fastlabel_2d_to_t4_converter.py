@@ -226,7 +226,10 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                                 "sensor_id": self._camera2idx[camera],
                             }
                         )
-                        if self._label_converter.is_object_label(category_label):
+                        if (
+                            self._label_converter.is_object_label(category_label)
+                            and category_label not in self._surface_categories
+                        ):
                             label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(
                                 a["points"][0][0]
                             )
