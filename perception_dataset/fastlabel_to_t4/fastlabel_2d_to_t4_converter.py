@@ -89,7 +89,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             )
 
     def _load_annotation_jsons(
-        self, t4_datasets: Optional[List[str]] = None, delimiter: Optional[str] = ""
+        self, t4_datasets: Optional[List[str]] = None, delimiter: Optional[str] = None
     ) -> Dict[str, List[dict[str, Any]]]:
         """Load annotations from all JSON files in the input directory and return as a dictionary."""
         anno_dict = defaultdict(list)
