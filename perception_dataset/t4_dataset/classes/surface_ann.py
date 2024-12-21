@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Any, Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractRecord, AbstractTable
@@ -8,13 +8,13 @@ class SurfaceAnnRecord(AbstractRecord):
     def __init__(
         self,
         category_token: str,
-        mask: Dict[str, any],
+        mask: Dict[str, Any],
         sample_data_token: str,
     ):
         super().__init__()
 
         self._category_token: str = category_token
-        self._mask: Dict[str, any] = mask
+        self._mask: Dict[str, Any] = mask
         self._sample_data_token: str = sample_data_token
 
     def to_dict(self):
@@ -38,7 +38,7 @@ class SurfaceAnnTable(AbstractTable[SurfaceAnnRecord]):
     def _to_record(
         self,
         category_token: str,
-        mask: Dict[str, any],
+        mask: Dict[str, Any],
         sample_data_token: str,
     ):
         record = SurfaceAnnRecord(
