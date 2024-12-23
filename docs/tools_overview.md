@@ -183,14 +183,14 @@ Note that `autoware_auto_perception_msgs` is going to be deprecated (timeline TB
 
 #### Messages
 
-| Topic Name                                                  | Required | Message Type                                        |
-| ----------------------------------------------------------- | -------- | --------------------------------------------------- |
+| Topic Name                                                  | Required | Message Type                                   |
+| ----------------------------------------------------------- | -------- | ---------------------------------------------- |
 | `/ground_truth/filtered/objects` or `/ground_truth/objects` | o        | `autoware_perception_msgs/msg/DetectedObjects` |
-| `/sensing/lidar/concatenated/pointcloud`                    | o        | `sensor_msgs/msg/PointCloud2`                       |
-| `/tf`                                                       | o        | `tf2_msgs/msg/TFMessage`                            |
-| `/tf_static`                                                | o        | `tf2_msgs/msg/TFMessage`                            |
-|                                                             |          | `sensor_msgs/msg/CompressedImage`                   |
-|                                                             |          | `sensor_msgs/msg/CameraInfo`                        |
+| `/sensing/lidar/concatenated/pointcloud`                    | o        | `sensor_msgs/msg/PointCloud2`                  |
+| `/tf`                                                       | o        | `tf2_msgs/msg/TFMessage`                       |
+| `/tf_static`                                                | o        | `tf2_msgs/msg/TFMessage`                       |
+|                                                             |          | `sensor_msgs/msg/CompressedImage`              |
+|                                                             |          | `sensor_msgs/msg/CameraInfo`                   |
 
 #### script
 
@@ -205,15 +205,15 @@ output: T4 format data
 
 #### Messages
 
-| Topic Name                                    | Required | Message Type                                       |
-| --------------------------------------------- | -------- | -------------------------------------------------- |
+| Topic Name                                    | Required | Message Type                                  |
+| --------------------------------------------- | -------- | --------------------------------------------- |
 | `/ground_truth/objects`                       | o        | `autoware_perception_msgs/msg/TrackedObjects` |
-| `/sensing/camera/camera{ID}/camera_info`      | o        | `visualization_msgs/msg/MarkerArray`               |
-| `/sensing/lidar/concatenated/pointcloud`      | o        | `sensor_msgs/msg/PointCloud2`                      |
-| `/tf`                                         | o        | `tf2_msgs/msg/TFMessage`                           |
-| `/tf_static`                                  | o        | `tf2_msgs/msg/TFMessage`                           |
-| `/sensing/camera/camera{ID}/image_rect_color` | o        | `sensor_msgs/msg/Image`                            |
-| `/sensing/camera/camera{ID}/camera_info`      | o        | `sensor_msgs/msg/CameraInfo`                       |
+| `/sensing/camera/camera{ID}/camera_info`      | o        | `visualization_msgs/msg/MarkerArray`          |
+| `/sensing/lidar/concatenated/pointcloud`      | o        | `sensor_msgs/msg/PointCloud2`                 |
+| `/tf`                                         | o        | `tf2_msgs/msg/TFMessage`                      |
+| `/tf_static`                                  | o        | `tf2_msgs/msg/TFMessage`                      |
+| `/sensing/camera/camera{ID}/image_rect_color` | o        | `sensor_msgs/msg/Image`                       |
+| `/sensing/camera/camera{ID}/camera_info`      | o        | `sensor_msgs/msg/CameraInfo`                  |
 
 #### script
 
@@ -233,14 +233,14 @@ output: T4 format data
 
 #### Messages
 
-| Topic Name                                                                                                                 | Required | Message Type                                                                                              |
-| -------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| Topic Name                                                                                                                 | Required | Message Type                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
 | `/perception/object_recognition/detection/objects` or `/perception/object_recognition/tracking/objects` or other any value | o        | `autoware_perception_msgs/msg/TrackedObjects` or `autoware_perception_msgs/msg/DetectedObjects` |
-| `/sensing/lidar/concatenated/pointcloud` or other any value                                                                | o        | `sensor_msgs/msg/PointCloud2`                                                                             |
-| `/tf`                                                                                                                      | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
-| `/tf_static`                                                                                                               | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
-| `/sensing/camera/camera{ID}/image_rect_color/compressed`                                                                   |          | `sensor_msgs/msg/CompressedImage`                                                                         |
-| `/sensing/camera/camera{ID}/camera_info`                                                                                   |          | `sensor_msgs/msg/CameraInfo`                                                                              |
+| `/sensing/lidar/concatenated/pointcloud` or other any value                                                                | o        | `sensor_msgs/msg/PointCloud2`                                                                   |
+| `/tf`                                                                                                                      | o        | `tf2_msgs/msg/TFMessage`                                                                        |
+| `/tf_static`                                                                                                               | o        | `tf2_msgs/msg/TFMessage`                                                                        |
+| `/sensing/camera/camera{ID}/image_rect_color/compressed`                                                                   |          | `sensor_msgs/msg/CompressedImage`                                                               |
+| `/sensing/camera/camera{ID}/camera_info`                                                                                   |          | `sensor_msgs/msg/CameraInfo`                                                                    |
 
 #### script
 
