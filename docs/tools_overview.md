@@ -177,13 +177,15 @@ output: T4 format data
 
 This function is for converting a synthetic bag to T4 format.
 Synthetic bag must contain ground truth objects, pointclouds and tf.
-`ground_truth/objects` can be either `autoware_auto_perception_msgs/msg/DetectedObjects` or `autoware_auto_perception_msgs/msg/TrackedObjects`.
+`ground_truth/objects` can be either `autoware_perception_msgs/msg/DetectedObjects` or `autoware_perception_msgs/msg/TrackedObjects`.
+
+Note that `autoware_auto_perception_msgs` is going to be deprecated (timeline TBD).
 
 #### Messages
 
 | Topic Name                                                  | Required | Message Type                                        |
 | ----------------------------------------------------------- | -------- | --------------------------------------------------- |
-| `/ground_truth/filtered/objects` or `/ground_truth/objects` | o        | `autoware_auto_perception_msgs/msg/DetectedObjects` |
+| `/ground_truth/filtered/objects` or `/ground_truth/objects` | o        | `autoware_perception_msgs/msg/DetectedObjects` |
 | `/sensing/lidar/concatenated/pointcloud`                    | o        | `sensor_msgs/msg/PointCloud2`                       |
 | `/tf`                                                       | o        | `tf2_msgs/msg/TFMessage`                            |
 | `/tf_static`                                                | o        | `tf2_msgs/msg/TFMessage`                            |
@@ -205,7 +207,7 @@ output: T4 format data
 
 | Topic Name                                    | Required | Message Type                                       |
 | --------------------------------------------- | -------- | -------------------------------------------------- |
-| `/ground_truth/objects`                       | o        | `autoware_auto_perception_msgs/msg/TrackedObjects` |
+| `/ground_truth/objects`                       | o        | `autoware_perception_msgs/msg/TrackedObjects` |
 | `/sensing/camera/camera{ID}/camera_info`      | o        | `visualization_msgs/msg/MarkerArray`               |
 | `/sensing/lidar/concatenated/pointcloud`      | o        | `sensor_msgs/msg/PointCloud2`                      |
 | `/tf`                                         | o        | `tf2_msgs/msg/TFMessage`                           |
@@ -224,7 +226,7 @@ python -m perception_dataset.convert --config config/rosbag2_to_t4/convert_synth
 #### Description
 
 This function is for converting a pseudo-labeled bag to T4 format.  
-The pseudo-labeled bag contains either detection output or tracking output from Autoware. The detection output is a message of `autoware_auto_perception_msgs/msg/DetectedObjects`, and the tracking output is a message of `autoware_auto_perception_msgs/msg/TrackedObjects`.
+The pseudo-labeled bag contains either detection output or tracking output from Autoware. The detection output is a message of `autoware_perception_msgs/msg/DetectedObjects`, and the tracking output is a message of `autoware_perception_msgs/msg/TrackedObjects`.
 
 input: rosbag2  
 output: T4 format data
@@ -233,7 +235,7 @@ output: T4 format data
 
 | Topic Name                                                                                                                 | Required | Message Type                                                                                              |
 | -------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `/perception/object_recognition/detection/objects` or `/perception/object_recognition/tracking/objects` or other any value | o        | `autoware_auto_perception_msgs/msg/TrackedObjects` or `autoware_auto_perception_msgs/msg/DetectedObjects` |
+| `/perception/object_recognition/detection/objects` or `/perception/object_recognition/tracking/objects` or other any value | o        | `autoware_perception_msgs/msg/TrackedObjects` or `autoware_perception_msgs/msg/DetectedObjects` |
 | `/sensing/lidar/concatenated/pointcloud` or other any value                                                                | o        | `sensor_msgs/msg/PointCloud2`                                                                             |
 | `/tf`                                                                                                                      | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
 | `/tf_static`                                                                                                               | o        | `tf2_msgs/msg/TFMessage`                                                                                  |
