@@ -201,7 +201,7 @@ class SampleAnnotationTable(AbstractTable[SampleAnnotationRecord]):
                 },
                 num_lidar_pts=item["num_lidar_pts"],
                 num_radar_pts=item["num_radar_pts"],
-                automatic_annotation=item["automatic_annotation"],
+                automatic_annotation=item.get("automatic_annotation", False),
             )
             record.token = item["token"]
             table.set_record_to_table(record)

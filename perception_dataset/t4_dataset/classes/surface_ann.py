@@ -67,7 +67,7 @@ class SurfaceAnnTable(AbstractTable[SurfaceAnnRecord]):
                 category_token=item["category_token"],
                 mask=item["mask"],
                 sample_data_token=item["sample_data_token"],
-                automatic_annotation=item["automatic_annotation"],
+                automatic_annotation=item.get("automatic_annotation", False),
             )
             record.token = item["token"]
             table.set_record_to_table(record)
