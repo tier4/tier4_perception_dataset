@@ -117,9 +117,7 @@ class AnnotationFilesGenerator:
             prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
             for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
-                if (
-                    sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg"
-                ):
+                if sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg":
                     cam = sample_nuim["filename"].split("/")[1]
                     cam_idx = self._camera2idx[cam]
 

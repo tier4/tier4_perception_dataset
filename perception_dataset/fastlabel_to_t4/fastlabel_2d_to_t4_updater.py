@@ -83,7 +83,9 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
             # Start updating annotations
-            annotation_files_updater = AnnotationFilesUpdater(description=self._description, surface_categories=self._surface_categories)
+            annotation_files_updater = AnnotationFilesUpdater(
+                description=self._description, surface_categories=self._surface_categories
+            )
             annotation_files_updater.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
@@ -91,4 +93,3 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
                 dataset_name=t4dataset_name,
             )
             logger.info(f"Finished updating annotations for {t4dataset_name}")
-

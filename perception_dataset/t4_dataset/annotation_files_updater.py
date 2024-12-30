@@ -1,6 +1,6 @@
 import json
-from pathlib import Path
 import os.path as osp
+from pathlib import Path
 from typing import Any, Dict, List
 
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
@@ -13,7 +13,9 @@ from perception_dataset.t4_dataset.classes import (
     SurfaceAnnTable,
     VisibilityTable,
 )
-from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import KeyFrameConsistencyResolver
+from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
+    KeyFrameConsistencyResolver,
+)
 
 
 def _load_json(filepath: str) -> Any:
@@ -23,7 +25,12 @@ def _load_json(filepath: str) -> Any:
 
 
 class AnnotationFilesUpdater(AnnotationFilesGenerator):
-    def __init__(self, with_camera: bool = True, description: Dict[str, Dict[str, str]] = ..., surface_categories: List[str] = []):
+    def __init__(
+        self,
+        with_camera: bool = True,
+        description: Dict[str, Dict[str, str]] = ...,
+        surface_categories: List[str] = [],
+    ):
         super().__init__(with_camera, description, surface_categories)
         self.description = description
 
