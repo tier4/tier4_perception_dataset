@@ -96,7 +96,7 @@ class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
                 attribute_tokens=item["attribute_tokens"],
                 bbox=item["bbox"],
                 mask=item["mask"],
-                automatic_annotation=item["automatic_annotation"],
+                automatic_annotation=item.get("automatic_annotation", False),
             )
             record.token = item["token"]
             table.set_record_to_table(record)

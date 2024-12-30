@@ -87,10 +87,11 @@ class AnnotationFilesGenerator:
 
         nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
         frame_index_to_sample_token: Dict[int, str] = {}
-        for frame_index, sample in enumerate(nusc.sample):
-            frame_index_to_sample_token[frame_index] = sample["token"]
+        for sample_data in nusc.sample_data:
+            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
+            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
         try:
-            if "LIDAR_TOP" in sample["data"]:
+            if "LIDAR_TOP" in nusc.sample[0]["data"]:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_TOP.value["channel"]
             else:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_CONCAT.value["channel"]
@@ -116,9 +117,7 @@ class AnnotationFilesGenerator:
             prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
             for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
-                if (
-                    sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg"
-                ) and sample_nuim["is_key_frame"]:
+                if sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg":
                     cam = sample_nuim["filename"].split("/")[1]
                     cam_idx = self._camera2idx[cam]
 

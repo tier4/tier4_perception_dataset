@@ -21,7 +21,9 @@ from perception_dataset.deepen.segmentation import (
 )
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.keyframe_consistency_resolver import KeyFrameConsistencyResolver
+from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
+    KeyFrameConsistencyResolver,
+)
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 
