@@ -40,10 +40,14 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
 
     def convert(self) -> None:
         t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
-        anno_jsons_dict = self._load_annotation_jsons(t4_datasets)
+        anno_jsons_dict = self._load_annotation_jsons(t4_datasets, "_CAM")
         fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
 
         for t4dataset_name in t4_datasets:
+            # Check if annotation exists
+            if t4dataset_name not in fl_annotations.keys():
+                continue
+
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
@@ -78,28 +82,13 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
             else:
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
-            if t4dataset_name not in fl_annotations.keys():
-                logger.warning(f"No annotation for {t4dataset_name}")
-                continue
-
             # Start updating annotations
-            annotation_files_updater = AnnotationFilesUpdater(description=self._description)
+            annotation_files_updater = AnnotationFilesUpdater(description=self._description, surface_categories=self._surface_categories)
             annotation_files_updater.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
                 scene_anno_dict=fl_annotations[t4dataset_name],
                 dataset_name=t4dataset_name,
             )
+            logger.info(f"Finished updating annotations for {t4dataset_name}")
 
-    def _load_annotation_jsons(self, t4_datasets: list[str]) -> dict[str, list[dict[str, any]]]:
-        anno_dict = {}
-        for file in self._input_anno_files:
-            t4_dataset_name = file.name.split("_CAM")[0]
-            if t4_dataset_name not in t4_datasets:
-                continue
-            with open(file) as f:
-                one_label = json.load(f)
-                if t4_dataset_name not in anno_dict.keys():
-                    anno_dict[t4_dataset_name] = []
-                anno_dict[t4_dataset_name].extend(one_label)
-        return anno_dict
