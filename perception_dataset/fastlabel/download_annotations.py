@@ -70,10 +70,16 @@ def rename_image_task_name(name: str) -> str:
     if "_CAM_" not in name:
         return name
     base_name, camera_info = name.split("CAM_")
-    dataset_name, index = base_name.split("/")
-    frame_index = index[:5]
-    camera_name, ext = os.path.splitext(camera_info)
-    new_file_name = f"{dataset_name}/CAM_{camera_name}/{frame_index}{ext}"
+    print(f"base_name: {base_name}, camera_info: {camera_info}")
+    if base_name.count("/") != 1 and base_name.startswith("data"):
+        dataset_name = base_name.split("__")[1]
+        camera_name, filename = camera_info.split("__")
+        new_file_name = f"{dataset_name}/CAM_{camera_name}/{filename}"
+    else:
+        dataset_name, index = base_name.split("/")
+        frame_index = index[:5]
+        camera_name, ext = os.path.splitext(camera_info)
+        new_file_name = f"{dataset_name}/CAM_{camera_name}/{frame_index}{ext}"
     return new_file_name
 
 
@@ -89,6 +95,9 @@ def download_completed_annotations(
                 task["name"] = rename_image_task_name(task["name"])
                 completed_tasks.append(task)
                 each_task_file_name = task["name"].replace(" ", "_").replace("/", "_") + ".json"
+                task["project_name"] = project["name"]
+                task["project_slug"] = project["slug"]
+                task["project_id"] = project["id"]
                 if save_each:
                     with open(osp.join(output_dir, each_task_file_name), "w") as f:
                         json.dump([task], f, indent=4)

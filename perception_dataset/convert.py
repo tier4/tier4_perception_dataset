@@ -414,6 +414,38 @@ def main():
         converter.convert()
         logger.info(f"[Done] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
 
+    elif task == "convert_fastlabel_to_t4":
+        from perception_dataset.fastlabel_to_t4.fastlabel_to_t4_converter import (
+            FastLabelToT4Converter,
+        )
+
+        make_t4_dataset_dir = config_dict["conversion"]["make_t4_dataset_dir"]
+        input_base = config_dict["conversion"]["input_base"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        description = config_dict["description"]
+        input_bag_base = config_dict["conversion"]["input_bag_base"]
+        if input_bag_base is not None:
+            topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+            with open(topic_list_yaml_path) as f:
+                topic_list_yaml = yaml.safe_load(f)
+        else:
+            topic_list_yaml = None
+
+        converter = FastLabelToT4Converter(
+            input_base=input_base,
+            output_base=output_base,
+            input_anno_base=input_anno_base,
+            overwrite_mode=args.overwrite,
+            description=description,
+            make_t4_dataset_dir=make_t4_dataset_dir,
+            input_bag_base=input_bag_base,
+            topic_list=topic_list_yaml,
+        )
+        logger.info(f"[BEGIN] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
+        converter.convert()
+        logger.info(f"[END] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
+
     else:
         raise NotImplementedError()
 

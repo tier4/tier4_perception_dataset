@@ -35,7 +35,9 @@ class DeepenAccessException(Exception):
 
 
 class AnnotationNotFoundException(Exception):
-    pass
+    def __init__(self, dataset_id: str, *args: Any) -> None:
+        self.dataset_id = dataset_id
+        super().__init__(f"Annotation not found for dataset_id: {dataset_id}")
 
 
 def mark_as_done(dataset_id: str) -> None:
@@ -61,8 +63,8 @@ def get_dataset_status(dataset_id: str) -> str:
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        raise SystemExit(e)
+    except requests.exceptions.RequestException:
+        raise AnnotationNotFoundException(dataset_id)
 
     return response.json()["current_stage_status"]
 

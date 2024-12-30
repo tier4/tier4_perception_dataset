@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractRecord, AbstractTable
@@ -15,7 +15,7 @@ class ObjectAnnRecord(AbstractRecord):
         category_token: str,
         attribute_tokens: str,
         bbox: List[float],
-        mask: Dict[str, any],
+        mask: Dict[str, Any],
         automatic_annotation: bool = False,
     ):
         super().__init__()
@@ -27,7 +27,7 @@ class ObjectAnnRecord(AbstractRecord):
         self._category_token: str = category_token
         self._attribute_tokens: List[str] = attribute_tokens
         self._bbox: List[float] = bbox
-        self._mask: Dict[str, any] = mask
+        self._mask: Dict[str, Any] = mask
         self._automatic_annotation: bool = automatic_annotation
 
     def to_dict(self):
@@ -68,7 +68,7 @@ class ObjectAnnTable(AbstractTable[ObjectAnnRecord]):
         category_token: str,
         attribute_tokens: str,
         bbox: List[float],
-        mask: Dict[str, any],
+        mask: Dict[str, Any],
         automatic_annotation: bool = False,
     ):
         record = ObjectAnnRecord(
