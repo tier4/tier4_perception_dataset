@@ -27,6 +27,8 @@ pedestrian:
     pedestrian.adult,
     pedestrian.child,
   ]
+other_pedestrian: [other_pedestrian]
+other_vehicle: [other_vehicle]
 truck: [truck, TRUCK, vehicle.truck]
 trailer: [trailer, TRAILER, vehicle.trailer]
 ambulance: [ambulance, AMBULANCE, vehicle.ambulance]
@@ -54,8 +56,6 @@ stroller: [stroller, STROLLER, pedestrian.stroller]
 police_officer: [police_officer, POLICE_OFFICER, pedestrian.police_officer]
 wheelchair: [wheelchair, WHEELCHAIR, pedestrian.wheelchair]
 forklift: [forklift, FORKLIFT]
-other_vehicle: [other_vehicle]
-other_pedestrian: [other_pedestrian]
 train: [train, TRAIN]
 cone: [cone]
 curb: [curb]
