@@ -1,15 +1,15 @@
 import base64
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
 import os.path as osp
 from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional, Union
-from tqdm import tqdm
 
 import numpy as np
 import pycocotools.mask as cocomask
+from tqdm import tqdm
 
 from perception_dataset.constants import LABEL_PATH_ENUM
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
@@ -258,11 +258,13 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             for filename, ann_list in sorted(annotations.items()):
                 dataset_name: str = Path(filename).stem
                 for ann in ann_list:
-                    futures.append(
-                        executor.submit(self._process_annotation, dataset_name, ann)
-                    )
+                    futures.append(executor.submit(self._process_annotation, dataset_name, ann))
 
-                for future in tqdm(as_completed(futures), total=len(futures), desc=f"Processing {dataset_name} labels"):
+                for future in tqdm(
+                    as_completed(futures),
+                    total=len(futures),
+                    desc=f"Processing {dataset_name} labels",
+                ):
                     dataset_name, file_id, labels = future.result()
                     if dataset_name not in fl_annotations:
                         fl_annotations[dataset_name] = defaultdict(list)
