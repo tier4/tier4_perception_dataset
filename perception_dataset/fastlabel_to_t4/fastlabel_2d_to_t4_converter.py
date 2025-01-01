@@ -1,10 +1,12 @@
 import base64
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import defaultdict
 import json
 import os.path as osp
 from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional, Union
+from tqdm import tqdm
 
 import numpy as np
 import pycocotools.mask as cocomask
@@ -104,6 +106,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         self, t4_datasets: Optional[List[str]] = None, delimiter: Optional[str] = None
     ) -> Dict[str, List[dict[str, Any]]]:
         """Load annotations from all JSON files in the input directory and return as a dictionary."""
+        logger.info("Loading annotation JSON files")
         anno_dict = defaultdict(list)
         if t4_datasets is None:
             for file in self._input_anno_files:
@@ -111,7 +114,9 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     anno_dict[file.name] = json.load(f)
                     return anno_dict
 
+        pbar = tqdm(total=len(self._input_anno_files), desc="Loading annotation files")
         for file in self._input_anno_files:
+            pbar.update(1)
             t4_dataset_name = file.name.split(delimiter)[0]
             for dataset in t4_datasets:
                 if dataset in t4_dataset_name:
@@ -121,7 +126,66 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             with open(file) as f:
                 one_label = json.load(f)
                 anno_dict[dataset].extend(one_label)
+        pbar.close()
         return anno_dict
+
+    def _process_annotation(self, dataset_name, annotation):
+        filename: str = annotation["name"].split("/")[-1]
+        file_id: int = int(filename.split(".")[0])
+        frame_no: int = file_id + 1
+        camera = annotation["name"].split("/")[-2]
+
+        width = annotation["width"]
+        height = annotation["height"]
+
+        labels = []
+        for a in annotation["annotations"]:
+            occlusion_state = "occlusion_state.none"
+            visibility = "Not available"
+            instance_id = ""
+
+            for att in a["attributes"]:
+                if att["key"] == "id":
+                    instance_id = att["value"]
+                if "occlusion_state" in att["key"]:
+                    for v in att["value"]:
+                        if frame_no in range(v[0], v[1]):
+                            occlusion_state = "occlusion_state." + att["key"].split("_")[-1]
+                            visibility = self._convert_occlusion_to_visibility(
+                                att["key"].split("_")[-1]
+                            )
+                            break
+
+            category_label = self._label_converter.convert_label(a["title"])
+            label_t4_dict = {
+                "category_name": category_label,
+                "instance_id": instance_id,
+                "attribute_names": [occlusion_state],
+                "visibility_name": visibility,
+            }
+
+            if a["type"] == "bbox":
+                label_t4_dict.update(
+                    {
+                        "two_d_box": a["points"],
+                        "sensor_id": self._camera2idx[camera],
+                    }
+                )
+            elif a["type"] == "segmentation":
+                label_t4_dict.update(
+                    {
+                        "two_d_segmentation": _rle_from_points(a["points"], width, height),
+                        "sensor_id": self._camera2idx[camera],
+                    }
+                )
+                if (
+                    self._label_converter.is_object_label(category_label)
+                    and category_label not in self._surface_categories
+                ):
+                    label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
+            labels.append(label_t4_dict)
+
+        return dataset_name, file_id, labels
 
     def _format_fastlabel_annotation(self, annotations: Dict[str, List[Dict[str, Any]]]):
         """
@@ -189,66 +253,21 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         """
         fl_annotations: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
 
-        for filename, ann_list in sorted(annotations.items()):
-            dataset_name: str = Path(filename).stem
-            for ann in ann_list:
-                filename: str = ann["name"].split("/")[-1]
-                file_id: int = int(filename.split(".")[0])
-                frame_no: int = file_id + 1
-                camera: str = ann["name"].split("/")[-2]
+        with ProcessPoolExecutor() as executor:
+            futures = []
+            for filename, ann_list in sorted(annotations.items()):
+                dataset_name: str = Path(filename).stem
+                for ann in ann_list:
+                    futures.append(
+                        executor.submit(self._process_annotation, dataset_name, ann)
+                    )
 
-                if dataset_name not in fl_annotations:
-                    fl_annotations[dataset_name] = defaultdict(list)
-
-                width: int = ann["width"]
-                height: int = ann["height"]
-
-                for a in ann["annotations"]:
-                    occlusion_state: str = "occlusion_state.none"
-                    visibility: str = "Not available"
-                    instance_id = ""
-                    for att in a["attributes"]:
-                        if att["key"] == "id":
-                            instance_id = att["value"]
-                        if "occlusion_state" in att["key"]:
-                            for v in att["value"]:
-                                if frame_no in range(v[0], v[1]):
-                                    occlusion_state = (
-                                        "occlusion_state." + att["key"].split("_")[-1]
-                                    )
-                                    visibility = self._convert_occlusion_to_visibility(
-                                        att["key"].split("_")[-1]
-                                    )
-                                    break
-                    category_label = self._label_converter.convert_label(a["title"])
-                    label_t4_dict: Dict[str, Any] = {
-                        "category_name": category_label,
-                        "instance_id": instance_id,
-                        "attribute_names": [occlusion_state],
-                        "visibility_name": visibility,
-                    }
-                    if a["type"] == "bbox":
-                        label_t4_dict.update(
-                            {
-                                "two_d_box": a["points"],
-                                "sensor_id": self._camera2idx[camera],
-                            }
-                        )
-                    elif a["type"] == "segmentation":
-                        label_t4_dict.update(
-                            {
-                                "two_d_segmentation": _rle_from_points(a["points"], width, height),
-                                "sensor_id": self._camera2idx[camera],
-                            }
-                        )
-                        if (
-                            self._label_converter.is_object_label(category_label)
-                            and category_label not in self._surface_categories
-                        ):
-                            label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(
-                                a["points"][0][0]
-                            )
-                    fl_annotations[dataset_name][file_id].append(label_t4_dict)
+                for future in tqdm(as_completed(futures), total=len(futures), desc=f"Processing {dataset_name} labels"):
+                    dataset_name, file_id, labels = future.result()
+                    if dataset_name not in fl_annotations:
+                        fl_annotations[dataset_name] = defaultdict(list)
+                    for label_t4_dict in labels:
+                        fl_annotations[dataset_name][file_id].append(label_t4_dict)
 
         return fl_annotations
 
