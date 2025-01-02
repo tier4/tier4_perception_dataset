@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Any, Dict
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -40,3 +43,21 @@ class LogTable(AbstractTable[LogRecord]):
 
     def _to_record(self, **kwargs) -> LogRecord:
         return LogRecord(**kwargs)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> LogTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = LogRecord(
+                logfile=item["logfile"],
+                vehicle=item["vehicle"],
+                data_captured=item["data_captured"],
+                location=item["location"],
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

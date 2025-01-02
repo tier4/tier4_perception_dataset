@@ -60,7 +60,6 @@ def calculate_num_points(
     # connect next/prev tokens
     for instance in nusc.instance:
         if instance["nbr_annotations"] == 0:
-            logger.warning(f"instance:{instance['token']} has no 3D annotation")
             continue
         try:
             prev_sample_data: str = annotation_table._token_to_record[

@@ -6,6 +6,7 @@ import shutil
 from typing import Any, Dict, List, Optional, Union
 
 from nuscenes.nuscenes import NuScenes
+import yaml
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.deepen.deepen_annotation import (
@@ -20,7 +21,9 @@ from perception_dataset.deepen.segmentation import (
 )
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.keyframe_consistency_resolver import KeyFrameConsistencyResolver
+from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
+    KeyFrameConsistencyResolver,
+)
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 
@@ -57,6 +60,11 @@ class DeepenToT4Converter(AbstractConverter):
         self._label_info: Optional[LabelInfo] = label_info
 
         self._topic_list_yaml: Union[List, Dict] = topic_list
+        if description.get("surface_categories"):
+            with open(description["surface_categories"], "r") as f:
+                self._surface_categories: List[str] = yaml.safe_load(f)
+        else:
+            self._surface_categories = []
 
     def convert(self):
         camera_index: Dict[str, int] = self._description["camera_index"]
@@ -111,7 +119,10 @@ class DeepenToT4Converter(AbstractConverter):
         for t4data_name, dataset_id in self._t4data_name_to_deepen_dataset_id.items():
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             input_dir = osp.join(self._input_base, t4data_name)
-            annotation_files_generator = AnnotationFilesGenerator(description=self._description)
+
+            annotation_files_generator = AnnotationFilesGenerator(
+                description=self._description, surface_categories=self._surface_categories
+            )
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,

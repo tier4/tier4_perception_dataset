@@ -370,6 +370,33 @@ def main():
         converter.convert()
         logger.info(f"[END] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
 
+    elif task == "update_t4_with_fastlabel":
+        from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_updater import (
+            FastLabel2dToT4Updater,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
+        description = config_dict["description"]
+        make_t4_dataset_dir = config_dict["conversion"]["make_t4_dataset_dir"]
+
+        converter = FastLabel2dToT4Updater(
+            input_base=input_base,
+            output_base=output_base,
+            input_anno_base=input_anno_base,
+            overwrite_mode=args.overwrite,
+            description=description,
+            make_t4_dataset_dir=make_t4_dataset_dir,
+        )
+        logger.info(
+            f"[BEGIN] Updating T4 dataset ({input_base}) with FastLabel {input_anno_base} into T4 data ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[DONE] Updating T4 dataset ({input_base}) with FastLabel {input_anno_base} into T4 data ({output_base})"
+        )
+
     elif task == "merge_2d_t4dataset_to_3d":
         from perception_dataset.t4_dataset.t4_dataset_2d3d_merger import T4dataset2D3DMerger
 

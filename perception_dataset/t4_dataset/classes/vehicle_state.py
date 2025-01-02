@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -73,3 +74,26 @@ class VehicleStateTable(AbstractTable[VehicleStateRecord]):
 
     def _to_record(self, **kwargs) -> VehicleStateRecord:
         return VehicleStateRecord(**kwargs)
+
+    @classmethod
+    def from_json(cls, filepath: str) -> VehicleStateTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = VehicleStateRecord(
+                timestamp=item["timestamp"],
+                accel_pedal=item.get("accel_pedal"),
+                brake_pedal=item.get("brake_pedal"),
+                steer_pedal=item.get("steer_pedal"),
+                steering_tire_angle=item.get("steering_tire_angle"),
+                steering_wheel_angle=item.get("steering_wheel_angle"),
+                shift_state=item.get("shift_state"),
+                indicators=item.get("indicators"),
+                additional_info=items.get("additional_info"),
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

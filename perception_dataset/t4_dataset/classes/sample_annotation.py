@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import json
 from typing import Dict, List, Optional
 
 from perception_dataset.constants import EXTENSION_ENUM
@@ -18,6 +21,7 @@ class SampleAnnotationRecord(AbstractRecord):
         rotation: Dict[str, float],
         num_lidar_pts: int,
         num_radar_pts: int,
+        automatic_annotation: bool = False,
     ):
         super().__init__()
 
@@ -40,6 +44,7 @@ class SampleAnnotationRecord(AbstractRecord):
         self._rotation: Dict[str, float] = rotation
         self._num_lidar_pts: int = num_lidar_pts
         self._num_radar_pts: int = num_radar_pts
+        self._automatic_annotation: bool = automatic_annotation
         self._next: str = ""
         self._prev: str = ""
 
@@ -102,6 +107,7 @@ class SampleAnnotationRecord(AbstractRecord):
             ],
             "num_lidar_pts": self._num_lidar_pts,
             "num_radar_pts": self._num_radar_pts,
+            "automatic_annotation": self._automatic_annotation,
             "next": self._next,
             "prev": self._prev,
         }
@@ -129,6 +135,7 @@ class SampleAnnotationTable(AbstractTable[SampleAnnotationRecord]):
         rotation: Dict[str, float],
         num_lidar_pts: int,
         num_radar_pts: int,
+        automatic_annotation: bool = False,
     ):
         record = SampleAnnotationRecord(
             sample_token=sample_token,
@@ -142,5 +149,61 @@ class SampleAnnotationTable(AbstractTable[SampleAnnotationRecord]):
             rotation=rotation,
             num_lidar_pts=num_lidar_pts,
             num_radar_pts=num_radar_pts,
+            automatic_annotation=automatic_annotation,
         )
         return record
+
+    @classmethod
+    def from_json(cls, filepath: str) -> SampleAnnotationTable:
+        with open(filepath) as f:
+            items = json.load(f)
+
+        table = cls()
+        for item in items:
+            record = SampleAnnotationRecord(
+                sample_token=item["sample_token"],
+                instance_token=item["instance_token"],
+                attribute_tokens=item["attribute_tokens"],
+                visibility_token=item["visibility_token"],
+                translation={
+                    "x": item["translation"][0],
+                    "y": item["translation"][1],
+                    "z": item["translation"][2],
+                },
+                velocity=(
+                    {
+                        "x": item["velocity"][0],
+                        "y": item["velocity"][1],
+                        "z": item["velocity"][2],
+                    }
+                    if item.get("velocity") is not None
+                    else None
+                ),
+                acceleration=(
+                    {
+                        "x": item["acceleration"][0],
+                        "y": item["acceleration"][1],
+                        "z": item["acceleration"][2],
+                    }
+                    if item.get("acceleration") is not None
+                    else None
+                ),
+                size={
+                    "width": item["size"][0],
+                    "length": item["size"][1],
+                    "height": item["size"][2],
+                },
+                rotation={
+                    "w": item["rotation"][0],
+                    "x": item["rotation"][1],
+                    "y": item["rotation"][2],
+                    "z": item["rotation"][3],
+                },
+                num_lidar_pts=item["num_lidar_pts"],
+                num_radar_pts=item["num_radar_pts"],
+                automatic_annotation=item.get("automatic_annotation", False),
+            )
+            record.token = item["token"]
+            table.set_record_to_table(record)
+
+        return table

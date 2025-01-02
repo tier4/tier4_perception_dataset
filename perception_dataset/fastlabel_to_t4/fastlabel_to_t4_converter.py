@@ -9,7 +9,9 @@ from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import (
     FastLabel2dToT4Converter,
 )
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.keyframe_consistency_resolver import KeyFrameConsistencyResolver
+from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
+    KeyFrameConsistencyResolver,
+)
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.transform import rotation_to_quaternion
