@@ -84,41 +84,43 @@ def rename_image_task_name(name: str) -> str:
 
 
 def download_completed_annotations(
-    project: Dict, output_dir: str, target_project_slugs: List[str], save_each: bool = False
+    project: Dict, output_dir: str, save_each: bool = False
 ) -> None:
     os.makedirs(output_dir, exist_ok=True)
     completed_tasks = []
-    if project["slug"] in target_project_slugs:
-        tasks = get_large_size_tasks(project=project)
-        for task in tasks:
-            if is_task_completed(task):
-                task["name"] = rename_image_task_name(task["name"])
-                completed_tasks.append(task)
-                each_task_file_name = task["name"].replace(" ", "_").replace("/", "_") + ".json"
-                task["project_name"] = project["name"]
-                task["project_slug"] = project["slug"]
-                task["project_id"] = project["id"]
-                if save_each:
-                    with open(osp.join(output_dir, each_task_file_name), "w") as f:
-                        json.dump([task], f, indent=4)
-            else:
-                print(f"Task {task['name']} is not completed. Removing.")
+    tasks = get_large_size_tasks(project=project)
+    for task in tasks:
+        if is_task_completed(task):
+            task["name"] = rename_image_task_name(task["name"])
+            completed_tasks.append(task)
+            each_task_file_name = task["name"].replace(" ", "_").replace("/", "_") + ".json"
+            task["project_name"] = project["name"]
+            task["project_slug"] = project["slug"]
+            task["project_id"] = project["id"]
+            if save_each:
+                with open(osp.join(output_dir, each_task_file_name), "w") as f:
+                    json.dump([task], f, indent=4)
+        else:
+            print(f"Task {task['name']} is not completed. Removing.")
     return completed_tasks
 
 
-def get_labels(output_dir: str, target_project_slugs: List[str]) -> None:
+def get_labels(output_dir: str, target_project_slug_keyword: List[str]) -> None:
     projects = client.get_projects()
+    # print project slug
+    project_slugs = sorted([project["slug"] for project in projects])
+    print("All project slugs:")
+    for slug in project_slugs:
+        print(f"- {slug}")
     project_dict = split_project_pcd_image(projects)
     os.makedirs(output_dir, exist_ok=True)
 
     cuboid_tasks = []
     pcd_out_dir = osp.join(output_dir, "pcd_annotation")
     for project in project_dict["cuboid"]:
-        if project["slug"] in target_project_slugs:
+        if any(keyword in project["slug"] for keyword in target_project_slug_keyword):
             cuboid_tasks.extend(
-                download_completed_annotations(
-                    project, pcd_out_dir, target_project_slugs, save_each=True
-                )
+                download_completed_annotations(project, pcd_out_dir, save_each=True)
             )
     with open(osp.join(output_dir, "all_label_lidar_cuboid.json"), "w") as f:
         json.dump(cuboid_tasks, f, indent=4)
@@ -126,11 +128,9 @@ def get_labels(output_dir: str, target_project_slugs: List[str]) -> None:
     segmentation_tasks = []
     pcd_out_dir = osp.join(output_dir, "segmentation_annotation")
     for project in project_dict["segmentation"]:
-        if project["slug"] in target_project_slugs:
+        if any(keyword in project["slug"] for keyword in target_project_slug_keyword):
             segmentation_tasks.extend(
-                download_completed_annotations(
-                    project, pcd_out_dir, target_project_slugs, save_each=True
-                )
+                download_completed_annotations(project, pcd_out_dir, save_each=True)
             )
     with open(osp.join(output_dir, "all_label_segmentation.json"), "w") as f:
         json.dump(segmentation_tasks, f, indent=4)
@@ -138,23 +138,23 @@ def get_labels(output_dir: str, target_project_slugs: List[str]) -> None:
     tlr_tasks = []
     pcd_out_dir = osp.join(output_dir, "tlr_annotation")
     for project in project_dict["bbox"]:
-        if project["slug"] in target_project_slugs and "traffic-light" in project["slug"]:
-            tlr_tasks.extend(
-                download_completed_annotations(
-                    project, pcd_out_dir, target_project_slugs, save_each=True
-                )
-            )
+        if (
+            any(keyword in project["slug"] for keyword in target_project_slug_keyword)
+            and "traffic-light" in project["slug"]
+        ):
+            tlr_tasks.extend(download_completed_annotations(project, pcd_out_dir, save_each=True))
     with open(osp.join(output_dir, "all_label_traffic_light.json"), "w") as f:
         json.dump(tlr_tasks, f, indent=4)
 
     anonymization_tasks = []
     pcd_out_dir = osp.join(output_dir, "anonymization")
     for project in project_dict["bbox"]:
-        if project["slug"] in target_project_slugs and "license-plate" in project["slug"]:
+        if (
+            any(keyword in project["slug"] for keyword in target_project_slug_keyword)
+            and "license-plate" in project["slug"]
+        ):
             anonymization_tasks.extend(
-                download_completed_annotations(
-                    project, pcd_out_dir, target_project_slugs, save_each=True
-                )
+                download_completed_annotations(project, pcd_out_dir, save_each=True)
             )
     with open(osp.join(output_dir, "all_label_anonymization.json"), "w") as f:
         json.dump(anonymization_tasks, f, indent=4)
@@ -173,14 +173,16 @@ if __name__ == "__main__":
     config = load_yaml_config(args.config)
 
     output_dir = config.get("conversion", {}).get("output", "label_data")
-    target_project_slugs = config.get("conversion", {}).get("target_project_slugs", [])
+    target_project_slug_keyword = config.get("conversion", {}).get(
+        "target_project_slug_keyword", []
+    )
     access_token = config.get("conversion", {}).get("access_token", "")
     if access_token is not None and access_token != "":
         os.environ["FASTLABEL_ACCESS_TOKEN"] = access_token
     client = fastlabel.Client()
 
-    if not target_project_slugs:
+    if not target_project_slug_keyword:
         print("No target project slugs found in the YAML file. Exiting.")
         exit(1)
 
-    get_labels(output_dir, target_project_slugs)
+    get_labels(output_dir, target_project_slug_keyword)
