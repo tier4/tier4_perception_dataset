@@ -110,6 +110,7 @@ def get_labels(output_dir: str, target_project_slugs: List[str]) -> None:
     projects = client.get_projects()
     # print project slug
     project_slugs = sorted([project["slug"] for project in projects])
+    print("All project slugs:")
     for slug in project_slugs:
         print(f"- {slug}")
     project_dict = split_project_pcd_image(projects)
