@@ -9,7 +9,9 @@ import logging
 import multiprocessing as mp
 import os
 import os.path as osp
+import re
 from secrets import token_hex
+import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -21,7 +23,6 @@ from scipy.spatial.transform import Rotation, Slerp
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.utils.logger import configure_logger
-import subprocess
 
 
 class DataInterpolator(AbstractConverter):
@@ -90,19 +91,30 @@ class DataInterpolator(AbstractConverter):
     def _convert_single(self, data_root: str) -> None:
         self.logger.info(f"Start processing: {data_root}")
 
+        # an integer larger than or eaqual to 0
+        version_pattern = re.compile(r"^\d+$")
+
+        version_dirs = [d for d in os.listdir(data_root) if version_pattern.match(d)]
+
         dataset_id = osp.basename(data_root)
+
+        if version_dirs:
+            version_id = sorted(version_dirs, key=int)[-1]
+            data_root = osp.join(data_root, version_id)
+        nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
+
         output_path = osp.join(self._output_base, dataset_id)
         os.makedirs(output_path, exist_ok=True)
 
         command: list[str] = ["rsync", "-ahuv"]
         if self.copy_excludes is not None:
-            assert isinstance(self.copy_excludes, list), f"Unexpected type of excludes: {type(self.copy_excludes)}"
+            assert isinstance(
+                self.copy_excludes, list
+            ), f"Unexpected type of excludes: {type(self.copy_excludes)}"
             for e in self.copy_excludes:
                 command.extend(["--exclude", e])
-        command.extend([f"{data_root}", f"{self._output_base}"])
+        command.extend([f"{data_root}/", f"{output_path}"])
         subprocess.run(command)
-
-        nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
 
         all_samples, all_sample_data = self.interpolate_sample(nusc)
         self.logger.info("Finish interpolating sample and sample data")
@@ -178,7 +190,9 @@ class DataInterpolator(AbstractConverter):
         for sd_record in all_sample_data:
             if sd_record["is_key_frame"]:
                 continue
-            filename: str = osp.splitext(osp.basename(sd_record["filename"].replace(".pcd.bin", ".pcd")))[0]
+            filename: str = osp.splitext(
+                osp.basename(sd_record["filename"].replace(".pcd.bin", ".pcd"))
+            )[0]
             if filename in interpolated_samples_dict.keys():
                 sample_token: str = interpolated_samples_dict[filename]["token"]
                 sd_record["sample_token"] = sample_token
@@ -223,11 +237,14 @@ class DataInterpolator(AbstractConverter):
             accelerations = []
             original_timestamps = []
             for ann in sample_anns:
+                ann_timestamp = original_timestamps_info[ann["sample_token"]]
+                if ann_timestamp in original_timestamps:
+                    continue
+                original_timestamps.append(ann_timestamp)
                 translations.append(ann["translation"])
                 rotations.append(ann["rotation"])
                 velocities.append(ann["velocity"])
                 accelerations.append(ann["acceleration"])
-                original_timestamps.append(original_timestamps_info[ann["sample_token"]])
 
             # skip if there is only one annotation because interpolation is unavailable
             if len(original_timestamps) < 2:
