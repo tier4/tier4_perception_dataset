@@ -2,50 +2,16 @@ task: donwload_fastlabel
 conversion:
   output: label_data
   access_token:
-  target_project_slugs:
-    - 202405-lidar-3d-bbox-trial
-    - 202405-lidar-3d-bbox-trial-2
-    - 202405-lidar-3d-bbox-trial-3
-    - 202405-lidar-3d-bbox-trial-4
-    - 202405-panoptic-segmentation-trial
-    - 202405-panoptic-segmentation-trial-2
-    - 202405-panoptic-segmentation-trial-3
-    - 202405-panoptic-segmentation-trial-4
-    - 202405-license-plate-person-head-bbox-trial
-    - 202405-traffic-light-recognition-trial
-    - 3d-lidar-bbox-202409-01
-    - 3d-lidar-bbox-202409-02
-    - 3d-lidar-bbox-202410-ar-01
-    - 3d-lidar-bbox-202410-ar-02
-    - 3d-lidar-bbox-202410-lo-01
-    - 3d-lidar-bbox-202410-lo-02
-    - 3d-lidar-bbox-202411-ar-01
-    - 3d-lidar-bbox-202411-lo-01
-    - 3d-lidar-bbox-202411-lo-02
-    - 3d-lidar-bbox-202412-ar-01
-    - 3d-lidar-bbox-202412-lo-01
-    - 3d-lidar-bbox-202412-lo-02
-    - 3d-lidar-bbox-202501-ar-01
-    - 3d-lidar-bbox-202501-lo-01
-    - 3d-lidar-bbox-202501-lo-02
-    - panoptic-segmentation-202409-01
-    - panoptic-segmentation-202409-02
-    - panoptic-segmentation-202410-ar-01
-    - panoptic-segmentation-202410-ar-02
-    - panoptic-segmentation-202410-lo-01
-    - panoptic-segmentation-202410-lo-02
-    - panoptic-segmentation-202411-ar-01
-    - panoptic-segmentation-202411-lo-01
-    - panoptic-segmentation-202411-lo-02
-    - panoptic-segmentation-202412-ar-01
-    - panoptic-segmentation-202412-lo-01
-    - panoptic-segmentation-202412-lo-02
-    - panoptic-segmentation-202501-ar-01
-    - panoptic-segmentation-202501-lo-01
-    - panoptic-segmentation-202501-lo-02
-    - traffic-light-recognition-202409-01
-    - traffic-light-recognition-202410
-    - traffic-light-recognition-202501-202502
-    - license-plate-person-head-202409-01
-    - license-plate-person-head-202410
-    - license-plate-person-head-202501-202502
+  target_project_slug_keyword:
+    - 202405-lidar-3d-bbox
+    - 202405-panoptic-segmentation
+    - 202405-license-plate-person-head-bbox
+    - 202405-traffic-light-recognition
+    - 3d-lidar-bbox
+    - 3d-lidar-bbox
+    - 3d-lidar-bbox
+    - 3d-lidar-bbox
+    - panoptic-segmentation
+    - traffic-light-recognition
+    - license-plate-person-head
+
