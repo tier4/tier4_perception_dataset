@@ -128,13 +128,13 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
 	print(f"Annotation file is saved: {output_file}")
 
 
-def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str, annotation_type: str):
-	if annotation_type == 'labels':
+def get_datasets(dataset_ids: List[str], dataset_dir: str, output_name: str, label_type: str):
+	if label_type == 'labels':
 		labels_request_func = get_annotation_labels
-	elif annotation_type == 'paint3d':
+	elif label_type == 'paint3d':
 		labels_request_func = get_paint3d_labels
 	else:
-		raise ValueError(f"Label type: {annotation_type} not supported!")	
+		raise ValueError(f"Label type: {label_type} not supported!")	
 	
 	labels_request_func(
 		dataset_ids=dataset_ids,
