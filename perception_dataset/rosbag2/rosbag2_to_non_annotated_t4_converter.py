@@ -5,6 +5,7 @@ import os
 import os.path as osp
 import shutil
 import sys
+import time
 from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
@@ -22,6 +23,8 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
+from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
+from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import VehicleStatusHandler
 from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -37,6 +40,7 @@ from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnota
 from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
 from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
+from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
 from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
@@ -78,21 +82,31 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
 
         if not self._overwrite_mode:
             dir_exist: bool = False
-            for bag_dir in bag_dirs:
+            for bag_dir in bag_dirs[:]:  # copy to avoid modifying list while iterating
                 bag_name: str = osp.basename(bag_dir)
 
                 output_dir = osp.join(self._output_base, bag_name)
                 if osp.exists(output_dir):
                     logger.error(f"{output_dir} already exists.")
                     dir_exist = True
-
-            if dir_exist:
+                    bag_dirs.remove(bag_dir)
+            if dir_exist and len(bag_dirs) == 0:
+                logger.error(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
-        for bag_dir in bag_dirs:
+        for bag_dir in sorted(bag_dirs):
+            logger.info(f"Start converting {bag_dir} to T4 format.")
             self._params.input_bag_path = bag_dir
-            bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
-            bag_converter.convert()
+            try:
+                bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
+                bag_converter.convert()
+            except Exception as e:
+                logger.error(f"Error occurred during conversion: {e}")
+                continue
+            logger.info(f"Conversion of {bag_dir} is completed")
+            print(
+                "--------------------------------------------------------------------------------------------------------------------------"
+            )
 
 
 class _Rosbag2ToNonAnnotatedT4Converter:
@@ -154,14 +168,26 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._output_data_dir = osp.join(
             self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.DATA.value
         )
-        self._msg_display_interval = 10
+        self._msg_display_interval = 100
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
 
+        # NOTE: even if `with_world_frame_conversion=True`, `/tf` topic is not needed and
+        # it is retrieved from INS messages.
         with_world_frame_conversion = self._ego_pose_target_frame != self._ego_pose_source_frame
-        self._bag_reader = Rosbag2Reader(self._input_bag, with_world_frame_conversion)
+        is_tf_needed = with_world_frame_conversion and not params.with_ins
+        self._bag_reader = Rosbag2Reader(self._input_bag, is_tf_needed)
         self._calc_actual_num_load_frames()
+
+        # for Co-MLOps
+        self._with_ins = params.with_ins
+        self._with_vehicle_status = params.with_vehicle_status
+
+        self._ins_handler = INSHandler(params.input_bag_path) if self._with_ins else None
+        self._vehicle_status_handler = (
+            VehicleStatusHandler(params.input_bag_path) if self._with_vehicle_status else None
+        )
 
     def _calc_actual_num_load_frames(self):
         topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
@@ -239,18 +265,28 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._attribute_table = AttributeTable(name_to_description={}, default_value="")
         self._visibility_table = VisibilityTable(level_to_description={}, default_value="")
 
+        # additional (used in Co-MLops)
+        self._vehicle_state_table = VehicleStateTable()
+
     def convert(self):
         self._convert()
+
         self._save_tables()
         self._save_config()
         if not self._without_compress:
             self._compress_directory()
 
     def _save_tables(self):
+        print(
+            "--------------------------------------------------------------------------------------------------------------------------"
+        )
         for cls_attr in self.__dict__.values():
             if isinstance(cls_attr, AbstractTable):
                 print(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
                 cls_attr.save_json(self._output_anno_dir)
+        print(
+            "--------------------------------------------------------------------------------------------------------------------------"
+        )
 
     def _save_config(self):
         config_data = {
@@ -300,6 +336,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             - is_key_frame=True
             - fill in next/prev
         """
+        start = time.time()
         sensor_channel_to_sample_data_token_list: Dict[str, List[str]] = {}
 
         self._init_tables()
@@ -309,6 +346,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
         self._add_scene_description(self._scene_description)
+        print(f"Total elapsed time: {time.time() - start:.2f} sec")
+
+        if self._with_vehicle_status:
+            self._convert_vehicle_state()
 
     def _calc_start_timestamp(self) -> float:
         if self._start_timestamp < sys.float_info.epsilon:
@@ -327,6 +368,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         logger.info(f"set start_timestamp to {start_timestamp}")
 
         if self._sensor_mode == SensorMode.DEFAULT:
+            start = time.time()
             lidar_sensor_channel = self._lidar_sensor["channel"]
             sensor_channel_to_sample_data_token_list[lidar_sensor_channel] = (
                 self._convert_pointcloud(
@@ -336,7 +378,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     scene_token=scene_token,
                 )
             )
-
+            print(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec\n")
             for radar_sensor in self._radar_sensors:
                 radar_sensor_channel = radar_sensor["channel"]
                 sensor_channel_to_sample_data_token_list[radar_sensor_channel] = (
@@ -361,6 +403,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
         for camera_sensor in self._camera_sensors:
+            start = time.time()
             sensor_channel = camera_sensor["channel"]
             sensor_channel_to_sample_data_token_list[sensor_channel] = self._convert_image(
                 start_timestamp=camera_start_timestamp,
@@ -378,6 +421,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
             camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                 first_sample_data_record.timestamp
+            )
+            print(
+                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec\n"
             )
 
     def _convert_static_data(self):
@@ -751,6 +797,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return sample_data_token_list
 
+    def _convert_vehicle_state(self) -> None:
+        msgs = self._vehicle_status_handler.get_actuation_statuses()
+        stamps = [msg.header.stamp for msg in msgs]
+        for stamp in stamps:
+            self._generate_vehicle_state(stamp)
+
     def _generate_image_data(
         self,
         image_arr: Union[np.ndarray, CompressedImage],
@@ -795,11 +847,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 [int(cv2.IMWRITE_JPEG_QUALITY), 95],
             )
         elif isinstance(image_arr, CompressedImage):
-            if camera_info is None:
+            output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
+            if camera_info is None or not self._undistort_image:
                 # save compressed image as is
-                with open(
-                    osp.join(self._output_scene_dir, sample_data_record.filename), "xb"
-                ) as fw:
+                with open(output_image_path, "xb") as fw:
                     fw.write(image_arr.data)
             else:
                 # load image and undistort
@@ -811,33 +862,132 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     None,
                     camera_info.p.reshape(3, 4)[:3],
                 )
-                cv2.imwrite(osp.join(self._output_scene_dir, sample_data_record.filename), image, [cv2.IMWRITE_JPEG_QUALITY, 100])
+                cv2.imwrite(output_image_path, image)
 
         return sample_data_token
 
     def _generate_ego_pose(self, stamp: builtin_interfaces.msg.Time) -> str:
-        transform_stamped = self._bag_reader.get_transform_stamped(
-            target_frame=self._ego_pose_target_frame,
-            source_frame=self._ego_pose_source_frame,
+        if self._with_ins:
+            ego_state = self._ins_handler.get_ego_state(stamp=stamp)
+            geocoordinate = self._ins_handler.lookup_nav_sat_fixes(stamp)
+
+            ego_pose_token = self._ego_pose_table.insert_into_table(
+                translation={
+                    "x": ego_state.translation.x,
+                    "y": ego_state.translation.y,
+                    "z": ego_state.translation.z,
+                },
+                rotation={
+                    "w": ego_state.rotation.w,
+                    "x": ego_state.rotation.x,
+                    "y": ego_state.rotation.y,
+                    "z": ego_state.rotation.z,
+                },
+                timestamp=rosbag2_utils.stamp_to_nusc_timestamp(ego_state.header.stamp),
+                twist={
+                    "vx": ego_state.twist.linear.x,
+                    "vy": ego_state.twist.linear.y,
+                    "vz": ego_state.twist.linear.z,
+                    "yaw_rate": ego_state.twist.angular.z,
+                    "pitch_rate": ego_state.twist.angular.y,
+                    "roll_rate": ego_state.twist.angular.x,
+                },
+                acceleration={
+                    "ax": ego_state.accel.x,
+                    "ay": ego_state.accel.y,
+                    "az": ego_state.accel.z,
+                },
+                geocoordinate=(
+                    {
+                        "latitude": geocoordinate.latitude,
+                        "longitude": geocoordinate.longitude,
+                        "altitude": geocoordinate.altitude,
+                    }
+                    if geocoordinate is not None
+                    else None
+                ),
+            )
+        else:
+            transform_stamped = self._bag_reader.get_transform_stamped(
+                target_frame=self._ego_pose_target_frame,
+                source_frame=self._ego_pose_source_frame,
+                stamp=stamp,
+            )
+
+            ego_pose_token = self._ego_pose_table.insert_into_table(
+                translation={
+                    "x": transform_stamped.transform.translation.x,
+                    "y": transform_stamped.transform.translation.y,
+                    "z": transform_stamped.transform.translation.z,
+                },
+                rotation={
+                    "w": transform_stamped.transform.rotation.w,
+                    "x": transform_stamped.transform.rotation.x,
+                    "y": transform_stamped.transform.rotation.y,
+                    "z": transform_stamped.transform.rotation.z,
+                },
+                timestamp=rosbag2_utils.stamp_to_nusc_timestamp(transform_stamped.header.stamp),
+            )
+
+        return ego_pose_token
+
+    def _generate_vehicle_state(self, stamp: builtin_interfaces.msg.Time) -> str:
+        nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(stamp)
+
+        # TODO(ktro2828): Implement operation to insert vehicle state into table
+        actuation_msg = self._vehicle_status_handler.get_closest_msg(
+            key="actuation_status", stamp=stamp
+        )
+
+        # steering tire
+        steering_tire_msg = self._vehicle_status_handler.get_closest_msg(
+            key="steering_status",
             stamp=stamp,
         )
 
-        ego_pose_token = self._ego_pose_table.insert_into_table(
-            translation={
-                "x": transform_stamped.transform.translation.x,
-                "y": transform_stamped.transform.translation.y,
-                "z": transform_stamped.transform.translation.z,
-            },
-            rotation={
-                "w": transform_stamped.transform.rotation.w,
-                "x": transform_stamped.transform.rotation.x,
-                "y": transform_stamped.transform.rotation.y,
-                "z": transform_stamped.transform.rotation.z,
-            },
-            timestamp=rosbag2_utils.stamp_to_nusc_timestamp(transform_stamped.header.stamp),
+        # steering wheel
+        steering_wheel_msg = self._vehicle_status_handler.get_closest_msg(
+            key="steering_wheel_status",
+            stamp=stamp,
         )
 
-        return ego_pose_token
+        # gear -> shift
+        gear_msg = self._vehicle_status_handler.get_closest_msg(key="gear_status", stamp=stamp)
+        shift_state = self._vehicle_status_handler.gear_to_shift(gear_msg.report)
+
+        # indicators
+        turn_indicators_msg = self._vehicle_status_handler.get_closest_msg(
+            key="turn_indicators_status", stamp=stamp
+        )
+        indicators_state = self._vehicle_status_handler.indicator_to_state(
+            turn_indicators_msg.report
+        )
+
+        # additional info
+        # --- speed ---
+        velocity_report_msg = self._vehicle_status_handler.get_closest_msg(
+            key="velocity_status", stamp=stamp
+        )
+        speed = np.linalg.norm(
+            [
+                velocity_report_msg.longitudinal_velocity,
+                velocity_report_msg.lateral_velocity,
+            ]
+        )
+
+        vehicle_state_token = self._vehicle_state_table.insert_into_table(
+            timestamp=nusc_timestamp,
+            accel_pedal=actuation_msg.status.accel_status,
+            brake_pedal=actuation_msg.status.brake_status,
+            steer_pedal=actuation_msg.status.steer_status,
+            steering_tire_angle=steering_tire_msg.steering_tire_angle,
+            steering_wheel_angle=steering_wheel_msg.data,
+            shift_state=shift_state,
+            indicators=indicators_state,
+            additional_info={"speed": speed},
+        )
+
+        return vehicle_state_token
 
     def _generate_calibrated_sensor(
         self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
@@ -888,6 +1038,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     camera_intrinsic=[],
                     camera_distortion=[],
                 )
+                return calibrated_sensor_token
             elif modality == SENSOR_MODALITY_ENUM.CAMERA.value:
                 if self._data_type.value == "synthetic":
                     # fix of the orientation of camera view
@@ -909,17 +1060,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 info = self._bag_reader.camera_info.get(cam_info_topic)
                 if info is None:
                     raise ValueError(f"Camera info not found for {cam_info_topic}")
-                if "image_rect" in topic_name:
-                    # image is considered as already undistorted
-                    camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
-                    camera_distortion = info.d.tolist()
-                elif self._undistort_image:
-                    camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
-                    camera_distortion = [0.0, 0.0, 0.0, 0.0, 0.0]
-                    camera_info = info
-                else:
-                    camera_intrinsic = info.k.reshape(3, 3).tolist()
-                    camera_distortion = info.d.tolist()
+                camera_intrinsic, camera_distortion, camera_info = self._parse_camera_info(
+                    info,
+                    undistort_image=self._undistort_image,
+                    is_already_rectified="image_rect" in topic_name,
+                )
 
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                     sensor_token=sensor_token,
@@ -931,8 +1076,27 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 return calibrated_sensor_token, camera_info
             else:
                 raise ValueError(f"Unexpected sensor modality: {modality}")
+        raise ValueError(f"Sensor channel {sensor_channel} not found in the sensor list.")
 
-        return calibrated_sensor_token
+    def _parse_camera_info(
+        self,
+        info: CameraInfo,
+        undistort_image: bool = False,
+        is_already_rectified: bool = False,
+    ) -> Tuple[List[float], List[float], CameraInfo]:
+        camera_info = None
+        if is_already_rectified:
+            # image is already undistorted
+            camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+            camera_distortion = info.d.tolist()
+        elif undistort_image:
+            camera_intrinsic = np.delete(info.p.reshape(3, 4), 3, 1).tolist()
+            camera_distortion = [0.0, 0.0, 0.0, 0.0, 0.0]
+            camera_info = info
+        else:
+            camera_intrinsic = info.k.reshape(3, 3).tolist()
+            camera_distortion = info.d.tolist()
+        return camera_intrinsic, camera_distortion, camera_info
 
     def _set_scene_data(self):
         scene_records: List[SceneRecord] = self._scene_table.to_records()
@@ -976,6 +1140,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 prev_token: str = sample_data_token_list[token_i - 1]
                 cur_token: str = sample_data_token_list[token_i]
 
+                prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
+                    prev_token
+                )
+                prev_rec.next = cur_token
+                self._sample_data_table.set_record_to_table(prev_rec)
+
+                cur_rec: SampleRecord = self._sample_data_table.select_record_from_token(cur_token)
+                cur_rec.prev = prev_token
+                self._sample_data_table.set_record_to_table(cur_rec)
                 prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
                     prev_token
                 )

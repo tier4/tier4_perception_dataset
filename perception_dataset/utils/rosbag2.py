@@ -101,44 +101,61 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
-def point_cloud2_to_array(msg):
+def point_cloud2_to_array(msg: PointCloud2) -> Dict[str, NDArray]:
     """
     Convert a sensor_msgs/PointCloud2 message to a NumPy array. The fields
     in the PointCloud2 message are mapped to the fields in the NumPy array
     as follows:
-    * x, y, z -> X, Y, Z
-    * intensity -> I
+    * x, y, z -> xyz
+    * intensity -> intensity
+    * index -> lidar_index
     * other fields are ignored
     """
     # Get the index of the "intensity" fields in the PointCloud2 message
     field_names = [field.name for field in msg.fields]
 
-    if "intensity" in field_names:
-        intensity_idx = field_names.index("intensity")
-        intensity_flag = True
-        intensity_offset = msg.fields[intensity_idx].offset
-        intensity_datatype = msg.fields[intensity_idx].datatype
-    else:
-        intensity_flag = False
+    def get_field_data(pc_data, msg, field_name, dtype_map):
+        if field_name in field_names:
+            field_idx = field_names.index(field_name)
+            offset = msg.fields[field_idx].offset
+            datatype = msg.fields[field_idx].datatype
+            dtype = dtype_map.get(datatype)
+            if dtype is None:
+                raise ValueError(f"Unsupported {field_name} datatype: {datatype}")
+            return pc_data[:, offset : offset + np.dtype(dtype).itemsize].view(dtype=dtype)
+        return None
 
-    # Convert the PointCloud2 message to a NumPy array
+    # Mapping for PointField datatypes
+    dtype_map = {
+        PointField.UINT8: np.uint8,
+        PointField.UINT16: np.uint16,
+        PointField.FLOAT32: np.float32,
+    }
+
+    # Convert PointCloud2 data to NumPy
     pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1, msg.point_step)
-    xyz = pc_data[:, 0:12].view(dtype=np.float32).reshape(-1, 3)
-    if intensity_flag:
-        if intensity_datatype == PointField.UINT8:
-            intensity = pc_data[:, intensity_offset : intensity_offset + 1].view(dtype=np.uint8)
-        elif intensity_datatype == PointField.UINT16:
-            intensity = pc_data[:, intensity_offset : intensity_offset + 2].view(dtype=np.uint16)
-        elif intensity_datatype == PointField.FLOAT32:
-            intensity = pc_data[:, intensity_offset : intensity_offset + 4].view(dtype=np.float32)
-        else:
-            raise ValueError(f"Unsupported intensity datatype: {intensity_datatype}")
+    xyz = pc_data[:, :12].view(dtype=np.float32).reshape(-1, 3)
 
-    # return the arrays in a dictionary
-    if intensity_flag:
-        return {"xyz": xyz, "intensity": intensity}
-    else:
-        return {"xyz": xyz}
+    # Filter out rows where xyz are all zero
+    non_zero_indices = ~(np.all(xyz == 0, axis=1))
+    xyz = xyz[non_zero_indices]
+
+    # Extract optional fields (intensity and index) and apply the same filter
+    intensity = get_field_data(pc_data, msg, "intensity", dtype_map)
+    lidar_index = get_field_data(pc_data, msg, "index", dtype_map)
+    if intensity is not None:
+        intensity = intensity[non_zero_indices]
+    if lidar_index is not None:
+        lidar_index = lidar_index[non_zero_indices]
+
+    # Build result dictionary
+    result = {"xyz": xyz}
+    if intensity is not None:
+        result["intensity"] = intensity
+    if lidar_index is not None:
+        result["lidar_index"] = lidar_index
+
+    return result
 
 
 def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
@@ -152,12 +169,13 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
     points = point_cloud2_to_array(pointcloud_msg)
 
     # Extract the x, y, z coordinates and additional fields if available
-    xyz = points["xyz"]
+    points_arr = points["xyz"]
     if "intensity" in points.keys():
         intensity = points["intensity"].astype(np.float32)
-        points_arr = np.hstack((xyz, intensity))
-    else:
-        points_arr = xyz
+        points_arr = np.hstack((points_arr, intensity))
+    if "lidar_index" in points.keys():
+        lidar_index = points["lidar_index"].astype(np.float32)
+        points_arr = np.hstack((points_arr, lidar_index))
 
     # Ensure the resulting array has exactly NUM_DIMENSIONS columns
     if points_arr.shape[1] > NUM_DIMENSIONS:

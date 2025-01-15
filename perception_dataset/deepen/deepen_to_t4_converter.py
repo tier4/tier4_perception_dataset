@@ -1,5 +1,4 @@
 from collections import defaultdict
-import json
 import os.path as osp
 from pathlib import Path
 import re
@@ -7,11 +6,24 @@ import shutil
 from typing import Any, Dict, List, Optional, Union
 
 from nuscenes.nuscenes import NuScenes
+import yaml
 
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.deepen.deepen_annotation import (
+    DeepenAnnotation,
+    LabelFormat,
+    LabelInfo,
+    LabelType,
+)
+from perception_dataset.deepen.segmentation import (
+    DeepenSegmentationPainting2D,
+    DeepenSegmentationPolygon2D,
+)
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.keyframe_consistency_resolver import KeyFrameConsistencyResolver
+from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
+    KeyFrameConsistencyResolver,
+)
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 
@@ -19,6 +31,7 @@ logger = configure_logger(modname=__name__)
 
 
 class DeepenToT4Converter(AbstractConverter):
+
     def __init__(
         self,
         input_base: str,
@@ -31,6 +44,7 @@ class DeepenToT4Converter(AbstractConverter):
         topic_list: Union[Dict[str, List[str]], List[str]],
         t4_dataset_dir_name: str = "t4_dataset",
         ignore_interpolate_label: bool = False,
+        label_info: Optional[LabelInfo] = None,
     ):
         super().__init__(input_base, output_base)
 
@@ -43,16 +57,42 @@ class DeepenToT4Converter(AbstractConverter):
         self._start_sec: float = 0
         self._end_sec: float = 1e10
         self._ignore_interpolate_label: bool = ignore_interpolate_label
+        self._label_info: Optional[LabelInfo] = label_info
 
         self._topic_list_yaml: Union[List, Dict] = topic_list
+        if description.get("surface_categories"):
+            with open(description["surface_categories"], "r") as f:
+                self._surface_categories: List[str] = yaml.safe_load(f)
+        else:
+            self._surface_categories = []
 
     def convert(self):
-        with open(self._input_anno_file) as f:
-            deepen_anno_json = json.load(f)
+        camera_index: Dict[str, int] = self._description["camera_index"]
+        if self._label_info is None:
+            deepen_annotations = DeepenAnnotation.from_file(self._input_anno_file)
+        else:
+            if self._label_info.label_type == LabelType.SEGMENTATION_2D:
+                deepen_annotations = (
+                    DeepenSegmentationPolygon2D.from_file(
+                        ann_file=self._input_anno_file,
+                        data_root=self._input_base,
+                        camera2index=camera_index,
+                        dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
+                    )
+                    if self._label_info.label_format == LabelFormat.POLYGON
+                    else DeepenSegmentationPainting2D.from_file(
+                        ann_file=self._input_anno_file,
+                        data_root=self._input_base,
+                        camera2index=camera_index,
+                        dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
+                    )
+                )
+            else:
+                raise ValueError(f"Unexpected label type: {self._label_info.label_type}")
 
         # format deepen annotation
         scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
-            deepen_anno_json["labels"], self._description["camera_index"]
+            deepen_annotations, camera_index
         )
 
         # copy data and make time/topic filtered rosbag from non-annotated-t4-dataset and rosbag
@@ -79,7 +119,10 @@ class DeepenToT4Converter(AbstractConverter):
         for t4data_name, dataset_id in self._t4data_name_to_deepen_dataset_id.items():
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             input_dir = osp.join(self._input_base, t4data_name)
-            annotation_files_generator = AnnotationFilesGenerator(description=self._description)
+
+            annotation_files_generator = AnnotationFilesGenerator(
+                description=self._description, surface_categories=self._surface_categories
+            )
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
@@ -230,7 +273,8 @@ class DeepenToT4Converter(AbstractConverter):
                 ],
                 "visibility_name": visibility,
             }
-            if label_dict["sensor_id"] == "lidar" or label_dict["label_type"] == "3d_bbox":
+
+            if label_dict["label_type"] == LabelType.BBOX_3D:
                 anno_three_d_bbox: Dict[str, str] = label_dict["three_d_bbox"]
                 label_t4_dict.update(
                     {
@@ -258,7 +302,7 @@ class DeepenToT4Converter(AbstractConverter):
                         "num_radar_pts": 0,
                     }
                 )
-            if label_dict["sensor_id"][:6] == "camera" or label_dict["label_type"] == "box":
+            elif label_dict["label_type"] == LabelType.BBOX_2D:
                 sensor_id = label_dict["sensor_id"][-1]
                 if camera_index is not None:
                     for k in camera_index.keys():
@@ -286,7 +330,44 @@ class DeepenToT4Converter(AbstractConverter):
                         "sensor_id": sensor_id,
                     }
                 )
+            elif label_dict["label_type"] == LabelType.SEGMENTATION_2D:
+                sensor_id = int(label_dict["sensor_id"].strip("sensor"))
+                # overwrite sensor_id for multiple camera only annotation (e.g 2d segmentation)
+                if camera_index is not None:
+                    for camera in camera_index.keys():
+                        if camera in filename:
+                            sensor_id = camera_index[camera]
+                            break
+
+                anno_two_d_bbox = label_dict["box"]
+
+                if not _check_two_d_bbox(anno_two_d_bbox):
+                    continue
+
+                label_t4_dict.update(
+                    {
+                        "two_d_box": [
+                            anno_two_d_bbox[0],
+                            anno_two_d_bbox[1],
+                            anno_two_d_bbox[0] + anno_two_d_bbox[2],
+                            anno_two_d_bbox[1] + anno_two_d_bbox[3],
+                        ],
+                        "two_d_segmentation": label_dict["two_d_mask"],
+                        "sensor_id": sensor_id,
+                    }
+                )
 
             anno_dict[dataset_id][file_id].append(label_t4_dict)
 
         return anno_dict
+
+
+def _check_two_d_bbox(two_d_bbox: List[float]) -> bool:
+    is_valid = True
+    if two_d_bbox[2] < 0 or two_d_bbox[3] < 0:
+        logger.error(f"bbox width or height:{two_d_bbox} < 0")
+        is_valid = False
+    if len(two_d_bbox) != 4:
+        logger.error(f"bbox length {len(two_d_bbox)} != 4")
+        is_valid = False
+    return is_valid
