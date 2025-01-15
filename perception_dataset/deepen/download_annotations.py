@@ -98,7 +98,7 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
 		# Split based on pointcloud size
 		previous_frame_size = 0
 		for file_id, frame_size in enumerate(paint_metadata['frame_sizes']):
-			lidarseg_anno_filename = dataset_path / f"{dataset_id}_{file_id}.bin" 
+			lidarseg_anno_filename = dataset_path / f"{dataset_id}_{str(file_id)}.bin" 
 			
 			annos_info = {
 				'dataset_id': dataset_id,
