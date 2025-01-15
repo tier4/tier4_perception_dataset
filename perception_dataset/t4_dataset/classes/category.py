@@ -34,7 +34,7 @@ class CategoryTable(AbstractTable[CategoryRecord]):
 		self._name_to_token: Dict[str, str] = {}
 		self._name_to_description: Dict[str, str] = name_to_description
 		self._description_default_value: str = default_value
-		self._index = 0
+		self._index = 1		# Index starts from 1 where 0 reserved for unpainted labels
 
 	def _to_record(self, name: str, description: str):
 		record = CategoryRecord(
@@ -74,7 +74,7 @@ class CategoryTable(AbstractTable[CategoryRecord]):
 			items = json.load(f)
 
 		table = cls(name_to_description=name_to_description, default_value=default_value)
-		index_counter = 0
+		index_counter = 1 # Index starts from 1 where 0 reserved for unpainted labels
 		for item in items:
 			index = item.get(item["index"], index_counter)
 			record = CategoryRecord(name=item["name"], description=item["description"], index=index)

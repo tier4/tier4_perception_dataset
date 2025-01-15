@@ -45,7 +45,7 @@ def get_annotation_labels(dataset_ids: List[str], dataset_dir: str, output_name:
 
 def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: str) -> None:
 	""" 
-	Get 3d paint labels to lidar_seg/<dataset_id>_<frame_id>.bin and paint-metadata.json. 
+	Get 3d paint labels to lidar_seg/<dataset_id>_<frame_id>.bin and <output_name>.json. 
 	Example of a response:
 	{
 		'server': 'gunicorn', 'date': 'Wed, 15 Jan 2025 08:45:01 GMT', 
@@ -59,17 +59,21 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
 		'x-content-type-options': 'nosniff', 'referrer-policy': 'same-origin', 'content-encoding': 'gzip', 'via': '1.1 google', 
 		'Strict-Transport-Security': 'max-age=31536000; includeSubDomains', 'Alt-Svc': 'h3=":443"; ma=2592000,h3-29=":443"; ma=2592000', 'Transfer-Encoding': 'chunked'
 	}
-	The paint-metadata.json is in the following format:
+	<output_name>.json is in the following format:
 	[
 		{
 			"dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
         	"file_id": "0.pcd",
+			"label_type": "3d_point",
+			"label_id": "none",		# Keep it for consistency with downstream tasks
+			"label_category_id": "none",	# Keep it for consistency with downstream tasks
 			"total_lidar_points": 173430,
             "sensor_id": "lidar",
             "stage_id": "QA",
 			"paint_categories": ["car", "wall", ...],
 			"lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin"
-		}
+		}, 
+		...
 	]
 	"""
 	dataset_path = Path(dataset_dir) / "lidar_seg"
@@ -99,6 +103,8 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
 			annos_info = {
 				'dataset_id': dataset_id,
 				'file_id': f"{file_id}.pcd",
+				"label_id": "none",		# Keep it for consistency with downstream tasks
+				"label_category_id": "none",	# Keep it for consistency with downstream tasks
 				'total_lidar_points': frame_size,
 				'sensor_id': "lidar",
 				'stage_id': "QA",
