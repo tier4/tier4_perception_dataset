@@ -16,6 +16,7 @@ __all__ = ["DeepenAnnotation", "DeepenAnnotationLike"]
 class LabelType(str, Enum):
     BBOX_3D = "3d_bbox"
     BBOX_2D = "box"
+    POINT_3D = "3d_point"
     SEGMENTATION_2D = "2d_segmentation"
 
 
