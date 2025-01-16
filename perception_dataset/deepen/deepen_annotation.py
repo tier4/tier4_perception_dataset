@@ -17,11 +17,13 @@ class LabelType(str, Enum):
     BBOX_3D = "3d_bbox"
     BBOX_2D = "box"
     SEGMENTATION_2D = "2d_segmentation"
+    POINT_3D = "3d_point"
 
 
 class LabelFormat(str, Enum):
     POLYGON = "polygon"
     PAINTING = "painting"
+    PAINT_3D = "paint_3d"
 
 
 @dataclass

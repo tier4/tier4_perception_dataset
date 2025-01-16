@@ -14,6 +14,7 @@ from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
 from perception_dataset.t4_dataset.classes.category import CategoryTable
 from perception_dataset.t4_dataset.classes.instance import InstanceRecord, InstanceTable
+from perception_dataset.t4_dataset.classes.lidarseg import LidarSegTable
 from perception_dataset.t4_dataset.classes.object_ann import ObjectAnnTable
 from perception_dataset.t4_dataset.classes.sample_annotation import (
     SampleAnnotationRecord,
@@ -67,6 +68,10 @@ class AnnotationFilesGenerator:
             self._camera2idx = None
         self._with_lidar = description.get("with_lidar", True)
         self._surface_categories: List[str] = surface_categories
+        self._with_lidarseg = description.get("with_lidarseg", False)
+
+        if self._with_lidarseg:
+            assert self._with_lidar, "with_lidar must be set if with_lidarseg is set!"
 
     def save_tables(self, anno_dir: str):
         for cls_attr in self.__dict__.values():
@@ -86,10 +91,6 @@ class AnnotationFilesGenerator:
             raise ValueError(f"Annotations files doesn't exist in {anno_dir}")
 
         nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
-        frame_index_to_sample_token: Dict[int, str] = {}
-        for sample_data in nusc.sample_data:
-            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
-            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
         try:
             if "LIDAR_TOP" in nusc.sample[0]["data"]:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_TOP.value["channel"]
@@ -99,6 +100,51 @@ class AnnotationFilesGenerator:
             print(e)
 
         nuim = NuImages(version="annotation", dataroot=input_dir, verbose=False)
+        # TODO (KokSeang): Support lidarseg and other annotations at the same time
+        if self._with_lidarseg:
+            self._convert_lidarseg_scene_annotations(
+                scene_anno_dict=scene_anno_dict,
+                dataset_name=dataset_name,
+                nusc=nusc,
+                anno_dir=anno_dir,
+                lidar_sensor_channel=lidar_sensor_channel,
+            )
+        else:
+            self._convert_scene_annotations(
+                scene_anno_dict=scene_anno_dict, dataset_name=dataset_name, nuim=nuim, nusc=nusc
+            )
+
+        self._attribute_table.save_json(anno_dir)
+        self._category_table.save_json(anno_dir)
+        self._instance_table.save_json(anno_dir)
+        self._sample_annotation_table.save_json(anno_dir)
+        self._visibility_table.save_json(anno_dir)
+        self._object_ann_table.save_json(anno_dir)
+        self._surface_ann_table.save_json(anno_dir)
+        if self._with_lidar:
+            # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
+            calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
+            self._sample_annotation_table.save_json(anno_dir)
+
+    def _convert_scene_annotations(
+        self,
+        scene_anno_dict: Dict[int, List[Dict[str, Any]]],
+        dataset_name: str,
+        nusc: NuScenes,
+        nuim: NuImages,
+    ) -> None:
+        """
+        Convert scene annotations to T4 dataset format.
+        :param scene_anno_dict: Scene annotations.
+        :param dataset_name: Dataset name.
+        :param nusc: NuScenes object.
+        :param nuim: Nuimages object.
+        """
+        frame_index_to_sample_token: Dict[int, str] = {}
+        for sample_data in nusc.sample_data:
+            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
+            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
+
         # FIXME: Avoid hard coding the number of cameras
         num_cameras = 6 if self._camera2idx is None else len(self._camera2idx)
         frame_index_to_sample_data_token: List[Dict[int, str]] = [{} for _ in range(num_cameras)]
@@ -116,7 +162,7 @@ class AnnotationFilesGenerator:
             object_mask: NDArray = np.zeros((0, 0), dtype=np.uint8)
             prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
-            for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
+            for _, sample_nuim in enumerate(nuim.sample_data):
                 if sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg":
                     cam = sample_nuim["filename"].split("/")[1]
                     cam_idx = self._camera2idx[cam]
@@ -143,18 +189,6 @@ class AnnotationFilesGenerator:
             frame_index_to_sample_data_token=frame_index_to_sample_data_token,
             mask=mask,
         )
-
-        self._attribute_table.save_json(anno_dir)
-        self._category_table.save_json(anno_dir)
-        self._instance_table.save_json(anno_dir)
-        self._sample_annotation_table.save_json(anno_dir)
-        self._visibility_table.save_json(anno_dir)
-        self._object_ann_table.save_json(anno_dir)
-        self._surface_ann_table.save_json(anno_dir)
-        if self._with_lidar:
-            # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
-            calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
-            self._sample_annotation_table.save_json(anno_dir)
 
     def convert_annotations(
         self,
@@ -191,49 +225,49 @@ class AnnotationFilesGenerator:
         scene_anno_dict:
         {
             0: [
-                {
-                    "category_name" (str): category name of object,
-                    "instance_id" (str): instance id of object,
-                    "attribute_names" (List[str]): list of object attributes,
-                    "three_d_bbox": {
-                        "translation": {
-                            "x" (float): x of object location,
-                            "y" (float): y of object location,
-                            "z" (float): z of object location,
+                    {
+                        "category_name" (str): category name of object,
+                        "instance_id" (str): instance id of object,
+                        "attribute_names" (List[str]): list of object attributes,
+                        "three_d_bbox": {
+                            "translation": {
+                                "x" (float): x of object location,
+                                "y" (float): y of object location,
+                                "z" (float): z of object location,
+                            },
+                            "velocity" (Optional[Dict[str, float]]): {
+                                "x" (float): x of object velocity,
+                                "y" (float): y of object velocity,
+                                "z" (float): z of object velocity,
+                            },
+                            "acceleration" (Optional[Dict[str, float]]): {
+                                "x" (float): x of object acceleration,
+                                "y" (float): y of object acceleration,
+                                "z" (float): z of object acceleration,
+                            },
+                                "size": {
+                                "width" (float): width of object size,
+                                "length" (float): length of object size,
+                                "height" (float): height of object size,
+                            },
+                            "rotation": {
+                                "w" (float): w of object quaternion,
+                                "x" (float): x of object quaternion,
+                                "y" (float): y of object quaternion.
+                                "z" (float): z of object quaternion,
+                            },
                         },
-                        "velocity" (Optional[Dict[str, float]]): {
-                            "x" (float): x of object velocity,
-                            "y" (float): y of object velocity,
-                            "z" (float): z of object velocity,
-                        },
-                        "acceleration" (Optional[Dict[str, float]]): {
-                            "x" (float): x of object acceleration,
-                            "y" (float): y of object acceleration,
-                            "z" (float): z of object acceleration,
-                        },
-                        "size": {
-                            "width" (float): width of object size,
-                            "length" (float): length of object size,
-                            "height" (float): height of object size,
-                        },
-                        "rotation": {
-                            "w" (float): w of object quaternion,
-                            "x" (float): x of object quaternion,
-                            "y" (float): y of object quaternion.
-                            "z" (float): z of object quaternion,
-                        },
+                        "two_d_box": [
+                            "x" (float): x of left top corner,
+                            "y" (float): y of left top corner,
+                            "w" (float): width of bbox,
+                            "h" (float): height of bbox,
+                        ]
+                        "sensor_id": id of the camera
+                        "num_lidar_pts" (int): the number of lidar points in object,
+                        "num_radar_pts" (int): the number of radar points in object,
                     },
-                    "two_d_box": [
-                        "x" (float): x of left top corner,
-                        "y" (float): y of left top corner,
-                        "w" (float): width of bbox,
-                        "h" (float): height of bbox,
-                    ]
-                    "sensor_id": id of the camera
-                    "num_lidar_pts" (int): the number of lidar points in object,
-                    "num_radar_pts" (int): the number of radar points in object,
-                },
-                ...
+                        ...
                 ],
             1: []. ...
         }
@@ -381,3 +415,54 @@ class AnnotationFilesGenerator:
                 )
                 cur_rec.prev_token = prev_token
                 self._sample_annotation_table.set_record_to_table(cur_rec)
+
+    def _convert_lidarseg_scene_annotations(
+        self,
+        scene_anno_dict: Dict[int, List[Dict[str, Any]]],
+        lidar_sensor_channel: str,
+        nusc: NuScenes,
+        anno_dir: str,
+    ) -> None:
+        """
+        Convert annotations for scenes in lidarseg to t4 dataset format.
+        Specifically, it creates lidarseg.json and update category.json.
+        :param scene_anno_dict: Dict of annotations for every scenes.
+        :param lidar_sensor_channel: Lidar sensor channel name.
+        :param nusc: Nuscene object for this dataset.
+        :param anno_dir: Annotation directory.
+        """
+        lidarseg_table = LidarSegTable()
+
+        frame_index_to_sample_data_token: Dict[int, str] = {}
+        frame_index_to_sample_token: Dict[int, str] = {}
+        for sample_data in nusc.sample_data:
+            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
+            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
+            if lidar_sensor_channel in sample_data["filename"]:
+                frame_index_to_sample_data_token[frame_index] = sample_data["token"]
+
+        for frame_index in sorted(scene_anno_dict.keys()):
+            anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
+            # in case of the first frame in annotation is not 0
+            min_frame_index: int = min(scene_anno_dict.keys())
+
+            # for the case that the frame_index is not in the sample_token
+            if frame_index - min_frame_index not in frame_index_to_sample_token:
+                print(f"frame_index {frame_index} in annotation.json is not in sample_token")
+                continue
+
+            sample_data_token = frame_index_to_sample_data_token.get(frame_index, None)
+            if sample_data_token is None:
+                raise ValueError(f"sample_data doesn't have {lidar_sensor_channel}!")
+
+            for anno in anno_list:
+                # Lidarseg
+                lidarseg_table.insert_into_table(
+                    filename=anno["lidarseg_anno_file"], sample_data_token=sample_data_token
+                )
+
+                # Category
+                for category in anno["paint_categories"]:
+                    self._category_table.get_token_from_name(name=category)
+
+        lidarseg_table.save_json(anno_dir)

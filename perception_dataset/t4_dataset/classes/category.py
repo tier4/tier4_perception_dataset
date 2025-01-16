@@ -8,16 +8,18 @@ from perception_dataset.t4_dataset.classes.abstract_class import AbstractRecord,
 
 
 class CategoryRecord(AbstractRecord):
-    def __init__(self, name: str, description: str):
+    def __init__(self, name: str, description: str, index: int):
         super().__init__()
         self.name: str = name
         self.description: str = description
+        self.index: int = index
 
     def to_dict(self) -> Dict[str, str]:
         d = {
             "token": self.token,
             "name": self.name,
             "description": self.description,
+            "index": self.index,
         }
         return d
 
@@ -32,12 +34,12 @@ class CategoryTable(AbstractTable[CategoryRecord]):
         self._name_to_token: Dict[str, str] = {}
         self._name_to_description: Dict[str, str] = name_to_description
         self._description_default_value: str = default_value
+        self._index = 1  # Index starts from 1 where 0 reserved for unpainted labels
 
     def _to_record(self, name: str, description: str):
-        record = CategoryRecord(
-            name=name,
-            description=description,
-        )
+        record = CategoryRecord(name=name, description=description, index=self._index)
+        # Index increment by one
+        self._index += 1
         return record
 
     def get_token_from_name(self, name: str) -> str:
@@ -50,6 +52,12 @@ class CategoryTable(AbstractTable[CategoryRecord]):
 
         return token
 
+    def get_index_from_token(self, token: str) -> int:
+        """Retrieve index from a token."""
+        record = self.select_record_from_token(token=token)
+        assert "index" in record, "Index doesn't find in the category record!"
+        return record["index"]
+
     @classmethod
     def from_json(
         cls,
@@ -61,9 +69,15 @@ class CategoryTable(AbstractTable[CategoryRecord]):
             items = json.load(f)
 
         table = cls(name_to_description=name_to_description, default_value=default_value)
+        index_counter = 1  # Index starts from 1 where 0 reserved for unpainted labels
         for item in items:
-            record = CategoryRecord(name=item["name"], description=item["description"])
+            index = item.get(item["index"], index_counter)
+            record = CategoryRecord(
+                name=item["name"], description=item["description"], index=index
+            )
+
             record.token = item["token"]
             table.set_record_to_table(record)
+            index_counter += 1
 
         return table

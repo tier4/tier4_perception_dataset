@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import json
+from typing import Any, Dict, List
+
+from perception_dataset.deepen.deepen_annotation import DeepenAnnotation, LabelType
+
+__all__ = [
+    "DeepenSegmentationPainting3DAnnotations",
+    "DeepenSegmentationPainting3DScene",
+    "DeepenSegmentationPainting3DDataset",
+]
+
+
+@dataclass(frozen=True)
+class DeepenSegmentationPainting3DScene(DeepenAnnotation):
+    """
+    A class to save a 3D segmentation annotation for a scene annotated by painting.
+    :param paint_categories: List of categories in lidarseg.
+    :param lidarseg_anno_file: Binary annotation file for the lidarseg.
+    :param total_lidar_points: Total number of lidar pointclouds.
+    """
+
+    paint_categories: List[str]
+    lidarseg_anno_file: str
+    total_lidar_points: int
+
+    def __post_init__(self) -> None:
+        """
+        Validates the annotation data after initialization.
+        Overwrite the superclass to avoid checking three_d_bbox, two_d_box and two_d_mask.
+        """
+        assert len(self.paint_categories) > 0, "Length of categories must be more than 0!"
+        assert self.total_lidar_points > 0, "Lidar pointclouds must be more than 0!"
+
+
+@dataclass
+class DeepenSegmentationPainting3DDataset:
+    """Lidar segmentation records for a dataset with a dict of scenes/frames."""
+
+    dataset_id: str
+    deepen_segmentation_scenes: Dict[
+        int, DeepenSegmentationPainting3DScene
+    ]  # {scene_id: DeepenSegmentationPainting3DScene}
+
+    def add_record_to_dataset(
+        self, segmentation_painting_3d_scene: DeepenSegmentationPainting3DScene
+    ) -> None:
+        """Add a DeepenSegmentationPainting3DScene to the dataset records."""
+        scene_id = segmentation_painting_3d_scene.file_id
+        self.deepen_segmentation_scenes[scene_id] = segmentation_painting_3d_scene
+
+    def format_scene_annotations(self) -> Dict[int, List[Dict[str, Any]]]:
+        """
+        Format scene annotations to
+        {
+            id:
+            [
+                {
+                    "paint_categories": ["car", "wall", ...],
+                    "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
+                    ...
+                }
+            ]
+        }
+        """
+        return {
+            scene_id: [scene_annotations.to_dict()]
+            for scene_id, scene_annotations in self.deepen_segmentation_scenes.items()
+        }
+
+
+@dataclass(frozen=True)
+class DeepenSegmentationPainting3DAnnotations:
+    """Lidar segmentation records for all datasets."""
+
+    deepen_segmentation_datasets: Dict[
+        str, DeepenSegmentationPainting3DDataset
+    ]  # {dataset_id: DeepenSegmentationPainting3DDataset}
+
+    @classmethod
+    def from_file(
+        cls,
+        ann_file: str,
+    ) -> DeepenSegmentationPainting3DAnnotations:
+        """Return DeepenSegmentationPainting3DDataset from files.
+
+        Args:
+            ann_file (str): Annotation files path in json. The format is:
+            [
+                {
+                    "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
+                    "file_id": "0.pcd",
+                    "label_type": "3d_point",
+                    "label_id": "none",		# Keep it for consistency with downstream tasks
+                    "label_category_id": "none",	# Keep it for consistency with downstream tasks
+                    "total_lidar_points": 173430,
+                    "sensor_id": "lidar",
+                    "stage_id": "QA",
+                    "paint_categories": ["car", "wall", ...],
+                    "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin"
+                },
+                ...
+            ]
+            data_root (str): Root directory of the T4 dataset.
+            camera2index (Dict[str, int]): Name mapping from camera name to camera index.
+            dataset_corresponding (Dict[str, str]): Key-value mapping of T4 dataset name and Deepen ID.
+            as_dict (bool, optional): Whether to output objects as dict or its instance.
+                Defaults to True.
+
+        Returns:
+            List[DeepenSegmentationPainting2D]: List of converted `DeepenSegmentationPainting2D`s.
+        """
+        with open(ann_file, "r") as f:
+            lidarseg_ann_info = json.load(f)
+
+        lidarseg_paint_3d_datasets: Dict[str, DeepenSegmentationPainting3DDataset] = {}
+
+        for lidarseg_ann in lidarseg_ann_info:
+            dataset_id = lidarseg_ann["dataset_id"]
+            if dataset_id not in lidarseg_paint_3d_datasets:
+                lidarseg_paint_3d_datasets[dataset_id] = DeepenSegmentationPainting3DDataset(
+                    dataset_id=dataset_id, deepen_segmentation_scenes={}
+                )
+
+            lidarseg_paint_3d = DeepenSegmentationPainting3DScene(
+                dataset_id=lidarseg_ann["dataset_id"],
+                file_id=lidarseg_ann["file_id"],
+                label_type=LabelType.POINT_3D.value,
+                label_id=lidarseg_ann["label_id"],
+                label_category_id=lidarseg_ann["label_category_id"],
+                total_lidar_points=lidarseg_ann["total_lidar_points"],
+                sensor_id=lidarseg_ann["sensor_id"],
+                lidarseg_anno_file=lidarseg_ann["lidarseg_anno_file"],
+                paint_categories=lidarseg_ann["paint_categories"],
+            )
+
+            lidarseg_paint_3d_dataset = lidarseg_paint_3d_datasets[dataset_id]
+            lidarseg_paint_3d_dataset.add_record_to_dataset(
+                segmentation_painting_3d_scene=lidarseg_paint_3d
+            )
+
+        return cls(deepen_segmentation_datasets=lidarseg_paint_3d_datasets)
+
+    def format_deepen_annotations(self) -> Dict[str, Dict[int, List[Dict[str, Any]]]]:
+        """
+        Convert to {
+            dataset_id: {
+                scene_id/frame_index: [
+                    {
+                        "paint_categories": ["car", "wall", ...],
+                        "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
+                        ...
+                    }
+                ]
+            }
+        }
+        """
+        return {
+            dataset_id: paint_3d_annotations.format_scene_annotations()
+            for dataset_id, paint_3d_annotations in self.deepen_segmentation_datasets.items()
+        }
