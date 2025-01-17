@@ -13,7 +13,7 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True)
+@dataclass
 class DeepenSegmentationPainting3DScene(DeepenAnnotation):
     """
     A class to save a 3D segmentation annotation for a scene annotated by painting.
