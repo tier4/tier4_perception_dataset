@@ -487,5 +487,5 @@ class AnnotationFilesGenerator:
 
         lidarseg_table.save_json(anno_dir)
 
-        # Remove the older lidarseg
+        # Remove the older lidarseg folder
         shutil.rmtree(T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value, ignore_errors=True)
