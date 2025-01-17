@@ -1,6 +1,8 @@
 import base64
 from collections import defaultdict
 import os.path as osp
+from pathlib import Path
+import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
 from nptyping import NDArray
@@ -9,7 +11,7 @@ import numpy as np
 from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
 
-from perception_dataset.constants import SENSOR_ENUM
+from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
 from perception_dataset.t4_dataset.classes.category import CategoryTable
@@ -218,58 +220,58 @@ class AnnotationFilesGenerator:
         """Convert the annotations to the NuScenes format.
 
         Args:
-            scene_anno_dict (Dict[int, List[Dict[str, Any]]]): [description]
-            frame_index_to_sample_token (Dict[int, str]): [description]
-            frame_index_to_sample_data_token (Dict[int, str]):
+                scene_anno_dict (Dict[int, List[Dict[str, Any]]]): [description]
+                frame_index_to_sample_token (Dict[int, str]): [description]
+                frame_index_to_sample_data_token (Dict[int, str]):
 
         scene_anno_dict:
         {
-            0: [
-                    {
-                        "category_name" (str): category name of object,
-                        "instance_id" (str): instance id of object,
-                        "attribute_names" (List[str]): list of object attributes,
-                        "three_d_bbox": {
-                            "translation": {
-                                "x" (float): x of object location,
-                                "y" (float): y of object location,
-                                "z" (float): z of object location,
-                            },
-                            "velocity" (Optional[Dict[str, float]]): {
-                                "x" (float): x of object velocity,
-                                "y" (float): y of object velocity,
-                                "z" (float): z of object velocity,
-                            },
-                            "acceleration" (Optional[Dict[str, float]]): {
-                                "x" (float): x of object acceleration,
-                                "y" (float): y of object acceleration,
-                                "z" (float): z of object acceleration,
-                            },
-                                "size": {
-                                "width" (float): width of object size,
-                                "length" (float): length of object size,
-                                "height" (float): height of object size,
-                            },
-                            "rotation": {
-                                "w" (float): w of object quaternion,
-                                "x" (float): x of object quaternion,
-                                "y" (float): y of object quaternion.
-                                "z" (float): z of object quaternion,
-                            },
-                        },
-                        "two_d_box": [
-                            "x" (float): x of left top corner,
-                            "y" (float): y of left top corner,
-                            "w" (float): width of bbox,
-                            "h" (float): height of bbox,
-                        ]
-                        "sensor_id": id of the camera
-                        "num_lidar_pts" (int): the number of lidar points in object,
-                        "num_radar_pts" (int): the number of radar points in object,
-                    },
-                        ...
-                ],
-            1: []. ...
+                0: [
+                                {
+                                        "category_name" (str): category name of object,
+                                        "instance_id" (str): instance id of object,
+                                        "attribute_names" (List[str]): list of object attributes,
+                                        "three_d_bbox": {
+                                                "translation": {
+                                                        "x" (float): x of object location,
+                                                        "y" (float): y of object location,
+                                                        "z" (float): z of object location,
+                                                },
+                                                "velocity" (Optional[Dict[str, float]]): {
+                                                        "x" (float): x of object velocity,
+                                                        "y" (float): y of object velocity,
+                                                        "z" (float): z of object velocity,
+                                                },
+                                                "acceleration" (Optional[Dict[str, float]]): {
+                                                        "x" (float): x of object acceleration,
+                                                        "y" (float): y of object acceleration,
+                                                        "z" (float): z of object acceleration,
+                                                },
+                                                        "size": {
+                                                        "width" (float): width of object size,
+                                                        "length" (float): length of object size,
+                                                        "height" (float): height of object size,
+                                                },
+                                                "rotation": {
+                                                        "w" (float): w of object quaternion,
+                                                        "x" (float): x of object quaternion,
+                                                        "y" (float): y of object quaternion.
+                                                        "z" (float): z of object quaternion,
+                                                },
+                                        },
+                                        "two_d_box": [
+                                                "x" (float): x of left top corner,
+                                                "y" (float): y of left top corner,
+                                                "w" (float): width of bbox,
+                                                "h" (float): height of bbox,
+                                        ]
+                                        "sensor_id": id of the camera
+                                        "num_lidar_pts" (int): the number of lidar points in object,
+                                        "num_radar_pts" (int): the number of radar points in object,
+                                },
+                                        ...
+                        ],
+                1: []. ...
         }
 
         """
@@ -441,6 +443,10 @@ class AnnotationFilesGenerator:
             if lidar_sensor_channel in sample_data["filename"]:
                 frame_index_to_sample_data_token[frame_index] = sample_data["token"]
 
+        # Create lidarseg folder in
+        lidarseg_anno_path = Path(anno_dir) / T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value
+        lidarseg_anno_path.mkdir(parents=True, exist_ok=True)
+
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
             # in case of the first frame in annotation is not 0
@@ -455,10 +461,24 @@ class AnnotationFilesGenerator:
             if sample_data_token is None:
                 raise ValueError(f"sample_data doesn't have {lidar_sensor_channel}!")
 
+            # All tmp lidarseg folders before moving
             for anno in anno_list:
-                # Lidarseg
-                lidarseg_table.insert_into_table(
+                # Get a LidarSeg token
+                lidarseg_token = lidarseg_table.insert_into_table(
                     filename=anno["lidarseg_anno_file"], sample_data_token=sample_data_token
+                )
+
+                # Move lidarseg_anno_file to lidarseg_anno_path with token name
+                new_lidarseg_anno_filename = str(
+                    lidarseg_anno_path / (lidarseg_token + EXTENSION_ENUM.BIN.value)
+                )
+                shutil.move(anno["lidarseg_anno_file"], new_lidarseg_anno_filename)
+
+                # Update the lidarseg record with the new filename
+                lidarseg_record = lidarseg_table.select_record_from_token(token=lidarseg_token)
+                lidarseg_record.filename = new_lidarseg_anno_filename
+                lidarseg_table.set_record_to_table(
+                    record=lidarseg_record,
                 )
 
                 # Category
@@ -466,3 +486,6 @@ class AnnotationFilesGenerator:
                     self._category_table.get_token_from_name(name=category)
 
         lidarseg_table.save_json(anno_dir)
+
+        # Remove the older lidarseg
+        shutil.rmtree(T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value, ignore_errors=True)

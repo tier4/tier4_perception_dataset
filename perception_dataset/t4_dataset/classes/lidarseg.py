@@ -12,14 +12,14 @@ class LidarSegRecord(AbstractRecord):
 
     def __init__(self, sample_data_token: str, filename: str):
         super().__init__()
-        self._sample_data_token = sample_data_token
-        self._filename: str = filename
+        self.sample_data_token = sample_data_token
+        self.filename: str = filename
 
     def to_dict(self) -> Dict[str, str]:
         d = {
             "token": self.token,
-            "sample_data_token": self._sample_data_token,
-            "filename": self._filename,
+            "sample_data_token": self.sample_data_token,
+            "filename": self.filename,
         }
         return d
 

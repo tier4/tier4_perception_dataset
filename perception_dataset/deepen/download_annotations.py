@@ -10,6 +10,8 @@ import numpy as np
 import requests
 import yaml
 
+from perception_dataset.constants import EXTENSION_ENUM, T4_FORMAT_DIRECTORY_NAME
+
 CLIENT_ID = os.environ["DEEPEN_CLIENT_ID"]
 ACCESS_TOKEN = os.environ["DEEPEN_ACCESS_TOKEN"]
 DATASET_ID = "r82dS6VVkok98ZWr1CTkU4NE"
@@ -17,7 +19,6 @@ _HEADERS = {
     "Authorization": f"Bearer {ACCESS_TOKEN}",
     "Content-Type": "application/json",
 }
-
 today = str(date.today()).replace("-", "")
 
 
@@ -84,7 +85,7 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
             ...
         ]
     """
-    dataset_path = Path(dataset_dir) / "lidar_seg"
+    dataset_path = Path(dataset_dir) / T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value()
     dataset_path.mkdir(parents=True, exist_ok=True)
     lidarseg_annos_info = []
     for dataset_id in dataset_ids:
@@ -101,7 +102,9 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
         # Split based on pointcloud size
         previous_frame_size = 0
         for file_id, frame_size in enumerate(paint_metadata["frame_sizes"]):
-            lidarseg_anno_filename = dataset_path / f"{dataset_id}_{str(file_id)}.bin"
+            lidarseg_anno_filename = (
+                dataset_path / f"{dataset_id}_{str(file_id)}{EXTENSION_ENUM.BIN.value}"
+            )
 
             annos_info = {
                 "dataset_id": dataset_id,

@@ -6,6 +6,7 @@ from typing import Dict, List
 class T4_FORMAT_DIRECTORY_NAME(Enum):
     ANNOTATION = "annotation"
     DATA = "data"
+    LIDARSEG_ANNO_FOLDER = "lidar_seg"
 
 
 class SENSOR_MODALITY_ENUM(Enum):
