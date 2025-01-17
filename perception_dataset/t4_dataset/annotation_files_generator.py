@@ -220,7 +220,7 @@ class AnnotationFilesGenerator:
         """Convert the annotations to the NuScenes format.
 
         Args:
-                scene_anno_dict (Dict[int, List[Dict[str, Any]]]): [description]
+            scene_anno_dict (Dict[int, List[Dict[str, Any]]]): [description]
             frame_index_to_sample_token (Dict[int, str]): [description]
             frame_index_to_sample_data_token (Dict[int, str]):
 
@@ -233,44 +233,44 @@ class AnnotationFilesGenerator:
                             "attribute_names" (List[str]): list of object attributes,
                             "three_d_bbox": {
                                 "translation": {
-                                                        "x" (float): x of object location,
-                                                        "y" (float): y of object location,
-                                                        "z" (float): z of object location,
-                                                },
-                                                "velocity" (Optional[Dict[str, float]]): {
-                                                        "x" (float): x of object velocity,
-                                                        "y" (float): y of object velocity,
-                                                        "z" (float): z of object velocity,
-                                                },
-                                                "acceleration" (Optional[Dict[str, float]]): {
-                                                        "x" (float): x of object acceleration,
-                                                        "y" (float): y of object acceleration,
-                                                        "z" (float): z of object acceleration,
-                                                },
-                                                        "size": {
-                                                        "width" (float): width of object size,
-                                                        "length" (float): length of object size,
-                                                        "height" (float): height of object size,
-                                                },
-                                                "rotation": {
-                                                        "w" (float): w of object quaternion,
-                                                        "x" (float): x of object quaternion,
-                                                        "y" (float): y of object quaternion.
-                                                        "z" (float): z of object quaternion,
-                                                },
-                                        },
-                                        "two_d_box": [
-                                                "x" (float): x of left top corner,
-                                                "y" (float): y of left top corner,
-                                                "w" (float): width of bbox,
-                                                "h" (float): height of bbox,
-                                        ]
-                                        "sensor_id": id of the camera
-                                        "num_lidar_pts" (int): the number of lidar points in object,
-                                        "num_radar_pts" (int): the number of radar points in object,
+                                    "x" (float): x of object location,
+                                    "y" (float): y of object location,
+                                    "z" (float): z of object location,
                                 },
-                                        ...
-                        ],
+                                "velocity" (Optional[Dict[str, float]]): {
+                                    "x" (float): x of object velocity,
+                                    "y" (float): y of object velocity,
+                                    "z" (float): z of object velocity,
+                                },
+                                "acceleration" (Optional[Dict[str, float]]): {
+                                    "x" (float): x of object acceleration,
+                                    "y" (float): y of object acceleration,
+                                    "z" (float): z of object acceleration,
+                                },
+                                "size": {
+                                    "width" (float): width of object size,
+                                    "length" (float): length of object size,
+                                    "height" (float): height of object size,
+                                },
+                                "rotation": {
+                                    "w" (float): w of object quaternion,
+                                    "x" (float): x of object quaternion,
+                                    "y" (float): y of object quaternion.
+                                    "z" (float): z of object quaternion,
+                                },
+                            },
+                            "two_d_box": [
+                                    "x" (float): x of left top corner,
+                                    "y" (float): y of left top corner,
+                                    "w" (float): width of bbox,
+                                    "h" (float): height of bbox,
+                            ]
+                            "sensor_id": id of the camera
+                            "num_lidar_pts" (int): the number of lidar points in object,
+                            "num_radar_pts" (int): the number of radar points in object,
+                        },
+                        ...
+                    ],
                 1: []. ...
         }
 
