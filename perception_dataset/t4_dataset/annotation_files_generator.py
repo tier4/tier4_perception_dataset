@@ -241,7 +241,7 @@ class AnnotationFilesGenerator:
                                 "x" (float): x of object velocity,
                                 "y" (float): y of object velocity,
                                 "z" (float): z of object velocity,
-                                },
+                            },
                             "acceleration" (Optional[Dict[str, float]]): {
                                 "x" (float): x of object acceleration,
                                 "y" (float): y of object acceleration,
