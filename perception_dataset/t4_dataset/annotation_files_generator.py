@@ -221,18 +221,18 @@ class AnnotationFilesGenerator:
 
         Args:
                 scene_anno_dict (Dict[int, List[Dict[str, Any]]]): [description]
-                frame_index_to_sample_token (Dict[int, str]): [description]
-                frame_index_to_sample_data_token (Dict[int, str]):
+            frame_index_to_sample_token (Dict[int, str]): [description]
+            frame_index_to_sample_data_token (Dict[int, str]):
 
         scene_anno_dict:
         {
                 0: [
-                                {
-                                        "category_name" (str): category name of object,
-                                        "instance_id" (str): instance id of object,
-                                        "attribute_names" (List[str]): list of object attributes,
-                                        "three_d_bbox": {
-                                                "translation": {
+                        {
+                            "category_name" (str): category name of object,
+                            "instance_id" (str): instance id of object,
+                            "attribute_names" (List[str]): list of object attributes,
+                            "three_d_bbox": {
+                                "translation": {
                                                         "x" (float): x of object location,
                                                         "y" (float): y of object location,
                                                         "z" (float): z of object location,
