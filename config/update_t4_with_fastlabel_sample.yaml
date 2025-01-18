@@ -1,0 +1,23 @@
+task: update_t4_with_fastlabel
+description:
+  visibility:
+    full: "No occlusion of the object."
+    most: "Object is occluded, but by less than 50%."
+    partial: "The object is occluded by more than 50% (but not completely)."
+    none: "The object is 90-100% occluded and no points/pixels are visible in the label."
+  camera_index:
+    CAM_FRONT_NARROW: 0
+    CAM_FRONT_WIDE: 1
+    CAM_FRONT_RIGHT: 2
+    CAM_BACK_RIGHT: 3
+    CAM_BACK_NARROW: 4
+    CAM_BACK_WIDE: 5
+    CAM_BACK_LEFT: 6
+    CAM_FRONT_LEFT: 7
+  surface_categories: ./config/label/surface.yaml
+
+conversion:
+  make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
+  input_base: ./data/input_t4_format # could be non_annotated_t4_format or t4_format_3d_annotated
+  input_anno_base: ./data/fastlabel
+  output_base: ./data/output_t4_format # currently, this only includes the 2D annotations

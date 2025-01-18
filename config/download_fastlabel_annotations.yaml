@@ -1,0 +1,16 @@
+task: donwload_fastlabel
+conversion:
+  output: label_data
+  access_token:
+  target_project_slug_keyword:
+    - 202405-lidar-3d-bbox
+    - 202405-panoptic-segmentation
+    - 202405-license-plate-person-head-bbox
+    - 202405-traffic-light-recognition
+    - 3d-lidar-bbox
+    - 3d-lidar-bbox
+    - 3d-lidar-bbox
+    - 3d-lidar-bbox
+    - panoptic-segmentation
+    - traffic-light-recognition
+    - license-plate-person-head

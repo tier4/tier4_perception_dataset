@@ -4,6 +4,7 @@ bus: [bus, BUS, vehicle.bus, vehicle.bus (bendy & rigid)]
 car:
   [
     car,
+    cars,
     CAR,
     vehicle.car,
     vehicle.construction,
@@ -26,6 +27,8 @@ pedestrian:
     pedestrian.adult,
     pedestrian.child,
   ]
+other_pedestrian: [other_pedestrian]
+other_vehicle: [other_vehicle]
 truck: [truck, TRUCK, vehicle.truck]
 trailer: [trailer, TRAILER, vehicle.trailer]
 ambulance: [ambulance, AMBULANCE, vehicle.ambulance]
@@ -53,3 +56,38 @@ stroller: [stroller, STROLLER, pedestrian.stroller]
 police_officer: [police_officer, POLICE_OFFICER, pedestrian.police_officer]
 wheelchair: [wheelchair, WHEELCHAIR, pedestrian.wheelchair]
 forklift: [forklift, FORKLIFT]
+train: [train, TRAIN]
+cone: [cone]
+curb: [curb]
+gate: [gate]
+guide_post: [guide_post]
+construction: [constructions, construction]
+traffic_sign: [traffic_sign]
+road_debris: [road_debris]
+other_obstacle: [other_obstacle]
+obstacle_others: [obstacle_others]
+laneline_solid_white: [laneline_solid_white]
+laneline_dash_white: [laneline_dash_white]
+laneline_solid_yellow: [laneline_solid_yellow]
+laneline_dash_yellow: [laneline_dash_yellow]
+laneline_solid_green: [laneline_solid_green]
+laneline_solid_red: [laneline_solid_red]
+deceleration_line: [deceleration_line]
+dashed_lane_marking: [dashed_lane_markings, dash_lane_markings, dashed_lane_marking, dash_white_merge, dash_white_branch]
+stopline: [stopline]
+crosswalk: [crosswalk]
+marking_character: [marking_character]
+marking_arrow: [marking_arrow]
+striped_road_marking: [striped_road_markings, striped_road_marking]
+parking_lot: [parking_lot]
+marking_other: [marking_other]
+road: [road]
+road_paint_lane_solid_white: [road_paint_lane_solid_white]
+road_paint_lane_dash_white: [road_paint_lane_dash_white]
+sidewalk: [sidewalk]
+building: [building, buildling] # typo
+wall/fence: [wall_fence, wall/fence]
+pole: [pole]
+vegetation/terrain: [vegetation_terrain, vegetation/terrain]
+sky: [sky]
+traffic_light: [traffic_light]
