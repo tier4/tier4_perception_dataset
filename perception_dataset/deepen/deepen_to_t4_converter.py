@@ -114,7 +114,7 @@ class DeepenToT4Converter(AbstractConverter):
 
     def convert(self):
         """Convert all scene annotations to T4 dataset format."""
-        if self._label_info.label_type == LabelType.POINT_3D:
+        if self._label_info is not None and self._label_info.label_type == LabelType.POINT_3D:
             scenes_anno_dict = self._format_point_3d_annotations()
         else:
             scenes_anno_dict = self._format_annotations()
