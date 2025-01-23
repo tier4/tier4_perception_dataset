@@ -97,7 +97,7 @@ class DeepenToT4Converter(AbstractConverter):
         )
         return scenes_anno_dict
 
-    def _format_point_3d_annotations(self) -> Dict[str, Dict[Any]]:
+    def _format_point_3d_annotations(self) -> Dict[str, Dict[str, Any]]:
         """Format annotations for point_3d from input_anno_file."""
         if self._label_info.label_format == LabelFormat.PAINT_3D:
             deepen_annotations = DeepenSegmentationPainting3DAnnotations.from_file(

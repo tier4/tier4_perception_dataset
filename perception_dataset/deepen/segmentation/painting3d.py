@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
+import re
 from typing import Any, Dict, List
 
 from perception_dataset.deepen.deepen_annotation import DeepenAnnotation, LabelType
@@ -22,9 +23,9 @@ class DeepenSegmentationPainting3DScene(DeepenAnnotation):
     :param total_lidar_points: Total number of lidar pointclouds.
     """
 
-    paint_categories: List[str]
-    lidarseg_anno_file: str
-    total_lidar_points: int
+    paint_categories: List[str] = field(default_factory=list)
+    lidarseg_anno_file: str = ""
+    total_lidar_points: int = 0
 
     def __post_init__(self) -> None:
         """
@@ -33,6 +34,7 @@ class DeepenSegmentationPainting3DScene(DeepenAnnotation):
         """
         assert len(self.paint_categories) > 0, "Length of categories must be more than 0!"
         assert self.total_lidar_points > 0, "Lidar pointclouds must be more than 0!"
+        assert self.lidarseg_anno_file != "", "Must provide a lidarseg annotation file!"
 
 
 @dataclass
@@ -48,21 +50,22 @@ class DeepenSegmentationPainting3DDataset:
         self, segmentation_painting_3d_scene: DeepenSegmentationPainting3DScene
     ) -> None:
         """Add a DeepenSegmentationPainting3DScene to the dataset records."""
-        scene_id = segmentation_painting_3d_scene.file_id
+        filename = segmentation_painting_3d_scene.file_id.split(".")[0]
+        scene_id = int(re.sub(r"\D", "", filename[-6:]))
         self.deepen_segmentation_scenes[scene_id] = segmentation_painting_3d_scene
 
     def format_scene_annotations(self) -> Dict[int, List[Dict[str, Any]]]:
         """
         Format scene annotations to
         {
-            id:
-            [
-                {
-                    "paint_categories": ["car", "wall", ...],
-                    "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
-                    ...
-                }
-            ]
+                id:
+                [
+                        {
+                                "paint_categories": ["car", "wall", ...],
+                                "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
+                                ...
+                        }
+                ]
         }
         """
         return {
@@ -87,30 +90,30 @@ class DeepenSegmentationPainting3DAnnotations:
         """Return DeepenSegmentationPainting3DDataset from files.
 
         Args:
-            ann_file (str): Annotation files path in json. The format is:
-            [
-                {
-                    "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
-                    "file_id": "0.pcd",
-                    "label_type": "3d_point",
-                    "label_id": "none",		# Keep it for consistency with downstream tasks
-                    "label_category_id": "none",	# Keep it for consistency with downstream tasks
-                    "total_lidar_points": 173430,
-                    "sensor_id": "lidar",
-                    "stage_id": "QA",
-                    "paint_categories": ["car", "wall", ...],
-                    "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin"
-                },
-                ...
-            ]
-            data_root (str): Root directory of the T4 dataset.
-            camera2index (Dict[str, int]): Name mapping from camera name to camera index.
-            dataset_corresponding (Dict[str, str]): Key-value mapping of T4 dataset name and Deepen ID.
-            as_dict (bool, optional): Whether to output objects as dict or its instance.
-                Defaults to True.
+                ann_file (str): Annotation files path in json. The format is:
+                [
+                        {
+                                "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
+                                "file_id": "0.pcd",
+                                "label_type": "3d_point",
+                                "label_id": "none",		# Keep it for consistency with downstream tasks
+                                "label_category_id": "none",	# Keep it for consistency with downstream tasks
+                                "total_lidar_points": 173430,
+                                "sensor_id": "lidar",
+                                "stage_id": "QA",
+                                "paint_categories": ["car", "wall", ...],
+                                "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin"
+                        },
+                        ...
+                ]
+                data_root (str): Root directory of the T4 dataset.
+                camera2index (Dict[str, int]): Name mapping from camera name to camera index.
+                dataset_corresponding (Dict[str, str]): Key-value mapping of T4 dataset name and Deepen ID.
+                as_dict (bool, optional): Whether to output objects as dict or its instance.
+                        Defaults to True.
 
         Returns:
-            List[DeepenSegmentationPainting2D]: List of converted `DeepenSegmentationPainting2D`s.
+                List[DeepenSegmentationPainting2D]: List of converted `DeepenSegmentationPainting2D`s.
         """
         with open(ann_file, "r") as f:
             lidarseg_ann_info = json.load(f)
@@ -146,15 +149,15 @@ class DeepenSegmentationPainting3DAnnotations:
     def format_deepen_annotations(self) -> Dict[str, Dict[int, List[Dict[str, Any]]]]:
         """
         Convert to {
-            dataset_id: {
-                scene_id/frame_index: [
-                    {
-                        "paint_categories": ["car", "wall", ...],
-                        "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
-                        ...
-                    }
-                ]
-            }
+                dataset_id: {
+                        scene_id/frame_index: [
+                                {
+                                        "paint_categories": ["car", "wall", ...],
+                                        "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
+                                        ...
+                                }
+                        ]
+                }
         }
         """
         return {
