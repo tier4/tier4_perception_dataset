@@ -58,14 +58,14 @@ class DeepenSegmentationPainting3DDataset:
         """
         Format scene annotations to
         {
-                id:
-                [
-                        {
-                                "paint_categories": ["car", "wall", ...],
-                                "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
-                                ...
-                        }
-                ]
+            id:
+            [
+                {
+                    "paint_categories": ["car", "wall", ...],
+                    "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
+                    ...
+                }
+            ]
         }
         """
         return {
@@ -90,27 +90,27 @@ class DeepenSegmentationPainting3DAnnotations:
         """Return DeepenSegmentationPainting3DDataset from files.
 
         Args:
-                ann_file (str): Annotation files path in json. The format is:
-                [
-                        {
-                                "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
-                                "file_id": "0.pcd",
-                                "label_type": "3d_point",
-                                "label_id": "none",		# Keep it for consistency with downstream tasks
-                                "label_category_id": "none",	# Keep it for consistency with downstream tasks
-                                "total_lidar_points": 173430,
-                                "sensor_id": "lidar",
-                                "stage_id": "QA",
-                                "paint_categories": ["car", "wall", ...],
-                                "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin"
-                        },
-                        ...
-                ]
-                data_root (str): Root directory of the T4 dataset.
-                camera2index (Dict[str, int]): Name mapping from camera name to camera index.
-                dataset_corresponding (Dict[str, str]): Key-value mapping of T4 dataset name and Deepen ID.
-                as_dict (bool, optional): Whether to output objects as dict or its instance.
-                        Defaults to True.
+            ann_file (str): Annotation files path in json. The format is:
+            [
+                {
+                    "dataset_id": "dummy_dataset_id",
+                    "file_id": "0.pcd",
+                    "label_type": "3d_point",
+                    "label_id": "none",		# Keep it for consistency with downstream tasks
+                    "label_category_id": "none",	# Keep it for consistency with downstream tasks
+                    "total_lidar_points": 173430,
+                    "sensor_id": "lidar",
+                    "stage_id": "QA",
+                    "paint_categories": ["car", "wall", ...],
+                    "lidarseg_anno_file": "lidarseg/dummy_dataset_id_0..pcd.bin"
+                },
+                ...
+            ]
+            data_root (str): Root directory of the T4 dataset.
+            camera2index (Dict[str, int]): Name mapping from camera name to camera index.
+            dataset_corresponding (Dict[str, str]): Key-value mapping of T4 dataset name and Deepen ID.
+            as_dict (bool, optional): Whether to output objects as dict or its instance.
+                Defaults to True.
 
         Returns:
                 List[DeepenSegmentationPainting2D]: List of converted `DeepenSegmentationPainting2D`s.
@@ -149,15 +149,16 @@ class DeepenSegmentationPainting3DAnnotations:
     def format_deepen_annotations(self) -> Dict[str, Dict[int, List[Dict[str, Any]]]]:
         """
         Convert to {
-                dataset_id: {
-                        scene_id/frame_index: [
-                                {
-                                        "paint_categories": ["car", "wall", ...],
-                                        "lidarseg_anno_file": "lidar_seg/DOnC2vK05ojPr7qiqCsk2Ee7_0.bin",
-                                        ...
-                                }
-                        ]
-                }
+            dataset_id: {
+                scene_id/frame_index:
+                [
+                    {
+                        "paint_categories": ["car", "wall", ...],
+                        "lidarseg_anno_file": "lidar_seg/dummy_dataset_id_0.pcd.bin",
+                        ...
+                    }
+                ]
+            }
         }
         """
         return {
