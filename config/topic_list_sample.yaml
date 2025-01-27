@@ -8,12 +8,6 @@ mandatory_topic_list:
  - /sensing/camera/camera3/image_rect_color/compressed
  - /sensing/camera/camera4/image_rect_color/compressed
  - /sensing/camera/camera5/image_rect_color/compressed
-#  - /sensing/camera/camera0/image_raw/compressed
-#  - /sensing/camera/camera1/image_raw/compressed
-#  - /sensing/camera/camera2/image_raw/compressed
-#  - /sensing/camera/camera3/image_raw/compressed
-#  - /sensing/camera/camera4/image_raw/compressed
-#  - /sensing/camera/camera5/image_raw/compressed
  - /localization/kinematic_state
 topic_list:
  - /sensing/lidar/left/velodyne_packets
@@ -27,12 +21,6 @@ topic_list:
  - /sensing/camera/camera3/image_rect_color/compressed
  - /sensing/camera/camera4/image_rect_color/compressed
  - /sensing/camera/camera5/image_rect_color/compressed
-#  - /sensing/camera/camera0/image_raw/compressed
-#  - /sensing/camera/camera1/image_raw/compressed
-#  - /sensing/camera/camera2/image_raw/compressed
-#  - /sensing/camera/camera3/image_raw/compressed
-#  - /sensing/camera/camera4/image_raw/compressed
-#  - /sensing/camera/camera5/image_raw/compressed
  - /sensing/camera/camera0/camera_info
  - /sensing/camera/camera1/camera_info
  - /sensing/camera/camera2/camera_info
