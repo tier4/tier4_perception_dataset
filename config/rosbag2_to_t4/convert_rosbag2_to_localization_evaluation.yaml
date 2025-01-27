@@ -2,13 +2,12 @@ task: convert_rosbag2_to_localization_evaluation
 description:
   scene: ["localization_evaluation", "dummy_pcd"]
 conversion:
-  # path to rosbag directory recorded in vehicles
-  input_base: ./data/rosbag2
-  output_base: ./data/localization_evaluation_t4_format
-  skip_timestamp: 1.0
-  num_load_frames: 0
-  lidar_sensor: # no lidar
-    topic: ""
-    channel: ""
-  camera_sensors: [] # no images
-  topic_list: ./config/topic_list_localization_evaluation.yaml
+  input_base: ./data/rosbag2  # Input directory containing raw Rosbag2 files
+  output_base: ./data/localization_evaluation_t4_format  # Output directory for T4 format data
+  skip_timestamp: 1.0  # Skip data points at intervals of 1.0 seconds
+  num_load_frames: 0  # Number of frames to load; 0 means load all frames
+  lidar_sensor:  # No lidar data included in this task
+    topic: ""  # No lidar topic specified
+    channel: ""  # No lidar channel specified
+  camera_sensors: []  # No camera data included in this task
+  output_frequency: 10  # Output frequency of the T4 data: default is 10 Hz
