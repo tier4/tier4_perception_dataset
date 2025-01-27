@@ -1,0 +1,14 @@
+task: convert_rosbag2_to_localization_evaluation
+description:
+  scene: ["localization_evaluation", "dummy_pcd"]
+conversion:
+  # path to rosbag dir output by simulator
+  input_base: ./data/rosbag2
+  output_base: ./data/localization_evaluation_t4_format
+  skip_timestamp: 1.0
+  num_load_frames: 0
+  lidar_sensor: # no lidar
+    topic: ""
+    channel: ""
+  camera_sensors: [] # synthetic data has no images
+  topic_list: ./config/topic_list_localization_evaluation.yaml
