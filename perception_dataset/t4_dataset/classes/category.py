@@ -36,10 +36,8 @@ class CategoryTable(AbstractTable[CategoryRecord]):
         self._description_default_value: str = default_value
         self._index = 1  # Index starts from 1 where 0 reserved for unpainted labels
 
-    def _to_record(self, name: str, description: str):
-        record = CategoryRecord(name=name, description=description, index=self._index)
-        # Index increment by one
-        self._index += 1
+    def _to_record(self, name: str, description: str, index: int) -> CategoryRecord:
+        record = CategoryRecord(name=name, description=description, index=index)
         return record
 
     def get_token_from_name(self, name: str) -> str:
@@ -47,7 +45,8 @@ class CategoryTable(AbstractTable[CategoryRecord]):
             token = self._name_to_token[name]
         else:
             description = self._name_to_description.get(name, self._description_default_value)
-            token = self.insert_into_table(name=name, description=description)
+            token = self.insert_into_table(name=name, description=description, index=self._index)
+            self._index += 1
             self._name_to_token[name] = token
 
         return token
@@ -55,8 +54,7 @@ class CategoryTable(AbstractTable[CategoryRecord]):
     def get_index_from_token(self, token: str) -> int:
         """Retrieve index from a token."""
         record = self.select_record_from_token(token=token)
-        assert "index" in record, "Index doesn't find in the category record!"
-        return record["index"]
+        return record.index
 
     @classmethod
     def from_json(
