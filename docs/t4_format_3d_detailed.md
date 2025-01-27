@@ -664,9 +664,9 @@ The instance_token is a unique identifier assigned to each object instance, allo
 ```json
 [
  {
-  "token":      <str> -- Unique record identifier.
-     "sample_data_token":      <str> -- Foreign key pointing to the sample data, which must be a keyframe image.
-  "filename":      <str> -- The name of the .bin files containing the lidarseg labels. These are numpy arrays of uint8 stored in binary format using numpy.
+  "token":                <str> -- Unique record identifier.
+  "sample_data_token":    <str> -- Foreign key pointing to the sample data, which must be a keyframe image.
+  "filename":             <str> -- The name of the .bin files containing the lidarseg labels. These are numpy arrays of uint8 stored in binary format using numpy.
  }
 ]
 ```
