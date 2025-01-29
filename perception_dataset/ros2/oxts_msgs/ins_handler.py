@@ -11,7 +11,7 @@ from nav_msgs.msg import Odometry
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.spatial.transform import Rotation, Slerp
-from sensor_msgs.msg import Imu, NavSatFix
+from sensor_msgs.msg import Imu, NavSatFix, NavSatStatus
 from std_msgs.msg import Header
 
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
@@ -452,6 +452,8 @@ class INSHandler:
         timestamps = []
         geo_coordinates: List[Tuple[float, ...]] = []
         for msg in observed:
+            if msg.status.status == NavSatStatus.STATUS_NO_FIX:
+                continue
             timestamps.append(stamp_to_unix_timestamp(msg.header.stamp))
             geo_coordinates.append((msg.latitude, msg.longitude, msg.altitude))
 
