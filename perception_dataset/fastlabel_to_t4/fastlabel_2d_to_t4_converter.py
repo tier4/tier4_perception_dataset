@@ -314,7 +314,7 @@ def _rle_from_points(points: Points2DLike, width: int, height: int) -> Dict[str,
             combined_mask = combined_mask - hollow_mask
         final_mask = np.maximum(final_mask, combined_mask)
     # encode RLE
-    rle = cocomask.encode(np.asfortranarray(np.squeeze(final_mask)))
+    rle = cocomask.encode(np.asfortranarray(np.squeeze(final_mask).T))
     rle["counts"] = base64.b64encode(rle["counts"]).decode("ascii")
     return rle
 

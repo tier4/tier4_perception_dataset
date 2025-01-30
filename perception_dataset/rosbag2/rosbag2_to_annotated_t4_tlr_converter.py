@@ -325,7 +325,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         first_sample_data: SampleDataRecord = sample_data_records[0]
         height = first_sample_data.height
         width = first_sample_data.width
-        object_mask = np.zeros(shape=(height, width), dtype=np.uint8)
+        object_mask = np.zeros(shape=(width, height), dtype=np.uint8)
         object_mask = cocomask.encode(np.asfortranarray(object_mask))
         object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
 

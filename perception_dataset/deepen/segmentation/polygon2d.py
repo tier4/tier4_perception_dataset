@@ -142,8 +142,10 @@ def _rle_from_polygons(polygons: Polygons2DLike, width: int, height: int) -> Dic
     flattened = [[coord for point in polygon for coord in point] for polygon in polygons]
 
     rle_objects = cocomask.frPyObjects(flattened, height, width)
-    rle = cocomask.merge(rle_objects)
+    rle_hw = cocomask.merge(rle_objects)
 
-    rle["counts"] = base64.b64encode(rle["counts"]).decode("ascii")
+    mask_hw = cocomask.decode(rle_hw)
+    rle_wh = cocomask.encode(np.asfortranarray(mask_hw.T))
+    rle_wh["counts"] = base64.b64encode(rle_wh["counts"]).decode("ascii")
 
-    return rle
+    return rle_wh

@@ -59,7 +59,7 @@ class DeepenSegmentationPainting2D(DeepenAnnotation):
 
                 # Load mask from .npy
                 mask: NDArray = np.load(ann_info.mask)
-                mask = mask.reshape((height, width))
+                mask = mask.reshape((width, height))
 
                 # Get sensor ID
                 sensor_id = f"sensor{camera2index[ann_info.camera_name]}"
@@ -172,7 +172,7 @@ def _mask_to_instances(
     """Return a set of boxes and masks of each instance.
 
     Args:
-        mask (NDArray): Mask array.
+        mask (NDArray): Mask array in the shape of (W, H).
         id2category (Dict[int, str]): Key-value mapping of category ID and its name.
 
     Returns:
