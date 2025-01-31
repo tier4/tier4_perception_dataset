@@ -356,6 +356,53 @@ Ego_pose represents the pose of the ego vehicle at a specific timestamp.
 This includes both the vehicle's position and orientation in space, typically referenced in a global coordinate system such as the map or odometry frame.  
 The concept is based on [nuScenes](https://arxiv.org/pdf/1903.11027) and [nuPlan](https://nuplan-devkit.readthedocs.io/en/latest/nuplan_schema.html#ego-pose).
 
+#### Recording Options
+
+There are 2 options to retrieve the corresponding ego pose record, which are using `/tf` or INS message.
+
+Note that during recording, each record is result in interpolating at the timestamp corresponding to the particular sensor data.
+
+##### With `/tf` message
+
+In this option, it is assumed that input RosBag contains `/tf` message.
+
+> [!WARNING]
+> This option does not record `velocity`, `acceleration` and `geocoordinate` fields.
+
+In order to enable to create ego pose records using `/tf` message, set `with_ins: false` in your configuration:
+
+```yaml
+task: convert_rosbag2_to_non_annotated_t4
+description:
+  scene: ""
+conversion:
+  ...
+  with_ins: false # use `/tf` message
+  ...
+```
+
+##### With INS messages
+
+In this option, it is assumed that input RosBag contains following messages, which are related to INS.
+
+|          Topic          |            Type             | Description                                                          |
+| :---------------------: | :-------------------------: | -------------------------------------------------------------------- |
+|  `/ins/oxts/odometry`   |   `nav_msgs/msg/Odometry`   | An estimate of a position and velocity in free space.                |
+|     `/ins/oxts/imu`     |    `sensor_msgs/msg/Imu`    | An IMU (Internal Measurement Unit) data.                             |
+| `/ins/oxts/nav_sat_fix` | `sensor_msgs/msg/NavSatFix` | Navigation Satellite fix for any Global Navigation Satellite System. |
+
+In order to enable to create ego pose records using INS message, set `with_ins: true` in your configuration:
+
+```yaml
+task: convert_rosbag2_to_non_annotated_t4
+description:
+  scene: ""
+conversion:
+  ...
+  with_ins: true # use INS messages
+  ...
+```
+
 #### Items
 
 - ego_pose
