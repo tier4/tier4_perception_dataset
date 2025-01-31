@@ -248,8 +248,8 @@ class DeepenToT4Converter(AbstractConverter):
         ]
 
         Args:
-                anno_path (str): path to the deepen annotation file
-                camera_index (Dict[str, int]): camera index dictionary
+            anno_path (str): path to the deepen annotation file
+            camera_index (Dict[str, int]): camera index dictionary
         """
         anno_dict: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
         for label_dict in label_dicts:
