@@ -17,6 +17,7 @@ from perception_dataset.deepen.deepen_annotation import (
 )
 from perception_dataset.deepen.segmentation import (
     DeepenSegmentationPainting2D,
+    DeepenSegmentationPainting3DAnnotations,
     DeepenSegmentationPolygon2D,
 )
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
@@ -66,34 +67,52 @@ class DeepenToT4Converter(AbstractConverter):
         else:
             self._surface_categories = []
 
-    def convert(self):
+    def _format_annotations(self) -> Dict[str, Dict[str, Any]]:
+        """Format annotations from input_anno_file."""
         camera_index: Dict[str, int] = self._description["camera_index"]
         if self._label_info is None:
             deepen_annotations = DeepenAnnotation.from_file(self._input_anno_file)
-        else:
-            if self._label_info.label_type == LabelType.SEGMENTATION_2D:
-                deepen_annotations = (
-                    DeepenSegmentationPolygon2D.from_file(
-                        ann_file=self._input_anno_file,
-                        data_root=self._input_base,
-                        camera2index=camera_index,
-                        dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
-                    )
-                    if self._label_info.label_format == LabelFormat.POLYGON
-                    else DeepenSegmentationPainting2D.from_file(
-                        ann_file=self._input_anno_file,
-                        data_root=self._input_base,
-                        camera2index=camera_index,
-                        dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
-                    )
+        elif self._label_info.label_type == LabelType.SEGMENTATION_2D:
+            deepen_annotations = (
+                DeepenSegmentationPolygon2D.from_file(
+                    ann_file=self._input_anno_file,
+                    data_root=self._input_base,
+                    camera2index=camera_index,
+                    dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
+                )
+                if self._label_info.label_format == LabelFormat.POLYGON
+                else DeepenSegmentationPainting2D.from_file(
+                    ann_file=self._input_anno_file,
+                    data_root=self._input_base,
+                    camera2index=camera_index,
+                    dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
+                )
+            )
+        elif self._label_info.label_type == LabelType.POINT_3D:
+            if self._label_info.label_type == LabelType.POINT_3D:
+                deepen_annotations = DeepenSegmentationPainting3DAnnotations.from_file(
+                    ann_file=self._input_anno_file
                 )
             else:
-                raise ValueError(f"Unexpected label type: {self._label_info.label_type}")
+                raise ValueError(
+                    f"Unexpected label format: {self._label_info.label_format} in label type: {self._label_info.label_type}"
+                )
 
-        # format deepen annotation
+            # Call format_deepen_annotations() if it's POINT_3D
+            return deepen_annotations.format_deepen_annotations()
+
+        else:
+            raise ValueError(f"Unexpected label type: {self._label_info.label_type}")
+
+        # format deepen annotations
         scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
             deepen_annotations, camera_index
         )
+        return scenes_anno_dict
+
+    def convert(self):
+        """Convert all scene annotations to T4 dataset format."""
+        scenes_anno_dict = self._format_annotations()
 
         # copy data and make time/topic filtered rosbag from non-annotated-t4-dataset and rosbag
         for t4data_name in self._t4data_name_to_deepen_dataset_id:
@@ -184,54 +203,53 @@ class DeepenToT4Converter(AbstractConverter):
         self, label_dicts: List[Dict[str, Any]], camera_index: Optional[Dict[str, int]] = None
     ):
         """
-
         e.g.:
         [
-            {
-                "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
-                "file_id": "0.pcd",
-                "label_category_id": "car",
-                "label_id": "car:1",
-                "label_type": "3d_bbox",
-                "project_id": "defaultproject",
-                "stage_id": "QA",
-                "attributes": {
-                    "state": "moving",
-                    "occlusion": "none",
-                    "cycle_state": "with_rider"
+                {
+                        "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
+                        "file_id": "0.pcd",
+                        "label_category_id": "car",
+                        "label_id": "car:1",
+                        "label_type": "3d_bbox",
+                        "project_id": "defaultproject",
+                        "stage_id": "QA",
+                        "attributes": {
+                                "state": "moving",
+                                "occlusion": "none",
+                                "cycle_state": "with_rider"
+                        },
+                        "attributes_source": {
+                                "state": "manual",
+                                "occlusion": "manual",
+                                "cycle_state": "manual"
+                        },
+                        "create_time_millis": 1634623252175,
+                        "label_set_id": "default",
+                        "labeller_email": "grp-mlops-deepen3@tier4.jp",
+                        "sensor_id": "lidar",
+                        "three_d_bbox": {
+                                "cx": 81526.54828555016,
+                                "cy": 50383.480369180215,
+                                "cz": 34.93298238813448,
+                                "h": 1.5030299457129388,
+                                "l": 4.895038637695593,
+                                "w": 2.107137758889027,
+                                "quaternion": {
+                                        "x": 0,
+                                        "y": 0,
+                                        "z": 0.7522213131298905,
+                                        "w": 0.6589105372303157
+                                }
+                        },
+                        "update_time_millis": 1634623252175,
+                        "user_id": "grp-mlops-deepen1@tier4.jp",
+                        "version": 782
                 },
-                "attributes_source": {
-                    "state": "manual",
-                    "occlusion": "manual",
-                    "cycle_state": "manual"
-                },
-                "create_time_millis": 1634623252175,
-                "label_set_id": "default",
-                "labeller_email": "grp-mlops-deepen3@tier4.jp",
-                "sensor_id": "lidar",
-                "three_d_bbox": {
-                    "cx": 81526.54828555016,
-                    "cy": 50383.480369180215,
-                    "cz": 34.93298238813448,
-                    "h": 1.5030299457129388,
-                    "l": 4.895038637695593,
-                    "w": 2.107137758889027,
-                    "quaternion": {
-                        "x": 0,
-                        "y": 0,
-                        "z": 0.7522213131298905,
-                        "w": 0.6589105372303157
-                    }
-                },
-                "update_time_millis": 1634623252175,
-                "user_id": "grp-mlops-deepen1@tier4.jp",
-                "version": 782
-            },
         ]
 
         Args:
-            anno_path (str): path to the deepen annotation file
-            camera_index (Dict[str, int]): camera index dictionary
+                anno_path (str): path to the deepen annotation file
+                camera_index (Dict[str, int]): camera index dictionary
         """
         anno_dict: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
         for label_dict in label_dicts:

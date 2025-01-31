@@ -10,6 +10,7 @@ def record_data():
     d = {
         "name": "test_category_name",
         "description": "the description of the category",
+        "index": 1,
     }
     return d
 
@@ -33,7 +34,7 @@ class TestCategoryTable:
     # TODO(yukke42): impl TestCategoryTable with name_to_description
     @pytest.fixture(scope="function")
     def table_for_test(self):
-        return CategoryTable(name_to_description={}, default_value="")
+        return CategoryTable(name_to_description={}, default_value="", lidarseg=True)
 
     def test_filename(self, table_for_test: CategoryTable):
         assert table_for_test.FILENAME == "category.json"
@@ -41,6 +42,16 @@ class TestCategoryTable:
     def test__to_record(self, table_for_test: CategoryTable, record_data: Dict[str, Any]):
         record = table_for_test._to_record(**record_data)
         assert isinstance(record, CategoryRecord)
+
+    def test_get_index_from_token(self, table_for_test: CategoryTable) -> int:
+        """Test retrieving index from a token."""
+        token1 = table_for_test.get_token_from_name(name="test_category_name")
+        index1 = table_for_test.get_index_from_token(token=token1)
+        assert index1 == 1
+
+        token2 = table_for_test.get_token_from_name(name="test_category_name_2")
+        index2 = table_for_test.get_index_from_token(token=token2)
+        assert index2 == 2
 
     def test_get_token_from_name(self, table_for_test: CategoryTable):
         # TODO(yukke42): impl test_get_token_from_name with description

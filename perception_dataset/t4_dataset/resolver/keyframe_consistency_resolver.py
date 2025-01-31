@@ -21,9 +21,19 @@ class KeyFrameConsistencyResolver:
         with open(segment_path / "annotation/instance.json", "r") as f:
             instance_list = json.load(f)
 
+        lidarseg_list = []
+        lidarseg_path = Path(segment_path) / "annotation/lidarseg.json"
+        if lidarseg_path.exists():
+            with open(lidarseg_path, "r") as f:
+                lidarseg_list = json.load(f)
+
         # remove sample that sample_data is not a keyframe
         self._remove_sample_of_non_keyframe(
-            sample_data_list, sample_list, sample_annotation_list, object_ann_list
+            sample_data_list,
+            sample_list,
+            sample_annotation_list,
+            object_ann_list,
+            lidarseg_list=lidarseg_list,
         )
 
         # change non-keyframe sample_token in sample_data to next closest keyframe
@@ -61,6 +71,7 @@ class KeyFrameConsistencyResolver:
         sample_list: list,
         sample_annotation_list: list,
         object_ann_list: list,
+        lidarseg_list: list,
     ):
         for sample_data in sample_data_list:
             corresponding_annotation = [
@@ -81,9 +92,18 @@ class KeyFrameConsistencyResolver:
             corresponding_sample_list = [
                 sample for sample in sample_list if sample["token"] == sample_data["sample_token"]
             ]
+            corresponding_lidarseg = [
+                lidarseg
+                for lidarseg in lidarseg_list
+                if lidarseg["sample_data_token"] in same_sample_sample_data_token_list
+            ]
 
             # If there is no corresponding annotation, then it is not a keyframe
-            if len(corresponding_annotation) == 0 and len(corresponding_2d_annotation) == 0:
+            if (
+                len(corresponding_annotation) == 0
+                and len(corresponding_2d_annotation) == 0
+                and len(corresponding_lidarseg) == 0
+            ):
                 # Todo: fix this
                 # If there is a frame in the dataset where no objects are present, that frame will be removed by current implementation
                 sample_data["is_key_frame"] = False
