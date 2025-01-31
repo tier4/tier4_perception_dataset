@@ -237,7 +237,7 @@ class AnnotationFilesGenerator:
                             "z" (float): z of object location,
                         },
                         "velocity" (Optional[Dict[str, float]]): {
-                                "x" (float): x of object velocity,
+                            "x" (float): x of object velocity,
                             "y" (float): y of object velocity,
                             "z" (float): z of object velocity,
                         },
@@ -269,7 +269,7 @@ class AnnotationFilesGenerator:
                     "num_radar_pts" (int): the number of radar points in object,
                 },
                 ...
-            ],
+                ],
             1: []. ...
         }
 
