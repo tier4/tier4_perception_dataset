@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import json
-from typing import Dict
+from typing import Dict, Optional
 
 from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractRecord, AbstractTable
 
 
 class CategoryRecord(AbstractRecord):
-    def __init__(self, name: str, description: str, index: int):
+    def __init__(self, name: str, description: str, index: Optional[int]):
         super().__init__()
         self.name: str = name
         self.description: str = description
-        self.index: int = index
+        self.index: Optional[int] = index
 
     def to_dict(self) -> Dict[str, str]:
         d = {
@@ -48,7 +48,7 @@ class CategoryTable(AbstractTable[CategoryRecord]):
             token = self._name_to_token[name]
         else:
             description = self._name_to_description.get(name, self._description_default_value)
-            self._index = self._index + 1 if self._lidarseg else 0
+            self._index = self._index + 1 if self._lidarseg else None
             token = self.insert_into_table(name=name, description=description, index=self._index)
             self._name_to_token[name] = token
 
