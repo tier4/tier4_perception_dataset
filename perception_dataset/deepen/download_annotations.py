@@ -177,6 +177,7 @@ if __name__ == "__main__":
         "--label_type",
         type=str,
         default="labels",
+        choices=["labels", "paint3d"],
         help="Annotation type to request labels, supported values: ['labels', 'paint3d']",
     )
     parser.add_argument(

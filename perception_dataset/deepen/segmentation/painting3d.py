@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import json
 import re
 from typing import Any, Dict, List
@@ -14,7 +14,6 @@ __all__ = [
 ]
 
 
-@dataclass
 class DeepenSegmentationPainting3DScene(DeepenAnnotation):
     """
     A class to save a 3D segmentation annotation for a scene annotated by painting.
@@ -23,16 +22,15 @@ class DeepenSegmentationPainting3DScene(DeepenAnnotation):
     :param total_lidar_points: Total number of lidar pointclouds.
     """
 
-    paint_categories: List[str] = field(default_factory=list)
-    lidarseg_anno_file: str = ""
-    total_lidar_points: int = 0
+    paint_categories: List[str]
+    lidarseg_anno_file: str
+    total_lidar_points: int
 
     def __post_init__(self) -> None:
         """
         Validates the annotation data after initialization.
         Overwrite the superclass to avoid checking three_d_bbox, two_d_box and two_d_mask.
         """
-        assert len(self.paint_categories) > 0, "Length of categories must be more than 0!"
         assert self.total_lidar_points > 0, "Lidar pointclouds must be more than 0!"
         assert self.lidarseg_anno_file != "", "Must provide a lidarseg annotation file!"
 

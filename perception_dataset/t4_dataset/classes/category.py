@@ -29,12 +29,15 @@ class CategoryTable(AbstractTable[CategoryRecord]):
 
     FILENAME = "category" + EXTENSION_ENUM.JSON.value
 
-    def __init__(self, name_to_description: Dict[str, str], default_value: str):
+    def __init__(
+        self, name_to_description: Dict[str, str], default_value: str, lidarseg: bool = False
+    ):
         super().__init__()
         self._name_to_token: Dict[str, str] = {}
         self._name_to_description: Dict[str, str] = name_to_description
         self._description_default_value: str = default_value
-        self._index = 1  # Index starts from 1 where 0 reserved for unpainted labels
+        self._index = 0  # Index starts from 0, where 0 is reserved for unpainted pointcloud labels
+        self._lidarseg = lidarseg
 
     def _to_record(self, name: str, description: str, index: int) -> CategoryRecord:
         record = CategoryRecord(name=name, description=description, index=index)
@@ -45,8 +48,8 @@ class CategoryTable(AbstractTable[CategoryRecord]):
             token = self._name_to_token[name]
         else:
             description = self._name_to_description.get(name, self._description_default_value)
+            self._index = self._index + 1 if self._lidarseg else 0
             token = self.insert_into_table(name=name, description=description, index=self._index)
-            self._index += 1
             self._name_to_token[name] = token
 
         return token
@@ -67,7 +70,9 @@ class CategoryTable(AbstractTable[CategoryRecord]):
             items = json.load(f)
 
         table = cls(name_to_description=name_to_description, default_value=default_value)
-        index_counter = 1  # Index starts from 1 where 0 reserved for unpainted labels
+        index_counter = (
+            1  # Index starts from 1 where 0 is reserved for unpainted pointcloud labels
+        )
         for item in items:
             index = item.get(item["index"], index_counter)
             record = CategoryRecord(

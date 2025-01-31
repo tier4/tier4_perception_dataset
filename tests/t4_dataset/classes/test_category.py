@@ -34,7 +34,7 @@ class TestCategoryTable:
     # TODO(yukke42): impl TestCategoryTable with name_to_description
     @pytest.fixture(scope="function")
     def table_for_test(self):
-        return CategoryTable(name_to_description={}, default_value="")
+        return CategoryTable(name_to_description={}, default_value="", lidarseg=True)
 
     def test_filename(self, table_for_test: CategoryTable):
         assert table_for_test.FILENAME == "category.json"
