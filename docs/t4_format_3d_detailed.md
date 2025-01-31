@@ -326,7 +326,7 @@ The item "description" for the category is not implemented for now.
   - "token": [str] -- Unique record identifier.
   - "name": [str] -- Category name. The latest format is "class" (e.g. car, truck), but "category.class" format (e.g. vehicle.car) is also supported.
   - "description": [str] -- Category description. Empty string `""` for now. **(Not available)**
-  - "index": [int] -- Category index, this is added to support lidarseg.
+  - "index": [int] -- Category index, this is added to support lidarseg, or None when it doesn't support lidarseg
 
 For t4 format, "name" should be one of the following:
 

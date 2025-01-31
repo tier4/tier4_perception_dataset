@@ -73,8 +73,8 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
             "dataset_id": "dummy_dataset_id",
             "file_id": "0.pcd",
             "label_type": "3d_point",
-            "label_id": "none",		# Keep it for consistency with downstream tasks
-            "label_category_id": "none",	# Keep it for consistency with downstream tasks
+                        "label_id": "none:1,		# Keep it for consistency with downstream tasks
+                        "label_category_id": "none",	# Keep it for consistency with downstream tasks
             "total_lidar_points": 173430,
             "sensor_id": "lidar",
             "stage_id": "QA",
@@ -129,7 +129,7 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
             annos_info = {
                 "dataset_id": dataset_id,
                 "file_id": file_id,
-                "label_id": "none",  # Keep it for consistency with downstream tasks
+                "label_id": "none:1",  # Keep it for consistency with downstream tasks
                 "label_category_id": "none",  # Keep it for consistency with downstream tasks
                 "total_lidar_points": frame_size,
                 "sensor_id": "lidar",

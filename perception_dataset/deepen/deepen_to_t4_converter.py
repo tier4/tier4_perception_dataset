@@ -205,51 +205,51 @@ class DeepenToT4Converter(AbstractConverter):
         """
         e.g.:
         [
-            {
-                "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
-                "file_id": "0.pcd",
-                "label_category_id": "car",
-                "label_id": "car:1",
-                "label_type": "3d_bbox",
-                "project_id": "defaultproject",
-                "stage_id": "QA",
-                "attributes": {
-                    "state": "moving",
-                    "occlusion": "none",
-                    "cycle_state": "with_rider"
+                {
+                        "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
+                        "file_id": "0.pcd",
+                        "label_category_id": "car",
+                        "label_id": "car:1",
+                        "label_type": "3d_bbox",
+                        "project_id": "defaultproject",
+                        "stage_id": "QA",
+                        "attributes": {
+                                "state": "moving",
+                                "occlusion": "none",
+                                "cycle_state": "with_rider"
+                        },
+                        "attributes_source": {
+                                "state": "manual",
+                                "occlusion": "manual",
+                                "cycle_state": "manual"
+                        },
+                        "create_time_millis": 1634623252175,
+                        "label_set_id": "default",
+                        "labeller_email": "grp-mlops-deepen3@tier4.jp",
+                        "sensor_id": "lidar",
+                        "three_d_bbox": {
+                                "cx": 81526.54828555016,
+                                "cy": 50383.480369180215,
+                                "cz": 34.93298238813448,
+                                "h": 1.5030299457129388,
+                                "l": 4.895038637695593,
+                                "w": 2.107137758889027,
+                                "quaternion": {
+                                        "x": 0,
+                                        "y": 0,
+                                        "z": 0.7522213131298905,
+                                        "w": 0.6589105372303157
+                                }
+                        },
+                        "update_time_millis": 1634623252175,
+                        "user_id": "grp-mlops-deepen1@tier4.jp",
+                        "version": 782
                 },
-                "attributes_source": {
-                    "state": "manual",
-                    "occlusion": "manual",
-                    "cycle_state": "manual"
-                },
-                "create_time_millis": 1634623252175,
-                "label_set_id": "default",
-                "labeller_email": "grp-mlops-deepen3@tier4.jp",
-                "sensor_id": "lidar",
-                "three_d_bbox": {
-                    "cx": 81526.54828555016,
-                    "cy": 50383.480369180215,
-                    "cz": 34.93298238813448,
-                    "h": 1.5030299457129388,
-                    "l": 4.895038637695593,
-                    "w": 2.107137758889027,
-                    "quaternion": {
-                        "x": 0,
-                        "y": 0,
-                        "z": 0.7522213131298905,
-                        "w": 0.6589105372303157
-                    }
-                },
-                "update_time_millis": 1634623252175,
-                "user_id": "grp-mlops-deepen1@tier4.jp",
-                "version": 782
-            },
         ]
 
         Args:
-            anno_path (str): path to the deepen annotation file
-            camera_index (Dict[str, int]): camera index dictionary
+                anno_path (str): path to the deepen annotation file
+                camera_index (Dict[str, int]): camera index dictionary
         """
         anno_dict: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
         for label_dict in label_dicts:
