@@ -202,7 +202,7 @@ class DeepenAnnotation(ABC):
         """Load annotations from file(s).
 
         Args:
-                ann_file (str): Annotation file (.json).
+            ann_file (str): Annotation file (.json).
             as_dict (bool, optional): Whether to output objects as dict or its instance.
                 Defaults to True.
 
