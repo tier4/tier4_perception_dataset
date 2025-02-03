@@ -128,7 +128,9 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
     ), f"Invalid object message type: {type(msg)}"
 
     def get_category_name(
-        classification: List[Union[AutowareAutoObjectClassification, AutowareObjectClassification]]
+        classification: List[
+            Union[AutowareAutoObjectClassification, AutowareObjectClassification]
+        ],
     ) -> str:
         max_score: float = -1.0
         out_class_name: str = "unknown"
