@@ -125,11 +125,12 @@ When the work is finished, click `Mark dataset as done` in Datasets / Dataset De
 
 `DEEPEN_CLIENT_ID` is the `xxx` part of the URL `https://tools.deepen.ai/workspace/xxx/datasets` after logging in to Deepen.
 `DEEPEN_ACCESS_TOKEN` can be obtained from [Deepen Tools](https://tools.deepen.ai/workspace/xxx/developer/tokens/developers).
+`label_type` must be either `labels` or `paint3d`, where `labels` represents bounding boxes, and `paint3d` means lidar semantic segmentation annotations.
 
 ```bash
 export DEEPEN_CLIENT_ID='YOUR_DEEPEN_CLIENT_ID'
 export DEEPEN_ACCESS_TOKEN='YOUR_DEEPEN_ACCESS_TOKEN'
-python -m perception_dataset.deepen.download_annotations --config config/convert_deepen_to_t4_sample.yaml
+python -m perception_dataset.deepen.download_annotations --config config/convert_deepen_to_t4_sample.yaml --label_type <label_type>
 ```
 
 ### Deepen format to T4 format
@@ -139,6 +140,12 @@ output: T4 format data
 
 ```bash
 python -m perception_dataset.convert --config config/convert_deepen_to_t4_sample.yaml
+```
+
+For T4 LidarSeg, please run the following:
+
+```bash
+python -m perception_dataset.convert --config config/convert_deepen_to_t4_lidarseg_3d_painting_sample.yaml
 ```
 
 ## FastLabel
