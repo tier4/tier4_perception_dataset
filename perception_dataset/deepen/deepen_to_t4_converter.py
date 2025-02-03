@@ -101,7 +101,7 @@ class DeepenToT4Converter(AbstractConverter):
             raise ValueError(f"Unexpected label type: {self._label_info.label_type}")
 
         # format deepen annotations
-        if self._label_info.label_type == LabelType.POINT_3D:
+        if self._label_info is not None and self._label_info.label_type == LabelType.POINT_3D:
             # Call format_deepen_annotations() from the dataclass if it's POINT_3D
             scenes_anno_dict: Dict[str, Dict[str, Any]] = (
                 deepen_annotations.format_deepen_annotations()
