@@ -42,34 +42,34 @@ class DeepenAnnotation(ABC):
     Represents a single segmentation annotation in Deepen format.
 
     Attributes:
-            dataset_id (str): The ID of the dataset.
-            file_id (str): The file identifier, e.g., "0.pcd".
-            label_category_id (str): The category of the label, e.g., "car".
-            label_id (str): The unique identifier of the label, e.g., "car:1".
-            label_type (str): The type of the label, e.g., "3d_bbox", "box", "2d_segmentation".
-            sensor_id (str): The identifier of the sensor, e.g., "lidar", "camera1".
-            labeller_email (str): The email of the labeller. Defaults to "default@tier4.jp".
-            attributes (Optional[Dict[str, Any]]): Additional attributes of the annotation, e.g.,
-                    {
-                            "state": "moving",
-                            "occlusion": "none",
-                            "cycle_state": "with_rider"
-                    }.
-            three_d_bbox (Optional[Dict[str, Any]]): The 3D bounding box data. e.g.,
-                    {
-                            "cx": ...,
-                            "cy": ...,
-                            "cz": ...,
-                            "h": ...,
-                            "l": ...,
-                            "w": ...,
-                            "quaternion": {"x": ..., "y": ..., "z": ..., "w": 0}
-                    }.
-            box (Optional[List[float]]): The 2D bounding box data, e.g., [corner_x, corner_y, width, height].
-            two_d_mask (Optional[str]): Run-length encoding (RLE) of the 2D mask.
+        dataset_id (str): The ID of the dataset.
+        file_id (str): The file identifier, e.g., "0.pcd".
+        label_category_id (str): The category of the label, e.g., "car".
+                label_id (str): The unique identifier of the label, e.g., "car:1".
+        label_type (str): The type of the label, e.g., "3d_bbox", "box", "2d_segmentation".
+        sensor_id (str): The identifier of the sensor, e.g., "lidar", "camera1".
+        labeller_email (str): The email of the labeller. Defaults to "default@tier4.jp".
+        attributes (Optional[Dict[str, Any]]): Additional attributes of the annotation, e.g.,
+            {
+                "state": "moving",
+                "occlusion": "none",
+                "cycle_state": "with_rider"
+            }.
+        three_d_bbox (Optional[Dict[str, Any]]): The 3D bounding box data. e.g.,
+            {
+                "cx": ...,
+                "cy": ...,
+                "cz": ...,
+                "h": ...,
+                "l": ...,
+                "w": ...,
+                "quaternion": {"x": ..., "y": ..., "z": ..., "w": 0}
+            }.
+        box (Optional[List[float]]): The 2D bounding box data, e.g., [corner_x, corner_y, width, height].
+        two_d_mask (Optional[str]): Run-length encoding (RLE) of the 2D mask.
 
     Note:
-            Exactly one of `three_d_bbox`, `two_d_box`, or `two_d_mask` must be provided.
+        Exactly one of `three_d_bbox`, `two_d_box`, or `two_d_mask` must be provided.
     """
 
     dataset_id: str
@@ -108,7 +108,7 @@ class DeepenAnnotation(ABC):
             """
             Checks if label_id follows the format '{label_category_id}:{int}'.
             Raises:
-                    ValueError: If label_id does not match the required format.
+                ValueError: If label_id does not match the required format.
             """
             pattern = rf"^{re.escape(self.label_category_id)}:\d+$"
             if not re.match(pattern, self.label_id):
@@ -122,7 +122,7 @@ class DeepenAnnotation(ABC):
             'cx', 'cy', 'cz', 'h', 'l', 'w', and 'quaternion' with keys 'x', 'y', 'z', 'w'.
 
             Raises:
-                    AssertionError: If any required keys are missing.
+                AssertionError: If any required keys are missing.
             """
             if self.three_d_bbox is None:
                 return
@@ -144,7 +144,7 @@ class DeepenAnnotation(ABC):
             Checks if two_d_box has four elements: [corner_x, corner_y, width, height].
 
             Raises:
-                    AssertionError: If the list does not have exactly four numerical elements.
+                AssertionError: If the list does not have exactly four numerical elements.
             """
             if self.box is None:
                 return
@@ -159,9 +159,9 @@ class DeepenAnnotation(ABC):
             """
             Checks if two_d_mask is a non-empty string representing an RLE (Run-Length Encoding).
             Args:
-                    two_d_mask (str): The RLE string to validate.
+                two_d_mask (str): The RLE string to validate.
             Raises:
-                    AssertionError: If two_d_mask is not a valid non-empty string.
+                AssertionError: If two_d_mask is not a valid non-empty string.
             """
             if self.two_d_mask is None:
                 return
@@ -203,11 +203,11 @@ class DeepenAnnotation(ABC):
 
         Args:
                 ann_file (str): Annotation file (.json).
-                as_dict (bool, optional): Whether to output objects as dict or its instance.
-                        Defaults to True.
+            as_dict (bool, optional): Whether to output objects as dict or its instance.
+                Defaults to True.
 
         Returns:
-                List[DeepenAnnotationLike | Dict[str, Any]]: List of annotations or dicts.
+            List[DeepenAnnotationLike | Dict[str, Any]]: List of annotations or dicts.
         """
         with open(ann_file, "r") as f:
             data = json.load(f)
