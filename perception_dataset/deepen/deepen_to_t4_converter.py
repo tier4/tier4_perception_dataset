@@ -97,17 +97,19 @@ class DeepenToT4Converter(AbstractConverter):
                 raise ValueError(
                     f"Unexpected label format: {self._label_info.label_format} in label type: {self._label_info.label_type}"
                 )
-
-            # Call format_deepen_annotations() if it's POINT_3D
-            return deepen_annotations.format_deepen_annotations()
-
         else:
             raise ValueError(f"Unexpected label type: {self._label_info.label_type}")
 
         # format deepen annotations
-        scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
-            deepen_annotations, camera_index
-        )
+        if self._label_info.label_type == LabelType.POINT_3D:
+            # Call format_deepen_annotations() from the dataclass if it's POINT_3D
+            scenes_anno_dict: Dict[str, Dict[str, Any]] = (
+                deepen_annotations.format_deepen_annotations()
+            )
+        else:
+            scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
+                deepen_annotations, camera_index
+            )
         return scenes_anno_dict
 
     def convert(self):
@@ -205,10 +207,10 @@ class DeepenToT4Converter(AbstractConverter):
         """
         e.g.:
         [
-                {
-                        "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
-                        "file_id": "0.pcd",
-                        "label_category_id": "car",
+            {
+                "dataset_id": "DOnC2vK05ojPr7qiqCsk2Ee7",
+                "file_id": "0.pcd",
+                "label_category_id": "car",
                         "label_id": "car:1",
                         "label_type": "3d_bbox",
                         "project_id": "defaultproject",
@@ -239,7 +241,7 @@ class DeepenToT4Converter(AbstractConverter):
                                         "y": 0,
                                         "z": 0.7522213131298905,
                                         "w": 0.6589105372303157
-                                }
+                                        }
                         },
                         "update_time_millis": 1634623252175,
                         "user_id": "grp-mlops-deepen1@tier4.jp",
