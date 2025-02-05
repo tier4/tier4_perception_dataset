@@ -128,6 +128,9 @@ def _parse_annotation(
     """
     in_ann_dir = osp.dirname(ann_file)
     out_ann_dir = osp.join(in_ann_dir, "deepen_annotation")
+
+    if osp.isdir(out_ann_dir):
+        shutil.rmtree(out_ann_dir)
     shutil.unpack_archive(ann_file, out_ann_dir)
 
     metadata_filepath = glob(osp.join(out_ann_dir, "**/*metadata.json"), recursive=True)[0]
@@ -185,8 +188,8 @@ def _mask_to_instances(
     for instance_id in range(1, num_instances + 1):
         # bbox
         indices = np.where(label_mask == instance_id)
-        xmin, ymin = np.min(indices, axis=1)
-        xmax, ymax = np.max(indices, axis=1)
+        ymin, xmin = np.min(indices, axis=1)
+        ymax, xmax = np.max(indices, axis=1)
 
         # NOTE: json.dumps raise TypeError for Numpy.int64
         bbox = [int(xmin), int(ymin), int(xmax - xmin), int(ymax - ymin)]
