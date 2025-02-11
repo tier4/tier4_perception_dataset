@@ -87,11 +87,11 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
 
                 output_dir = osp.join(self._output_base, bag_name)
                 if osp.exists(output_dir):
-                    logger.error(f"{output_dir} already exists.")
+                    logger.warning(f"{output_dir} already exists.")
                     dir_exist = True
                     bag_dirs.remove(bag_dir)
             if dir_exist and len(bag_dirs) == 0:
-                logger.error(f"{output_dir} already exists.")
+                logger.warning(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
         for bag_dir in sorted(bag_dirs):
