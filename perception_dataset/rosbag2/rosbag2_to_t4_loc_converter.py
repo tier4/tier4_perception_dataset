@@ -4,7 +4,13 @@ import os.path as osp
 import shutil
 from typing import Dict, List
 
-from perception_dataset.constants import EXTENSION_ENUM, T4_FORMAT_DIRECTORY_NAME
+import builtin_interfaces.msg
+
+from perception_dataset.constants import (
+    EXTENSION_ENUM,
+    SENSOR_MODALITY_ENUM,
+    T4_FORMAT_DIRECTORY_NAME,
+)
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import SensorMode
 from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
@@ -152,9 +158,7 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
         lidar_sensor_channel = self._sensor_channel
 
         logger.info(f"set start_timestamp to {start_timestamp}")
-        # calibrated_sensor_token = self._generate_calibrated_sensor(
-        #     "LIDAR_CONCAT", start_time_in_time, topic
-        # )
+        calibrated_sensor_token = self._generate_dummy_sensor(start_time_in_time)
         ego_pose_token = self._generate_ego_pose(start_time_in_time)
         sample_token = self._sample_table.insert_into_table(
             timestamp=nusc_timestamp, scene_token=scene_token
@@ -165,8 +169,7 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
         sample_data_token = self._sample_data_table.insert_into_table(
             sample_token=sample_token,
             ego_pose_token=ego_pose_token,
-            # calibrated_sensor_token=calibrated_sensor_token,
-            calibrated_sensor_token="",
+            calibrated_sensor_token=calibrated_sensor_token,
             filename=filename,
             fileformat=fileformat,
             timestamp=nusc_timestamp,
@@ -179,3 +182,46 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
         points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
 
         sensor_channel_to_sample_data_token_list[lidar_sensor_channel] = [sample_data_token]
+
+    def _generate_dummy_sensor(self, start_timestamp: builtin_interfaces.msg.Time) -> str:
+        calibrated_sensor_token = str()
+        if self._sensor_mode == SensorMode.NO_SENSOR:
+
+            channel = self._sensor_channel
+            modality = SENSOR_MODALITY_ENUM.LIDAR.value
+
+            sensor_token = self._sensor_table.insert_into_table(
+                channel=channel,
+                modality=modality,
+            )
+
+            translation = {"x": 0.0, "y": 0.0, "z": 0.0}
+            rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
+            frame_id = "base_link"
+            transform_stamped = self._bag_reader.get_transform_stamped(
+                target_frame=self._calibrated_sensor_target_frame,
+                source_frame=frame_id,
+                stamp=start_timestamp,
+            )
+            translation = {
+                "x": transform_stamped.transform.translation.x,
+                "y": transform_stamped.transform.translation.y,
+                "z": transform_stamped.transform.translation.z,
+            }
+            rotation = {
+                "w": transform_stamped.transform.rotation.w,
+                "x": transform_stamped.transform.rotation.x,
+                "y": transform_stamped.transform.rotation.y,
+                "z": transform_stamped.transform.rotation.z,
+            }
+
+            calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
+                sensor_token=sensor_token,
+                translation=translation,
+                rotation=rotation,
+                camera_intrinsic=[],
+                camera_distortion=[],
+            )
+            return calibrated_sensor_token
+        else:
+            raise ValueError("Invalid sensor mode")
