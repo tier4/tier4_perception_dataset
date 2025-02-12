@@ -45,7 +45,7 @@ class DeepenAnnotation(ABC):
         dataset_id (str): The ID of the dataset.
         file_id (str): The file identifier, e.g., "0.pcd".
         label_category_id (str): The category of the label, e.g., "car".
-                label_id (str): The unique identifier of the label, e.g., "car:1".
+        label_id (str): The unique identifier of the label, e.g., "car:1".
         label_type (str): The type of the label, e.g., "3d_bbox", "box", "2d_segmentation".
         sensor_id (str): The identifier of the sensor, e.g., "lidar", "camera1".
         labeller_email (str): The email of the labeller. Defaults to "default@tier4.jp".
