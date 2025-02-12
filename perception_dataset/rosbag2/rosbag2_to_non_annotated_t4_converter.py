@@ -177,7 +177,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # it is retrieved from INS messages.
         with_world_frame_conversion = self._ego_pose_target_frame != self._ego_pose_source_frame
         is_tf_needed = with_world_frame_conversion and not params.with_ins
-        self._bag_reader = Rosbag2Reader(self._input_bag, is_tf_needed)
+        is_tf_static_needed = len(self._radar_sensors) > 0 or len(self._camera_sensors) > 0
+        self._bag_reader = Rosbag2Reader(self._input_bag, is_tf_needed, is_tf_static_needed)
         self._calc_actual_num_load_frames()
 
         # for Co-MLOps
