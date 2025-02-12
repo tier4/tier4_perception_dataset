@@ -124,7 +124,7 @@ class DeepenToT4Converter(AbstractConverter):
             if self._input_bag_base is not None:
                 input_bag_dir = osp.join(self._input_bag_base, t4data_name)
             if osp.exists(output_dir):
-                logger.error(f"{output_dir} already exists.")
+                logger.warning(f"{output_dir} already exists.")
                 is_dir_exist = True
 
             if self._overwrite_mode or not is_dir_exist:

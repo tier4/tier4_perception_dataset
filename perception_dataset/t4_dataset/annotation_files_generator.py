@@ -173,10 +173,10 @@ class AnnotationFilesGenerator:
                         {frame_index: sample_nuim["token"]}
                     )
 
-                    wid_hgt = (sample_nuim["width"], sample_nuim["height"])
-                    if wid_hgt != prev_wid_hgt:
-                        prev_wid_hgt = wid_hgt
-                        object_mask = np.zeros(wid_hgt, dtype=np.uint8)
+                    hgt_wid = (sample_nuim["height"], sample_nuim["width"])
+                    if hgt_wid != prev_wid_hgt:
+                        prev_wid_hgt = hgt_wid
+                        object_mask = np.zeros(hgt_wid, dtype=np.uint8)
                         object_mask = cocomask.encode(np.asfortranarray(object_mask))
                         object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode(
                             "ascii"
@@ -373,7 +373,7 @@ class AnnotationFilesGenerator:
     def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:
         """Clip the bbox to the image size."""
         try:
-            width, height = mask["size"]
+            height, width = mask["size"]
             bbox[0] = max(0, bbox[0])
             bbox[1] = max(0, bbox[1])
             bbox[2] = min(width, bbox[2])

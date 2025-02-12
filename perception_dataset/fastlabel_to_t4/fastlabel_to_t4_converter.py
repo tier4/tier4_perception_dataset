@@ -68,7 +68,7 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
 
             if osp.exists(output_dir):
-                logger.error(f"{output_dir} already exists.")
+                logger.warning(f"{output_dir} already exists.")
                 is_dir_exist = True
             else:
                 is_dir_exist = False
