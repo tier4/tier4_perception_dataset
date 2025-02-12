@@ -23,7 +23,7 @@ today = str(date.today()).replace("-", "")
 
 def get_annotation_labels(dataset_ids: List[str], dataset_dir: str, output_name: str) -> None:
     """Get annotation labels except paint3d from deepen."""
-    datasets_url = f"https://tools.deepen.ai/api/v2/clients/{CLIENT_ID}/labels_of_dataset_ids?labelSetId=default_semantic"
+    datasets_url = f"https://tools.deepen.ai/api/v2/clients/{CLIENT_ID}/labels_of_dataset_ids?labelSetId=default"
     data = {"dataset_ids": dataset_ids}
 
     try:
