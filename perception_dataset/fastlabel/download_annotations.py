@@ -70,7 +70,6 @@ def rename_image_task_name(name: str) -> str:
     if "_CAM_" not in name:
         return name
     base_name, camera_info = name.split("CAM_")
-    print(f"base_name: {base_name}, camera_info: {camera_info}")
     if base_name.count("/") != 1 and base_name.startswith("data"):
         dataset_name = base_name.split("__")[1]
         camera_name, filename = camera_info.split("__")

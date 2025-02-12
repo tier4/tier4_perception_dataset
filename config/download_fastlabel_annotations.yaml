@@ -8,9 +8,6 @@ conversion:
     - 202405-license-plate-person-head-bbox
     - 202405-traffic-light-recognition
     - 3d-lidar-bbox
-    - 3d-lidar-bbox
-    - 3d-lidar-bbox
-    - 3d-lidar-bbox
     - panoptic-segmentation
     - traffic-light-recognition
     - license-plate-person-head
