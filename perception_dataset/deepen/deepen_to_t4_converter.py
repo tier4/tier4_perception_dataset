@@ -89,7 +89,7 @@ class DeepenToT4Converter(AbstractConverter):
                 )
             )
         elif self._label_info.label_type == LabelType.POINT_3D:
-            if self._label_info.label_type == LabelType.POINT_3D:
+            if self._label_info.label_format == LabelFormat.PAINT_3D:
                 deepen_annotations = DeepenSegmentationPainting3DAnnotations.from_file(
                     ann_file=self._input_anno_file
                 )
