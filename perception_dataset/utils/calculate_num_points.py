@@ -16,6 +16,7 @@ def calculate_num_points(
 ):
     """Calcluate number of points in each box and overwrite the annotation table"""
     nusc = NuScenes(version="annotation", dataroot=dataroot, verbose=False)
+    logger.info(f"nusc sample {nusc.sample}")
     for sample in nusc.sample:
         logger.info(f"Processing sample {sample}")
         if lidar_sensor_channel not in sample["data"]:

@@ -68,7 +68,9 @@ class AnnotationFilesGenerator:
         self._object_ann_table = ObjectAnnTable()
         self._surface_ann_table = SurfaceAnnTable()
 
-        self._instance_token_to_annotation_token_list: Dict[str, List[str]] = defaultdict(list)
+        self._instance_token_to_annotation_token_list: Dict[str, List[str]] = (
+            defaultdict(list)
+        )
 
         if with_camera:
             self._camera2idx = description.get("camera_index")
@@ -111,7 +113,9 @@ class AnnotationFilesGenerator:
         nuim = NuImages(version="annotation", dataroot=input_dir, verbose=False)
         # FIXME: Avoid hard coding the number of cameras
         num_cameras = 6 if self._camera2idx is None else len(self._camera2idx)
-        frame_index_to_sample_data_token: List[Dict[int, str]] = [{} for _ in range(num_cameras)]
+        frame_index_to_sample_data_token: List[Dict[int, str]] = [
+            {} for _ in range(num_cameras)
+        ]
         mask: List[Dict[int, str]] = [{} for x in range(num_cameras)]
 
         has_2d_annotation: bool = False
@@ -127,11 +131,16 @@ class AnnotationFilesGenerator:
             prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
             for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
-                if sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg":
+                if (
+                    sample_nuim["fileformat"] == "png"
+                    or sample_nuim["fileformat"] == "jpg"
+                ):
                     cam = sample_nuim["filename"].split("/")[1]
                     cam_idx = self._camera2idx[cam]
 
-                    frame_index = int((sample_nuim["filename"].split("/")[2]).split(".")[0])
+                    frame_index = int(
+                        (sample_nuim["filename"].split("/")[2]).split(".")[0]
+                    )
                     frame_index_to_sample_data_token[cam_idx].update(
                         {frame_index: sample_nuim["token"]}
                     )
@@ -141,9 +150,9 @@ class AnnotationFilesGenerator:
                         prev_wid_hgt = hgt_wid
                         object_mask = np.zeros(hgt_wid, dtype=np.uint8)
                         object_mask = cocomask.encode(np.asfortranarray(object_mask))
-                        object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode(
-                            "ascii"
-                        )
+                        object_mask["counts"] = base64.b64encode(
+                            object_mask["counts"]
+                        ).decode("ascii")
                     mask[cam_idx].update({frame_index: object_mask})
 
         self.convert_annotations(
@@ -163,9 +172,11 @@ class AnnotationFilesGenerator:
         self._surface_ann_table.save_json(anno_dir)
         logger.info(f"with_lidar: {self._with_lidar}")
         if self._with_lidar:
-            logger.info("run calculate_num_points")
+            logger.info("run calculate_num_points dayo")
             # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
-            calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
+            calculate_num_points(
+                output_dir, lidar_sensor_channel, self._sample_annotation_table
+            )
             self._sample_annotation_table.save_json(anno_dir)
 
     def convert_annotations(
@@ -258,7 +269,9 @@ class AnnotationFilesGenerator:
 
             # for the case that the frame_index is not in the sample_token
             if frame_index - min_frame_index not in frame_index_to_sample_token:
-                print(f"frame_index {frame_index} in annotation.json is not in sample_token")
+                print(
+                    f"frame_index {frame_index} in annotation.json is not in sample_token"
+                )
                 continue
 
             for anno in anno_list:
@@ -288,28 +301,30 @@ class AnnotationFilesGenerator:
                 # Sample Annotation
                 if "three_d_bbox" in anno.keys():
                     anno_three_d_bbox: Dict[str, float] = anno["three_d_bbox"]
-                    sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
-                        sample_token=frame_index_to_sample_token[frame_index],
-                        instance_token=instance_token,
-                        attribute_tokens=attribute_tokens,
-                        visibility_token=visibility_token,
-                        translation=anno_three_d_bbox["translation"],
-                        velocity=anno_three_d_bbox["velocity"],
-                        acceleration=anno_three_d_bbox["acceleration"],
-                        size=anno_three_d_bbox["size"],
-                        rotation=anno_three_d_bbox["rotation"],
-                        num_lidar_pts=anno["num_lidar_pts"],
-                        num_radar_pts=anno["num_radar_pts"],
-                        automatic_annotation=False,
+                    sample_annotation_token: str = (
+                        self._sample_annotation_table.insert_into_table(
+                            sample_token=frame_index_to_sample_token[frame_index],
+                            instance_token=instance_token,
+                            attribute_tokens=attribute_tokens,
+                            visibility_token=visibility_token,
+                            translation=anno_three_d_bbox["translation"],
+                            velocity=anno_three_d_bbox["velocity"],
+                            acceleration=anno_three_d_bbox["acceleration"],
+                            size=anno_three_d_bbox["size"],
+                            rotation=anno_three_d_bbox["rotation"],
+                            num_lidar_pts=anno["num_lidar_pts"],
+                            num_radar_pts=anno["num_radar_pts"],
+                            automatic_annotation=False,
+                        )
                     )
-                    self._instance_token_to_annotation_token_list[instance_token].append(
-                        sample_annotation_token
-                    )
+                    self._instance_token_to_annotation_token_list[
+                        instance_token
+                    ].append(sample_annotation_token)
 
                 # Object Annotation
-                if ("two_d_box" in anno.keys() or "two_d_segmentation" in anno.keys()) and anno[
-                    "category_name"
-                ] not in self._surface_categories:
+                if (
+                    "two_d_box" in anno.keys() or "two_d_segmentation" in anno.keys()
+                ) and anno["category_name"] not in self._surface_categories:
                     sensor_id: int = int(anno["sensor_id"])
                     if frame_index not in frame_index_to_sample_data_token[sensor_id]:
                         continue
@@ -319,7 +334,9 @@ class AnnotationFilesGenerator:
                         else None
                     )
                     self._object_ann_table.insert_into_table(
-                        sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
+                        sample_data_token=frame_index_to_sample_data_token[sensor_id][
+                            frame_index
+                        ],
                         instance_token=instance_token,
                         category_token=category_token,
                         attribute_tokens=attribute_tokens,
@@ -343,7 +360,9 @@ class AnnotationFilesGenerator:
                     self._surface_ann_table.insert_into_table(
                         category_token=category_token,
                         mask=anno["two_d_segmentation"],
-                        sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
+                        sample_data_token=frame_index_to_sample_data_token[sensor_id][
+                            frame_index
+                        ],
                         automatic_annotation=False,
                     )
 
