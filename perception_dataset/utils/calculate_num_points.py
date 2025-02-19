@@ -17,7 +17,9 @@ def calculate_num_points(
     """Calcluate number of points in each box and overwrite the annotation table"""
     nusc = NuScenes(version="annotation", dataroot=dataroot, verbose=False)
     for sample in nusc.sample:
+        logger.info(f"Processing sample {sample}")
         if lidar_sensor_channel not in sample["data"]:
+            logger.info("lidar_sensor_channel not found")
             continue
         lidar_token = sample["data"][lidar_sensor_channel]
         lidar_path, boxes, _ = nusc.get_sample_data(lidar_token)
@@ -38,9 +40,15 @@ def calculate_num_points(
         )
         num_points = indices.sum(0)
 
+        logger.info(f"boxes: {boxes}")
+        logger.info(f"num_points: {num_points}")
+
         for box, num in zip(boxes, num_points):
+            logger.info(f"save num_lidar_pts {num} to {box.token}")
             # Create new record with num_lidar_pts and overwrite the original one
-            record: SampleAnnotationRecord = annotation_table._token_to_record[box.token]
+            record: SampleAnnotationRecord = annotation_table._token_to_record[
+                box.token
+            ]
             new_record = SampleAnnotationRecord(
                 sample_token=record._sample_token,
                 instance_token=record._instance_token,
