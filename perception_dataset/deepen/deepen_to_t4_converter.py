@@ -3,7 +3,7 @@ import os.path as osp
 from pathlib import Path
 import re
 import shutil
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, TypedDict, Union
 
 from nuscenes.nuscenes import NuScenes
 import yaml
@@ -20,7 +20,9 @@ from perception_dataset.deepen.segmentation import (
     DeepenSegmentationPolygon2D,
 )
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
-from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
+from perception_dataset.t4_dataset.annotation_files_generator import (
+    AnnotationFilesGenerator,
+)
 from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
     KeyFrameConsistencyResolver,
 )
@@ -30,8 +32,35 @@ import perception_dataset.utils.misc as misc_utils
 logger = configure_logger(modname=__name__)
 
 
-class DeepenToT4Converter(AbstractConverter):
+class DeepenToT4ConverterDescriptionOptional(TypedDict, total=False):
+    visibility: Dict[str, str]
+    camera_index: Dict[str, int]
+    surface_categories: str
+    with_lidar: bool
 
+
+class DeepenToT4ConverterDescription(DeepenToT4ConverterDescriptionOptional):
+    pass
+
+
+class DeepenToT4ConverterTopicListDictRequired(TypedDict):
+    topic_list: List[str]
+
+
+class DeepenToT4ConverterTopicListDictOptional(TypedDict, total=False):
+    mandatory_topic_list: List[str]
+
+
+class DeepenToT4ConverterTopicListDict(
+    DeepenToT4ConverterTopicListDictRequired, DeepenToT4ConverterTopicListDictOptional
+):
+    pass
+
+
+DeepenToT4ConverterTopicList = Union[DeepenToT4ConverterTopicListDict, List[str]]
+
+
+class DeepenToT4Converter(AbstractConverter):
     def __init__(
         self,
         input_base: str,
@@ -39,9 +68,9 @@ class DeepenToT4Converter(AbstractConverter):
         input_anno_file: str,
         dataset_corresponding: Dict[str, str],
         overwrite_mode: bool,
-        description: Dict[str, Dict[str, str]],
+        description: DeepenToT4ConverterDescription,
         input_bag_base: Optional[str],
-        topic_list: Union[Dict[str, List[str]], List[str]],
+        topic_list: DeepenToT4ConverterTopicList,
         t4_dataset_dir_name: str = "t4_dataset",
         ignore_interpolate_label: bool = False,
         label_info: Optional[LabelInfo] = None,
@@ -51,7 +80,7 @@ class DeepenToT4Converter(AbstractConverter):
         self._input_anno_file: str = input_anno_file
         self._t4data_name_to_deepen_dataset_id: Dict[str, str] = dataset_corresponding
         self._overwrite_mode: bool = overwrite_mode
-        self._description: Dict[str, Dict[str, str]] = description
+        self._description: DeepenToT4ConverterDescription = description
         self._input_bag_base: Optional[str] = input_bag_base
         self._t4_dataset_dir_name: str = t4_dataset_dir_name
         self._start_sec: float = 0
@@ -59,7 +88,7 @@ class DeepenToT4Converter(AbstractConverter):
         self._ignore_interpolate_label: bool = ignore_interpolate_label
         self._label_info: Optional[LabelInfo] = label_info
 
-        self._topic_list_yaml: Union[List, Dict] = topic_list
+        self._topic_list_yaml = topic_list
         if description.get("surface_categories"):
             with open(description["surface_categories"], "r") as f:
                 self._surface_categories: List[str] = yaml.safe_load(f)
@@ -67,7 +96,7 @@ class DeepenToT4Converter(AbstractConverter):
             self._surface_categories = []
 
     def convert(self):
-        camera_index: Dict[str, int] = self._description["camera_index"]
+        camera_index = self._description["camera_index"]
         if self._label_info is None:
             deepen_annotations = DeepenAnnotation.from_file(self._input_anno_file)
         else:
@@ -121,7 +150,8 @@ class DeepenToT4Converter(AbstractConverter):
             input_dir = osp.join(self._input_base, t4data_name)
 
             annotation_files_generator = AnnotationFilesGenerator(
-                description=self._description, surface_categories=self._surface_categories
+                description=self._description,
+                surface_categories=self._surface_categories,
             )
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
@@ -181,7 +211,9 @@ class DeepenToT4Converter(AbstractConverter):
             return "full"
 
     def _format_deepen_annotation(
-        self, label_dicts: List[Dict[str, Any]], camera_index: Optional[Dict[str, int]] = None
+        self,
+        label_dicts: List[Dict[str, Any]],
+        camera_index: Optional[Dict[str, int]] = None,
     ):
         """
 

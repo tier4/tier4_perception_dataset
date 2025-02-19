@@ -1,11 +1,11 @@
 import base64
-from collections import defaultdict
 import os.path as osp
-from typing import Any, Dict, List, Optional, Tuple
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
+import numpy as np
 from nptyping import NDArray
 from nuimages import NuImages
-import numpy as np
 from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
 
@@ -22,13 +22,22 @@ from perception_dataset.t4_dataset.classes.sample_annotation import (
 from perception_dataset.t4_dataset.classes.surface_ann import SurfaceAnnTable
 from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.calculate_num_points import calculate_num_points
+from perception_dataset.utils.logger import configure_logger
+
+logger = configure_logger(modname=__name__)
+
+
+class AnnotationFilesGeneratorDescription(TypedDict, total=False):
+    visibility: Dict[str, str]
+    camera_index: Dict[str, int]
+    with_lidar: bool
 
 
 class AnnotationFilesGenerator:
     def __init__(
         self,
         with_camera: bool = True,
-        description: Dict[str, Dict[str, str]] = {},
+        description: AnnotationFilesGeneratorDescription = {},
         surface_categories: List[str] = [],
     ):
         # TODO(yukke42): remove the hard coded attribute description
@@ -66,6 +75,7 @@ class AnnotationFilesGenerator:
         else:
             self._camera2idx = None
         self._with_lidar = description.get("with_lidar", True)
+        # self._with_lidar = "with_lidar" in description and description["with_lidar"]
         self._surface_categories: List[str] = surface_categories
 
     def save_tables(self, anno_dir: str):
@@ -151,7 +161,9 @@ class AnnotationFilesGenerator:
         self._visibility_table.save_json(anno_dir)
         self._object_ann_table.save_json(anno_dir)
         self._surface_ann_table.save_json(anno_dir)
+        logger.info(f"with_lidar: {self._with_lidar}")
         if self._with_lidar:
+            logger.info("run calculate_num_points")
             # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
             calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
             self._sample_annotation_table.save_json(anno_dir)
