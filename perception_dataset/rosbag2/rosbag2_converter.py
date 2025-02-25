@@ -3,7 +3,7 @@ import os.path as osp
 import re
 import shutil
 import sys
-from typing import Dict, List, Text, Union
+from typing import Dict, List, Text, TypedDict, Union
 
 from rclpy.serialization import deserialize_message
 from rosbag2_py import StorageFilter
@@ -18,6 +18,23 @@ from perception_dataset.utils.rosbag2 import (
 )
 
 
+class Rosbag2ConverterTopicListDictRequired(TypedDict):
+    topic_list: List[str]
+
+
+class Rosbag2ConverterTopicListDictOptional(TypedDict, total=False):
+    mandatory_topic_list: List[str]
+
+
+class Rosbag2ConverterTopicListDict(
+    Rosbag2ConverterTopicListDictRequired, Rosbag2ConverterTopicListDictOptional
+):
+    pass
+
+
+Rosbag2ConverterTopicList = Union[Rosbag2ConverterTopicListDict, List[str]]
+
+
 class Rosbag2Converter:
     MANDATORY_TOPICS = [
         "pointcloud",
@@ -29,7 +46,7 @@ class Rosbag2Converter:
         self,
         input_bag_dir: Text,
         output_bag_dir: Text,
-        topic_list: Union[Dict[str, List[str]], List[str]] = [],
+        topic_list: Rosbag2ConverterTopicList = [],
         start_time_sec: float = 0,
         end_time_sec: float = sys.float_info.max,
         mandatory_topics: List = MANDATORY_TOPICS,
@@ -37,7 +54,7 @@ class Rosbag2Converter:
         self._input_bag_dir: str = input_bag_dir
         self._output_bag_dir: str = output_bag_dir
 
-        if "topic_list" in topic_list:
+        if isinstance(topic_list, dict):
             # if topic_list is Dict, topic_list["topic_list"] is used as allow_topics
             allow_topics = topic_list["topic_list"]
         elif isinstance(topic_list, list):
@@ -47,7 +64,7 @@ class Rosbag2Converter:
             # if topic_list is not specified, allow_topics is empty
             allow_topics = []
 
-        if "mandatory_topic_list" in topic_list:
+        if isinstance(topic_list, dict) and "mandatory_topic_list" in topic_list:
             # if topic_list is Dict, topic_list["mandatory_topic_list"] is used as mandatory_topics
             mandatory_topics_list = topic_list["mandatory_topic_list"]
         elif mandatory_topics is None:

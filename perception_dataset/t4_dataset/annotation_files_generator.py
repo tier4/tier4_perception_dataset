@@ -1,7 +1,7 @@
 import base64
 from collections import defaultdict
 import os.path as osp
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 from nptyping import NDArray
 from nuimages import NuImages
@@ -24,11 +24,21 @@ from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 
 
+class AnnotationFilesGeneratorDescriptionOptional(TypedDict, total=False):
+    visibility: Dict[str, str]
+    camera_index: Dict[str, int]
+    with_lidar: bool
+
+
+class AnnotationFilesGeneratorDescription(AnnotationFilesGeneratorDescriptionOptional):
+    pass
+
+
 class AnnotationFilesGenerator:
     def __init__(
         self,
         with_camera: bool = True,
-        description: Dict[str, Dict[str, str]] = {},
+        description: AnnotationFilesGeneratorDescription = {},
         surface_categories: List[str] = [],
     ):
         # TODO(yukke42): remove the hard coded attribute description
