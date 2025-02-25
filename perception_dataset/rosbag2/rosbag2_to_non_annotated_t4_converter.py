@@ -24,20 +24,29 @@ from perception_dataset.constants import (
     T4_FORMAT_DIRECTORY_NAME,
 )
 from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
-from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import VehicleStatusHandler
+from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import (
+    VehicleStatusHandler,
+)
 from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
-from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
+from perception_dataset.t4_dataset.classes.calibrated_sensor import (
+    CalibratedSensorTable,
+)
 from perception_dataset.t4_dataset.classes.category import CategoryTable
 from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord, EgoPoseTable
 from perception_dataset.t4_dataset.classes.instance import InstanceTable
 from perception_dataset.t4_dataset.classes.log import LogTable
 from perception_dataset.t4_dataset.classes.map import MapTable
 from perception_dataset.t4_dataset.classes.sample import SampleRecord, SampleTable
-from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnotationTable
-from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
+from perception_dataset.t4_dataset.classes.sample_annotation import (
+    SampleAnnotationTable,
+)
+from perception_dataset.t4_dataset.classes.sample_data import (
+    SampleDataRecord,
+    SampleDataTable,
+)
 from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
 from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
@@ -102,6 +111,8 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
                 bag_converter.convert()
             except Exception as e:
                 logger.error(f"Error occurred during conversion: {e}")
+                if self._params.raise_exception:
+                    raise e
                 continue
             logger.info(f"Conversion of {bag_dir} is completed")
             print(
@@ -240,7 +251,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         for sensor_enum in self._sensor_enums:
             os.makedirs(
-                osp.join(self._output_data_dir, sensor_enum.value["channel"]), exist_ok=True
+                osp.join(self._output_data_dir, sensor_enum.value["channel"]),
+                exist_ok=True,
             )
 
     def _init_tables(self):
@@ -305,7 +317,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         }
         config_data = {"rosbag2_to_non_annotated_t4_converter": config_data}
         with open(osp.join(self._output_scene_dir, "status.json"), "w") as f:
-            json.dump(config_data, f, indent=4, default=lambda o: getattr(o, "__dict__", str(o)))
+            json.dump(
+                config_data,
+                f,
+                indent=4,
+                default=lambda o: getattr(o, "__dict__", str(o)),
+            )
 
     def _compress_directory(self):
         shutil.make_archive(
@@ -698,7 +715,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             image_generator = self._bag_reader.read_messages(
                 topics=[topic], start_time=start_time_in_time
             )
-            for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
+            for (
+                image_index,
+                lidar_frame_index,
+                dummy_image_timestamp,
+            ) in synced_frame_info_list:
                 lidar_sample_token: str = sample_records[lidar_frame_index].token
                 if image_index is None:  # Image dropped
                     sample_data_token = self._generate_image_data(
@@ -991,7 +1012,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return vehicle_state_token
 
     def _generate_calibrated_sensor(
-        self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
+        self,
+        sensor_channel: str,
+        start_timestamp: builtin_interfaces.msg.Time,
+        topic_name="",
     ) -> Union[str, Tuple[str, CameraInfo]]:
         calibrated_sensor_token = str()
         camera_info = None
@@ -1031,7 +1055,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     "z": transform_stamped.transform.rotation.z,
                 }
 
-            if modality in (SENSOR_MODALITY_ENUM.LIDAR.value, SENSOR_MODALITY_ENUM.RADAR.value):
+            if modality in (
+                SENSOR_MODALITY_ENUM.LIDAR.value,
+                SENSOR_MODALITY_ENUM.RADAR.value,
+            ):
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                     sensor_token=sensor_token,
                     translation=translation,
