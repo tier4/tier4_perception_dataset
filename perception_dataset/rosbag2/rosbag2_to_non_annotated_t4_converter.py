@@ -87,11 +87,11 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
 
                 output_dir = osp.join(self._output_base, bag_name)
                 if osp.exists(output_dir):
-                    logger.error(f"{output_dir} already exists.")
+                    logger.warning(f"{output_dir} already exists.")
                     dir_exist = True
                     bag_dirs.remove(bag_dir)
             if dir_exist and len(bag_dirs) == 0:
-                logger.error(f"{output_dir} already exists.")
+                logger.warning(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
         for bag_dir in sorted(bag_dirs):
@@ -177,7 +177,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # it is retrieved from INS messages.
         with_world_frame_conversion = self._ego_pose_target_frame != self._ego_pose_source_frame
         is_tf_needed = with_world_frame_conversion and not params.with_ins
-        self._bag_reader = Rosbag2Reader(self._input_bag, is_tf_needed)
+        is_tf_static_needed = len(self._radar_sensors) > 0 or len(self._camera_sensors) > 0
+        self._bag_reader = Rosbag2Reader(self._input_bag, is_tf_needed, is_tf_static_needed)
         self._calc_actual_num_load_frames()
 
         # for Co-MLOps

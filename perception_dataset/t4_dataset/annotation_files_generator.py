@@ -1,6 +1,8 @@
 import base64
 from collections import defaultdict
 import os.path as osp
+from pathlib import Path
+import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
 from nptyping import NDArray
@@ -9,11 +11,12 @@ import numpy as np
 from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
 
-from perception_dataset.constants import SENSOR_ENUM
+from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
 from perception_dataset.t4_dataset.classes.category import CategoryTable
 from perception_dataset.t4_dataset.classes.instance import InstanceRecord, InstanceTable
+from perception_dataset.t4_dataset.classes.lidarseg import LidarSegTable
 from perception_dataset.t4_dataset.classes.object_ann import ObjectAnnTable
 from perception_dataset.t4_dataset.classes.sample_annotation import (
     SampleAnnotationRecord,
@@ -31,6 +34,7 @@ class AnnotationFilesGenerator:
         description: Dict[str, Dict[str, str]] = {},
         surface_categories: List[str] = [],
     ):
+        self._with_lidarseg = description.get("with_lidarseg", False)
         # TODO(yukke42): remove the hard coded attribute description
         self._attribute_table = AttributeTable(
             name_to_description={},
@@ -38,8 +42,7 @@ class AnnotationFilesGenerator:
         )
         # TODO(yukke42): remove the hard coded category description
         self._category_table = CategoryTable(
-            name_to_description={},
-            default_value="",
+            name_to_description={}, default_value="", lidarseg=self._with_lidarseg
         )
         self._instance_table = InstanceTable()
         self._visibility_table = VisibilityTable(
@@ -68,6 +71,9 @@ class AnnotationFilesGenerator:
         self._with_lidar = description.get("with_lidar", True)
         self._surface_categories: List[str] = surface_categories
 
+        if self._with_lidarseg:
+            assert self._with_lidar, "with_lidar must be set if with_lidarseg is set!"
+
     def save_tables(self, anno_dir: str):
         for cls_attr in self.__dict__.values():
             if isinstance(cls_attr, AbstractTable):
@@ -86,10 +92,6 @@ class AnnotationFilesGenerator:
             raise ValueError(f"Annotations files doesn't exist in {anno_dir}")
 
         nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
-        frame_index_to_sample_token: Dict[int, str] = {}
-        for sample_data in nusc.sample_data:
-            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
-            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
         try:
             if "LIDAR_TOP" in nusc.sample[0]["data"]:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_TOP.value["channel"]
@@ -99,6 +101,51 @@ class AnnotationFilesGenerator:
             print(e)
 
         nuim = NuImages(version="annotation", dataroot=input_dir, verbose=False)
+        # TODO (KokSeang): Support lidarseg and other annotations at the same time
+        if self._with_lidarseg:
+            self._convert_lidarseg_scene_annotations(
+                scene_anno_dict=scene_anno_dict,
+                nusc=nusc,
+                anno_dir=anno_dir,
+                lidar_sensor_channel=lidar_sensor_channel,
+            )
+        else:
+            self._convert_scene_annotations(
+                scene_anno_dict=scene_anno_dict, dataset_name=dataset_name, nuim=nuim, nusc=nusc
+            )
+
+        self._attribute_table.save_json(anno_dir)
+        self._category_table.save_json(anno_dir)
+        self._instance_table.save_json(anno_dir)
+        self._sample_annotation_table.save_json(anno_dir)
+        self._visibility_table.save_json(anno_dir)
+        self._object_ann_table.save_json(anno_dir)
+        self._surface_ann_table.save_json(anno_dir)
+        # Skip if lidarseg is enabled since it doesn't have any bounding box annotations yet
+        if self._with_lidar and not self._with_lidarseg:
+            # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
+            calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
+            self._sample_annotation_table.save_json(anno_dir)
+
+    def _convert_scene_annotations(
+        self,
+        scene_anno_dict: Dict[int, List[Dict[str, Any]]],
+        dataset_name: str,
+        nusc: NuScenes,
+        nuim: NuImages,
+    ) -> None:
+        """
+        Convert scene annotations to T4 dataset format.
+        :param scene_anno_dict: Scene annotations.
+        :param dataset_name: Dataset name.
+        :param nusc: NuScenes object.
+        :param nuim: Nuimages object.
+        """
+        frame_index_to_sample_token: Dict[int, str] = {}
+        for sample_data in nusc.sample_data:
+            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
+            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
+
         # FIXME: Avoid hard coding the number of cameras
         num_cameras = 6 if self._camera2idx is None else len(self._camera2idx)
         frame_index_to_sample_data_token: List[Dict[int, str]] = [{} for _ in range(num_cameras)]
@@ -116,7 +163,7 @@ class AnnotationFilesGenerator:
             object_mask: NDArray = np.zeros((0, 0), dtype=np.uint8)
             prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
-            for frame_index_nuim, sample_nuim in enumerate(nuim.sample_data):
+            for _, sample_nuim in enumerate(nuim.sample_data):
                 if sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg":
                     cam = sample_nuim["filename"].split("/")[1]
                     cam_idx = self._camera2idx[cam]
@@ -126,10 +173,10 @@ class AnnotationFilesGenerator:
                         {frame_index: sample_nuim["token"]}
                     )
 
-                    wid_hgt = (sample_nuim["width"], sample_nuim["height"])
-                    if wid_hgt != prev_wid_hgt:
-                        prev_wid_hgt = wid_hgt
-                        object_mask = np.zeros(wid_hgt, dtype=np.uint8)
+                    hgt_wid = (sample_nuim["height"], sample_nuim["width"])
+                    if hgt_wid != prev_wid_hgt:
+                        prev_wid_hgt = hgt_wid
+                        object_mask = np.zeros(hgt_wid, dtype=np.uint8)
                         object_mask = cocomask.encode(np.asfortranarray(object_mask))
                         object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode(
                             "ascii"
@@ -143,18 +190,6 @@ class AnnotationFilesGenerator:
             frame_index_to_sample_data_token=frame_index_to_sample_data_token,
             mask=mask,
         )
-
-        self._attribute_table.save_json(anno_dir)
-        self._category_table.save_json(anno_dir)
-        self._instance_table.save_json(anno_dir)
-        self._sample_annotation_table.save_json(anno_dir)
-        self._visibility_table.save_json(anno_dir)
-        self._object_ann_table.save_json(anno_dir)
-        self._surface_ann_table.save_json(anno_dir)
-        if self._with_lidar:
-            # Calculate and overwrite number of points in lidar cuboid bounding box in annotations
-            calculate_num_points(output_dir, lidar_sensor_channel, self._sample_annotation_table)
-            self._sample_annotation_table.save_json(anno_dir)
 
     def convert_annotations(
         self,
@@ -338,7 +373,7 @@ class AnnotationFilesGenerator:
     def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:
         """Clip the bbox to the image size."""
         try:
-            width, height = mask["size"]
+            height, width = mask["size"]
             bbox[0] = max(0, bbox[0])
             bbox[1] = max(0, bbox[1])
             bbox[2] = min(width, bbox[2])
@@ -381,3 +416,88 @@ class AnnotationFilesGenerator:
                 )
                 cur_rec.prev_token = prev_token
                 self._sample_annotation_table.set_record_to_table(cur_rec)
+
+    def _convert_lidarseg_scene_annotations(
+        self,
+        scene_anno_dict: Dict[int, List[Dict[str, Any]]],
+        lidar_sensor_channel: str,
+        nusc: NuScenes,
+        anno_dir: str,
+    ) -> None:
+        """
+        Convert annotations for scenes in lidarseg to t4 dataset format.
+        Specifically, it creates lidarseg.json and update category.json.
+        :param scene_anno_dict: Dict of annotations for every scenes.
+        :param lidar_sensor_channel: Lidar sensor channel name.
+        :param nusc: Nuscene object for this dataset.
+        :param anno_dir: Annotation directory.
+        """
+        lidarseg_table = LidarSegTable()
+
+        frame_index_to_sample_data_token: Dict[int, str] = {}
+        frame_index_to_sample_token: Dict[int, str] = {}
+        for sample_data in nusc.sample_data:
+            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
+            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
+            if lidar_sensor_channel in sample_data["filename"]:
+                frame_index_to_sample_data_token[frame_index] = sample_data["token"]
+
+        # Create lidarseg folder in
+        anno_path = Path(anno_dir)
+        anno_path.mkdir(parents=True, exist_ok=True)
+        version_name = anno_path.name
+        lidarseg_relative_path = osp.join(
+            T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value, version_name
+        )
+        # We need to move the level same as anno_dir, and create "lidarseg/<version_name>" because of the design in NuScenes dataset
+        lidarseg_anno_path = anno_path.parents[0] / lidarseg_relative_path
+        lidarseg_anno_path.mkdir(parents=True, exist_ok=True)
+        for frame_index in sorted(scene_anno_dict.keys()):
+            anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
+            # in case of the first frame in annotation is not 0
+            min_frame_index: int = min(scene_anno_dict.keys())
+
+            # for the case that the frame_index is not in the sample_token
+            if frame_index - min_frame_index not in frame_index_to_sample_token:
+                print(f"frame_index {frame_index} in annotation.json is not in sample_token")
+                continue
+
+            sample_data_token = frame_index_to_sample_data_token.get(frame_index, None)
+            if sample_data_token is None:
+                raise ValueError(f"sample_data doesn't have {lidar_sensor_channel}!")
+
+            # All tmp lidarseg folders before moving
+            for anno in anno_list:
+                # Category
+                for category_name in anno["paint_categories"]:
+                    self._category_table.get_token_from_name(name=category_name)
+
+                # Visibility
+                self._visibility_table.get_token_from_level(
+                    level=anno.get("visibility_name", "none")
+                )
+
+                # Get a LidarSeg token
+                lidarseg_token = lidarseg_table.insert_into_table(
+                    filename=anno["lidarseg_anno_file"], sample_data_token=sample_data_token
+                )
+
+                # Move lidarseg_anno_file to lidarseg_anno_path with token name
+                new_lidarseg_anno_filename = str(
+                    lidarseg_anno_path / (lidarseg_token + EXTENSION_ENUM.BIN.value)
+                )
+                shutil.move(anno["lidarseg_anno_file"], new_lidarseg_anno_filename)
+
+                # Update the lidarseg record with the new filename
+                lidarseg_record = lidarseg_table.select_record_from_token(token=lidarseg_token)
+                lidarseg_record.filename = osp.join(
+                    lidarseg_relative_path, (lidarseg_token + EXTENSION_ENUM.BIN.value)
+                )
+                lidarseg_table.set_record_to_table(
+                    record=lidarseg_record,
+                )
+
+        lidarseg_table.save_json(anno_dir)
+
+        # Remove the older lidarseg folder
+        shutil.rmtree(T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value, ignore_errors=True)

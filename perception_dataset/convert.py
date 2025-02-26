@@ -445,7 +445,21 @@ def main():
         logger.info(f"[BEGIN] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
         converter.convert()
         logger.info(f"[END] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
+    elif task == "convert_rosbag2_to_localization_evaluation":
+        from perception_dataset.rosbag2.rosbag2_to_t4_loc_converter import Rosbag2ToT4LocConverter
 
+        param_args = {
+            "task": task,
+            "scene_description": config_dict["description"]["scene"],
+            **config_dict["conversion"],
+        }
+        if args.overwrite:
+            param_args["overwrite_mode"] = args.overwrite
+        logger.info("[BEGIN] Converting ros2bag --> T4 Localization Evaluation")
+        converter_params = Rosbag2ConverterParams(**param_args, with_camera=False)
+        converter = Rosbag2ToT4LocConverter(converter_params)
+        converter.convert()
+        logger.info("[END] Conversion Completed")
     else:
         raise NotImplementedError()
 

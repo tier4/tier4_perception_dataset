@@ -27,6 +27,7 @@ class Rosbag2ConverterParams(BaseModel):
     scene_description: str = ""  # scene description
     accept_frame_drop: bool = False  # whether to accept frame drop
     undistort_image: bool = False  # whether to undistort image
+    make_t4_dataset_dir: bool = True  # whether to make t4 dataset directory
 
     # rosbag data type
     data_type: DataType = DataType.REAL  # real or synthetic
