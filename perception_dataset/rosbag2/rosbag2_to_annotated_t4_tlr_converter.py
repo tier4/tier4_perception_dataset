@@ -151,7 +151,8 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
 
         # Get calibrated sensor token
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
-        calibrated_sensor_token = self._generate_calibrated_sensor(
+        # For camera: (calibrated_sensor_token, camera_info)
+        calibrated_sensor_token, _ = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
         )
 
