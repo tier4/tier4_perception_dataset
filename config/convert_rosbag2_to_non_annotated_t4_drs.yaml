@@ -12,6 +12,7 @@ conversion:
   undistort_image: true # If true, the camera image will be undistorted.
   with_ins: true            # whether to use INS messages as a ego state instead of `/tf`
   with_vehicle_status: false # whether to generate `vehicle_state.json`
+  rotate_ins: false # If true, rotate the INS data by 180 degrees in the yaw direction
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
