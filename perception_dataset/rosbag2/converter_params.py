@@ -80,6 +80,7 @@ class Rosbag2ConverterParams(BaseModel):
     # for Co-MLOps
     with_ins: bool = False  # whether to convert rosbag with INS topics
     with_vehicle_status: bool = False  # whether to convert rosbag with vehicle status
+    rotate_ins: bool = False  # whether to rotate the INS data by 180 degrees in the yaw direction
 
     def __init__(self, **args):
         if "scene_description" in args and isinstance(args["scene_description"], list):
