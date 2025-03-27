@@ -415,15 +415,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 scene_token=scene_token,
             )
 
-            first_sample_data_token: str = sensor_channel_to_sample_data_token_list[
-                sensor_channel
-            ][0]
-            first_sample_data_record: SampleDataRecord = (
-                self._sample_data_table.select_record_from_token(first_sample_data_token)
-            )
-            camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
-                first_sample_data_record.timestamp
-            )
             print(
                 f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec\n"
             )
@@ -661,6 +652,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sample_records: List[SampleRecord] = self._sample_table.to_records()
 
         # Get calibrated sensor token
+        start_timestamp = start_timestamp + 1e-3 * delay_msec - self._max_camera_jitter_sec
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
         calibrated_sensor_token, camera_info = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
