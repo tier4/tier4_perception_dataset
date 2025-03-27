@@ -185,7 +185,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._with_ins = params.with_ins
         self._with_vehicle_status = params.with_vehicle_status
 
-        self._ins_handler = INSHandler(params.input_bag_path) if self._with_ins else None
+        self._ins_handler = INSHandler(params.input_bag_path, rotate_ins=params.rotate_ins) if self._with_ins else None
         self._vehicle_status_handler = (
             VehicleStatusHandler(params.input_bag_path) if self._with_vehicle_status else None
         )
