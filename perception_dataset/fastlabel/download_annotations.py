@@ -59,7 +59,11 @@ def split_project_pcd_image(projects: List[Dict]) -> Dict[str, List[Dict]]:
             seg_projects.append(project)
         elif "bbox" in project["type"]:
             bbox_projects.append(project)
-    return {"cuboid": cuboid_projects, "segmentation": seg_projects, "bbox": bbox_projects}
+    return {
+        "cuboid": cuboid_projects,
+        "segmentation": seg_projects,
+        "bbox": bbox_projects,
+    }
 
 
 def is_task_completed(task: Dict) -> bool:
@@ -114,26 +118,6 @@ def get_labels(output_dir: str, target_project_slug_keyword: List[str]) -> None:
     project_dict = split_project_pcd_image(projects)
     os.makedirs(output_dir, exist_ok=True)
 
-    cuboid_tasks = []
-    pcd_out_dir = osp.join(output_dir, "pcd_annotation")
-    for project in project_dict["cuboid"]:
-        if any(keyword in project["slug"] for keyword in target_project_slug_keyword):
-            cuboid_tasks.extend(
-                download_completed_annotations(project, pcd_out_dir, save_each=True)
-            )
-    with open(osp.join(output_dir, "all_label_lidar_cuboid.json"), "w") as f:
-        json.dump(cuboid_tasks, f, indent=4)
-
-    segmentation_tasks = []
-    pcd_out_dir = osp.join(output_dir, "segmentation_annotation")
-    for project in project_dict["segmentation"]:
-        if any(keyword in project["slug"] for keyword in target_project_slug_keyword):
-            segmentation_tasks.extend(
-                download_completed_annotations(project, pcd_out_dir, save_each=True)
-            )
-    with open(osp.join(output_dir, "all_label_segmentation.json"), "w") as f:
-        json.dump(segmentation_tasks, f, indent=4)
-
     tlr_tasks = []
     pcd_out_dir = osp.join(output_dir, "tlr_annotation")
     for project in project_dict["bbox"]:
@@ -157,6 +141,26 @@ def get_labels(output_dir: str, target_project_slug_keyword: List[str]) -> None:
             )
     with open(osp.join(output_dir, "all_label_anonymization.json"), "w") as f:
         json.dump(anonymization_tasks, f, indent=4)
+
+    cuboid_tasks = []
+    pcd_out_dir = osp.join(output_dir, "pcd_annotation")
+    for project in project_dict["cuboid"]:
+        if any(keyword in project["slug"] for keyword in target_project_slug_keyword):
+            cuboid_tasks.extend(
+                download_completed_annotations(project, pcd_out_dir, save_each=True)
+            )
+    with open(osp.join(output_dir, "all_label_lidar_cuboid.json"), "w") as f:
+        json.dump(cuboid_tasks, f, indent=4)
+
+    segmentation_tasks = []
+    pcd_out_dir = osp.join(output_dir, "segmentation_annotation")
+    for project in project_dict["segmentation"]:
+        if any(keyword in project["slug"] for keyword in target_project_slug_keyword):
+            segmentation_tasks.extend(
+                download_completed_annotations(project, pcd_out_dir, save_each=True)
+            )
+    with open(osp.join(output_dir, "all_label_segmentation.json"), "w") as f:
+        json.dump(segmentation_tasks, f, indent=4)
 
 
 if __name__ == "__main__":

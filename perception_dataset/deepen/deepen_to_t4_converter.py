@@ -17,6 +17,7 @@ from perception_dataset.deepen.deepen_annotation import (
 )
 from perception_dataset.deepen.segmentation import (
     DeepenSegmentationPainting2D,
+    DeepenSegmentationPainting3DAnnotations,
     DeepenSegmentationPolygon2D,
 )
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
@@ -66,34 +67,54 @@ class DeepenToT4Converter(AbstractConverter):
         else:
             self._surface_categories = []
 
-    def convert(self):
+    def _format_annotations(self) -> Dict[str, Dict[str, Any]]:
+        """Format annotations from input_anno_file."""
         camera_index: Dict[str, int] = self._description["camera_index"]
         if self._label_info is None:
             deepen_annotations = DeepenAnnotation.from_file(self._input_anno_file)
-        else:
-            if self._label_info.label_type == LabelType.SEGMENTATION_2D:
-                deepen_annotations = (
-                    DeepenSegmentationPolygon2D.from_file(
-                        ann_file=self._input_anno_file,
-                        data_root=self._input_base,
-                        camera2index=camera_index,
-                        dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
-                    )
-                    if self._label_info.label_format == LabelFormat.POLYGON
-                    else DeepenSegmentationPainting2D.from_file(
-                        ann_file=self._input_anno_file,
-                        data_root=self._input_base,
-                        camera2index=camera_index,
-                        dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
-                    )
+        elif self._label_info.label_type == LabelType.SEGMENTATION_2D:
+            deepen_annotations = (
+                DeepenSegmentationPolygon2D.from_file(
+                    ann_file=self._input_anno_file,
+                    data_root=self._input_base,
+                    camera2index=camera_index,
+                    dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
+                )
+                if self._label_info.label_format == LabelFormat.POLYGON
+                else DeepenSegmentationPainting2D.from_file(
+                    ann_file=self._input_anno_file,
+                    data_root=self._input_base,
+                    camera2index=camera_index,
+                    dataset_corresponding=self._t4data_name_to_deepen_dataset_id,
+                )
+            )
+        elif self._label_info.label_type == LabelType.POINT_3D:
+            if self._label_info.label_format == LabelFormat.PAINT_3D:
+                deepen_annotations = DeepenSegmentationPainting3DAnnotations.from_file(
+                    ann_file=self._input_anno_file
                 )
             else:
-                raise ValueError(f"Unexpected label type: {self._label_info.label_type}")
+                raise ValueError(
+                    f"Unexpected label format: {self._label_info.label_format} in label type: {self._label_info.label_type}"
+                )
+        else:
+            raise ValueError(f"Unexpected label type: {self._label_info.label_type}")
 
-        # format deepen annotation
-        scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
-            deepen_annotations, camera_index
-        )
+        # format deepen annotations
+        if self._label_info is not None and self._label_info.label_type == LabelType.POINT_3D:
+            # Call format_deepen_annotations() from the dataclass if it's POINT_3D
+            scenes_anno_dict: Dict[str, Dict[str, Any]] = (
+                deepen_annotations.format_deepen_annotations()
+            )
+        else:
+            scenes_anno_dict: Dict[str, Dict[str, Any]] = self._format_deepen_annotation(
+                deepen_annotations, camera_index
+            )
+        return scenes_anno_dict
+
+    def convert(self):
+        """Convert all scene annotations to T4 dataset format."""
+        scenes_anno_dict = self._format_annotations()
 
         # copy data and make time/topic filtered rosbag from non-annotated-t4-dataset and rosbag
         for t4data_name in self._t4data_name_to_deepen_dataset_id:
@@ -184,7 +205,6 @@ class DeepenToT4Converter(AbstractConverter):
         self, label_dicts: List[Dict[str, Any]], camera_index: Optional[Dict[str, int]] = None
     ):
         """
-
         e.g.:
         [
             {
