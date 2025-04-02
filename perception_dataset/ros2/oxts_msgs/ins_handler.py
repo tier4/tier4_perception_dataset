@@ -319,12 +319,10 @@ class INSHandler:
         *,
         localize_method: LocalizeMethod = LocalizeMethod.WITH_ODOMETRY,
         topic_mapping: Optional[Dict[str, str]] = None,
-        rotate_ins: bool = False,
     ) -> None:
         self._reader = Rosbag2Reader(bag_dir=bag_dir)
         self._localize_method = localize_method
         self._topic_mapping = self.get_topic_mapping(topic_mapping=topic_mapping)
-        self._rotate_ins = rotate_ins
 
         # buffer to store all messages
         buffer = {
@@ -381,17 +379,6 @@ class INSHandler:
                 imu.linear_acceleration.y,
                 imu.linear_acceleration.z,
             ]
-
-            if self._rotate_ins:
-                current_translation = [-current_translation[0], -current_translation[1], current_translation[2]]
-                current_rotation = [-current_rotation[0], -current_rotation[1], current_rotation[2], current_rotation[3]]
-                current_acceleration = [-current_acceleration[0], -current_acceleration[1], current_acceleration[2]]
-                current_twist.linear.x = -current_twist.linear.x
-                current_twist.linear.y = -current_twist.linear.y
-                current_twist.linear.z = current_twist.linear.z
-                current_twist.angular.x = -current_twist.angular.x
-                current_twist.angular.y = current_twist.angular.y
-                current_twist.angular.z = -current_twist.angular.z
 
             ego_state = EgoState(
                 header=odometry.header,
