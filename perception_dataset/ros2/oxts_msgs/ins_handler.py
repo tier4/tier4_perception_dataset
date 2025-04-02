@@ -383,9 +383,22 @@ class INSHandler:
             ]
 
             if self._rotate_ins:
-                current_translation = [-current_translation[0], -current_translation[1], current_translation[2]]
-                current_rotation = [-current_rotation[0], -current_rotation[1], current_rotation[2], current_rotation[3]]
-                current_acceleration = [-current_acceleration[0], -current_acceleration[1], current_acceleration[2]]
+                current_translation = [
+                    -current_translation[0],
+                    -current_translation[1],
+                    current_translation[2],
+                ]
+                current_rotation = [
+                    -current_rotation[0],
+                    -current_rotation[1],
+                    current_rotation[2],
+                    current_rotation[3],
+                ]
+                current_acceleration = [
+                    -current_acceleration[0],
+                    -current_acceleration[1],
+                    current_acceleration[2],
+                ]
                 current_twist.linear.x = -current_twist.linear.x
                 current_twist.linear.y = -current_twist.linear.y
                 current_twist.linear.z = current_twist.linear.z
