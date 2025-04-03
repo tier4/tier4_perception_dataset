@@ -37,7 +37,6 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         self._annotation_hz = annotation_hz
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
-        print("drop_camera_token_not_found", self._drop_camera_token_not_found)
         if isinstance(camera_sensors, list):
             for cam in camera_sensors:
                 self._camera_sensor_types.append(SENSOR_ENUM[cam["channel"]])
