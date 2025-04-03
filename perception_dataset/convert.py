@@ -73,7 +73,7 @@ def main():
         annotation_hz = config_dict["conversion"]["annotation_hz"]
         workers_number = config_dict["conversion"]["workers_number"]
         drop_camera_token_not_found = config_dict["conversion"]["drop_camera_token_not_found"]
-        
+
         converter = NonAnnotatedT4ToDeepenConverter(
             input_base=input_base,
             output_base=output_base,

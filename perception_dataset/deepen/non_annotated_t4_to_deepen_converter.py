@@ -102,7 +102,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         for camera_sensor_type in self._camera_sensor_types:
             camera_channel = camera_sensor_type.value["channel"]
             camera_token: str | None = self._get_camera_token(camera_channel, sample, nusc)
-            
+
             if camera_token is None:
                 if self._drop_camera_token_not_found:
                     logger.warning(
