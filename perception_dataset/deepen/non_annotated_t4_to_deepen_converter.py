@@ -29,7 +29,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         camera_sensors: list,
         annotation_hz: int = 10,
         workers_number: int = 32,
-        drop_camera_token_not_found: bool = True,
+        drop_camera_token_not_found: bool = False,
     ):
         super().__init__(input_base, output_base)
 
