@@ -104,10 +104,14 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
             camera_token: str | None = self._get_camera_token(camera_channel, sample, nusc)
             if camera_token is None:
                 if self._drop_camera_token_not_found:
-                    logger.warning(f"Skipping.. Camera token not found for {camera_channel} in frame {frame_index}. Dropping this frame")
+                    logger.warning(
+                        f"Skipping.. Camera token not found for {camera_channel} in frame {frame_index}. Dropping this frame"
+                    )
                     return
                 else:
-                    logger.error(f"Camera token not found for {camera_channel} in frame {frame_index}. ")
+                    logger.error(
+                        f"Camera token not found for {camera_channel} in frame {frame_index}. "
+                    )
                     continue
             camera_path, _, cam_intrinsic = nusc.get_sample_data(camera_token)
             data_dict: Dict[str, Any] = self._get_data(nusc, camera_token)
