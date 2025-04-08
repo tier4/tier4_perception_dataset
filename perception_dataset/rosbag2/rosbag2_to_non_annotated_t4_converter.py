@@ -132,7 +132,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._scene_description: str = params.scene_description
         self._accept_frame_drop: bool = params.accept_frame_drop
         self._undistort_image: bool = params.undistort_image
-        self._exec_undistort: bool = False
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = params.world_frame_id
@@ -665,6 +664,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sensor_channel, start_time_in_time, topic
         )
 
+        if self._undistort_image:
+            self.undistort_map_x, self.undistort_map_y = cv2.initUndistortRectifyMap(camera_info.k.reshape(3, 3), np.array(camera_info.d), None, camera_info.p.reshape(3, 4)[:3], (camera_info.width, camera_info.height), 5)
+
         if self._sensor_mode != SensorMode.NO_LIDAR:  # w/ LiDAR mode
             image_timestamp_list = [
                 rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
@@ -856,13 +858,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             else:
                 # load image and undistort
                 image = rosbag2_utils.compressed_msg_to_numpy(image_arr)
-                image = cv2.undistort(
-                    image,
-                    camera_info.k.reshape(3, 3),
-                    np.array(camera_info.d),
-                    None,
-                    camera_info.p.reshape(3, 4)[:3],
-                )
+                image = cv2.remap(image, self.undistort_map_x, self.undistort_map_y, cv2.INTER_LINEAR)
                 cv2.imwrite(output_image_path, image)
 
         return sample_data_token
