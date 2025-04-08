@@ -29,12 +29,14 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         camera_sensors: list,
         annotation_hz: int = 10,
         workers_number: int = 32,
+        drop_camera_token_not_found: bool = False,
     ):
         super().__init__(input_base, output_base)
 
         self._camera_sensor_types = []
         self._annotation_hz = annotation_hz
         self._workers_number = workers_number
+        self._drop_camera_token_not_found = drop_camera_token_not_found
         if isinstance(camera_sensors, list):
             for cam in camera_sensors:
                 self._camera_sensor_types.append(SENSOR_ENUM[cam["channel"]])
@@ -101,6 +103,17 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
             camera_channel = camera_sensor_type.value["channel"]
             camera_token: str | None = self._get_camera_token(camera_channel, sample, nusc)
 
+            if camera_token is None:
+                if self._drop_camera_token_not_found:
+                    logger.warning(
+                        f"Skipping.. Camera token not found for {camera_channel} in frame {frame_index}. Dropping this frame"
+                    )
+                    return
+                else:
+                    logger.error(
+                        f"Camera token not found for {camera_channel} in frame {frame_index}. "
+                    )
+                    continue
             camera_path, _, cam_intrinsic = nusc.get_sample_data(camera_token)
             data_dict: Dict[str, Any] = self._get_data(nusc, camera_token)
 
