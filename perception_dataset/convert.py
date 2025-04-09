@@ -72,6 +72,7 @@ def main():
         camera_sensors = config_dict["conversion"]["camera_sensors"]
         annotation_hz = config_dict["conversion"]["annotation_hz"]
         workers_number = config_dict["conversion"]["workers_number"]
+        drop_camera_token_not_found = config_dict["conversion"]["drop_camera_token_not_found"]
 
         converter = NonAnnotatedT4ToDeepenConverter(
             input_base=input_base,
@@ -79,6 +80,7 @@ def main():
             camera_sensors=camera_sensors,
             annotation_hz=annotation_hz,
             workers_number=workers_number,
+            drop_camera_token_not_found=drop_camera_token_not_found,
         )
 
         logger.info(

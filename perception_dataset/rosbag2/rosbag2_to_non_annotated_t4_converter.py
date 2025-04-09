@@ -102,6 +102,8 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
                 bag_converter.convert()
             except Exception as e:
                 logger.error(f"Error occurred during conversion: {e}")
+                if self._params.raise_exception:
+                    raise e
                 continue
             logger.info(f"Conversion of {bag_dir} is completed")
             print(

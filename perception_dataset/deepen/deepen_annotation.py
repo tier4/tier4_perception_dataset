@@ -17,11 +17,13 @@ class LabelType(str, Enum):
     BBOX_3D = "3d_bbox"
     BBOX_2D = "box"
     SEGMENTATION_2D = "2d_segmentation"
+    POINT_3D = "3d_point"
 
 
 class LabelFormat(str, Enum):
     POLYGON = "polygon"
     PAINTING = "painting"
+    PAINT_3D = "paint_3d"
 
 
 @dataclass
@@ -81,6 +83,7 @@ class DeepenAnnotation(ABC):
     three_d_bbox: Optional[Dict[str, Any]] = None
     box: Optional[List[float]] = None
     two_d_mask: Optional[str] = None
+    lidarseg_anno_file: Optional[str] = None
 
     def __post_init__(self) -> None:
         """
@@ -95,6 +98,7 @@ class DeepenAnnotation(ABC):
                 self.three_d_bbox is not None,
                 self.box is not None,
                 self.two_d_mask is not None,
+                self.lidarseg_anno_file is not None,
             )
             assert any(
                 provided_annotations
