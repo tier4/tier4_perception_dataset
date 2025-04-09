@@ -9,10 +9,18 @@ from pythonjsonlogger import jsonlogger
 from perception_dataset.configurations import Configurations
 
 
-def CustomTextFormatter():
-    return logging.Formatter(
-        "[%(asctime)s] [%(levelname)s] [process] %(process)s %(processName)s [thread] %(thread)d %(threadName)s [file] %(pathname)s [func] %(funcName)s [line] %(lineno)d [%(message)s]"
-    )
+class CustomTextFormatter(logging.Formatter):
+    def format(self, record):
+        if record.levelno == logging.ERROR:
+            record.msg = f"\033[91m{record.msg}\033[0m"  # Red color for error messages
+        elif record.levelno == logging.WARNING:
+            record.msg = f"\033[93m{record.msg}\033[0m"  # Orange color for warning messages
+        return super().format(record)
+
+    def __init__(self):
+        super().__init__(
+            "[%(asctime)s] [%(levelname)s] [file] %(filename)s [func] %(funcName)s [line] %(lineno)d [%(message)s]"
+        )
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
