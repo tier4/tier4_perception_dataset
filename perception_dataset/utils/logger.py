@@ -10,7 +10,7 @@ from perception_dataset.configurations import Configurations
 
 
 class CustomTextFormatter(logging.Formatter):
-    def format(self, record):
+    def format_record(self, record):
         if record.levelno == logging.ERROR:
             message = f"\033[91m{record.getMessage()}\033[0m"  # Red color for error messages
         elif record.levelno == logging.WARNING:
