@@ -673,7 +673,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 None,
                 camera_info.p.reshape(3, 4)[:3],
                 (camera_info.width, camera_info.height),
-                5,
+                cv2.CV_32FC1,
             )
 
         if self._sensor_mode != SensorMode.NO_LIDAR:  # w/ LiDAR mode
