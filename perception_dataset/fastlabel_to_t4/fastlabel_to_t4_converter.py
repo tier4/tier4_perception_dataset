@@ -53,6 +53,11 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
         fl_annotations = self._format_fastlabel_3d_annotation(anno_jsons_dict)
 
         for t4dataset_name in t4_datasets:
+            # Skip if the dataset is not in the annotation jsons
+            if t4dataset_name not in fl_annotations.keys():
+                logger.warning(f"{t4dataset_name} not in annotation jsons.")
+                continue
+
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
