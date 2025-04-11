@@ -1,4 +1,5 @@
 from collections import defaultdict
+import os
 import os.path as osp
 from pathlib import Path
 import re
@@ -162,7 +163,25 @@ class DeepenToT4Converter(AbstractConverter):
             logger.info(f"Copying {input_dir} to {output_dir} ... ")
             if osp.exists(output_dir):
                 shutil.rmtree(output_dir)
-            shutil.copytree(input_dir, output_dir)
+            for item in os.listdir(input_dir):
+                if item not in ["annotation", "data", "status.json"]:
+                    # Skip non t4-format files
+                    continue
+                os.makedirs(output_dir, exist_ok=True)
+                src_path = osp.join(input_dir, item)
+                dest_path = osp.join(output_dir, item)
+                if osp.isdir(src_path):
+                    logger.info(f"Copying directory {src_path} to {dest_path} ...")
+                    shutil.copytree(src_path, dest_path)
+                else:
+                    logger.info(f"Copying file {src_path} to {dest_path} ...")
+                    shutil.copy2(src_path, dest_path)
+                if item == "data" and osp.exists(osp.join(input_dir, "anonymized_data")):
+                    # Overwrite data with anonymized_data if exists
+                    src_path = osp.join(input_dir, "anonymized_data")
+                    dest_path = osp.join(output_dir, "data")
+                    shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
+
             logger.info("Done!")
 
     def _find_start_end_time(self, t4_dataset_dir):
