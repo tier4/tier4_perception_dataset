@@ -652,7 +652,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sample_records: List[SampleRecord] = self._sample_table.to_records()
 
         # Get calibrated sensor token
-        start_timestamp = start_timestamp + 1e-3 * delay_msec - self._max_camera_jitter_sec
+        start_timestamp = start_timestamp - 2 * self._system_scan_period_sec - self._max_camera_jitter_sec  # assume the camera might be triggered before the LiDAR
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
         calibrated_sensor_token, camera_info = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
@@ -670,21 +670,21 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         if self._sensor_mode != SensorMode.NO_LIDAR:  # w/ LiDAR mode
             image_timestamp_list = [
-                rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp)
+                # handle sensor delay here
+                rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp) - 1e-3 * delay_msec
                 for image_msg in self._bag_reader.read_messages(
                     topics=[topic], start_time=start_time_in_time
                 )
             ]
             lidar_timestamp_list = [
-                misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp)
+                # handle sensor delay here
+                misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp) - self._lidar_latency
                 for sample_record in sample_records
             ]
-            lidar_to_camera_latency_sec = self._lidar_latency + 1e-3 * delay_msec
 
             synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                 image_timestamp_list=image_timestamp_list,
                 lidar_timestamp_list=lidar_timestamp_list,
-                lidar_to_camera_latency_sec=lidar_to_camera_latency_sec,
                 system_scan_period_sec=self._system_scan_period_sec,
                 max_camera_jitter_sec=self._max_camera_jitter_sec,
                 num_load_frames=self._num_load_frames,
