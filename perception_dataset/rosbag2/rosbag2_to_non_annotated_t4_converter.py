@@ -652,7 +652,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sample_records: List[SampleRecord] = self._sample_table.to_records()
 
         # Get calibrated sensor token
-        start_timestamp = start_timestamp - 2 * self._system_scan_period_sec - self._max_camera_jitter_sec  # assume the camera might be triggered before the LiDAR
+        start_timestamp = (
+            start_timestamp - 2 * self._system_scan_period_sec - self._max_camera_jitter_sec
+        )  # assume the camera might be triggered before the LiDAR
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
         calibrated_sensor_token, camera_info = self._generate_calibrated_sensor(
             sensor_channel, start_time_in_time, topic
@@ -678,7 +680,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             ]
             lidar_timestamp_list = [
                 # handle sensor delay here
-                misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp) - self._lidar_latency
+                misc_utils.nusc_timestamp_to_unix_timestamp(sample_record.timestamp)
+                - self._lidar_latency
                 for sample_record in sample_records
             ]
 
