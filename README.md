@@ -81,7 +81,7 @@ or manually download zipped data from [the release page](https://github.com/tier
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.sh
 source ./install/setup.bash
-poetry run pytest
+poetry run pytest -v tests/
 ```
 
 ### Pre commit
