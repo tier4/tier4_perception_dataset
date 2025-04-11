@@ -11,6 +11,9 @@ conversion:
   accept_frame_drop: False # If true, the conversion will continue even if the LiDAR frame is dropped.
   undistort_image: False # If true, the camera image will be undistorted.
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
+  max_camera_jitter_sec: 0.03
+  lidar_latency_sec: 0.03
+  system_scan_period_sec: 0.10
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
