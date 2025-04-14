@@ -1,6 +1,6 @@
 task: convert_rosbag2_to_localization_evaluation # P&C use the same convertor as localization_evaluation, so here we simply use localization_evaluation
 description:
-  scene: ["planning_control_evaluation", "dummy_pcd"] 
+  scene: ["planning_control_evaluation", "dummy_pcd"]
 conversion:
   make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
   overwrite_mode: false
