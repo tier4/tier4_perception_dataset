@@ -75,7 +75,6 @@ During the conversion process, the following logic is applied to determine the a
 
 ![frame_matching](frame_matching.drawio.svg)
 
-
 ### confirm non-annotated format data
 
 Verify that the following directories have the same number of files:
