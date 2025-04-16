@@ -33,9 +33,9 @@ def get_lidar_camera_synced_frame_info(
     """
     Get synced frame info list for lidar and camera.
     LiDAR scan with t_lidar and image with t_image are synced if
-        T_image > T_lidar + T_latency - (T_system/2 + max_camera_jitter)
+        (T_image - T_lidar - T_latency) > -(T_system/2 + max_camera_jitter)
             and
-        T_image <= T_lidar + T_latency + (T_system/2 + max_camera_jitter)
+        (T_image - T_lidar - T_latency) <= (T_system/2 + max_camera_jitter)
 
     Args:
         image_timestamp_list: image timestamp list

@@ -71,6 +71,11 @@ python -m perception_dataset.convert --config config/convert_rosbag2_to_non_anno
 # if you want to overwrite t4-format data, use --overwrite option
 ```
 
+During the conversion process, the following logic is applied to determine the appropriate set of LiDAR and camera data.
+
+![frame_matching](frame_matching.drawio.svg)
+
+
 ### confirm non-annotated format data
 
 Verify that the following directories have the same number of files:
