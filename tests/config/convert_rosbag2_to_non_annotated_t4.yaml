@@ -9,6 +9,9 @@ conversion:
   skip_timestamp: 2.0 # Do not load data for the first point cloud timestamp for skip_timestamp seconds.
   num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
+  max_camera_jitter_sec: 0.010
+  lidar_latency_sec: 0.020
+  system_scan_period_sec: 0.100
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT

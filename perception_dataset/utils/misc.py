@@ -33,9 +33,9 @@ def get_lidar_camera_synced_frame_info(
     """
     Get synced frame info list for lidar and camera.
     LiDAR scan with t_lidar and image with t_image are synced if
-        t_image - t_lidar >= lidar_to_camera_latency_sec - (system_scan_period_sec - max_camera_jitter_sec)
+        (T_image - T_lidar - T_latency) > -(T_system/2 + max_camera_jitter)
             and
-        t_image - t_lidar <= lidar_to_camera_latency_sec + (system_scan_period_sec - max_camera_jitter_sec)
+        (T_image - T_lidar - T_latency) <= (T_system/2 + max_camera_jitter)
 
     Args:
         image_timestamp_list: image timestamp list
@@ -60,9 +60,11 @@ def get_lidar_camera_synced_frame_info(
             break
         image_timestamp = image_timestamp_list[current_image_index]
 
+        # T_image > T_lidar + T_latency - (T_system/2 + max_camera_jitter)
         while image_timestamp - lidar_timestamp < lidar_to_camera_latency_sec - (
-            system_scan_period_sec - max_camera_jitter_sec
+            system_scan_period_sec / 2 + max_camera_jitter_sec
         ):
+            # increase image index until the condition is met
             current_image_index += 1
             if current_image_index >= len(image_timestamp_list):
                 # set dummy timestamp
@@ -75,10 +77,11 @@ def get_lidar_camera_synced_frame_info(
                 break
             image_timestamp = image_timestamp_list[current_image_index]
 
-        if image_timestamp - lidar_timestamp > lidar_to_camera_latency_sec + (
-            system_scan_period_sec - max_camera_jitter_sec
+        # T_image <= T_lidar + T_latency + (T_system/2 + max_camera_jitter)
+        if image_timestamp - lidar_timestamp >= lidar_to_camera_latency_sec + (
+            system_scan_period_sec / 2 + max_camera_jitter_sec
         ):
-            # Image is dropped
+            # If the image timestamp is larger than above condition, assume the image is dropped
             dummy_timestamp = image_timestamp - system_scan_period_sec
             synced_frame_info_list.append([None, lidar_index, dummy_timestamp])
             continue
