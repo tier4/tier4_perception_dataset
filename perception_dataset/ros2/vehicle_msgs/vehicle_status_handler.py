@@ -1,17 +1,16 @@
 from typing import Any, Dict, List, Optional
 
-import builtin_interfaces.msg
-from tier4_vehicle_msgs.msg import (
-    ActuationStatusStamped,
-    SteeringWheelStatusStamped,
-)
-
 from autoware_vehicle_msgs.msg import (
     GearReport,
     HazardLightsReport,
     SteeringReport,
     TurnIndicatorsReport,
     VelocityReport,
+)
+import builtin_interfaces.msg
+from tier4_vehicle_msgs.msg import (
+    ActuationStatusStamped,
+    SteeringWheelStatusStamped,
 )
 
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
