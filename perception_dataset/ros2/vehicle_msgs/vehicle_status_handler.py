@@ -1,12 +1,15 @@
 from typing import Any, Dict, List, Optional
 
 import builtin_interfaces.msg
-from vehicle_msgs.msg import (
+from tier4_vehicle_msgs.msg import (
     ActuationStatusStamped,
+    SteeringWheelStatusStamped,
+)
+
+from autoware_vehicle_msgs.msg import (
     GearReport,
     HazardLightsReport,
     SteeringReport,
-    SteeringWheelStatusStamped,
     TurnIndicatorsReport,
     VelocityReport,
 )
