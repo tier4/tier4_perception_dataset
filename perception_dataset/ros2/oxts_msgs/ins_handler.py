@@ -383,9 +383,13 @@ class INSHandler:
                 # TODO: tentative correction. If the INS coordinates are fixed, remove this correction.
                 r_current = Rotation.from_quat(current_rotation)
                 roll, pitch, yaw = r_current.as_euler("xyz")
-                yaw = yaw - np.pi/2
+                yaw = yaw - np.pi / 2
                 roll = roll + np.pi
-                r_new = Rotation.from_euler("z", yaw) * Rotation.from_euler("y", pitch) * Rotation.from_euler("x", roll)
+                r_new = (
+                    Rotation.from_euler("z", yaw)
+                    * Rotation.from_euler("y", pitch)
+                    * Rotation.from_euler("x", roll)
+                )
                 current_rotation = r_new.as_quat()
                 current_twist.angular.z = -current_twist.angular.z
                 current_acceleration[1] = -current_acceleration[1]
