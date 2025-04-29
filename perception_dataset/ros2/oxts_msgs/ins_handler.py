@@ -368,6 +368,7 @@ class INSHandler:
                 current_pose.orientation.z,
                 current_pose.orientation.w,
             ]
+
             current_twist = odometry.twist.twist
 
             # acceleration from imu
