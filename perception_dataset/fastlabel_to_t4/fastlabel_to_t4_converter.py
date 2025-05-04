@@ -97,7 +97,7 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                 continue
 
             # Start updating annotations
-            annotation_files_generator = AnnotationFilesGenerator(description=self._description)
+            annotation_files_generator = AnnotationFilesGenerator(description=self._description, label_coordinates="lidar")
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
