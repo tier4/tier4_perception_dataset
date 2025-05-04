@@ -45,7 +45,10 @@ class AnnotationFilesGenerator:
             label_coordinates (str): Coordinate system for the labels. Can be "map" or "lidar".
         """
         self._with_lidarseg = description.get("with_lidarseg", False)
-        assert label_coordinates in {"map", "lidar"}, "label_coordinates must be either 'map' or 'lidar'"
+        assert label_coordinates in {
+            "map",
+            "lidar",
+        }, "label_coordinates must be either 'map' or 'lidar'"
         self._label_coordinates = label_coordinates
         # TODO(yukke42): remove the hard coded attribute description
         self._attribute_table = AttributeTable(
