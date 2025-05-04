@@ -9,8 +9,8 @@ from nptyping import NDArray
 from nuimages import NuImages
 import numpy as np
 from nuscenes.nuscenes import NuScenes
-from scipy.spatial.transform import Rotation
 from pycocotools import mask as cocomask
+from scipy.spatial.transform import Rotation
 
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -45,7 +45,9 @@ class AnnotationFilesGenerator:
             label_coordinates (str): Coordinate system for the labels. Can be "map" or "lidar".
         """
         self._with_lidarseg = description.get("with_lidarseg", False)
-        assert (label_coordinates == "map" or label_coordinates == "lidar"), "label_coordinates must be either 'map' or 'lidar'"
+        assert (
+            label_coordinates == "map" or label_coordinates == "lidar"
+        ), "label_coordinates must be either 'map' or 'lidar'"
         self._label_coordinates = label_coordinates
         # TODO(yukke42): remove the hard coded attribute description
         self._attribute_table = AttributeTable(
@@ -327,7 +329,9 @@ class AnnotationFilesGenerator:
                 # Sample Annotation
                 if "three_d_bbox" in anno.keys():
                     sample_token: str = frame_index_to_sample_token[frame_index]
-                    anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(anno["three_d_bbox"], sample_token=sample_token, nusc=nusc)
+                    anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(
+                        anno["three_d_bbox"], sample_token=sample_token, nusc=nusc
+                    )
 
                     sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
                         sample_token=sample_token,
@@ -397,8 +401,10 @@ class AnnotationFilesGenerator:
         if self._label_coordinates == "map":
             return three_d_bbox
         elif self._label_coordinates == "lidar":
-            assert ("translation" in three_d_bbox.keys() or "rotation" in three_d_bbox.keys()), "translation and rotation must be in three_d_bbox"
-            assert (nusc is not None), "nusc must be set in _transform_cuboid"
+            assert (
+                "translation" in three_d_bbox.keys() or "rotation" in three_d_bbox.keys()
+            ), "translation and rotation must be in three_d_bbox"
+            assert nusc is not None, "nusc must be set in _transform_cuboid"
             sample = nusc.get("sample", sample_token)
             lidar_token: str = sample["data"][SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
 
@@ -419,11 +425,15 @@ class AnnotationFilesGenerator:
             # Transform the lidar-based-cuboid to the map coordinate system
             translation = list(three_d_bbox["translation"].values())
             r = three_d_bbox["rotation"]
-            rotation = [r["x"], r["y"], r["z"], r["w"]] # [x, y, z, w] format
+            rotation = [r["x"], r["y"], r["z"], r["w"]]  # [x, y, z, w] format
             bbox_rotation_quaternion = Rotation.from_quat(rotation)
 
-            translation_map = lidar_to_map_rotation_quaternion.apply(translation) + lidar_to_map_translation
-            rotation_map = (lidar_to_map_rotation_quaternion * bbox_rotation_quaternion).as_quat()  # [x, y, z, w] format
+            translation_map = (
+                lidar_to_map_rotation_quaternion.apply(translation) + lidar_to_map_translation
+            )
+            rotation_map = (
+                lidar_to_map_rotation_quaternion * bbox_rotation_quaternion
+            ).as_quat()  # [x, y, z, w] format
 
             # apply back to the three_d_bbox
             three_d_bbox["translation"] = {
