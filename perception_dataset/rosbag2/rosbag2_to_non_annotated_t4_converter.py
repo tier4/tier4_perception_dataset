@@ -192,7 +192,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         if self._with_vehicle_status:
             from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import VehicleStatusHandler
-            self._vehicle_status_handler = (VehicleStatusHandler(params.input_bag_path))
+            self._vehicle_status_handler = VehicleStatusHandler(params.input_bag_path)
         else:
             self._vehicle_status_handler = None
 
