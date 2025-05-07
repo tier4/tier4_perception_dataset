@@ -143,7 +143,7 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
                     previous_frame_size : previous_frame_size + frame_size
                 ].tofile(f)
 
-            previous_frame_size = frame_size
+            previous_frame_size += frame_size
             lidarseg_annos_info.append(annos_info)
 
     # Save lidarseg anno information to json
