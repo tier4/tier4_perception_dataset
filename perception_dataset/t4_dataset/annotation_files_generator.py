@@ -10,6 +10,7 @@ from nuimages import NuImages
 import numpy as np
 from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
+from scipy.spatial.transform import Rotation
 
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -25,6 +26,7 @@ from perception_dataset.t4_dataset.classes.sample_annotation import (
 from perception_dataset.t4_dataset.classes.surface_ann import SurfaceAnnTable
 from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.calculate_num_points import calculate_num_points
+from perception_dataset.utils.transform import compose_transform
 
 
 class AnnotationFilesGenerator:
@@ -33,8 +35,21 @@ class AnnotationFilesGenerator:
         with_camera: bool = True,
         description: Dict[str, Dict[str, str]] = {},
         surface_categories: List[str] = [],
+        label_coordinates: str = "map",
     ):
+        """
+        Args:
+            with_camera (bool): Whether to use camera data.
+            description (Dict[str, Dict[str, str]]): Description of the dataset.
+            surface_categories (List[str]): List of surface categories.
+            label_coordinates (str): Coordinate system for the labels. Can be "map" or "lidar".
+        """
         self._with_lidarseg = description.get("with_lidarseg", False)
+        assert label_coordinates in {
+            "map",
+            "lidar",
+        }, "label_coordinates must be either 'map' or 'lidar'"
+        self._label_coordinates = label_coordinates
         # TODO(yukke42): remove the hard coded attribute description
         self._attribute_table = AttributeTable(
             name_to_description={},
@@ -189,6 +204,7 @@ class AnnotationFilesGenerator:
             dataset_name=dataset_name,
             frame_index_to_sample_data_token=frame_index_to_sample_data_token,
             mask=mask,
+            nusc=nusc,
         )
 
     def convert_annotations(
@@ -198,6 +214,7 @@ class AnnotationFilesGenerator:
         dataset_name: str,
         frame_index_to_sample_data_token: Optional[List[Dict[int, str]]] = None,
         mask: Optional[List[Dict[int, str]]] = None,
+        nusc: NuScenes = None,
     ):
         self._convert_to_t4_format(
             scene_anno_dict=scene_anno_dict,
@@ -205,6 +222,7 @@ class AnnotationFilesGenerator:
             dataset_name=dataset_name,
             frame_index_to_sample_data_token=frame_index_to_sample_data_token,
             mask=mask,
+            nusc=nusc,
         )
         self._connect_annotations_in_scene()
 
@@ -215,6 +233,7 @@ class AnnotationFilesGenerator:
         dataset_name: str,
         frame_index_to_sample_data_token: List[Dict[int, str]],
         mask: List[Dict[int, str]],
+        nusc: NuScenes = None,
     ):
         """Convert the annotations to the NuScenes format.
 
@@ -310,9 +329,13 @@ class AnnotationFilesGenerator:
 
                 # Sample Annotation
                 if "three_d_bbox" in anno.keys():
-                    anno_three_d_bbox: Dict[str, float] = anno["three_d_bbox"]
+                    sample_token: str = frame_index_to_sample_token[frame_index]
+                    anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(
+                        anno["three_d_bbox"], sample_token=sample_token, nusc=nusc
+                    )
+
                     sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
-                        sample_token=frame_index_to_sample_token[frame_index],
+                        sample_token=sample_token,
                         instance_token=instance_token,
                         attribute_tokens=attribute_tokens,
                         visibility_token=visibility_token,
@@ -369,6 +392,63 @@ class AnnotationFilesGenerator:
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                         automatic_annotation=False,
                     )
+
+    def _transform_cuboid(
+        self,
+        three_d_bbox: Dict[str, float],
+        sample_token: str,
+        nusc: NuScenes,
+    ) -> Dict[str, float]:
+        if self._label_coordinates == "map":
+            return three_d_bbox
+        elif self._label_coordinates == "lidar":
+            assert (
+                "translation" in three_d_bbox.keys() or "rotation" in three_d_bbox.keys()
+            ), "translation and rotation must be in three_d_bbox"
+            assert nusc is not None, "nusc must be set in _transform_cuboid"
+            sample = nusc.get("sample", sample_token)
+            lidar_token: str = sample["data"][SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
+
+            sd_record = nusc.get("sample_data", lidar_token)
+            cs_record = nusc.get("calibrated_sensor", sd_record["calibrated_sensor_token"])
+            ep_record = nusc.get("ego_pose", sd_record["ego_pose_token"])
+
+            lidar_to_map_translation, lidar_to_map_rotation = compose_transform(
+                trans1=cs_record["translation"],
+                rot1=cs_record["rotation"],
+                trans2=ep_record["translation"],
+                rot2=ep_record["rotation"],
+            )
+            lidar_to_map_rotation_quaternion = Rotation.from_quat(
+                lidar_to_map_rotation[1:] + [lidar_to_map_rotation[0]]  # [x, y, z, w]
+            )
+
+            # Transform the lidar-based-cuboid to the map coordinate system
+            translation = list(three_d_bbox["translation"].values())
+            r = three_d_bbox["rotation"]
+            rotation = [r["x"], r["y"], r["z"], r["w"]]  # [x, y, z, w] format
+            bbox_rotation_quaternion = Rotation.from_quat(rotation)
+
+            translation_map = (
+                lidar_to_map_rotation_quaternion.apply(translation) + lidar_to_map_translation
+            )
+            rotation_map = (
+                lidar_to_map_rotation_quaternion * bbox_rotation_quaternion
+            ).as_quat()  # [x, y, z, w] format
+
+            # apply back to the three_d_bbox
+            three_d_bbox["translation"] = {
+                "x": translation_map[0],
+                "y": translation_map[1],
+                "z": translation_map[2],
+            }
+            three_d_bbox["rotation"] = {
+                "x": rotation_map[0],
+                "y": rotation_map[1],
+                "z": rotation_map[2],
+                "w": rotation_map[3],
+            }
+            return three_d_bbox
 
     def _clip_bbox(self, bbox: List[float], mask: Dict[str, Any]) -> List[float]:
         """Clip the bbox to the image size."""
