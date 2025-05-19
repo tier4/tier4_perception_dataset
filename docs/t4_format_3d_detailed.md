@@ -328,8 +328,8 @@ The item "description" for the category is not implemented for now.
   - "name": [str] -- Category name. The latest format is "class" (e.g. car, truck), but "category.class" format (e.g. vehicle.car) is also supported.
   - "description": [str] -- Category description. Empty string `""` for now. **(Not available)**
   - "index": [int] -- Category index, this is added to support lidarseg, or None when it doesn't support lidarseg
-  - "has_orientation": [bool] -- Set to `true` if objects of this category may include an `orientation` field in their annotations (e.g., traffic light arrows). **(Added)**
-  - "has_number": [bool] -- Set to `true` if objects of this category may include a `number` field in their annotations (e.g., numeric traffic lights). **(Added)**
+  - "has_orientation": [Optional[bool]] -- Indicates whether annotations for this category may include an `orientation` field (e.g., traffic light arrows). If omitted, it is treated as `false`. **(Added)**
+  - "has_number": [Optional[bool]] -- Indicates whether annotations for this category may include a `number` field (e.g., numeric traffic lights). If omitted, it is treated as `false`. **(Added)**
 
 For t4 format, "name" should be one of the following:
 
