@@ -351,7 +351,7 @@ For t4 format, "name" should be one of the following:
 - wheelchair
 - animal
 
-For traffic light, "name" should be "color"_"shape" format, where color and shape are placeholders representing the light’s color and its shape, respectively.
+For traffic light, "name" should be "color"\_"shape" format, where color and shape are placeholders representing the light’s color and its shape, respectively.
 e.g. "red_circle", "green_arrow", "yellow_circle", "red_number", "green_pedestrian", "red_cross".
 
 ### ego_pose.json
