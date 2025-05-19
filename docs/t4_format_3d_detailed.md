@@ -10,6 +10,7 @@
 - (2022.06.03) T4 format ver1.2: Update topics contained in input_bag. Add status.json. Remove occlusion_state in attribute, write to visibility.json
 - (2022.07.26) T4 format ver1.2: Add a topic contained in input_bag.
 - (2024.07.24) T4 Format ver1.3: Added optional values for the T4 format, which are used in the Co-MLOps dataset format.
+- (2025.05.20) T4 Format ver1.4: Introduced traffic light-specific annotation fields and clarified the handling of auto-generated annotations.
 
 ## Dataset Sample
 
@@ -327,6 +328,8 @@ The item "description" for the category is not implemented for now.
   - "name": [str] -- Category name. The latest format is "class" (e.g. car, truck), but "category.class" format (e.g. vehicle.car) is also supported.
   - "description": [str] -- Category description. Empty string `""` for now. **(Not available)**
   - "index": [int] -- Category index, this is added to support lidarseg, or None when it doesn't support lidarseg
+  - "has_orientation": [bool] -- Set to `true` if objects of this category may include an `orientation` field in their annotations (e.g., traffic light arrows). **(Added)**
+  - "has_number": [bool] -- Set to `true` if objects of this category may include a `number` field in their annotations (e.g., numeric traffic lights). **(Added)**
 
 For t4 format, "name" should be one of the following:
 
@@ -347,6 +350,9 @@ For t4 format, "name" should be one of the following:
 - stroller
 - wheelchair
 - animal
+
+For traffic light, "name" should be "color"_"shape" format, where color and shape are placeholders representing the light’s color and its shape, respectively.
+e.g. "red_circle", "green_arrow", "yellow_circle", "red_number", "green_pedestrian", "red_cross".
 
 ### ego_pose.json
 
@@ -669,7 +675,7 @@ The instance_token is a unique identifier assigned to each object instance, allo
 
 - **_Almost_** Equivalent to the [nuImages format](https://www.nuscenes.org/nuimages).
   - Annotation attribute may be updated frequently.
-  - `instance_token` is added to object_ann.
+  - `instance_token`, `orientation`, `number`, `automatic_annotation` are added to the annotation format.
 - object_ann.json: The annotation of a foreground object (car, bike, pedestrian) in an image. Each foreground object is annotated with a 2d box, a 2d instance mask and category-specific attributes.
 
 ```json
@@ -682,6 +688,8 @@ The instance_token is a unique identifier assigned to each object instance, allo
     "attribute_tokens":       <str> [n] -- Foreign keys. List of attributes for this annotation.
     "bbox":                   <int> [4] -- Annotated amodal bounding box. Given as [xmin, ymin, xmax, ymax].
     "mask":                   <RLE> -- Run length encoding of instance mask using the pycocotools package.
+    "orientation":            <float> -- Orientation of the arrow shape within the bounding box, in radians. Used only for traffic light arrows.
+    "number":                 <int> -- The digit displayed within the bounding box. Used only for numeric traffic lights.
     "automatic_annotation":   <bool> -- Set to True if the annotation is generated entirely by an ML model. Set to False if at least one part of the annotation (either bbox or mask) is manually modified or annotated.
   }
 ]
