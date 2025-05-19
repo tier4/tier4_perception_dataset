@@ -699,7 +699,6 @@ The annotation of a foreground object (car, bike, pedestrian) in an image. Each 
 
 The annotation of a background object (driveable surface) in an image. Each background object is annotated with a 2d semantic segmentation mask.
 
-
 #### Items
 
 - surface_ann
