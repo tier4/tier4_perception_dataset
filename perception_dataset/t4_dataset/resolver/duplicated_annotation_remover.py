@@ -3,6 +3,9 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Tuple, Dict, Any, Set
+from perception_dataset.utils.logger import configure_logger
+
+logger = configure_logger(modname=__name__)
 
 
 class DuplicatedAnnotationRemover:
@@ -37,14 +40,14 @@ class DuplicatedAnnotationRemover:
         data = self._deduplicate_annotations(data)
         after = len(data)
 
-        print(f"{file_path}: {before} → {after} entries after deduplication")
+        logger.info(f"{file_path}: {before} → {after} entries after deduplication")
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
     def remove_duplicated_annotation(self, root_dir: str) -> None:
         ann_files = self._find_annotation_files(root_dir)
         if not ann_files:
-            print("No annotation files were found.")
+            logger.warning("No annotation files were found.")
             return
         for file_path in ann_files:
             self._process_annotation_file(file_path)
@@ -54,6 +57,6 @@ if __name__ == "__main__":
     remover = DuplicatedAnnotationRemover()
 
     if len(sys.argv) != 2:
-        print("Usage: python remove_duplicates.py <directory_path>")
+        logger.error("Usage: python remove_duplicates.py <directory_path>")
     else:
         remover.remove_duplicated_annotation(sys.argv[1])
