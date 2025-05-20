@@ -10,7 +10,7 @@
 - (2022.06.03) T4 format ver1.2: Update topics contained in input_bag. Add status.json. Remove occlusion_state in attribute, write to visibility.json
 - (2022.07.26) T4 format ver1.2: Add a topic contained in input_bag.
 - (2024.07.24) T4 Format ver1.3: Added optional values for the T4 format, which are used in the Co-MLOps dataset format.
-- (2025.05.20) T4 Format ver1.4: Introduced traffic light-specific annotation fields and clarified the handling of auto-generated annotations.
+- (2025.05.21) T4 Format ver1.4: Introduced traffic light-specific annotation fields and clarified the handling of auto-labeling (ML-based automatic annotations).
 
 ## Dataset Sample
 
