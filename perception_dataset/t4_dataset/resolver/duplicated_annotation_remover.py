@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 from typing import Any, Dict, List, Set, Tuple
+
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
