@@ -532,7 +532,7 @@ An annotation for objects in a sample. All location data is given with respect t
   - "autolabel_metadata": [Optional[dict]] -- Metadata describing the automatic annotation process. Required if `automatic_annotation` is `true`. **(Added)**
     - "models": [dict] [n] -- Details of each model used in the annotation process.
       - "name": [str] -- Name of the model used for annotation. Can include version information.
-      - "score": [Optional[float]] -- Label score for the annotation from this model (range: 0.0–1.0).
+      - "score": [float] -- Label score for the annotation from this model (range: 0.0–1.0).
       - "uncertainty": [Optional[float]] -- Model-reported uncertainty for the annotation (range: 0.0–1.0). Lower values imply higher confidence.
   - "next": [str] -- Foreign key. Sample annotation from the same object instance that follows this in time. Empty string `""`if this is the last annotation for this object.
   - "prev": [str] -- Foreign key. Sample annotation from the same object instance that precedes this in time. Empty string `""` if this is the first annotation for this object.
@@ -566,7 +566,7 @@ A sensor data e.g. image, point cloud or radar return. For sample_data with is_k
   - "autolabel_metadata": [Optional[dict]] -- Metadata about the automatic annotation applied to this entire sample_data item (e.g., image or scan). **(Added)**
     - "models": [dict] [n] -- Details of each model applied to this entire sample_data.
       - "name": [str] -- Name of the model used for annotation. Can include version information.
-      - "score": [Optional[float]] -- Label score for the annotation from this model (range: 0.0–1.0).
+      - "score": [float] -- Label score for the annotation from this model (range: 0.0–1.0).
       - "uncertainty": [Optional[float]] -- Model-reported uncertainty for the annotation (range: 0.0–1.0). Lower values imply higher confidence.
 
 ### scene.json
@@ -706,7 +706,7 @@ The annotation of a foreground object (car, bike, pedestrian) in an image. Each 
   - "autolabel_metadata": [Optional[dict]] -- Metadata about the automatic annotation applied to this entire sample_data item (e.g., image or scan). **(Added)**
     - "models": [dict] [n] -- Details of each model applied to this entire sample_data.
       - "name": [str] -- Name of the model used for annotation. Can include version information.
-      - "score": [Optional[float]] -- Label score for the annotation from this model (range: 0.0–1.0).
+      - "score": [float] -- Label score for the annotation from this model (range: 0.0–1.0).
       - "uncertainty": [Optional[float]] -- Model-reported uncertainty for the annotation (range: 0.0–1.0). Lower values imply higher confidence.
 
 ### surface_ann.json
@@ -724,7 +724,7 @@ The annotation of a background object (driveable surface) in an image. Each back
   - "autolabel_metadata": [Optional[dict]] -- Metadata about the automatic annotation applied to this entire sample_data item (e.g., image or scan). **(Added)**
     - "models": [dict] [n] -- Details of each model applied to this entire sample_data.
       - "name": [str] -- Name of the model used for annotation. Can include version information.
-      - "score": [Optional[float]] -- Label score for the annotation from this model (range: 0.0–1.0).
+      - "score": [float] -- Label score for the annotation from this model (range: 0.0–1.0).
       - "uncertainty": [Optional[float]] -- Model-reported uncertainty for the annotation (range: 0.0–1.0). Lower values imply higher confidence.
 
 ### 3D lidarseg annotation format in T4 format
