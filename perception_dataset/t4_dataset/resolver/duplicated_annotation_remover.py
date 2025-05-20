@@ -1,8 +1,8 @@
 import json
 import os
-import sys
 from pathlib import Path
-from typing import List, Tuple, Dict, Any, Set
+import sys
+from typing import Any, Dict, List, Set, Tuple
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -10,7 +10,9 @@ logger = configure_logger(modname=__name__)
 
 class DuplicatedAnnotationRemover:
     def _find_annotation_files(
-        self, root_dir: str, target_filenames: Tuple[str, ...] = ("object_ann.json", "surface_ann.json")
+        self,
+        root_dir: str,
+        target_filenames: Tuple[str, ...] = ("object_ann.json", "surface_ann.json"),
     ) -> List[Path]:
         """Recursively search for annotation files under the specified folder."""
         ann_files: List[Path] = []

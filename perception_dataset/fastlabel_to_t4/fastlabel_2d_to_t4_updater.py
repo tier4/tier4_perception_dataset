@@ -71,7 +71,9 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
             # Copy input data to output directory
             self._copy_data(input_dir, output_dir)
             # Make rosbag
-            if self._input_bag_base is not None and not osp.exists(osp.join(output_dir, "input_bag")):
+            if self._input_bag_base is not None and not osp.exists(
+                osp.join(output_dir, "input_bag")
+            ):
                 self._find_start_end_time(input_dir)
                 self._make_rosbag(str(input_bag_dir), str(output_dir))
 
