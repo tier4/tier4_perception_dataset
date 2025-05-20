@@ -701,7 +701,7 @@ The annotation of a foreground object (car, bike, pedestrian) in an image. Each 
   - "bbox": [int] [4] -- Annotated amodal bounding box. Given as [xmin, ymin, xmax, ymax].
   - "mask": [RLE] -- Run length encoding of instance mask using the pycocotools package.
   - "orientation": [Optional[float]] -- Orientation of the arrow shape within the bounding box, in radians. Present only for categories where `has_orientation` is true (e.g., traffic light arrows).
-  - "number":"rotation": [Optional[int]] -- The digit displayed within the bounding box. Present only for categories where `has_number` is true (e.g., numeric traffic lights).
+  - "number": [Optional[int]] -- The digit displayed within the bounding box. Present only for categories where `has_number` is true (e.g., numeric traffic lights).
   - "automatic_annotation": [bool] -- Set to True if the annotation is generated entirely by an ML model. Set to False if at least one part of the annotation (either bbox or mask) is manually modified or annotated.
   - "autolabel_metadata": [Optional[dict]] -- Metadata about the automatic annotation applied to this entire sample_data item (e.g., image or scan). **(Added)**
     - "models": [dict] [n] -- Details of each model applied to this entire sample_data.
@@ -712,7 +712,6 @@ The annotation of a foreground object (car, bike, pedestrian) in an image. Each 
 ### surface_ann.json
 
 The annotation of a background object (driveable surface) in an image. Each background object is annotated with a 2d semantic segmentation mask.
-
 
 #### Items
 
