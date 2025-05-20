@@ -52,8 +52,9 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
         anno_jsons_dict = self._load_annotation_jsons(t4_datasets, ".pcd")
         fl_annotations = self._format_fastlabel_3d_annotation(anno_jsons_dict)
 
-        for t4dataset_name in t4_datasets:
+        for index, t4dataset_name in enumerate(t4_datasets):
             # Skip if the dataset is not in the annotation jsons
+            logger.info(f"Processing {index + 1}/{len(t4_datasets)}")
             if t4dataset_name not in fl_annotations.keys():
                 logger.warning(f"{t4dataset_name} not in annotation jsons.")
                 continue
@@ -74,23 +75,17 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
 
             if osp.exists(output_dir):
                 logger.warning(f"{output_dir} already exists.")
-                is_dir_exist = True
-            else:
-                is_dir_exist = False
+                if self._overwrite_mode:
+                    shutil.rmtree(output_dir, ignore_errors=True)
+                else:
+                    continue
 
-            if self._overwrite_mode or not is_dir_exist:
-                # Remove existing output directory
-                shutil.rmtree(output_dir, ignore_errors=True)
-                # Copy input data to output directory
-                self._copy_data(input_dir, output_dir)
-                # Make rosbag
-                if self._input_bag_base is not None and not osp.exists(
-                    osp.join(output_dir, "input_bag")
-                ):
-                    self._find_start_end_time(input_dir)
-                    self._make_rosbag(str(input_bag_dir), str(output_dir))
-            else:
-                raise ValueError("If you want to overwrite files, use --overwrite option.")
+            # Copy input data to output directory
+            self._copy_data(input_dir, output_dir)
+            # Make rosbag
+            if self._input_bag_base is not None and not osp.exists(osp.join(output_dir, "input_bag")):
+                self._find_start_end_time(input_dir)
+                self._make_rosbag(str(input_bag_dir), str(output_dir))
 
             if t4dataset_name not in fl_annotations.keys():
                 logger.warning(f"No annotation for {t4dataset_name}")
