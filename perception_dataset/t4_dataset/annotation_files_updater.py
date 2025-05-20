@@ -13,7 +13,9 @@ from perception_dataset.t4_dataset.classes import (
     SurfaceAnnTable,
     VisibilityTable,
 )
-from perception_dataset.t4_dataset.resolver.duplicated_annotation_remover import DuplicatedAnnotationRemover
+from perception_dataset.t4_dataset.resolver.duplicated_annotation_remover import (
+    DuplicatedAnnotationRemover,
+)
 from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
     KeyFrameConsistencyResolver,
 )
