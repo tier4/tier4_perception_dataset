@@ -240,7 +240,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             self._num_load_lidar_frames = self._num_load_frames
             self._num_load_cam_frames = int(self._num_load_frames * cam_freq / lidar_freq)
 
-        del self._num_load_frames
+        # Set self._num_load_frames to None to indicate it is no longer needed.
+        self._num_load_frames = None
+
         num_frames_to_crop = self._num_load_lidar_frames % self._crop_frames_unit
         self._num_load_lidar_frames -= num_frames_to_crop
 
