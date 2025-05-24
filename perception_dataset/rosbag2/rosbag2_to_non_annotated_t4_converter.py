@@ -23,8 +23,6 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
-from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
-from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import VehicleStatusHandler
 from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -186,10 +184,21 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._with_ins = params.with_ins
         self._with_vehicle_status = params.with_vehicle_status
 
-        self._ins_handler = INSHandler(params.input_bag_path) if self._with_ins else None
-        self._vehicle_status_handler = (
-            VehicleStatusHandler(params.input_bag_path) if self._with_vehicle_status else None
-        )
+        if self._with_ins:
+            from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
+
+            self._ins_handler = INSHandler(params.input_bag_path)
+        else:
+            self._ins_handler = None
+
+        if self._with_vehicle_status:
+            from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import (
+                VehicleStatusHandler,
+            )
+
+            self._vehicle_status_handler = VehicleStatusHandler(params.input_bag_path)
+        else:
+            self._vehicle_status_handler = None
 
     def _calc_actual_num_load_frames(self):
         topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
