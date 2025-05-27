@@ -16,6 +16,14 @@ class SENSOR_MODALITY_ENUM(Enum):
 
 
 class SENSOR_ENUM(Enum):
+    CAM_TOP_LEFT_CENTER = {
+        "channel": "CAM_TOP_LEFT_CENTER",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
+    CAM_TOP_RIGHT_CENTER = {
+        "channel": "CAM_TOP_RIGHT_CENTER",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
     CAM_BACK_LEFT = {
         "channel": "CAM_BACK_LEFT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
