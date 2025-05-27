@@ -108,8 +108,8 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         num_frames_to_skip = int(self._skip_timestamp * freq)
         max_num_frames = object_topic_num - num_frames_to_skip
 
-        if self._num_load_frames == 0 and max_num_frames > 0:
-            self._num_load_frames = max_num_frames
+        if self._num_load_lidar_frames == 0 and max_num_frames > 0:
+            self._num_load_lidar_frames = max_num_frames
             logger.info(
                 f"max. possible number of frames will be loaded based on topic count"
                 f" since the value in config is not in (0, object_topic_num - num_frames_to_skip = {max_num_frames}> range."

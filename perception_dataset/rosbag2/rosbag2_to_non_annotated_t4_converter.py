@@ -216,6 +216,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             for radar in self._radar_sensors:
                 lidar_topic_names.append(radar["topic"])
         if len(lidar_topic_names) == 0:
+            self._num_load_lidar_frames = self._num_load_frames
             return
 
         num_cam_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in cam_topic_names])
