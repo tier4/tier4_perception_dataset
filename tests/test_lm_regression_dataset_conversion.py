@@ -226,10 +226,10 @@ def test_directory_structure(t4_dataset_path):
     assert "input_bag" in dir_files, "input_bag is not in t4_dataset"
     assert "status.json" in dir_files, "status.json is not in t4_dataset"
 
-    intput_bag_files = os.listdir(osp.join(t4_dataset_path, "input_bag"))
-    assert "metadata.yaml" in intput_bag_files, "metadata.yaml is not in input_bag"
+    input_bag_files = os.listdir(osp.join(t4_dataset_path, "input_bag"))
+    assert "metadata.yaml" in input_bag_files, "metadata.yaml is not in input_bag"
     assert (
-        "LM_regression_x1_0.db3" in intput_bag_files
+        "LM_regression_x1_0.db3" in input_bag_files
     ), "LM_regression_x1_0.db3 is not in input_bag"
 
     topic_count_dict = get_topic_count(osp.join(t4_dataset_path, "input_bag"))
