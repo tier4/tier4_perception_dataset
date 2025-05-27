@@ -234,7 +234,13 @@ def test_directory_structure(t4_dataset_path):
 
     topic_count_dict = get_topic_count(osp.join(t4_dataset_path, "input_bag"))
 
-    assert "/localization/util/downsample/pointcloud" in topic_count_dict.keys(), "/localization/util/downsample/pointcloud is not in topic_count_dict"
-    assert "/localization/twist_estimator/twist_with_covariance" in topic_count_dict.keys(), "/localization/twist_estimator/twist_with_covariance is not in topic_count_dict"
-    assert "/localization/reference_kinematic_state" in topic_count_dict.keys(), "/localization/reference_kinematic_state is not in topic_count_dict"
+    assert (
+        "/localization/util/downsample/pointcloud" in topic_count_dict.keys()
+    ), "/localization/util/downsample/pointcloud is not in topic_count_dict"
+    assert (
+        "/localization/twist_estimator/twist_with_covariance" in topic_count_dict.keys()
+    ), "/localization/twist_estimator/twist_with_covariance is not in topic_count_dict"
+    assert (
+        "/localization/reference_kinematic_state" in topic_count_dict.keys()
+    ), "/localization/reference_kinematic_state is not in topic_count_dict"
     assert "/initialpose" in topic_count_dict.keys(), "/initialpose is not in topic_count_dict"
