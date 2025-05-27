@@ -47,9 +47,9 @@ def t4_dataset_path(request):
 @pytest.fixture
 def attribute_list():
     with open(TEST_CONFIG_ROOT_DIR / "label/attribute.yaml") as f:
-        arrtibute_dict = yaml.safe_load(f)
+        attribute_dict = yaml.safe_load(f)
         arrtibute_list = []
-        for k, v in arrtibute_dict.items():
+        for k, v in attribute_dict.items():
             for key in v.keys():
                 arrtibute_list.append(f"{k}.{key}")
 
