@@ -234,7 +234,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         max_num_cam_frames = num_cam_frames_in_bag - num_cam_frames_to_skip - 1
         max_num_lidar_frames = num_lidar_frames_in_bag - num_lidar_frames_to_skip - 1
         if self._camera_lidar_sync_mode:
-            max_num_lidar_frames = max_num_cam_frames = min(max_num_lidar_frames, max_num_cam_frames)
+            max_num_lidar_frames = max_num_cam_frames = min(
+                max_num_lidar_frames, max_num_cam_frames
+            )
 
         if self._num_load_frames <= 0 or self._num_load_frames > max_num_lidar_frames:
             self._num_load_lidar_frames = max_num_lidar_frames
