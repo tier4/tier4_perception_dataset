@@ -13,6 +13,9 @@ from perception_dataset.t4_dataset.classes import (
     SurfaceAnnTable,
     VisibilityTable,
 )
+from perception_dataset.t4_dataset.resolver.duplicated_annotation_remover import (
+    DuplicatedAnnotationRemover,
+)
 from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
     KeyFrameConsistencyResolver,
 )
@@ -55,8 +58,10 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
             dataset_name=dataset_name,
         )
 
-        modifier = KeyFrameConsistencyResolver()
-        modifier.inspect_and_fix_t4_segment(Path(output_dir))
+        # Remove duplicated annotations
+        DuplicatedAnnotationRemover().remove_duplicated_annotation(output_dir)
+        # fix non-keyframe (no-labeled frame) in t4 dataset
+        KeyFrameConsistencyResolver().inspect_and_fix_t4_segment(Path(output_dir))
 
     def _init_table_from_json(self, anno_dir: str) -> None:
         self._attribute_table = AttributeTable.from_json(
