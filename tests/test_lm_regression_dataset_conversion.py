@@ -38,7 +38,7 @@ def t4_dataset_path(request):
     converter.convert()
 
     # provide a path to converted t4_dataset
-    yield osp.join(output_base, test_rosbag_name, "t4_dataset")
+    yield osp.join(output_base, test_rosbag_name)
 
     # after test - remove resource
     shutil.rmtree(output_base, ignore_errors=True)
@@ -233,11 +233,8 @@ def test_directory_structure(t4_dataset_path):
     ), "LM_regression_x1_0.db3 is not in input_bag"
 
     topic_count_dict = get_topic_count(osp.join(t4_dataset_path, "input_bag"))
-    assert (
-        "/localization/kinematic_state" in topic_count_dict.keys()
-    ), "kinematic_state is not in input_bag"
-    assert (
-        "/perception/object_recognition/detection/objects" in topic_count_dict.keys()
-    ), "object_recognition/detection/objects is not in input_bag"
-    assert "/tf" in topic_count_dict.keys(), "tf is not in input_bag"
-    assert "/tf_static" in topic_count_dict.keys(), "tf_static is not in input_bag"
+
+    assert "/localization/util/downsample/pointcloud" in topic_count_dict.keys(), "/localization/util/downsample/pointcloud is not in topic_count_dict"
+    assert "/localization/twist_estimator/twist_with_covariance" in topic_count_dict.keys(), "/localization/twist_estimator/twist_with_covariance is not in topic_count_dict"
+    assert "/localization/reference_kinematic_state" in topic_count_dict.keys(), "/localization/reference_kinematic_state is not in topic_count_dict"
+    assert "/initialpose" in topic_count_dict.keys(), "/initialpose is not in topic_count_dict"
