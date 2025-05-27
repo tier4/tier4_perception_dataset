@@ -122,6 +122,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
         self._lidar_scan_period_sec: float = params.system_scan_period_sec
         self._camera_scan_period_sec: float = params.camera_scan_period_sec
+        if self._lidar_scan_period_sec == self._camera_scan_period_sec:
+            self._camera_lidar_sync_mode: bool = True
+        else:
+            self._camera_lidar_sync_mode: bool = False
         self._max_camera_jitter_sec: float = params.max_camera_jitter_sec
         self._lidar_latency: float = params.lidar_latency_sec
         self._lidar_points_ratio_threshold: float = params.lidar_points_ratio_threshold
@@ -228,6 +232,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         num_lidar_frames_to_skip = int(self._skip_timestamp * lidar_freq)
         max_num_cam_frames = num_cam_frames_in_bag - num_cam_frames_to_skip - 1
         max_num_lidar_frames = num_lidar_frames_in_bag - num_lidar_frames_to_skip - 1
+        if self._camera_lidar_sync_mode:
+            max_num_lidar_frames = max_num_cam_frames = min(max_num_lidar_frames, max_num_cam_frames)
 
         if self._num_load_frames <= 0 or self._num_load_frames > max_num_lidar_frames:
             self._num_load_lidar_frames = max_num_lidar_frames
@@ -718,10 +724,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 for sample_record in sample_records
             ]
 
-            if (
-                self._lidar_scan_period_sec == self._camera_scan_period_sec
-                or not self._accept_frame_drop
-            ):
+            if self._camera_lidar_sync_mode or not self._accept_frame_drop:
                 synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
                     image_timestamp_list=image_timestamp_list,
                     lidar_timestamp_list=lidar_timestamp_list,
@@ -781,13 +784,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         image_msg = next(image_generator)
                         image_index_counter += 1
 
+                    file_index = lidar_frame_index if self._camera_lidar_sync_mode else image_index
                     sample_data_token = self._generate_image_data(
                         image_msg,
                         rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
                         lidar_sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
-                        image_index,
+                        file_index,
                         image_shape,
                         camera_info=camera_info,
                     )
