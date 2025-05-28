@@ -258,7 +258,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 self._num_load_lidar_frames = self._num_load_frames
                 return
 
-            num_cam_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in cam_topic_names])
+            num_cam_frames_in_bag = min(
+                [self._bag_reader.get_topic_count(t) for t in cam_topic_names]
+            )
             num_lidar_frames_in_bag = min(
                 [self._bag_reader.get_topic_count(t) for t in lidar_topic_names]
             )
