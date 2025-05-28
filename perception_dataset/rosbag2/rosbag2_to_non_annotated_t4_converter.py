@@ -209,58 +209,93 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             self._vehicle_status_handler = None
 
     def _calc_actual_num_load_frames(self):
-        cam_topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
-        lidar_topic_names: List[str] = []
-        if self._sensor_mode == SensorMode.DEFAULT:
-            lidar_topic_names.append(self._lidar_sensor["topic"])
-            for radar in self._radar_sensors:
-                lidar_topic_names.append(radar["topic"])
-        if len(lidar_topic_names) == 0:
-            self._num_load_lidar_frames = self._num_load_frames
-            return
-
-        num_cam_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in cam_topic_names])
-        num_lidar_frames_in_bag = min(
-            [self._bag_reader.get_topic_count(t) for t in lidar_topic_names]
-        )
-        for topic in lidar_topic_names + cam_topic_names:
-            count = self._bag_reader.get_topic_count(topic)
-            if count == 0:
-                raise KeyError(f"In {self._input_bag}, {topic} message is not found.")
-        cam_freq = 1 / self._camera_scan_period_sec
-        lidar_freq = 1 / self._lidar_scan_period_sec
-        num_cam_frames_to_skip = int(self._skip_timestamp * cam_freq)
-        num_lidar_frames_to_skip = int(self._skip_timestamp * lidar_freq)
-        max_num_cam_frames = num_cam_frames_in_bag - num_cam_frames_to_skip - 1
-        max_num_lidar_frames = num_lidar_frames_in_bag - num_lidar_frames_to_skip - 1
+        # calculate minimum number of available frames in the rosbag
         if self._camera_lidar_sync_mode:
-            max_num_lidar_frames = max_num_cam_frames = min(
-                max_num_lidar_frames, max_num_cam_frames
-            )
+            topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
+            if self._sensor_mode == SensorMode.DEFAULT:
+                topic_names.append(self._lidar_sensor["topic"])
+                for radar in self._radar_sensors:
+                    topic_names.append(radar["topic"])
+                topic_names.append(self._lidar_sensor["topic"])
+            if len(topic_names) == 0:
+                self._num_load_lidar_frames = self._num_load_frames
+                return
 
-        if self._num_load_frames <= 0 or self._num_load_frames > max_num_lidar_frames:
-            self._num_load_lidar_frames = max_num_lidar_frames
-            self._num_load_cam_frames = max_num_cam_frames
+            num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
+            for topic in topic_names:
+                count = self._bag_reader.get_topic_count(topic)
+                if count == 0:
+                    raise KeyError(f"In {self._input_bag}, {topic} message is not found.")
+            freq = 10
+            num_frames_to_skip = int(self._skip_timestamp * freq)
+            max_num_frames = num_frames_in_bag - num_frames_to_skip - 1
+            num_frames_to_crop = 0
+
+            if not (self._num_load_frames > 0 and self._num_load_frames <= max_num_frames):
+                self._num_load_frames = max_num_frames
+                logger.info(
+                    f"max. possible number of frames will be loaded based on topic count"
+                    f" since the value in config is not in (0, num_frames_in_bag - num_frames_to_skip = {max_num_frames}> range."
+                )
+
+            num_frames_to_crop = self._num_load_frames % self._crop_frames_unit
+            self._num_load_frames -= num_frames_to_crop
+            self._num_load_lidar_frames = self._num_load_cam_frames = self._num_load_frames
+
             logger.info(
-                f"max. possible number of frames will be loaded based on topic count"
-                f" since the value in config is not in (0, num_frames_in_bag - num_frames_to_skip = {max_num_lidar_frames}> range."
+                f"frames in bag: {num_frames_in_bag}, actual number of frames to load: {self._num_load_frames}, "
+                f"skipped: {num_frames_to_skip}, cropped: {num_frames_to_crop})"
             )
         else:
-            self._num_load_lidar_frames = self._num_load_frames
-            self._num_load_cam_frames = int(self._num_load_frames * cam_freq / lidar_freq)
+            # calculate number of frames of LiDAR and camera separately
+            cam_topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
+            lidar_topic_names: List[str] = []
+            if self._sensor_mode == SensorMode.DEFAULT:
+                lidar_topic_names.append(self._lidar_sensor["topic"])
+                for radar in self._radar_sensors:
+                    lidar_topic_names.append(radar["topic"])
+            if len(lidar_topic_names + cam_topic_names) == 0:
+                self._num_load_lidar_frames = self._num_load_frames
+                return
 
-        # Set self._num_load_frames to None to indicate it is no longer needed.
-        self._num_load_frames = None
+            num_cam_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in cam_topic_names])
+            num_lidar_frames_in_bag = min(
+                [self._bag_reader.get_topic_count(t) for t in lidar_topic_names]
+            )
+            for topic in lidar_topic_names + cam_topic_names:
+                count = self._bag_reader.get_topic_count(topic)
+                if count == 0:
+                    raise KeyError(f"In {self._input_bag}, {topic} message is not found.")
+            cam_freq = 1 / self._camera_scan_period_sec
+            lidar_freq = 1 / self._lidar_scan_period_sec
+            num_cam_frames_to_skip = int(self._skip_timestamp * cam_freq)
+            num_lidar_frames_to_skip = int(self._skip_timestamp * lidar_freq)
+            max_num_cam_frames = num_cam_frames_in_bag - num_cam_frames_to_skip - 1
+            max_num_lidar_frames = num_lidar_frames_in_bag - num_lidar_frames_to_skip - 1
 
-        num_frames_to_crop = self._num_load_lidar_frames % self._crop_frames_unit
-        self._num_load_lidar_frames -= num_frames_to_crop
+            if self._num_load_frames <= 0 or self._num_load_frames > max_num_lidar_frames:
+                self._num_load_lidar_frames = max_num_lidar_frames
+                self._num_load_cam_frames = max_num_cam_frames
+                logger.info(
+                    f"max. possible number of frames will be loaded based on topic count"
+                    f" since the value in config is not in (0, num_frames_in_bag - num_frames_to_skip = {max_num_lidar_frames}> range."
+                )
+            else:
+                self._num_load_lidar_frames = self._num_load_frames
+                self._num_load_cam_frames = int(self._num_load_frames * cam_freq / lidar_freq)
 
-        logger.info(
-            f"lidar frames in bag: {num_lidar_frames_in_bag}, actual number of frames to load: {self._num_load_lidar_frames}, "
-            f"skipped: {num_lidar_frames_to_skip + 1}, cropped: {num_frames_to_crop})."
-            f"camera frames in bag: {num_cam_frames_in_bag}, actual number of frames to load: {self._num_load_cam_frames}, "
-            f"skipped: {num_cam_frames_to_skip + 1})."
-        )
+            # Set self._num_load_frames to None to indicate it is no longer needed.
+            self._num_load_frames = None
+
+            num_frames_to_crop = self._num_load_lidar_frames % self._crop_frames_unit
+            self._num_load_lidar_frames -= num_frames_to_crop
+
+            logger.info(
+                f"lidar frames in bag: {num_lidar_frames_in_bag}, actual number of frames to load: {self._num_load_lidar_frames}, "
+                f"skipped: {num_lidar_frames_to_skip + 1}, cropped: {num_frames_to_crop})."
+                f"camera frames in bag: {num_cam_frames_in_bag}, actual number of frames to load: {self._num_load_cam_frames}, "
+                f"skipped: {num_cam_frames_to_skip + 1})."
+            )
 
     def _set_sensors(self):
         sensors: List[Dict[str, str]] = (
