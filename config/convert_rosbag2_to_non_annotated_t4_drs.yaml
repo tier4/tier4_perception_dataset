@@ -15,7 +15,8 @@ conversion:
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
   max_camera_jitter_sec: 0.005
   lidar_latency_sec: 0.005
-  system_scan_period_sec: 0.05
+  system_scan_period_sec: 0.10  # LiDAR scan period
+  camera_scan_period_sec: 0.05  # Camera scan period
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT

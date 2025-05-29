@@ -117,7 +117,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._num_load_frames: int = params.num_load_frames
         self._crop_frames_unit: int = params.crop_frames_unit
         self._without_compress: bool = params.without_compress
-        self._system_scan_period_sec: float = params.system_scan_period_sec
+        self._system_scan_period_sec: float = min(
+            params.system_scan_period_sec, params.camera_scan_period_sec
+        )
+        self._lidar_scan_period_sec: float = params.system_scan_period_sec
+        self._camera_scan_period_sec: float = params.camera_scan_period_sec
+        if self._lidar_scan_period_sec == self._camera_scan_period_sec:
+            self._camera_lidar_sync_mode: bool = True
+        else:
+            self._camera_lidar_sync_mode: bool = False
         self._max_camera_jitter_sec: float = params.max_camera_jitter_sec
         self._lidar_latency: float = params.lidar_latency_sec
         self._lidar_points_ratio_threshold: float = params.lidar_points_ratio_threshold
@@ -201,39 +209,96 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             self._vehicle_status_handler = None
 
     def _calc_actual_num_load_frames(self):
-        topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
-        if self._sensor_mode == SensorMode.DEFAULT:
-            topic_names.append(self._lidar_sensor["topic"])
-            for radar in self._radar_sensors:
-                topic_names.append(radar["topic"])
-            topic_names.append(self._lidar_sensor["topic"])
-        if len(topic_names) == 0:
-            return
+        # calculate minimum number of available frames in the rosbag
+        if self._camera_lidar_sync_mode:
+            topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
+            if self._sensor_mode == SensorMode.DEFAULT:
+                topic_names.append(self._lidar_sensor["topic"])
+                for radar in self._radar_sensors:
+                    # assuming that the radar frequency is the same as the LiDAR frequency
+                    topic_names.append(radar["topic"])
+                topic_names.append(self._lidar_sensor["topic"])
+            if len(topic_names) == 0:
+                self._num_load_lidar_frames = self._num_load_frames
+                return
 
-        num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
-        for topic in topic_names:
-            count = self._bag_reader.get_topic_count(topic)
-            if count == 0:
-                raise KeyError(f"In {self._input_bag}, {topic} message is not found.")
-        freq = 10
-        num_frames_to_skip = int(self._skip_timestamp * freq)
-        max_num_frames = num_frames_in_bag - num_frames_to_skip - 1
-        num_frames_to_crop = 0
+            num_frames_in_bag = min([self._bag_reader.get_topic_count(t) for t in topic_names])
+            for topic in topic_names:
+                count = self._bag_reader.get_topic_count(topic)
+                if count == 0:
+                    raise KeyError(f"In {self._input_bag}, {topic} message is not found.")
+            freq = 10
+            num_frames_to_skip = int(self._skip_timestamp * freq)
+            max_num_frames = num_frames_in_bag - num_frames_to_skip - 1
+            num_frames_to_crop = 0
 
-        if not (self._num_load_frames > 0 and self._num_load_frames <= max_num_frames):
-            self._num_load_frames = max_num_frames
+            if not (self._num_load_frames > 0 and self._num_load_frames <= max_num_frames):
+                self._num_load_frames = max_num_frames
+                logger.info(
+                    f"max. possible number of frames will be loaded based on topic count"
+                    f" since the value in config is not in (0, num_frames_in_bag - num_frames_to_skip = {max_num_frames}> range."
+                )
+
+            num_frames_to_crop = self._num_load_frames % self._crop_frames_unit
+            self._num_load_frames -= num_frames_to_crop
+            self._num_load_lidar_frames = self._num_load_cam_frames = self._num_load_frames
+
             logger.info(
-                f"max. possible number of frames will be loaded based on topic count"
-                f" since the value in config is not in (0, num_frames_in_bag - num_frames_to_skip = {max_num_frames}> range."
+                f"frames in bag: {num_frames_in_bag}, actual number of frames to load: {self._num_load_frames}, "
+                f"skipped: {num_frames_to_skip}, cropped: {num_frames_to_crop})"
             )
+        else:
+            # calculate number of frames of LiDAR and camera separately
+            cam_topic_names: List[str] = [s["topic"] for s in self._camera_sensors]
+            lidar_topic_names: List[str] = []
+            if self._sensor_mode == SensorMode.DEFAULT:
+                lidar_topic_names.append(self._lidar_sensor["topic"])
+                for radar in self._radar_sensors:
+                    lidar_topic_names.append(radar["topic"])
+            if len(lidar_topic_names + cam_topic_names) == 0:
+                self._num_load_lidar_frames = self._num_load_frames
+                return
 
-        num_frames_to_crop = self._num_load_frames % self._crop_frames_unit
-        self._num_load_frames -= num_frames_to_crop
+            num_cam_frames_in_bag = min(
+                [self._bag_reader.get_topic_count(t) for t in cam_topic_names]
+            )
+            num_lidar_frames_in_bag = min(
+                [self._bag_reader.get_topic_count(t) for t in lidar_topic_names]
+            )
+            for topic in lidar_topic_names + cam_topic_names:
+                count = self._bag_reader.get_topic_count(topic)
+                if count == 0:
+                    raise KeyError(f"In {self._input_bag}, {topic} message is not found.")
+            cam_freq = 1 / self._camera_scan_period_sec
+            lidar_freq = 1 / self._lidar_scan_period_sec
+            num_cam_frames_to_skip = int(self._skip_timestamp * cam_freq)
+            num_lidar_frames_to_skip = int(self._skip_timestamp * lidar_freq)
+            max_num_cam_frames = num_cam_frames_in_bag - num_cam_frames_to_skip - 1
+            max_num_lidar_frames = num_lidar_frames_in_bag - num_lidar_frames_to_skip - 1
 
-        logger.info(
-            f"frames in bag: {num_frames_in_bag}, actual number of frames to load: {self._num_load_frames}, "
-            f"skipped: {num_frames_to_skip}, cropped: {num_frames_to_crop})"
-        )
+            if self._num_load_frames <= 0 or self._num_load_frames > max_num_lidar_frames:
+                self._num_load_lidar_frames = max_num_lidar_frames
+                self._num_load_cam_frames = max_num_cam_frames
+                logger.info(
+                    f"max. possible number of frames will be loaded based on topic count"
+                    f" since the value in config is not in (0, num_frames_in_bag - num_frames_to_skip = {max_num_lidar_frames}> range."
+                )
+            else:
+                self._num_load_lidar_frames = self._num_load_frames
+                self._num_load_cam_frames = int(self._num_load_frames * cam_freq / lidar_freq)
+
+            # Set self._num_load_frames to None to indicate it is no longer needed.
+            self._num_load_frames = None
+
+            num_frames_to_crop = self._num_load_lidar_frames % self._crop_frames_unit
+            self._num_load_lidar_frames -= num_frames_to_crop
+
+            logger.info(
+                f"lidar frames in bag: {num_lidar_frames_in_bag}, actual number of frames to load: {self._num_load_lidar_frames}, "
+                f"skipped: {num_lidar_frames_to_skip + 1}, cropped: {num_frames_to_crop})."
+                f"camera frames in bag: {num_cam_frames_in_bag}, actual number of frames to load: {self._num_load_cam_frames}, "
+                f"skipped: {num_cam_frames_to_skip + 1})."
+            )
 
     def _set_sensors(self):
         sensors: List[Dict[str, str]] = (
@@ -250,7 +315,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         for sensor_enum in self._sensor_enums:
             os.makedirs(
-                osp.join(self._output_data_dir, sensor_enum.value["channel"]), exist_ok=True
+                osp.join(self._output_data_dir, sensor_enum.value["channel"]),
+                exist_ok=True,
             )
 
     def _init_tables(self):
@@ -315,7 +381,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         }
         config_data = {"rosbag2_to_non_annotated_t4_converter": config_data}
         with open(osp.join(self._output_scene_dir, "status.json"), "w") as f:
-            json.dump(config_data, f, indent=4, default=lambda o: getattr(o, "__dict__", str(o)))
+            json.dump(
+                config_data,
+                f,
+                indent=4,
+                default=lambda o: getattr(o, "__dict__", str(o)),
+            )
 
     def _compress_directory(self):
         shutil.make_archive(
@@ -498,7 +569,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 else:
                     raise e
 
-            if frame_index >= self._num_load_frames:
+            if frame_index >= self._num_load_lidar_frames:
                 break
 
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(pointcloud_msg.header.stamp)
@@ -600,7 +671,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 else:
                     raise e
 
-            if frame_index >= self._num_load_frames:
+            # TODO(miursh): If the radar frequency is different, need to modify the logic.
+            if frame_index >= self._num_load_lidar_frames:
+                # assuming that the radar frequency is the same as the LiDAR frequency
                 break
 
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(radar_tracks_msg.header.stamp)
@@ -662,7 +735,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Get calibrated sensor token
         start_timestamp = (
-            start_timestamp - 2 * self._system_scan_period_sec - self._max_camera_jitter_sec
+            start_timestamp - 2 * self._lidar_scan_period_sec - self._max_camera_jitter_sec
         )  # assume the camera might be triggered before the LiDAR
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
         calibrated_sensor_token, camera_info = self._generate_calibrated_sensor(
@@ -694,14 +767,25 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 for sample_record in sample_records
             ]
 
-            synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
-                image_timestamp_list=image_timestamp_list,
-                lidar_timestamp_list=lidar_timestamp_list,
-                system_scan_period_sec=self._system_scan_period_sec,
-                max_camera_jitter_sec=self._max_camera_jitter_sec,
-                num_load_frames=self._num_load_frames,
-                msg_display_interval=self._msg_display_interval,
-            )
+            if self._camera_lidar_sync_mode or not self._accept_frame_drop:
+                synced_frame_info_list = misc_utils.get_lidar_camera_synced_frame_info(
+                    image_timestamp_list=image_timestamp_list,
+                    lidar_timestamp_list=lidar_timestamp_list,
+                    system_scan_period_sec=self._system_scan_period_sec,
+                    max_camera_jitter_sec=self._max_camera_jitter_sec,
+                    num_load_frames=self._num_load_lidar_frames,
+                    msg_display_interval=self._msg_display_interval,
+                )
+            else:
+                synced_frame_info_list = misc_utils.get_lidar_camera_frame_info_async(
+                    image_timestamp_list=image_timestamp_list,
+                    lidar_timestamp_list=lidar_timestamp_list,
+                    max_camera_jitter=self._max_camera_jitter_sec,
+                    camera_scan_period=self._camera_scan_period_sec,
+                    num_load_image_frames=self._num_load_cam_frames,
+                    num_load_lidar_frames=self._num_load_lidar_frames,
+                    msg_display_interval=self._msg_display_interval,
+                )
 
             # Get image shape
             temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
@@ -713,8 +797,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             image_generator = self._bag_reader.read_messages(
                 topics=[topic], start_time=start_time_in_time
             )
-            for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
-                lidar_sample_token: str = sample_records[lidar_frame_index].token
+            for (
+                image_index,
+                lidar_frame_index,
+                dummy_image_timestamp,
+            ) in synced_frame_info_list:
+                lidar_sample_token: str = (
+                    sample_records[lidar_frame_index].token
+                    if lidar_frame_index is not None
+                    else None
+                )
                 if image_index is None:  # Image dropped
                     sample_data_token = self._generate_image_data(
                         np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
@@ -727,7 +819,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         is_key_frame=False,
                     )
                     sample_data_token_list.append(sample_data_token)
-                elif lidar_frame_index is None:  # LiDAR dropped
+                elif lidar_frame_index is None and not self._accept_frame_drop:  # LiDAR dropped
                     warnings.warn(f"LiDAR message dropped at image_index: {image_index}")
                 else:  # Both messages available
                     image_msg = None
@@ -735,13 +827,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         image_msg = next(image_generator)
                         image_index_counter += 1
 
+                    file_index = lidar_frame_index if self._camera_lidar_sync_mode else image_index
                     sample_data_token = self._generate_image_data(
                         image_msg,
                         rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
                         lidar_sample_token,
                         calibrated_sensor_token,
                         sensor_channel,
-                        lidar_frame_index,
+                        file_index,
                         image_shape,
                         camera_info=camera_info,
                     )
@@ -763,7 +856,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 start_time=start_time_in_time,
             ):
                 image_msg: CompressedImage
-                if generated_frame_index >= self._num_load_frames:
+                if generated_frame_index >= self._num_load_cam_frames:
                     break
 
                 image_unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(
@@ -823,7 +916,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self,
         image_arr: Union[np.ndarray, CompressedImage],
         image_unix_timestamp: float,
-        sample_token: str,
+        sample_token: Optional[str],
         calibrated_sensor_token: str,
         sensor_channel: str,
         frame_index: int,
@@ -840,6 +933,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
         if hasattr(image_arr, "shape"):
             image_shape = image_arr.shape
+        if sample_token is None:
+            is_key_frame = False
         sample_data_token = self._sample_data_table.insert_into_table(
             sample_token=sample_token,
             ego_pose_token=ego_pose_token,
@@ -850,7 +945,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             is_key_frame=is_key_frame,
             height=image_shape[0],
             width=image_shape[1],
-            is_valid=is_key_frame and (not output_blank_image),
+            is_valid=(not output_blank_image),
         )
 
         sample_data_record: SampleDataRecord = self._sample_data_table.select_record_from_token(
@@ -1002,7 +1097,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return vehicle_state_token
 
     def _generate_calibrated_sensor(
-        self, sensor_channel: str, start_timestamp: builtin_interfaces.msg.Time, topic_name=""
+        self,
+        sensor_channel: str,
+        start_timestamp: builtin_interfaces.msg.Time,
+        topic_name="",
     ) -> Union[str, Tuple[str, CameraInfo]]:
         calibrated_sensor_token = str()
         camera_info = None
@@ -1042,7 +1140,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     "z": transform_stamped.transform.rotation.z,
                 }
 
-            if modality in (SENSOR_MODALITY_ENUM.LIDAR.value, SENSOR_MODALITY_ENUM.RADAR.value):
+            if modality in (
+                SENSOR_MODALITY_ENUM.LIDAR.value,
+                SENSOR_MODALITY_ENUM.RADAR.value,
+            ):
                 calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                     sensor_token=sensor_token,
                     translation=translation,
