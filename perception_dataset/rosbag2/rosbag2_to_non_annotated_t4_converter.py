@@ -215,6 +215,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             if self._sensor_mode == SensorMode.DEFAULT:
                 topic_names.append(self._lidar_sensor["topic"])
                 for radar in self._radar_sensors:
+                    # assuming that the radar frequency is the same as the LiDAR frequency
                     topic_names.append(radar["topic"])
                 topic_names.append(self._lidar_sensor["topic"])
             if len(topic_names) == 0:
@@ -670,7 +671,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 else:
                     raise e
 
+            # TODO(miursh): If the radar frequency is different, need to modify the logic.
             if frame_index >= self._num_load_lidar_frames:
+                # assuming that the radar frequency is the same as the LiDAR frequency
                 break
 
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(radar_tracks_msg.header.stamp)
