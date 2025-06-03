@@ -65,7 +65,8 @@ class Rosbag2ConverterParams(BaseModel):
     lidar_latency_sec: float = (
         0.005  # lidar latency in seconds between the header.stamp and shutter trigger
     )
-    system_scan_period_sec: float = 0.1  # system scan period in seconds
+    system_scan_period_sec: float = 0.1  # LiDAR scan period in seconds
+    camera_scan_period_sec: float = 0.1  # Camera scan period in seconds
     topic_list: list = []  # topic list for input_bag
     mandatory_topic_list: list = []  # mandatory topic list for input_bag
 
