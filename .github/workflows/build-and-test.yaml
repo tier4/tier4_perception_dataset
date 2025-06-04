@@ -49,9 +49,8 @@ jobs:
 
       - name: ROS signing key workaround
         run: |
-          ls -lha /etc/apt/sources.list.d
-          cat /usr/share/ros-apt-source/ros2.sources
-          sudo rm /etc/apt/sources.list.d/ros2.list
+          sudo rm /usr/share/ros-apt-source/ros2.sources
+          ls -lha  /usr/share/keyrings/
           sudo rm /usr/share/keyrings/ros2-archive-keyring.gpg
           sudo apt update && sudo apt install -y curl ca-certificates
           export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F\" '{print $4}') ;\
