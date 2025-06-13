@@ -86,6 +86,8 @@ class Rosbag2ConverterParams(BaseModel):
     def __init__(self, **args):
         if "scene_description" in args and isinstance(args["scene_description"], list):
             args["scene_description"] = ", ".join(args["scene_description"])
+        if "camera_scan_period_sec" not in args and "system_scan_period_sec" in args:
+            args["camera_scan_period_sec"] = args["system_scan_period_sec"]
         if "topic_list" in args and isinstance(args["topic_list"], str):
             with open(args["topic_list"]) as f:
                 args["topic_list"] = yaml.safe_load(f)
