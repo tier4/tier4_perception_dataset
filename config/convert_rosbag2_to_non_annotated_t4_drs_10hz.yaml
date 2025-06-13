@@ -15,33 +15,32 @@ conversion:
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
   max_camera_jitter_sec: 0.005
   lidar_latency_sec: 0.005
-  system_scan_period_sec: 0.10  # LiDAR scan period
-  camera_scan_period_sec: 0.05  # Camera scan period
+  system_scan_period_sec: 0.05
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
   camera_sensors:
     - topic: /sensing/camera/camera0/image_raw/compressed
       channel: CAM_FRONT_NARROW
-      delay_msec: 16.0
+      delay_msec: -58.5
     - topic: /sensing/camera/camera1/image_raw/compressed
       channel: CAM_FRONT_WIDE
-      delay_msec: 16.0
+      delay_msec: -58.5
     - topic: /sensing/camera/camera2/image_raw/compressed
       channel: CAM_FRONT_RIGHT
-      delay_msec: -9.0
+      delay_msec: -55.0
     - topic: /sensing/camera/camera3/image_raw/compressed
       channel: CAM_BACK_RIGHT
-      delay_msec: -59.0
+      delay_msec: -5.0
     - topic: /sensing/camera/camera4/image_raw/compressed
       channel: CAM_BACK_NARROW
-      delay_msec: -34.0
+      delay_msec: -58.5
     - topic: /sensing/camera/camera5/image_raw/compressed
       channel: CAM_BACK_WIDE
-      delay_msec: -84.0
+      delay_msec: -58.5
     - topic: /sensing/camera/camera6/image_raw/compressed
       channel: CAM_BACK_LEFT
-      delay_msec: -59.0
+      delay_msec: -5.0
     - topic: /sensing/camera/camera7/image_raw/compressed
       channel: CAM_FRONT_LEFT
-      delay_msec: -59.0
+      delay_msec: -55.0
