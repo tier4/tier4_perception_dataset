@@ -132,7 +132,7 @@ def get_lidar_camera_frame_info_async(
             A list where each entry represents a matched or unmatched frame pair:
             - image_index: index of the image frame (or None if missing)
             - lidar_index: index of the LiDAR frame (or None if missing)
-            - dummy_timestamp: an adjusted timestamp when either frame is missing; None if both are present
+            - dummy_timestamp: an adjusted timestamp for the image frame when it is missing; None if the image is present.
     """
     synced_frame_info_list: List[Tuple[Optional[int], Optional[int], Optional[float]]] = []
 
