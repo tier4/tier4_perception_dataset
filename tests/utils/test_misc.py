@@ -299,6 +299,7 @@ def test_camera_20fps_lidar_2frames_10fps_camera_4frames():
 
     assert result == expected, f"Expected {expected}, but got {result}"
 
+
 @pytest.mark.parametrize(
     "image_ts, lidar_ts, expected",
     [
