@@ -1,7 +1,8 @@
+from typing import List, Optional, Tuple
+
 import pytest
 
 import perception_dataset.utils.misc as misc_utils
-from typing import List, Tuple, Optional
 
 
 def test_unix_timestamp_to_nusc_timestamp():
@@ -234,81 +235,84 @@ def test_camera_20fps_lidar_10fps():
         camera_scan_period=0.05,
         num_load_image_frames=len(image_ts),
         num_load_lidar_frames=len(lidar_ts),
-        msg_display_interval=10
+        msg_display_interval=10,
     )
 
     expected = [
-        (0, 0, None),        # image 0 ↔ lidar 0
-        (1, None, None),     # image 1 unmatched
-        (2, 1, None),        # image 2 ↔ lidar 1
-        (3, None, None),     # image 3 unmatched
-        (4, 2, None),        # image 4 ↔ lidar 2
+        (0, 0, None),  # image 0 ↔ lidar 0
+        (1, None, None),  # image 1 unmatched
+        (2, 1, None),  # image 2 ↔ lidar 1
+        (3, None, None),  # image 3 unmatched
+        (4, 2, None),  # image 4 ↔ lidar 2
     ]
 
     assert result == expected, f"Expected {expected}, but got {result}"
 
-@pytest.mark.parametrize("image_ts, lidar_ts, expected", [
-    # # missing the first LiDAR frame
-    # (
-    #     [0.00, 0.05, 0.10, 0.15, 0.20], # Camera: 0.00, 0.05, 0.10, 0.15, 0.20
-    #     [0.10, 0.20],   # LiDAR: 0.10, 0.20
-    #     [
-    #         (0, None, None),    # LiDAR 0 is missing
-    #         (1, None, None),
-    #         (2, 0, None),
-    #         (3, None, None),
-    #         (4, 1, None),
-    #     ]
-    # ),
-    # missing LiDAR frames
-    (
-        [0.00, 0.05, 0.10, 0.15, 0.20], # Camera: 0.00, 0.05, 0.10, 0.15, 0.20
-        [0.00, 0.10],   # LiDAR: 0.00, 0.10
-        [
-            (0, 0, None),
-            (1, None, None),
-            (2, 1, None),
-            (3, None, None),
-            (4, None, None),    # LiDAR 2 is missing
-        ]
-    ),
-    # missing the first Camera frame
-    (
-        [0.05, 0.10, 0.15, 0.20],   # Camera: 0.05, 0.10, 0.15, 0.20
-        [0.00, 0.10, 0.20],  # LiDAR: 0.00, 0.10, 0.20
-        [
-            (None, 0, 0.00),    # Camera 0 is missing
-            (0, None, None),
-            (1, 1, None),
-            (2, None, None),
-            (3, 2, None),
-        ]
-    ),
-    # missing Camera frames
-    (
-        [0.00, 0.05, 0.15, 0.20],   # Camera: 0.00, 0.05, 0.15, 0.20
-        [0.00, 0.10, 0.20],  # LiDAR: 0.00, 0.10, 0.20
-        [
-            (0, 0, None),
-            (1, None, None),
-            (None, 1, 0.10),
-            (2, None, None),
-            (3, 2, None),
-        ]
-    ),
-    # missing Camera and LiDAR frames
-    (
-        [0.00, 0.05, 0.15],  # Camera: 0.00, 0.05, 0.15
-        [0.00, 0.20],   # LiDAR: 0.00, 0.20
-        [
-            (0, 0, None),
-            (1, None, None),
-            (2, None, None),
-            (None, 1, 0.20),
-        ]
-    )
-])
 
+@pytest.mark.parametrize(
+    "image_ts, lidar_ts, expected",
+    [
+        # # missing the first LiDAR frame
+        # (
+        #     [0.00, 0.05, 0.10, 0.15, 0.20], # Camera: 0.00, 0.05, 0.10, 0.15, 0.20
+        #     [0.10, 0.20],   # LiDAR: 0.10, 0.20
+        #     [
+        #         (0, None, None),    # LiDAR 0 is missing
+        #         (1, None, None),
+        #         (2, 0, None),
+        #         (3, None, None),
+        #         (4, 1, None),
+        #     ]
+        # ),
+        # missing LiDAR frames
+        (
+            [0.00, 0.05, 0.10, 0.15, 0.20],  # Camera: 0.00, 0.05, 0.10, 0.15, 0.20
+            [0.00, 0.10],  # LiDAR: 0.00, 0.10
+            [
+                (0, 0, None),
+                (1, None, None),
+                (2, 1, None),
+                (3, None, None),
+                (4, None, None),  # LiDAR 2 is missing
+            ],
+        ),
+        # missing the first Camera frame
+        (
+            [0.05, 0.10, 0.15, 0.20],  # Camera: 0.05, 0.10, 0.15, 0.20
+            [0.00, 0.10, 0.20],  # LiDAR: 0.00, 0.10, 0.20
+            [
+                (None, 0, 0.00),  # Camera 0 is missing
+                (0, None, None),
+                (1, 1, None),
+                (2, None, None),
+                (3, 2, None),
+            ],
+        ),
+        # missing Camera frames
+        (
+            [0.00, 0.05, 0.15, 0.20],  # Camera: 0.00, 0.05, 0.15, 0.20
+            [0.00, 0.10, 0.20],  # LiDAR: 0.00, 0.10, 0.20
+            [
+                (0, 0, None),
+                (1, None, None),
+                (None, 1, 0.10),
+                (2, None, None),
+                (3, 2, None),
+            ],
+        ),
+        # missing Camera and LiDAR frames
+        (
+            [0.00, 0.05, 0.15],  # Camera: 0.00, 0.05, 0.15
+            [0.00, 0.20],  # LiDAR: 0.00, 0.20
+            [
+                (0, 0, None),
+                (1, None, None),
+                (2, None, None),
+                (None, 1, 0.20),
+            ],
+        ),
+    ],
+)
 def test_lidar_camera_edge_cases(image_ts, lidar_ts, expected):
     result = misc_utils.get_lidar_camera_frame_info_async(
         image_timestamp_list=image_ts,
@@ -318,7 +322,7 @@ def test_lidar_camera_edge_cases(image_ts, lidar_ts, expected):
         camera_scan_period=0.05,
         num_load_image_frames=len(image_ts),
         num_load_lidar_frames=len(lidar_ts),
-        msg_display_interval=100
+        msg_display_interval=100,
     )
 
     assert result == expected, f"Expected {expected}, but got {result}"
