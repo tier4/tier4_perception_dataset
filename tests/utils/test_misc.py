@@ -303,18 +303,7 @@ def test_camera_20fps_lidar_2frames_10fps_camera_4frames():
 @pytest.mark.parametrize(
     "image_ts, lidar_ts, expected",
     [
-        # # missing the first LiDAR frame
-        # (
-        #     [0.00, 0.05, 0.10, 0.15, 0.20], # Camera: 0.00, 0.05, 0.10, 0.15, 0.20
-        #     [0.10, 0.20],   # LiDAR: 0.10, 0.20
-        #     [
-        #         (0, None, None),    # LiDAR 0 is missing
-        #         (1, None, None),
-        #         (2, 0, None),
-        #         (3, None, None),
-        #         (4, 1, None),
-        #     ]
-        # ),
+        
         # missing LiDAR frames
         (
             [0.00, 0.05, 0.10, 0.15, 0.20],  # Camera: 0.00, 0.05, 0.10, 0.15, 0.20
