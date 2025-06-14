@@ -794,7 +794,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # Save image
             sample_data_token_list: List[str] = []
             image_index_counter = -1
-            first_synced_image_index = synced_frame_info_list[0][0] if synced_frame_info_list else 0
+            first_synced_image_index = (
+                synced_frame_info_list[0][0] if synced_frame_info_list else 0
+            )
             image_generator = self._bag_reader.read_messages(
                 topics=[topic], start_time=start_time_in_time
             )
@@ -827,7 +829,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     while image_index_counter < image_index:
                         image_msg = next(image_generator)
                         image_index_counter += 1
-                    file_index = lidar_frame_index if self._camera_lidar_sync_mode else image_index - first_synced_image_index
+                    file_index = (
+                        lidar_frame_index
+                        if self._camera_lidar_sync_mode
+                        else image_index - first_synced_image_index
+                    )
                     sample_data_token = self._generate_image_data(
                         image_msg,
                         rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
