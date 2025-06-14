@@ -194,9 +194,9 @@ def get_lidar_camera_frame_info_async(
             lidar_index += 1
             first_frame_loaded = True
 
-        if image_index % msg_display_interval == 0:
+        if len(synced_frame_info_list) % msg_display_interval == 1:
             print(
-                f"frame{lidar_index}, stamp = {image_timestamp}, diff cam - lidar = {image_timestamp - lidar_timestamp:0.3f} sec"
+                f"frame{synced_frame_info_list[-1][1]}, stamp = {image_timestamp}, diff cam - lidar = {image_timestamp - lidar_timestamp:0.3f} sec"
             )
 
     return synced_frame_info_list
