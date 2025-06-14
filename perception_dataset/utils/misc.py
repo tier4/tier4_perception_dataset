@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 
@@ -12,11 +12,13 @@ def nusc_timestamp_to_unix_timestamp(timestamp: int) -> float:
     return float(timestamp) * 1e-6
 
 
-def get_sample_data_filename(sensor_channel: str, frame_index: int, fileformat: str):
+def get_sample_data_filename(sensor_channel: str, file_name: Union[int, str], fileformat: str):
+    if isinstance(file_name, int):
+        file_name = f"{file_name:05d}"
     filename = os.path.join(
         T4_FORMAT_DIRECTORY_NAME.DATA.value,
         sensor_channel,
-        f"{frame_index:05}.{fileformat}",
+        f"{file_name}.{fileformat}",
     )
     return filename
 
@@ -138,29 +140,34 @@ def get_lidar_camera_frame_info_async(
 
     lidar_index = 0
     image_index = 0
+    image_index_offset = 0
     lidar_load_completed = False
     image_load_completed = False
     first_frame_loaded = False
     half_camera_period_with_jitter = camera_scan_period / 2 + max_camera_jitter
 
     while lidar_index < num_load_lidar_frames or image_index < num_load_image_frames:
-        if lidar_index < num_load_lidar_frames:
+        if lidar_index < num_load_lidar_frames and lidar_index < len(lidar_timestamp_list):
             lidar_timestamp = lidar_timestamp_list[lidar_index]
         else:
             lidar_load_completed = True
             lidar_timestamp = lidar_timestamp_list[-1]
 
-        if image_index < num_load_image_frames:
+        if image_index < num_load_image_frames and image_index < len(image_timestamp_list):
             image_timestamp = image_timestamp_list[image_index]
         else:
             image_load_completed = True
             image_timestamp = image_timestamp_list[-1]
 
+        if lidar_load_completed and image_load_completed:
+            print("All frames loaded; exiting loop")
+            break
+
         adjusted_image_timestamp = image_timestamp - lidar_to_camera_latency
 
         if lidar_load_completed:
             # All LiDAR frames are loaded
-            synced_frame_info_list.append((image_index, None, None))
+            synced_frame_info_list.append((image_index + image_index_offset, None, None))
             image_index += 1
         elif image_load_completed:
             # All image frames are loaded
@@ -170,11 +177,12 @@ def get_lidar_camera_frame_info_async(
         elif adjusted_image_timestamp < lidar_timestamp - half_camera_period_with_jitter:
             # Image timestamp is too early; assume LiDAR frame is missing
             if first_frame_loaded:
-                synced_frame_info_list.append((image_index, None, None))
+                synced_frame_info_list.append((image_index + image_index_offset, None, None))
                 image_index += 1
             else:
                 # Drop current image timestamp and try next to find the first aligned frame
                 image_timestamp_list = image_timestamp_list[1:]
+                image_index_offset += 1
         elif adjusted_image_timestamp > lidar_timestamp + half_camera_period_with_jitter:
             # LiDAR timestamp is too early; assume image frame is missing
             dummy_timestamp = lidar_timestamp + lidar_to_camera_latency
@@ -183,14 +191,14 @@ def get_lidar_camera_frame_info_async(
             first_frame_loaded = True
         else:
             # Both image and LiDAR frames are available and matched
-            synced_frame_info_list.append((image_index, lidar_index, None))
+            synced_frame_info_list.append((image_index + image_index_offset, lidar_index, None))
             image_index += 1
             lidar_index += 1
             first_frame_loaded = True
 
-        if image_index % msg_display_interval == 0:
+        if len(synced_frame_info_list) % msg_display_interval == 1:
             print(
-                f"frame{lidar_index}, stamp = {image_timestamp}, diff cam - lidar = {image_timestamp - lidar_timestamp:0.3f} sec"
+                f"frame{synced_frame_info_list[-1][1]}, stamp = {image_timestamp}, diff cam - lidar = {image_timestamp - lidar_timestamp:0.3f} sec"
             )
 
     return synced_frame_info_list
