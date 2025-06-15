@@ -907,7 +907,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return sample_data_token_list
 
     def _make_file_index_func(self):
-        last_synced_lidar_index = None
+        last_synced_lidar_index = 0
         suffix = 0
 
         def _get_file_index(image_index: int, lidar_index: int) -> str:
