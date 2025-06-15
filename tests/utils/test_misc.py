@@ -293,10 +293,42 @@ def test_camera_20fps_lidar_2frames_10fps_camera_4frames():
     expected = [
         (0, 0, None),  # image 0 ↔ lidar 0
         (1, None, None),  # image 1 unmatched
-        (2, 1, None),  # lidar 1 ↔ image 2
+        (2, 1, None),  # image 2 ↔ lidar 1
         (3, None, None),  # image 3 unmatched
     ]
 
+    assert result == expected, f"Expected {expected}, but got {result}"
+
+
+def test_first_lidar_frame_dropped():
+    # Camera: 0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35
+    # 1st and 2nd frames will be removed
+    image_ts = [0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
+    # LiDAR: 0.10, 0.20
+    lidar_ts = [0.10, 0.20]
+
+    result = misc_utils.get_lidar_camera_frame_info_async(
+        image_timestamp_list=image_ts,
+        lidar_timestamp_list=lidar_ts,
+        lidar_to_camera_latency=0.0,
+        max_camera_jitter=0.005,
+        camera_scan_period=0.05,
+        num_load_image_frames=100,
+        num_load_lidar_frames=50,
+        msg_display_interval=1,
+    )
+
+    expected = [
+        (2, 0, None),
+        (3, None, None),
+        (4, 1, None),
+        (5, None, None),
+        (6, None, None),
+        (7, None, None),
+    ]
+
+    print(f"image_ts: {image_ts}, lidar_ts: {lidar_ts}")
+    print(f"result: {result}")
     assert result == expected, f"Expected {expected}, but got {result}"
 
 

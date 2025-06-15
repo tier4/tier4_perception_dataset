@@ -179,6 +179,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
+        self._get_file_index = self._make_file_index_func()
 
         # NOTE: even if `with_world_frame_conversion=True`, `/tf` topic is not needed and
         # it is retrieved from INS messages.
@@ -826,8 +827,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     while image_index_counter < image_index:
                         image_msg = next(image_generator)
                         image_index_counter += 1
-
-                    file_index = lidar_frame_index if self._camera_lidar_sync_mode else image_index
+                    file_index = self._get_file_index(image_index, lidar_frame_index)
                     sample_data_token = self._generate_image_data(
                         image_msg,
                         rosbag2_utils.stamp_to_unix_timestamp(image_msg.header.stamp),
@@ -906,6 +906,26 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return sample_data_token_list
 
+    def _make_file_index_func(self):
+        last_synced_lidar_index = 0
+        suffix = 0
+
+        def _get_file_index(image_index: int, lidar_index: int) -> str:
+            nonlocal last_synced_lidar_index, suffix
+
+            if self._camera_lidar_sync_mode:
+                return f"{lidar_index:05d}"
+            else:
+                if lidar_index is not None:
+                    last_synced_lidar_index = lidar_index
+                    suffix = 0
+                    return f"{lidar_index:05d}"
+                else:
+                    suffix += 1
+                    return f"{last_synced_lidar_index:05d}-{suffix:02d}"
+
+        return _get_file_index
+
     def _convert_vehicle_state(self) -> None:
         msgs = self._vehicle_status_handler.get_actuation_statuses()
         stamps = [msg.header.stamp for msg in msgs]
@@ -919,7 +939,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sample_token: Optional[str],
         calibrated_sensor_token: str,
         sensor_channel: str,
-        frame_index: int,
+        frame_index: Union[int, str],
         image_shape: Tuple[int, int, int] = (0, 0, 0),
         output_blank_image: bool = False,
         is_key_frame: bool = True,
