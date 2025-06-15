@@ -300,7 +300,7 @@ def test_camera_20fps_lidar_2frames_10fps_camera_4frames():
     assert result == expected, f"Expected {expected}, but got {result}"
 
 
-def test_first_camera_frame_dropped():
+def test_first_lidar_frame_dropped():
     # Camera: 0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35
     # 1st and 2nd frames will be removed
     image_ts = [0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35]
