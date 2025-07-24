@@ -84,8 +84,14 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
         ...
     ]
     """
-    dataset_path = Path(dataset_dir) / T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value
-    dataset_path.mkdir(parents=True, exist_ok=True)
+    # lidarseg anno json output directory
+    output_name = Path(dataset_dir, output_name)
+    output_name.parents[0].mkdir(parents=True, exist_ok=True)
+
+    # Create lidarseg dataset directory
+    lidarseg_path = output_name.parents[0] / T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value
+    lidarseg_path.mkdir(parents=True, exist_ok=True)
+
     lidarseg_annos_info = []
     for dataset_id in dataset_ids:
         datasets_url = f"https://tools.deepen.ai/api/v2/datasets/{dataset_id}/label_types/3d_point/paint_labels?stageId=QA&sensor_id=lidar&labelSetId=default"
@@ -115,15 +121,19 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
             paint_metadata["frame_sizes"]
         ), "Number of pcd files and frame sizes do not match!"
 
-        decompressed_data = zlib.decompress(response.content)
-        lidarseg_category_indices = np.frombuffer(decompressed_data, dtype=np.uint8)
+        try:
+            decompressed_data = zlib.decompress(response.content)
+            lidarseg_category_indices = np.frombuffer(decompressed_data, dtype=np.uint8)
+        except zlib.error:
+            lidarseg_category_indices = np.frombuffer(response.content, dtype=np.uint8)
+
         # Split based on pointcloud size
         previous_frame_size = 0
 
         for file_id, frame_size in zip(pcd_files, paint_metadata["frame_sizes"]):
 
             lidarseg_anno_filename = (
-                dataset_path / f"{dataset_id}_{str(file_id)}{EXTENSION_ENUM.BIN.value}"
+                lidarseg_path / f"{dataset_id}_{str(file_id)}{EXTENSION_ENUM.BIN.value}"
             )
 
             annos_info = {
@@ -147,8 +157,6 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
             lidarseg_annos_info.append(annos_info)
 
     # Save lidarseg anno information to json
-    output_name = Path(dataset_dir, output_name)
-    output_name.parents[0].mkdir(parents=True, exist_ok=True)
     with open(output_name, "w") as f:
         json.dump(lidarseg_annos_info, f, indent=4)
 

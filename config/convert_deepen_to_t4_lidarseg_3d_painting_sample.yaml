@@ -21,11 +21,11 @@ conversion:
   label_info: # for 3D/2D box only annotations, it is OK to skip specifying this field
     label_type: 3d_point
     label_format: paint_3d
-  input_base: ./data/non_annotated_t4_format
-  input_anno_file: ./data/deepen_format/lidarseg_annotations_accepted_deepen.json
-  input_bag_base: ./data/rosbag2
-  output_base: ./data/t4_format
+  input_base: /home/kokseangtantier4jp/lidar_semseg_sample/data/non_annotated_t4_format
+  input_anno_file: /home/kokseangtantier4jp/lidar_semseg_sample/data/deepen_format/lidarseg_annotations_accepted_deepen.json
+  input_bag_base: /home/kokseangtantier4jp/lidar_semseg_sample/data/rosbag2
+  output_base: /home/kokseangtantier4jp/lidar_semseg_sample/data/t4_format
   topic_list: ./config/topic_list_sample.yaml
   ignore_interpolate_label: true
   dataset_corresponding:
-    Dataset_name: dataset_id_in_Deepen_AI
+    sample_lidarseg: 8CasOTR8FZY250hs6UNAttBi
