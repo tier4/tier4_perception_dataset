@@ -131,11 +131,9 @@ def get_paint3d_labels(dataset_ids: List[str], dataset_dir: str, output_name: st
         previous_frame_size = 0
 
         for file_id, frame_size in zip(pcd_files, paint_metadata["frame_sizes"]):
-            
+
             lidarseg_file = f"{dataset_id}_{str(file_id)}{EXTENSION_ENUM.BIN.value}"
-            lidarseg_anno_filename = (
-                lidarseg_path / lidarseg_file
-            )
+            lidarseg_anno_filename = lidarseg_path / lidarseg_file
 
             annos_info = {
                 "dataset_id": dataset_id,

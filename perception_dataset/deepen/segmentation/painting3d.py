@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import re
 import os
 from pathlib import Path
+import re
 from typing import Any, Dict, List
 
 from perception_dataset.deepen.deepen_annotation import DeepenAnnotation, LabelType
