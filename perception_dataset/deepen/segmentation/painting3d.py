@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import os
+from pathlib import Path
 import re
 from typing import Any, Dict, List
 
@@ -126,6 +128,7 @@ class DeepenSegmentationPainting3DAnnotations:
         with open(ann_file, "r") as f:
             lidarseg_ann_info = json.load(f)
 
+        data_root = os.path.abspath(Path(ann_file).parent)
         lidarseg_paint_3d_datasets: Dict[str, DeepenSegmentationPainting3DDataset] = {}
 
         for lidarseg_ann in lidarseg_ann_info:
@@ -143,7 +146,7 @@ class DeepenSegmentationPainting3DAnnotations:
                 label_category_id=lidarseg_ann["label_category_id"],
                 total_lidar_points=lidarseg_ann["total_lidar_points"],
                 sensor_id=lidarseg_ann["sensor_id"],
-                lidarseg_anno_file=lidarseg_ann["lidarseg_anno_file"],
+                lidarseg_anno_file=f"{data_root}/{lidarseg_ann['lidarseg_anno_file']}",
                 paint_categories=lidarseg_ann["paint_categories"],
             )
 
