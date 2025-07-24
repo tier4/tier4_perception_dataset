@@ -129,7 +129,6 @@ class DeepenSegmentationPainting3DAnnotations:
             lidarseg_ann_info = json.load(f)
 
         data_root = os.path.abspath(Path(ann_file).parent)
-        print(data_root)
         lidarseg_paint_3d_datasets: Dict[str, DeepenSegmentationPainting3DDataset] = {}
 
         for lidarseg_ann in lidarseg_ann_info:
