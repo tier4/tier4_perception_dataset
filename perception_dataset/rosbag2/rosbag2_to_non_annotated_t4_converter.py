@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import enum
 import glob
 import json
@@ -27,15 +28,22 @@ from perception_dataset.rosbag2.converter_params import DataType, Rosbag2Convert
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
-from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
+from perception_dataset.t4_dataset.classes.calibrated_sensor import (
+    CalibratedSensorTable,
+)
 from perception_dataset.t4_dataset.classes.category import CategoryTable
 from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord, EgoPoseTable
 from perception_dataset.t4_dataset.classes.instance import InstanceTable
 from perception_dataset.t4_dataset.classes.log import LogTable
 from perception_dataset.t4_dataset.classes.map import MapTable
 from perception_dataset.t4_dataset.classes.sample import SampleRecord, SampleTable
-from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnotationTable
-from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
+from perception_dataset.t4_dataset.classes.sample_annotation import (
+    SampleAnnotationTable,
+)
+from perception_dataset.t4_dataset.classes.sample_data import (
+    SampleDataRecord,
+    SampleDataTable,
+)
 from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
 from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
@@ -53,7 +61,19 @@ class SensorMode(enum.Enum):
     NO_SENSOR = "no_sensor"
 
 
-class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
+@dataclass
+class Rosbag2ToNonAnnotatedT4ConverterOutputItem:
+    uncompressed_output_path: str
+    zipped_output_path: str | None = None
+    zipped_input_path: str | None = None
+
+
+@dataclass
+class Rosbag2ToNonAnnotatedT4ConverterOutput:
+    items: list[Rosbag2ToNonAnnotatedT4ConverterOutputItem]
+
+
+class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter[Rosbag2ToNonAnnotatedT4ConverterOutput]):
     def __init__(self, params: Rosbag2ConverterParams) -> None:
         super().__init__(params.input_base, params.output_base)
 
@@ -75,7 +95,7 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
 
         return ret_bag_files
 
-    def convert(self):
+    def convert(self) -> Rosbag2ToNonAnnotatedT4ConverterOutput:
         bag_dirs: List[str] = self._get_bag_dirs()
 
         if not self._overwrite_mode:
@@ -92,12 +112,14 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
                 logger.warning(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
+        items: list[Rosbag2ToNonAnnotatedT4ConverterOutputItem] = []
         for bag_dir in sorted(bag_dirs):
             logger.info(f"Start converting {bag_dir} to T4 format.")
             self._params.input_bag_path = bag_dir
             try:
                 bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
-                bag_converter.convert()
+                output = bag_converter.convert()
+                items.append(output)
             except Exception as e:
                 logger.error(f"Error occurred during conversion: {e}")
                 if self._params.raise_exception:
@@ -107,6 +129,10 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter):
             print(
                 "--------------------------------------------------------------------------------------------------------------------------"
             )
+
+        return Rosbag2ToNonAnnotatedT4ConverterOutput(
+            items=items,
+        )
 
 
 class _Rosbag2ToNonAnnotatedT4Converter:
@@ -346,13 +372,22 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # additional (used in Co-MLops)
         self._vehicle_state_table = VehicleStateTable()
 
-    def convert(self):
+    def convert(self) -> Rosbag2ToNonAnnotatedT4ConverterOutputItem:
         self._convert()
 
         self._save_tables()
         self._save_config()
+
+        zipped_output_path: str | None = None
+        zipped_input_path: str | None = None
         if not self._without_compress:
-            self._compress_directory()
+            (zipped_output_path, zipped_input_path) = self._compress_directory()
+
+        return Rosbag2ToNonAnnotatedT4ConverterOutputItem(
+            uncompressed_output_path=self._output_scene_dir,
+            zipped_output_path=zipped_output_path,
+            zipped_input_path=zipped_input_path,
+        )
 
     def _save_tables(self):
         print(
@@ -389,14 +424,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 default=lambda o: getattr(o, "__dict__", str(o)),
             )
 
-    def _compress_directory(self):
-        shutil.make_archive(
+    def _compress_directory(self) -> Tuple[str, str]:
+        zipped_output_path = shutil.make_archive(
             self._output_scene_dir,
             "zip",
             root_dir=os.path.dirname(self._output_scene_dir),
             base_dir=self._bag_name,
         )
-        shutil.make_archive(self._input_bag, "zip", root_dir=self._input_bag)
+        zipped_input_path = shutil.make_archive(self._input_bag, "zip", root_dir=self._input_bag)
+        return (zipped_output_path, zipped_input_path)
 
     def _convert(self) -> None:
         """

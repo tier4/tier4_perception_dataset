@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import glob
 import os
 import os.path as osp
@@ -13,7 +14,19 @@ from perception_dataset.utils.logger import configure_logger
 logger = configure_logger(modname=__name__)
 
 
-class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
+@dataclass
+class NonAnnotatedT4TlrToDeepenConverterOutputItem:
+    output_path: str
+
+
+@dataclass
+class NonAnnotatedT4TlrToDeepenConverterOutput:
+    items: list[NonAnnotatedT4TlrToDeepenConverterOutputItem]
+
+
+class NonAnnotatedT4TlrToDeepenConverter(
+    AbstractConverter[NonAnnotatedT4TlrToDeepenConverterOutput]
+):
     def __init__(
         self,
         input_base: str,
@@ -21,9 +34,10 @@ class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
     ):
         super().__init__(input_base, output_base)
 
-    def convert(self):
+    def convert(self) -> NonAnnotatedT4TlrToDeepenConverterOutput:
         start_time = time.time()
 
+        output_items: list[NonAnnotatedT4TlrToDeepenConverterOutputItem] = []
         for scene_dir in glob.glob(osp.join(self._input_base, "*")):
             if not osp.isdir(scene_dir):
                 continue
@@ -33,10 +47,18 @@ class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
                 scene_dir,
                 out_dir,
             )
-            shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            output_path = shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            output_items.append(
+                NonAnnotatedT4TlrToDeepenConverterOutputItem(
+                    output_path=output_path,
+                )
+            )
 
         elapsed_time = time.time() - start_time
         logger.info(f"Elapsed time: {elapsed_time:.1f} [sec]")
+        return NonAnnotatedT4TlrToDeepenConverterOutputItem(
+            items=output_items,
+        )
 
     def _convert_one_scene(self, input_dir: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)

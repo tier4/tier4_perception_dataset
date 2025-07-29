@@ -25,7 +25,7 @@ from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.utils.logger import configure_logger
 
 
-class DataInterpolator(AbstractConverter):
+class DataInterpolator(AbstractConverter[None]):
     """A class to interpolate annotations."""
 
     SAMPLE_KEYS = ("token", "timestamp", "scene_token", "next", "prev")

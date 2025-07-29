@@ -1,4 +1,5 @@
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 import glob
 import os
 import os.path as osp
@@ -21,7 +22,17 @@ from perception_dataset.utils.logger import configure_logger
 logger = configure_logger(modname=__name__)
 
 
-class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
+@dataclass
+class NonAnnotatedT4ToDeepenConverterOutputItem:
+    output_path: str
+
+
+@dataclass
+class NonAnnotatedT4ToDeepenConverterOutput:
+    items: list[NonAnnotatedT4ToDeepenConverterOutputItem]
+
+
+class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenConverterOutput]):
     def __init__(
         self,
         input_base: str,
@@ -41,9 +52,10 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
             for cam in camera_sensors:
                 self._camera_sensor_types.append(SENSOR_ENUM[cam["channel"]])
 
-    def convert(self):
+    def convert(self) -> NonAnnotatedT4ToDeepenConverterOutput:
         start_time = time.time()
 
+        output_items: list[NonAnnotatedT4ToDeepenConverterOutputItem] = []
         for scene_dir in glob.glob(osp.join(self._input_base, "*")):
             if not osp.isdir(scene_dir):
                 continue
@@ -53,10 +65,18 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                 scene_dir,
                 out_dir,
             )
-            shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            output_path = shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            output_items.append(
+                NonAnnotatedT4ToDeepenConverterOutputItem(
+                    output_path=output_path,
+                )
+            )
 
         elapsed_time = time.time() - start_time
         logger.info(f"Elapsed time: {elapsed_time:.1f} [sec]")
+        return NonAnnotatedT4ToDeepenConverterOutput(
+            items=output_items,
+        )
 
     def _convert_one_scene(self, input_dir: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)
