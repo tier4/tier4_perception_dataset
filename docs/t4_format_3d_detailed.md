@@ -47,6 +47,9 @@ Note: This sample dataset contains only lidar point cloud sensor data and includ
       - 0.pcd.bin (point cloud [x, y, z, intensity, ring_idx])
       - 1.pcd.bin
       - {frame_id}.pcd.bin
+    - /LIDAR_CONCAT_INFO
+      - 0.json  (json file corresponding to autoware_sensing_msgs.msg.ConcatenatedPointCloudInfo )
+      - 1.json
     - /RADAR_FRONT
       - 0.pcd.bin (fields [x, y, z, class, id, rcs, vx, vy, vx_comp, vy_comp, is_quality_valid, ambiguity_state, x_rms, y_rms, invalid_state, confidence, vx_rms, vy_rms])
       - {frame_id}.pcd.bin
@@ -563,6 +566,7 @@ A sensor data e.g. image, point cloud or radar return. For sample_data with is_k
   - "next": [str] -- Foreign key. Sample data from the same sensor that follows this in time. Empty if end of scene.
   - "prev": [str] -- Foreign key. Sample data from the same sensor that precedes this in time. Empty if start of scene.
   - "is_valid": [bool] -- True if the data is valid, else False. Invalid data should be ignored.
+  - "info_filename":[bool] -- Relative path to the metainformation of the sensor data. Usually a json file.
   - "autolabel_metadata": [Optional[dict]] -- Metadata about the automatic annotation applied to this entire sample_data item (e.g., image or scan). **(Added)**
     - "models": [{ name: str, score: float, uncertainty?: float }] -- List of models used for autolabeling. Each object includes the model name, confidence score, and optionally its uncertainty.
       - "name": [str] -- Name of the model used for annotation. Can include version information.
