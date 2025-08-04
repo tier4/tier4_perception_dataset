@@ -185,6 +185,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             assert "lidar_info_channel" in self._lidar_sensor and "accept_no_info" in self._lidar_sensor, "lidar_info_channel and accept_no_info must be specified if lidar_info_topic is set."
             self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
             self._accept_no_info: bool =  self._lidar_sensor.get("accept_no_info")
+            self._lidar_info_messages: Dict[float, CameraInfo] = {}
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
@@ -556,15 +557,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sensor_channel, start_time_in_time, topic
         )
 
-        # Collect info messages if info_topic is specified
-        info_messages = {}
-        if info_topic:
-            for info_msg in self._bag_reader.read_messages(
-                topics=[info_topic],
-                start_time=start_time_in_time,
-            ):
-                info_timestamp = rosbag2_utils.stamp_to_unix_timestamp(info_msg.header.stamp)
-                info_messages[info_timestamp] = info_msg
         # Calculate the maximum number of points
         max_num_points = 0
         topic_check_count = 0
@@ -642,8 +634,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             # Save corresponding info data if available
             info_filename = ""
-            if info_topic and info_messages:
-                if unix_timestamp not in info_messages:
+            if info_topic:
+                if not self._lidar_info_messages :
+                    for info_msg in self._bag_reader.read_messages(
+                        topics=[info_topic]
+                    ):
+                        info_timestamp = rosbag2_utils.stamp_to_unix_timestamp(info_msg.header.stamp)
+                        self._lidar_info_messages[info_timestamp] = info_msg
+
+                if unix_timestamp not in self._lidar_info_messages:
                     if self._accept_no_info:
                         warnings.warn(
                             f"No lidar_info message found for timestamp {unix_timestamp}. "
@@ -653,7 +652,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         raise KeyError(
                             f"No lidar_info message found for timestamp {unix_timestamp}. "
                         )
-                info_filename = self._save_info_as_json(info_messages[unix_timestamp], info_channel, frame_index)
+                info_filename = self._save_info_as_json(self._lidar_info_messages[unix_timestamp], info_channel, frame_index)
 
             fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
             filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
