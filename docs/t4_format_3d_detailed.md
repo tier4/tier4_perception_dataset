@@ -48,7 +48,7 @@ Note: This sample dataset contains only lidar point cloud sensor data and includ
       - 1.pcd.bin
       - {frame_id}.pcd.bin
     - /LIDAR_CONCAT_INFO
-      - 0.json  (json file corresponding to autoware_sensing_msgs.msg.ConcatenatedPointCloudInfo )
+      - 0.json (json file corresponding to autoware_sensing_msgs.msg.ConcatenatedPointCloudInfo )
       - 1.json
     - /RADAR_FRONT
       - 0.pcd.bin (fields [x, y, z, class, id, rcs, vx, vy, vx_comp, vy_comp, is_quality_valid, ambiguity_state, x_rms, y_rms, invalid_state, confidence, vx_rms, vy_rms])

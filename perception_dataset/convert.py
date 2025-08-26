@@ -84,7 +84,7 @@ def main():
             workers_number=workers_number,
             drop_camera_token_not_found=drop_camera_token_not_found,
             save_intensity=save_intensity,
-            save_lidarindex=save_lidarindex
+            save_lidarindex=save_lidarindex,
         )
 
         logger.info(

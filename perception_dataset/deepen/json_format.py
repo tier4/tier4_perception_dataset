@@ -201,7 +201,7 @@ class ConfigData(AbstractData):
         device_position: NDArray = None,
         device_heading: NDArray = None,
         save_intensity: bool = False,
-        save_lidarindex: bool = False
+        save_lidarindex: bool = False,
     ):
         self._save_intensity = save_intensity
         self._save_lidarindex = save_lidarindex

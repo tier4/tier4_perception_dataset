@@ -103,7 +103,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                 device_position=data_dict["sensor2global_translation"],
                 device_heading=data_dict["sensor2global_rotation"],
                 save_intensity=self._save_intensity,
-                save_lidarindex=self._save_lidarindex
+                save_lidarindex=self._save_lidarindex,
             )
 
         for camera_sensor_type in self._camera_sensor_types:

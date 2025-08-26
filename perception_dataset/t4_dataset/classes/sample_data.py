@@ -38,7 +38,7 @@ class SampleDataRecord(AbstractRecord):
         self.prev: str = prev_token
         self._is_valid: bool = is_valid
         self.info_filename: str = info_filename
-        
+
     def to_dict(self):
         d = {
             "token": self.token,

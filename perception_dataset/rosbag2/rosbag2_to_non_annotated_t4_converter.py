@@ -178,13 +178,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._msg_display_interval = 100
 
         # for lidar info topic
-        self._lidar_info_topic: str = self._lidar_sensor.get("lidar_info_topic","" )
-        self._lidar_info_channel: str = "LIDAR_CONCAT_INFO"   # default channel name for lidar info
+        self._lidar_info_topic: str = self._lidar_sensor.get("lidar_info_topic", "")
+        self._lidar_info_channel: str = "LIDAR_CONCAT_INFO"  # default channel name for lidar info
 
         if self._lidar_info_topic:
-            assert "lidar_info_channel" in self._lidar_sensor and "accept_no_info" in self._lidar_sensor, "lidar_info_channel and accept_no_info must be specified if lidar_info_topic is set."
+            assert (
+                "lidar_info_channel" in self._lidar_sensor
+                and "accept_no_info" in self._lidar_sensor
+            ), "lidar_info_channel and accept_no_info must be specified if lidar_info_topic is set."
             self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
-            self._accept_no_info: bool =  self._lidar_sensor.get("accept_no_info")
+            self._accept_no_info: bool = self._lidar_sensor.get("accept_no_info")
             self._lidar_info_messages: Dict[float, CameraInfo] = {}
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
@@ -329,7 +332,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 osp.join(self._output_data_dir, sensor_enum.value["channel"]),
                 exist_ok=True,
             )
-        
+
         # Create lidar_info directory if lidar_info_topic is specified
         if self._lidar_info_topic:
             os.makedirs(
@@ -477,7 +480,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     topic=self._lidar_sensor["topic"],
                     scene_token=scene_token,
                     info_topic=self._lidar_info_topic,
-                    info_channel=self._lidar_info_channel
+                    info_channel=self._lidar_info_channel,
                 )
             )
             print(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec\n")
@@ -545,7 +548,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         scene_token: str,
         info_topic: Optional[str] = "",
-        info_channel: Optional[str]  = "",
+        info_channel: Optional[str] = "",
     ) -> List[str]:
         sample_data_token_list: List[str] = []
 
@@ -630,11 +633,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # Save corresponding info data if available
             info_filename = ""
             if info_topic:
-                if not self._lidar_info_messages :
-                    for info_msg in self._bag_reader.read_messages(
-                        topics=[info_topic]
-                    ):
-                        info_timestamp = rosbag2_utils.stamp_to_unix_timestamp(info_msg.header.stamp)
+                if not self._lidar_info_messages:
+                    for info_msg in self._bag_reader.read_messages(topics=[info_topic]):
+                        info_timestamp = rosbag2_utils.stamp_to_unix_timestamp(
+                            info_msg.header.stamp
+                        )
                         self._lidar_info_messages[info_timestamp] = info_msg
 
                 if unix_timestamp not in self._lidar_info_messages:
@@ -647,10 +650,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         raise KeyError(
                             f"No lidar_info message found for timestamp {unix_timestamp}. "
                         )
-                        
+
                 # Create filename with same pattern as lidar data but .json extension
                 fileformat = EXTENSION_ENUM.JSON.value[1:]
-                info_filename = misc_utils.get_sample_data_filename(info_channel, frame_index, fileformat)
+                info_filename = misc_utils.get_sample_data_filename(
+                    info_channel, frame_index, fileformat
+                )
 
             fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
             filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
@@ -659,7 +664,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sample_token = self._sample_table.insert_into_table(
                 timestamp=nusc_timestamp, scene_token=scene_token
             )
-            
+
             sample_data_token = self._sample_data_table.insert_into_table(
                 sample_token=sample_token,
                 ego_pose_token=ego_pose_token,
@@ -692,29 +697,29 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _save_info_as_json(self, lidar_info_msg, info_filepath: str):
         """Save lidar_info message as .json file.
-        
+
         Args:
             lidar_info_msg: The lidar_info message to convert
             info_filepath: File path for the info JSON file
         """
         # Convert lidar_info message to dictionary
         lidar_info_dict = self._convert_lidar_info_msg_to_dict(lidar_info_msg)
-        
+
         # Save to lidar_info directory
         lidar_info_path = osp.join(self._output_scene_dir, info_filepath)
         with open(lidar_info_path, "w") as f:
             json.dump(lidar_info_dict, f, indent=4)
 
     def _convert_lidar_info_msg_to_dict(self, msg):
-        """Convert lidar_info message to dictionary.
-        """
+        """Convert lidar_info message to dictionary."""
+
         def header_to_dict(header):
             return {
                 "stamp": {
                     "sec": header.stamp.sec,
                     "nanosec": header.stamp.nanosec,
                 },
-                "frame_id": header.frame_id
+                "frame_id": header.frame_id,
             }
 
         def source_info_to_dict(info):
@@ -723,7 +728,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 "topic": info.topic,
                 "status": info.status,
                 "idx_begin": info.idx_begin,
-                "length": info.length
+                "length": info.length,
             }
 
         return {
@@ -731,9 +736,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             "concatenation_success": msg.concatenation_success,
             "matching_strategy": msg.matching_strategy,
             "matching_strategy_config": list(msg.matching_strategy_config),
-            "source_info": [source_info_to_dict(src) for src in msg.source_info]
+            "source_info": [source_info_to_dict(src) for src in msg.source_info],
         }
-
 
     def _convert_radar_tracks(
         self,
