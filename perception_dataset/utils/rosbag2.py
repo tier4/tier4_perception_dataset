@@ -136,17 +136,10 @@ def point_cloud2_to_array(msg: PointCloud2) -> Dict[str, NDArray]:
     pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1, msg.point_step)
     xyz = pc_data[:, :12].view(dtype=np.float32).reshape(-1, 3)
 
-    # Filter out rows where xyz are all zero
-    non_zero_indices = ~(np.all(xyz == 0, axis=1))
-    xyz = xyz[non_zero_indices]
 
     # Extract optional fields (intensity and index) and apply the same filter
     intensity = get_field_data(pc_data, msg, "intensity", dtype_map)
     lidar_index = get_field_data(pc_data, msg, "index", dtype_map)
-    if intensity is not None:
-        intensity = intensity[non_zero_indices]
-    if lidar_index is not None:
-        lidar_index = lidar_index[non_zero_indices]
 
     # Build result dictionary
     result = {"xyz": xyz}

@@ -3,28 +3,20 @@ description:
   scene: ""
 conversion:
   without_compress: true
-  input_base: ../data
-  output_base: ../data_out
-  world_frame_id: "map"
-  start_timestamp_sec: 0 # Enter here if there is a timestamp for the start time. If not used, enter 0.
-  skip_timestamp: 2.0 # Do not load data for the first point cloud timestamp for skip_timestamp seconds.
-  num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
-  accept_frame_drop: True # If true, the conversion will continue even if the LiDAR frame is dropped.
-  undistort_image: False # If true, the camera image will be undistorted.
-  # LiDAR info topic to save as .npy files in data/lidar_info directory
-  # If specified, corresponding lidar_info data will be saved for each lidar frame
-  # The conversion from lidar_info message to numpy array must be implemented by the user
-  # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
-  max_camera_jitter_sec: 0.005
-  lidar_latency_sec: 0.005
-  system_scan_period_sec: 0.10
+  input_base: ../inputbag
+  output_base: ../t4dataset
+  skip_timestamp: 2.0
+  num_load_frames: 0
+  start_timestamp_sec: 0.0
+  accept_frame_drop: True
+  undistort_image: True
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
     lidar_info_topic: /sensing/lidar/concatenated/pointcloud_info # Set to "" to disable
     lidar_info_channel: LIDAR_CONCAT_INFO
     accept_no_info: True # If True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
-  camera_sensors: #  Keep the same order as each camera exposure timing
+  camera_sensors:
     - topic: /sensing/camera/camera8/image_raw/compressed
       channel: CAM_FRONT
       delay_msec: 45
@@ -43,3 +35,4 @@ conversion:
     - topic: /sensing/camera/camera9/image_raw/compressed
       channel: CAM_BACK_RIGHT
       delay_msec: 80
+  ignore_no_ego_transform_at_rosbag_beginning: True

@@ -30,8 +30,13 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         annotation_hz: int = 10,
         workers_number: int = 32,
         drop_camera_token_not_found: bool = False,
+        save_intensity: bool = False,
+        save_lidarindex: bool = False,
     ):
         super().__init__(input_base, output_base)
+
+        self._save_intensity = save_intensity
+        self._save_lidarindex = save_lidarindex
 
         self._camera_sensor_types = []
         self._annotation_hz = annotation_hz
@@ -97,6 +102,8 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                 points=points,
                 device_position=data_dict["sensor2global_translation"],
                 device_heading=data_dict["sensor2global_rotation"],
+                save_intensity=self._save_intensity,
+                save_lidarindex=self._save_lidarindex
             )
 
         for camera_sensor_type in self._camera_sensor_types:

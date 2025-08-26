@@ -200,7 +200,11 @@ class ConfigData(AbstractData):
         points: NDArray = None,
         device_position: NDArray = None,
         device_heading: NDArray = None,
+        save_intensity: bool = False,
+        save_lidarindex: bool = False
     ):
+        self._save_intensity = save_intensity
+        self._save_lidarindex = save_lidarindex
         self._frame_index: int = frame_index
         self._image_data_list: List[ImageData] = []
         self._unix_timestamp: float = unix_timestamp
@@ -239,7 +243,13 @@ class ConfigData(AbstractData):
     def add_points(self, points: NDArray):
         assert points.ndim == 2 and points.shape[1] >= 3, f"invalid points shape: {points.shape}"
         points = points.tolist()
-        self._points = [{"x": p[0], "y": p[1], "z": p[2]} for p in points]
+        for p in points:
+            pts_dict = {"x": p[0], "y": p[1], "z": p[2]}
+            if self._save_intensity:
+                pts_dict["i"] = p[3]
+            if self._save_lidarindex:
+                pts_dict["d"] = p[4]
+            self._points.append(pts_dict)
 
     def add_device_position(self, device_position: NDArray):
         assert device_position.shape == (3,), "device_position must be the shape of (3,)"

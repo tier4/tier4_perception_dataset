@@ -627,11 +627,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
                     continue
 
-            nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
-            sample_token = self._sample_table.insert_into_table(
-                timestamp=nusc_timestamp, scene_token=scene_token
-            )
-
             # Save corresponding info data if available
             info_filename = ""
             if info_topic:
@@ -652,10 +647,19 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         raise KeyError(
                             f"No lidar_info message found for timestamp {unix_timestamp}. "
                         )
-                info_filename = self._save_info_as_json(self._lidar_info_messages[unix_timestamp], info_channel, frame_index)
+                        
+                # Create filename with same pattern as lidar data but .json extension
+                fileformat = EXTENSION_ENUM.JSON.value[1:]
+                info_filename = misc_utils.get_sample_data_filename(info_channel, frame_index, fileformat)
 
             fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
             filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
+
+            nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
+            sample_token = self._sample_table.insert_into_table(
+                timestamp=nusc_timestamp, scene_token=scene_token
+            )
+            
             sample_data_token = self._sample_data_table.insert_into_table(
                 sample_token=sample_token,
                 ego_pose_token=ego_pose_token,
@@ -678,6 +682,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 )
 
             points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
+            self._save_info_as_json(self._lidar_info_messages[unix_timestamp], info_filename)
 
             sample_data_token_list.append(sample_data_token)
             prev_frame_unix_timestamp = unix_timestamp
@@ -685,26 +690,20 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return sample_data_token_list
 
-    def _save_info_as_json(self, lidar_info_msg, sensor_channel: str, frame_index: int):
+    def _save_info_as_json(self, lidar_info_msg, info_filepath: str):
         """Save lidar_info message as .json file.
         
         Args:
             lidar_info_msg: The lidar_info message to convert
-            sensor_channel: Sensor channel name 
-            frame_index: Frame index for naming
+            info_filepath: File path for the info JSON file
         """
         # Convert lidar_info message to dictionary
         lidar_info_dict = self._convert_lidar_info_msg_to_dict(lidar_info_msg)
-        
-        # Create filename with same pattern as lidar data but .json extension
-        fileformat = EXTENSION_ENUM.JSON.value[1:]
-        info_filepath = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
         
         # Save to lidar_info directory
         lidar_info_path = osp.join(self._output_scene_dir, info_filepath)
         with open(lidar_info_path, "w") as f:
             json.dump(lidar_info_dict, f, indent=4)
-        return info_filepath
 
     def _convert_lidar_info_msg_to_dict(self, msg):
         """Convert lidar_info message to dictionary.
