@@ -239,13 +239,16 @@ class ConfigData(AbstractData):
         self._image_data_list.append(image_data)
 
     def add_points(self, points: NDArray):
+        """
+            Adds points in the point cloud, with optional intensity values. 
+            "x": X coordinate of the point,
+            "y": Y coordinate of the point,
+            "z": Z coordinate of the point,
+            "i": (optional) Intensity of the point
+        """
         assert points.ndim == 2 and points.shape[1] >= (4 if self._save_intensity else 1), f"invalid points shape: {points.shape}"
         points = points.tolist()
-        for p in points:
-            pts_dict = {"x": p[0], "y": p[1], "z": p[2]}
-            if self._save_intensity:
-                pts_dict["i"] = p[3]
-            self._points.append(pts_dict)
+        self._points = [{"x": p[0], "y": p[1], "z": p[2], "i": p[3]} for p in points] if self._save_intensity else [{"x": p[0], "y": p[1], "z": p[2]} for p in points]
 
     def add_device_position(self, device_position: NDArray):
         assert device_position.shape == (3,), "device_position must be the shape of (3,)"
