@@ -550,7 +550,9 @@ class AnnotationFilesGenerator:
             for anno in anno_list:
                 # Category
                 for category_name in anno["paint_categories"]:
-                    self._category_table.get_token_from_name(name=category_name)
+                    self._category_table.get_token_from_name(
+                        name=category_name.lower()
+                    )  # Make category name lowercase
 
                 # Visibility
                 self._visibility_table.get_token_from_level(
@@ -576,6 +578,11 @@ class AnnotationFilesGenerator:
                 lidarseg_table.set_record_to_table(
                     record=lidarseg_record,
                 )
+
+        # Add a case for unpainted point cloud
+        self._category_table.add_category_to_record(
+            name="unpainted", index=0, description="unpainted points"
+        )
 
         lidarseg_table.save_json(anno_dir)
 
