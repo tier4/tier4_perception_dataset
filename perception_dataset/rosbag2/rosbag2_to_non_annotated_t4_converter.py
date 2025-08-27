@@ -578,9 +578,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         if info_topic and not self._lidar_info_messages:
             for info_msg in self._bag_reader.read_messages(topics=[info_topic]):
-                info_timestamp = rosbag2_utils.stamp_to_unix_timestamp(
-                    info_msg.header.stamp
-                )
+                info_timestamp = rosbag2_utils.stamp_to_unix_timestamp(info_msg.header.stamp)
                 self._lidar_info_messages[info_timestamp] = info_msg
 
         # Main iteration
@@ -682,7 +680,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg,lidar_info_message)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg, lidar_info_message)
             if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"

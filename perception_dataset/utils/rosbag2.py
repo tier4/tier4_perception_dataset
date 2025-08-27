@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
+from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo, SourcePointCloudInfo
 import builtin_interfaces.msg
 import cv2
 from nptyping import NDArray
@@ -19,7 +20,6 @@ from rosbag2_py import (
     StorageOptions,
 )
 from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
-from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo,SourcePointCloudInfo
 import yaml
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -102,7 +102,9 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
-def point_cloud2_to_array(msg: PointCloud2, info_message: ConcatenatedPointCloudInfo = None) -> Dict[str, NDArray]:
+def point_cloud2_to_array(
+    msg: PointCloud2, info_message: ConcatenatedPointCloudInfo = None
+) -> Dict[str, NDArray]:
     """
     Convert a sensor_msgs/PointCloud2 message to a NumPy array. The fields
     in the PointCloud2 message are mapped to the fields in the NumPy array
@@ -141,12 +143,16 @@ def point_cloud2_to_array(msg: PointCloud2, info_message: ConcatenatedPointCloud
     intensity = get_field_data(pc_data, msg, "intensity", dtype_map)
 
     if info_message:
-        lidar_index = np.full((pc_data.shape[0],1), -1, dtype=np.int32)
+        lidar_index = np.full((pc_data.shape[0], 1), -1, dtype=np.int32)
         for i, lidar_source in enumerate(info_message.source_info):
             lidar_source: SourcePointCloudInfo
-            if lidar_source.status==SourcePointCloudInfo.STATUS_OK:
-                lidar_index[lidar_source.idx_begin : lidar_source.idx_begin + lidar_source.length, 0] = i
-        assert np.all(lidar_index != -1), "Some of the points do not have a lidar index assigned to them!"
+            if lidar_source.status == SourcePointCloudInfo.STATUS_OK:
+                lidar_index[
+                    lidar_source.idx_begin : lidar_source.idx_begin + lidar_source.length, 0
+                ] = i
+        assert np.all(
+            lidar_index != -1
+        ), "Some of the points do not have a lidar index assigned to them!"
     else:
         lidar_index = get_field_data(pc_data, msg, "index", dtype_map)
 
@@ -160,7 +166,9 @@ def point_cloud2_to_array(msg: PointCloud2, info_message: ConcatenatedPointCloud
     return result
 
 
-def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, pointcloud_info: ConcatenatedPointCloudInfo = None) -> NDArray:
+def pointcloud_msg_to_numpy(
+    pointcloud_msg: PointCloud2, pointcloud_info: ConcatenatedPointCloudInfo = None
+) -> NDArray:
     """Convert ROS PointCloud2 message to numpy array using ros2-numpy."""
     NUM_DIMENSIONS = 5
 
