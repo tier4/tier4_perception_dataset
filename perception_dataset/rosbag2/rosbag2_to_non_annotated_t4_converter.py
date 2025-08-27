@@ -9,13 +9,13 @@ import time
 from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
+from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
 import builtin_interfaces.msg
 import cv2
 import numpy as np
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CameraInfo, CompressedImage, PointCloud2
-from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
