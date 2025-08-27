@@ -239,7 +239,7 @@ class ConfigData(AbstractData):
         self._image_data_list.append(image_data)
 
     def add_points(self, points: NDArray):
-        assert points.ndim == 2 and points.shape[1] >= 3, f"invalid points shape: {points.shape}"
+        assert points.ndim == 2 and points.shape[1] >= (4 if self._save_intensity else 1), f"invalid points shape: {points.shape}"
         points = points.tolist()
         for p in points:
             pts_dict = {"x": p[0], "y": p[1], "z": p[2]}
