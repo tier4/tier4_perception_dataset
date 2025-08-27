@@ -19,7 +19,6 @@ from rosbag2_py import (
     StorageOptions,
 )
 from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
-from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo,SourcePointCloudInfo
 import yaml
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -102,7 +101,7 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
-def point_cloud2_to_array(msg: PointCloud2, info_message: ConcatenatedPointCloudInfo = None) -> Dict[str, NDArray]:
+def point_cloud2_to_array(msg: PointCloud2) -> Dict[str, NDArray]:
     """
     Convert a sensor_msgs/PointCloud2 message to a NumPy array. The fields
     in the PointCloud2 message are mapped to the fields in the NumPy array
@@ -137,18 +136,17 @@ def point_cloud2_to_array(msg: PointCloud2, info_message: ConcatenatedPointCloud
     pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1, msg.point_step)
     xyz = pc_data[:, :12].view(dtype=np.float32).reshape(-1, 3)
 
+    # Filter out rows where xyz are all zero
+    non_zero_indices = ~(np.all(xyz == 0, axis=1))
+    xyz = xyz[non_zero_indices]
+
     # Extract optional fields (intensity and index) and apply the same filter
     intensity = get_field_data(pc_data, msg, "intensity", dtype_map)
-
-    if info_message:
-        lidar_index = np.full((pc_data.shape[0],1), -1, dtype=np.int32)
-        for i, lidar_source in enumerate(info_message.source_info):
-            lidar_source: SourcePointCloudInfo
-            if lidar_source.status==SourcePointCloudInfo.STATUS_OK:
-                lidar_index[lidar_source.idx_begin : lidar_source.idx_begin + lidar_source.length, 0] = i
-        assert np.all(lidar_index != -1), "Some of the points do not have a lidar index assigned to them!"
-    else:
-        lidar_index = get_field_data(pc_data, msg, "index", dtype_map)
+    lidar_index = get_field_data(pc_data, msg, "index", dtype_map)
+    if intensity is not None:
+        intensity = intensity[non_zero_indices]
+    if lidar_index is not None:
+        lidar_index = lidar_index[non_zero_indices]
 
     # Build result dictionary
     result = {"xyz": xyz}
@@ -160,7 +158,7 @@ def point_cloud2_to_array(msg: PointCloud2, info_message: ConcatenatedPointCloud
     return result
 
 
-def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, pointcloud_info: ConcatenatedPointCloudInfo = None) -> NDArray:
+def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
     """Convert ROS PointCloud2 message to numpy array using ros2-numpy."""
     NUM_DIMENSIONS = 5
 
@@ -168,7 +166,7 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, pointcloud_info: Concat
         return np.zeros((0, NUM_DIMENSIONS), dtype=np.float32)
 
     # Convert the PointCloud2 message to a numpy structured array
-    points = point_cloud2_to_array(pointcloud_msg, pointcloud_info)
+    points = point_cloud2_to_array(pointcloud_msg)
 
     # Extract the x, y, z coordinates and additional fields if available
     points_arr = points["xyz"]
