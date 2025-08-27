@@ -247,7 +247,6 @@ class ConfigData(AbstractData):
             "i": (optional) Intensity of the point
         """
         assert points.ndim == 2 and points.shape[1] >= (4 if self._save_intensity else 1), f"invalid points shape: {points.shape}"
-        points = points.tolist()
         self._points = [{"x": p[0], "y": p[1], "z": p[2], "i": p[3]} for p in points] if self._save_intensity else [{"x": p[0], "y": p[1], "z": p[2]} for p in points]
 
     def add_device_position(self, device_position: NDArray):
