@@ -1,12 +1,10 @@
 task: convert_non_annotated_t4_to_deepen
 conversion:
-  without_compress: true
   input_base: ./data/non_annotated_t4_format
   output_base: ./data/deepen_format
-  annotation_hz: 1
+  annotation_hz: 10
   workers_number: 12
   drop_camera_token_not_found: false  # If true, the frame with missing camera token be dropped. If false, the frame will be kept despite missing camera data.
-  save_intensity: true
   camera_sensors:
     - channel: CAM_FRONT
     - channel: CAM_FRONT_RIGHT
