@@ -37,8 +37,8 @@ class Rosbag2ConverterParams(BaseModel):
     lidar_sensor: Dict[str, Union[str, bool]] = {
         "topic": "",
         "channel": "",
-        "lidar_info_topic": "",  # topic for lidar info, e.g., "/lidar_info"
-        "lidar_info_channel": "",  # channel for lidar info, e.g., "LIDAR_INFO"
+        "lidar_info_topic": None,  # topic for lidar info, e.g., "/lidar_info"
+        "lidar_info_channel": None,  # channel for lidar info, e.g., "LIDAR_INFO"
         "accept_no_info": False,  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
     }  # lidar_sensor, {topic: , channel, Optional[lidar_info_topic]}
     radar_sensors: List[Dict[str, str]] = []  # radar sensors

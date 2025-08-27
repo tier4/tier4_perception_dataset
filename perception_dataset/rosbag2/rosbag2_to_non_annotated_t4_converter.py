@@ -179,15 +179,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._msg_display_interval = 100
 
         # for lidar info topic
-        self._lidar_info_topic: str = self._lidar_sensor.get("lidar_info_topic", "")
-        self._lidar_info_channel: str = "LIDAR_CONCAT_INFO"  # default channel name for lidar info
+        self._lidar_info_topic: str = self._lidar_sensor.get("lidar_info_topic", None)
 
         if self._lidar_info_topic:
-            assert (
-                "lidar_info_channel" in self._lidar_sensor
-                and "accept_no_info" in self._lidar_sensor
-            ), "When lidar_info_topic is specified, both lidar_info_channel and accept_no_info must be configured in the lidar_sensor section."
-            self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
+            self._lidar_info_channel: str = self._lidar_sensor.get("lidar_info_channel", None)
+            assert self._lidar_info_channel is not None , "When lidar_info_topic is specified, lidar_info_channel field must be configured under lidar_sensor."
+            assert "accept_no_info" in self._lidar_sensor, "When lidar_info_topic is specified, accept_no_info field must be configured under lidar_sensor."
             self._accept_no_info: bool = self._lidar_sensor.get("accept_no_info")
             self._lidar_info_messages: Dict[float, ConcatenatedPointCloudInfo] = {}
 
@@ -548,8 +545,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sensor_channel: str,
         topic: str,
         scene_token: str,
-        info_topic: Optional[str] = "",
-        info_channel: Optional[str] = "",
+        info_topic: Optional[str] = None,
+        info_channel: Optional[str] = None,
     ) -> List[str]:
         sample_data_token_list: List[str] = []
 
@@ -637,26 +634,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     continue
 
             # Save corresponding info data if available
-            info_filename = ""
-            lidar_info_message = None
-            if info_topic:
-                if unix_timestamp not in self._lidar_info_messages:
-                    if self._accept_no_info:
-                        warnings.warn(
-                            f"No lidar_info message found for timestamp {unix_timestamp}. skipping the lidar frame. "
-                        )
-                        continue
-                    else:
-                        raise KeyError(
-                            f"No lidar_info message found for timestamp {unix_timestamp}. "
-                        )
-
-                # Create filename with same pattern as lidar data but .json extension
-                fileformat = EXTENSION_ENUM.JSON.value[1:]
-                info_filename = misc_utils.get_sample_data_filename(
-                    info_channel, frame_index, fileformat
+            try:
+                info_filename, lidar_info_message = self._process_lidar_info(
+                    info_topic, info_channel, unix_timestamp, frame_index
                 )
-                lidar_info_message = self._lidar_info_messages[unix_timestamp]
+            except ValueError:
+                # Skip frame if no lidar info found and accept_no_info is True
+                continue
 
             fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
             filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
@@ -696,6 +680,48 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             frame_index += 1
 
         return sample_data_token_list
+
+    def _process_lidar_info(
+        self, 
+        info_topic: Optional[str], 
+        info_channel: Optional[str], 
+        unix_timestamp: float, 
+        frame_index: int
+    ) -> Tuple[str, Optional[ConcatenatedPointCloudInfo]]:
+        """Process lidar info data if available.
+        
+        Args:
+            info_topic: The lidar info topic name
+            info_channel: The lidar info channel name
+            unix_timestamp: The timestamp to look for
+            frame_index: The current frame index
+            
+        Returns:
+            Tuple of (info_filename, lidar_info_message)
+        """
+        info_filename = ""
+        lidar_info_message = None
+        
+        if info_topic:
+            if unix_timestamp not in self._lidar_info_messages:
+                if self._accept_no_info:
+                    warnings.warn(
+                        f"No lidar_info message found for timestamp {unix_timestamp}. skipping the lidar frame. "
+                    )
+                    raise ValueError("No lidar info found - skip frame")
+                else:
+                    raise KeyError(
+                        f"No lidar_info message found for timestamp {unix_timestamp}. "
+                    )
+
+            # Create filename with same pattern as lidar data but .json extension
+            fileformat = EXTENSION_ENUM.JSON.value[1:]
+            info_filename = misc_utils.get_sample_data_filename(
+                info_channel, frame_index, fileformat
+            )
+            lidar_info_message = self._lidar_info_messages[unix_timestamp]
+            
+        return info_filename, lidar_info_message
 
     def _save_info_as_json(self, lidar_info_msg: ConcatenatedPointCloudInfo, info_filepath: str):
         """Save lidar_info message as .json file.

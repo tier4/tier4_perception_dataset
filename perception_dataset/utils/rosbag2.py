@@ -145,7 +145,6 @@ def point_cloud2_to_array(
     if info_message:
         lidar_index = np.full((pc_data.shape[0], 1), -1, dtype=np.int32)
         for i, lidar_source in enumerate(info_message.source_info):
-            lidar_source: SourcePointCloudInfo
             if lidar_source.status == SourcePointCloudInfo.STATUS_OK:
                 lidar_index[
                     lidar_source.idx_begin : lidar_source.idx_begin + lidar_source.length, 0
