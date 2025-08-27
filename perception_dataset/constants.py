@@ -28,6 +28,10 @@ class SENSOR_ENUM(Enum):
         "channel": "CAM_BACK_LEFT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
     }
+    CAM_BACK_LEFT_WIDE = {
+        "channel": "CAM_BACK_LEFT_WIDE",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
     CAM_FRONT = {
         "channel": "CAM_FRONT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
@@ -44,8 +48,16 @@ class SENSOR_ENUM(Enum):
         "channel": "CAM_FRONT_RIGHT",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
     }
+    CAM_FRONT_RIGHT_WIDE = {
+        "channel": "CAM_FRONT_RIGHT_WIDE",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
     CAM_BACK_RIGHT = {
         "channel": "CAM_BACK_RIGHT",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
+    CAM_BACK_RIGHT_WIDE = {
+        "channel": "CAM_BACK_RIGHT_WIDE",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
     }
     CAM_BACK = {
@@ -62,6 +74,10 @@ class SENSOR_ENUM(Enum):
     }
     CAM_FRONT_LEFT = {
         "channel": "CAM_FRONT_LEFT",
+        "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
+    }
+    CAM_FRONT_LEFT_WIDE = {
+        "channel": "CAM_FRONT_LEFT_WIDE",
         "modality": SENSOR_MODALITY_ENUM.CAMERA.value,
     }
     CAM_TRAFFIC_LIGHT_NEAR = {
