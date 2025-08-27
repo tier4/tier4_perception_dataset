@@ -567,7 +567,7 @@ A sensor data e.g. image, point cloud or radar return. For sample_data with is_k
   - "next": [str] -- Foreign key. Sample data from the same sensor that follows this in time. Empty if end of scene.
   - "prev": [str] -- Foreign key. Sample data from the same sensor that precedes this in time. Empty if start of scene.
   - "is_valid": [bool] -- True if the data is valid, else False. Invalid data should be ignored.
-  - "info_filename":[str] -- Relative path to the metainformation of the sensor data, empty if none. Usually a json file. For concatenated lidar, it includes point index ranges of component lidars, and their timestamps. 
+  - "info_filename":[str] -- Relative path to the metainformation of the sensor data, empty if none. Usually a json file. For concatenated lidar, it includes point index ranges of component lidars, and their timestamps.
   - "autolabel_metadata": [Optional[dict]] -- Metadata about the automatic annotation applied to this entire sample_data item (e.g., image or scan). **(Added)**
     - "models": [{ name: str, score: float, uncertainty?: float }] -- List of models used for autolabeling. Each object includes the model name, confidence score, and optionally its uncertainty.
       - "name": [str] -- Name of the model used for annotation. Can include version information.
