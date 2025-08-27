@@ -639,6 +639,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             # Save corresponding info data if available
             info_filename = ""
+            lidar_info_message = None
             if info_topic:
                 if unix_timestamp not in self._lidar_info_messages:
                     if self._accept_no_info:
@@ -656,6 +657,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 info_filename = misc_utils.get_sample_data_filename(
                     info_channel, frame_index, fileformat
                 )
+                lidar_info_message = self._lidar_info_messages[unix_timestamp]
 
             fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
             filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
@@ -680,7 +682,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg,lidar_info_message)
             if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
@@ -688,7 +690,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
             if info_topic and info_filename:
-                self._save_info_as_json(self._lidar_info_messages[unix_timestamp], info_filename)
+                self._save_info_as_json(lidar_info_message, info_filename)
 
             sample_data_token_list.append(sample_data_token)
             prev_frame_unix_timestamp = unix_timestamp

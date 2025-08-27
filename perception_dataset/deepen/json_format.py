@@ -201,10 +201,8 @@ class ConfigData(AbstractData):
         device_position: NDArray = None,
         device_heading: NDArray = None,
         save_intensity: bool = False,
-        save_lidarindex: bool = False,
     ):
         self._save_intensity = save_intensity
-        self._save_lidarindex = save_lidarindex
         self._frame_index: int = frame_index
         self._image_data_list: List[ImageData] = []
         self._unix_timestamp: float = unix_timestamp
@@ -247,8 +245,6 @@ class ConfigData(AbstractData):
             pts_dict = {"x": p[0], "y": p[1], "z": p[2]}
             if self._save_intensity:
                 pts_dict["i"] = p[3]
-            if self._save_lidarindex:
-                pts_dict["d"] = p[4]
             self._points.append(pts_dict)
 
     def add_device_position(self, device_position: NDArray):
