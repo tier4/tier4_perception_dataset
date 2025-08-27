@@ -15,6 +15,7 @@ import numpy as np
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CameraInfo, CompressedImage, PointCloud2
+from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
@@ -188,7 +189,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             ), "When lidar_info_topic is specified, both lidar_info_channel and accept_no_info must be configured in the lidar_sensor section."
             self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
             self._accept_no_info: bool = self._lidar_sensor.get("accept_no_info")
-            self._lidar_info_messages: Dict[float, CameraInfo] = {}
+            self._lidar_info_messages: Dict[float, ConcatenatedPointCloudInfo] = {}
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
         self._make_directories()
@@ -696,7 +697,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return sample_data_token_list
 
-    def _save_info_as_json(self, lidar_info_msg, info_filepath: str):
+    def _save_info_as_json(self, lidar_info_msg: ConcatenatedPointCloudInfo, info_filepath: str):
         """Save lidar_info message as .json file.
 
         Args:
@@ -711,7 +712,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         with open(lidar_info_path, "w") as f:
             json.dump(lidar_info_dict, f, indent=4)
 
-    def _convert_lidar_info_msg_to_dict(self, msg):
+    def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo):
         """Convert lidar_info message to dictionary."""
 
         def header_to_dict(header):
