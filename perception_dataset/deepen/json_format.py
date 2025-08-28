@@ -247,7 +247,7 @@ class ConfigData(AbstractData):
         "i": (optional) Intensity of the point
         """
         assert points.ndim == 2 and points.shape[1] >= (
-            4 if self._save_intensity else 1
+            4 if self._save_intensity else 3
         ), f"invalid points shape: {points.shape}"
         points = points.tolist()
         self._points = (
