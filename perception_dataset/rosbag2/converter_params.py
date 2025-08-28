@@ -34,10 +34,13 @@ class Rosbag2ConverterParams(BaseModel):
     data_type: DataType = DataType.REAL  # real or synthetic
 
     # rosbag config
-    lidar_sensor: Dict[str, str] = {
+    lidar_sensor: Dict[str, Union[str, bool]] = {
         "topic": "",
         "channel": "",
-    }  # lidar_sensor, {topic: , channel, }
+        "lidar_info_topic": None,  # topic for lidar info, e.g., "/lidar_info"
+        "lidar_info_channel": None,  # channel for lidar info, e.g., "LIDAR_INFO"
+        "accept_no_info": False,  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+    }  # lidar_sensor, {topic: , channel, Optional[lidar_info_topic]}
     radar_sensors: List[Dict[str, str]] = []  # radar sensors
     camera_sensors: List[Dict[str, Union[str, float]]] = []  # camera sensors,
     object_topic_name: str = ""
