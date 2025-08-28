@@ -22,7 +22,7 @@ class BaseConverter(ABC):
         return label_map
 
     def convert_label(self, label: str) -> str:
-        return self.label_map[label]
+        return self.label_map.get(label, label)
 
 
 class LabelConverter(BaseConverter):
