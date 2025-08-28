@@ -180,9 +180,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # for lidar info topic
         self._lidar_info_topic: str = self._lidar_sensor.get("lidar_info_topic", None)
+        self._lidar_info_channel: str = self._lidar_sensor.get("lidar_info_channel", None)
 
         if self._lidar_info_topic:
-            self._lidar_info_channel: str = self._lidar_sensor.get("lidar_info_channel", None)
             assert (
                 self._lidar_info_channel is not None
             ), "When lidar_info_topic is specified, lidar_info_channel field must be configured under lidar_sensor."
