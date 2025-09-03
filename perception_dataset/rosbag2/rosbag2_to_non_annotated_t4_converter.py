@@ -13,7 +13,10 @@ try:
     from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
 except ImportError:
     warnings.warn("ConcatenatedPointCloudInfo is not installed. Some functions will not work.")
+
     class ConcatenatedPointCloudInfo: ...
+
+
 import builtin_interfaces.msg
 import cv2
 import numpy as np
