@@ -14,7 +14,8 @@ try:
 except ImportError:
     warnings.warn("ConcatenatedPointCloudInfo is not installed. Some functions will not work.")
 
-    class ConcatenatedPointCloudInfo: ...
+    class ConcatenatedPointCloudInfo:
+        pass
 
 
 import builtin_interfaces.msg

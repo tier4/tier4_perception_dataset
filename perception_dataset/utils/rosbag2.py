@@ -13,9 +13,11 @@ except ImportError:
         "ConcatenatedPointCloudInfo and SourcePointCloudInfo are not installed. Some functions will not work."
     )
 
-    class ConcatenatedPointCloudInfo: ...
+    class ConcatenatedPointCloudInfo:
+        pass
 
-    class SourcePointCloudInfo: ...
+    class SourcePointCloudInfo:
+        pass
 
 
 import builtin_interfaces.msg
