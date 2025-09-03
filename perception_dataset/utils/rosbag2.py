@@ -4,8 +4,14 @@ import os.path as osp
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
+import warnings
 
-from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo, SourcePointCloudInfo
+try:
+    from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo, SourcePointCloudInfo
+except ImportError:
+    warnings.warn("ConcatenatedPointCloudInfo and SourcePointCloudInfo are not installed. Some functions will not work.")
+    class ConcatenatedPointCloudInfo: ...
+    class SourcePointCloudInfo: ...
 import builtin_interfaces.msg
 import cv2
 from nptyping import NDArray
