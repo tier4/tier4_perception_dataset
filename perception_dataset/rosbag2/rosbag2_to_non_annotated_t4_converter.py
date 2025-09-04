@@ -11,8 +11,12 @@ import warnings
 
 try:
     from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
+
+    IMPORTED_CONCATENATED_POINT_CLOUD_INFO = True
 except ImportError:
     warnings.warn("ConcatenatedPointCloudInfo is not installed. Some functions will not work.")
+
+    IMPORTED_CONCATENATED_POINT_CLOUD_INFO = False
 
     class ConcatenatedPointCloudInfo:
         pass
@@ -191,6 +195,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._lidar_info_channel: str = self._lidar_sensor.get("lidar_info_channel", None)
 
         if self._lidar_info_topic:
+            assert IMPORTED_CONCATENATED_POINT_CLOUD_INFO, (
+                "ConcatenatedPointCloudInfo is not properly imported. "
+                "Please install a version of autoware_sensing_msgs with ConcatenatedPointCloudInfo to use lidar_info_topic functionality."
+            )
             assert (
                 self._lidar_info_channel is not None
             ), "When lidar_info_topic is specified, lidar_info_channel field must be configured under lidar_sensor."
