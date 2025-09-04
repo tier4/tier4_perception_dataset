@@ -4,8 +4,25 @@ import os.path as osp
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
+import warnings
 
-from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo, SourcePointCloudInfo
+try:
+    from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo, SourcePointCloudInfo
+
+    IMPORTED_CONCATENATED_POINT_CLOUD_INFO_AND_SOURCE_INFO = True
+except ImportError:
+    warnings.warn(
+        "ConcatenatedPointCloudInfo and SourcePointCloudInfo are not installed. Some functions will not work."
+    )
+    IMPORTED_CONCATENATED_POINT_CLOUD_INFO_AND_SOURCE_INFO = False
+
+    class ConcatenatedPointCloudInfo:
+        pass
+
+    class SourcePointCloudInfo:
+        pass
+
+
 import builtin_interfaces.msg
 import cv2
 from nptyping import NDArray
@@ -143,6 +160,9 @@ def point_cloud2_to_array(
     intensity = get_field_data(pc_data, msg, "intensity", dtype_map)
 
     if info_message:
+        assert (
+            IMPORTED_CONCATENATED_POINT_CLOUD_INFO_AND_SOURCE_INFO
+        ), "ConcatenatedPointCloudInfo and SourcePointCloudInfo are not installed. Cannot use lidar index from info message."
         lidar_index = np.full((pc_data.shape[0], 1), -1, dtype=np.int32)
         for i, lidar_source in enumerate(info_message.source_info):
             if lidar_source.status == SourcePointCloudInfo.STATUS_OK:
