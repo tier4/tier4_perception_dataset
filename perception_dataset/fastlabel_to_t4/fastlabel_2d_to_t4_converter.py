@@ -119,7 +119,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             pbar.update(1)
             t4_dataset_name = file.name.split(delimiter)[0]
             for dataset in t4_datasets:
-                if dataset in t4_dataset_name:
+                if dataset == t4_dataset_name:
                     break
             else:
                 continue
