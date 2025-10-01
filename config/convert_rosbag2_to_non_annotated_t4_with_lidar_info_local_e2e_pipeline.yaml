@@ -1,0 +1,87 @@
+task: convert_rosbag2_to_non_annotated_t4 ## Got it from https://console.data-search.tier4.jp/projects/prd_jt/process_configs/e0bf44c5-e676-4838-aa19-c8a6b41a41af
+description:
+  scene: ""
+conversion:
+  without_compress: true
+  input_base: ../inputbag ### CHANGE THIS AUTOMATICALLY
+  output_base: ../t4dataset ### CHANGE THIS AUTOMATICALLY
+  skip_timestamp: 0.0
+  num_load_frames: 0
+  start_timestamp_sec: 0.0
+  accept_frame_drop: True
+  undistort_image: True
+  lidar_sensor:
+    topic: /sensing/lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+  camera_sensors:
+    - topic: /sensing/camera/camera0/image_raw/compressed
+      channel: CAM_FRONT
+      delay_msec: 33.34
+    - topic: /sensing/camera/camera3/image_raw/compressed
+      channel: CAM_FRONT_LEFT
+      delay_msec: 19.45
+    - topic: /sensing/camera/camera4/image_raw/compressed
+      channel: CAM_FRONT_RIGHT
+      delay_msec: 47.22
+    - topic: /sensing/camera/camera9/image_raw/compressed
+      channel: CAM_BACK_LEFT
+      delay_msec: -9
+    - topic: /sensing/camera/camera10/image_raw/compressed
+      channel: CAM_BACK_RIGHT
+      delay_msec: 77.78
+    - topic: /sensing/camera/camera2/image_raw/compressed
+      channel: CAM_TRAFFIC_LIGHT_FAR
+      delay_msec: 33.34
+    - topic: /sensing/camera/camera1/image_raw/compressed
+      channel: CAM_FRONT_WIDE
+      delay_msec: 51.34
+    - topic: /sensing/camera/camera5/image_raw/compressed
+      channel: CAM_FRONT_LEFT_WIDE
+      delay_msec: 119
+    - topic: /sensing/camera/camera6/image_raw/compressed
+      channel: CAM_FRONT_RIGHT_WIDE
+      delay_msec: 50.00
+    - topic: /sensing/camera/camera7/image_raw/compressed
+      channel: CAM_BACK_LEFT_WIDE
+      delay_msec: 110.18
+    - topic: /sensing/camera/camera8/image_raw/compressed
+      channel: CAM_BACK_RIGHT_WIDE
+      delay_msec: 92.96
+  ignore_no_ego_transform_at_rosbag_beginning: True
+# description:
+#   scene: ""
+# conversion:
+#   without_compress: true
+#   input_base: ../inputbag
+#   output_base: ../t4dataset
+#   skip_timestamp: 2.0
+#   num_load_frames: 0
+#   start_timestamp_sec: 0.0
+#   accept_frame_drop: True
+#   undistort_image: True
+#   lidar_sensor:
+#     topic: /sensing/lidar/concatenated/pointcloud
+#     channel: LIDAR_CONCAT
+#     lidar_info_topic: /sensing/lidar/concatenated/pointcloud_info # Do not set to disable saving lidar info
+#     lidar_info_channel: LIDAR_CONCAT_INFO
+#     accept_no_info: True # If True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+#   camera_sensors:
+#     - topic: /sensing/camera/camera8/image_raw/compressed
+#       channel: CAM_FRONT
+#       delay_msec: 45
+#     - topic: /sensing/camera/camera0/image_raw/compressed
+#       channel: CAM_BACK
+#       delay_msec: -10
+#     - topic: /sensing/camera/camera6/image_raw/compressed
+#       channel: CAM_FRONT_LEFT
+#       delay_msec: 25
+#     - topic: /sensing/camera/camera10/image_raw/compressed
+#       channel: CAM_BACK_LEFT
+#       delay_msec: 13
+#     - topic: /sensing/camera/camera7/image_raw/compressed
+#       channel: CAM_FRONT_RIGHT
+#       delay_msec: 61
+#     - topic: /sensing/camera/camera9/image_raw/compressed
+#       channel: CAM_BACK_RIGHT
+#       delay_msec: 80
+#   ignore_no_ego_transform_at_rosbag_beginning: True
