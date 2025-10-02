@@ -227,7 +227,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         if self._with_ins:
             from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
 
-            self._ins_handler = INSHandler(params.input_bag_path)
+            self._ins_handler = INSHandler(
+                params.input_bag_path, topic_mapping=params.ins_topic_mapping
+            )
         else:
             self._ins_handler = None
 
@@ -236,7 +238,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 VehicleStatusHandler,
             )
 
-            self._vehicle_status_handler = VehicleStatusHandler(params.input_bag_path)
+            self._vehicle_status_handler = VehicleStatusHandler(
+                params.input_bag_path, topic_mapping=params.vehicle_status_topic_mapping
+            )
         else:
             self._vehicle_status_handler = None
 
