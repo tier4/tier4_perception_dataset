@@ -238,9 +238,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 VehicleStatusHandler,
             )
 
-            self._vehicle_status_handler = VehicleStatusHandler(
-                params.input_bag_path, topic_mapping=params.vehicle_status_topic_mapping
-            )
+            self._vehicle_status_handler = VehicleStatusHandler(params.input_bag_path)
         else:
             self._vehicle_status_handler = None
 
