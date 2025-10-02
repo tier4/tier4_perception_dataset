@@ -58,6 +58,3 @@ def test_ins_topic_mapping():
         ins_topic_mapping=custom_mapping,
     )
     assert params_with_mapping.ins_topic_mapping == custom_mapping
-
-
-
