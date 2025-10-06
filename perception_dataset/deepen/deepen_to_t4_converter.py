@@ -6,7 +6,7 @@ import re
 import shutil
 from typing import Any, Dict, List, Optional, Union
 
-from nuscenes.nuscenes import NuScenes
+from t4_devkit import Tier4
 import yaml
 
 from perception_dataset.abstract_converter import AbstractConverter
@@ -185,15 +185,15 @@ class DeepenToT4Converter(AbstractConverter):
             logger.info("Done!")
 
     def _find_start_end_time(self, t4_dataset_dir):
-        nusc = NuScenes(version="annotation", dataroot=t4_dataset_dir, verbose=False)
+        nusc = Tier4(data_root=t4_dataset_dir, verbose=False)
         end_nusc_timestamp = 0
         for frame_index, sample in enumerate(nusc.sample):
             if frame_index == 0:
                 self._start_sec = (
-                    misc_utils.nusc_timestamp_to_unix_timestamp(sample["timestamp"]) - 2.0
+                    misc_utils.nusc_timestamp_to_unix_timestamp(sample.timestamp) - 2.0
                 )
-            if sample["timestamp"] > end_nusc_timestamp:
-                end_nusc_timestamp = sample["timestamp"]
+            if sample.timestamp > end_nusc_timestamp:
+                end_nusc_timestamp = sample.timestamp
         self._end_sec = misc_utils.nusc_timestamp_to_unix_timestamp(end_nusc_timestamp) + 2.0
 
     def _make_rosbag(self, input_bag_dir: str, output_dir: str):
