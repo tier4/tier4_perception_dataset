@@ -8,7 +8,9 @@ from typing import Any, Dict
 
 from nptyping import NDArray
 import numpy as np
-from nuscenes.nuscenes import NuScenes
+from t4_devkit import Tier4
+from t4_devkit.schema import CalibratedSensor, EgoPose, SampleData
+
 from nuscenes.utils.data_classes import LidarPointCloud
 from nuscenes.utils.geometry_utils import transform_matrix
 from pyquaternion import Quaternion
@@ -63,7 +65,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
 
     def _convert_one_scene(self, input_dir: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)
-        nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
+        nusc = Tier4(data_root=input_dir, verbose=False)
 
         logger.info(f"Converting {input_dir} to {output_dir}")
 
@@ -82,11 +84,11 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
     def _convert_one_frame(self, input_dir: str, output_dir: str, frame_index: int):
         if frame_index % 10 == 0:
             logger.info(f"frame index: {frame_index}")
-        nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
+        nusc = Tier4(data_root=input_dir, verbose=False)
         sample = nusc.sample[frame_index]
-        camera_only_mode = SENSOR_ENUM.LIDAR_CONCAT.value["channel"] not in sample["data"]
+        camera_only_mode = SENSOR_ENUM.LIDAR_CONCAT.value["channel"] not in sample.data
         if not camera_only_mode:
-            lidar_token: str = sample["data"][SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
+            lidar_token: str = sample.data[SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
             lidar_path: str = nusc.get_sample_data(lidar_token)[0]
             data_dict: Dict[str, Any] = self._get_data(nusc, lidar_token)
 
@@ -150,34 +152,34 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         Args:
             camera_channel (str): Camera channel name e.g. CAM_FRONT to look for
             sample: Sample data for a specific frame from NuScenes = `nusc.sample[frame_index]`
-            nusc (NuScenes): NuScenes dataset
+            nusc (Tier4): Tier4 dataset
         Return:
             camera_token: str | None
                 None if not found
         """
         camera_token: str | None = None
-        if camera_channel in sample["data"].keys():
-            camera_token = sample["data"][camera_channel]
+        if camera_channel in sample.data.keys():
+            camera_token = sample.data[camera_channel]
         else:
-            sample_data = [s for s in nusc.sample_data if s["sample_token"] == sample["token"]]
+            sample_data = [s for s in nusc.sample_data if s.sample_token == sample.token]
             for sensor in sample_data:
-                if sensor["channel"] == camera_channel:
-                    camera_token = sensor["token"]
+                if sensor.channel == camera_channel:
+                    camera_token = sensor.token
                     break
         return camera_token
 
-    def _get_data(self, nusc: NuScenes, sensor_channel_token: str) -> Dict[str, Any]:
-        sd_record = nusc.get("sample_data", sensor_channel_token)
-        cs_record = nusc.get("calibrated_sensor", sd_record["calibrated_sensor_token"])
-        ep_record = nusc.get("ego_pose", sd_record["ego_pose_token"])
+    def _get_data(self, nusc: Tier4, sensor_channel_token: str) -> Dict[str, Any]:
+        sd_record : SampleData = nusc.get("sample_data", sensor_channel_token)
+        cs_record : CalibratedSensor = nusc.get("calibrated_sensor", sd_record.calibrated_sensor_token)
+        ep_record : EgoPose = nusc.get("ego_pose", sd_record.ego_pose_token)
 
         sensor2ego_transform = transform_matrix(
-            translation=cs_record["translation"],
-            rotation=Quaternion(cs_record["rotation"]),
+            translation=cs_record.translation,
+            rotation=Quaternion(cs_record.rotation),
         )
         ego2global_transform = transform_matrix(
-            translation=ep_record["translation"],
-            rotation=Quaternion(ep_record["rotation"]),
+            translation=ep_record.translation,
+            rotation=Quaternion(ep_record.rotation),
         )
 
         sensor2global_transform = ego2global_transform @ sensor2ego_transform
@@ -185,8 +187,8 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         sensor2global_rotation = np.array(list(Quaternion(matrix=sensor2global_transform[:3, :3])))
 
         ret_dict = {
-            "fileformat": sd_record["fileformat"],
-            "unix_timestamp": self._timestamp_to_sec(sd_record["timestamp"]),
+            "fileformat": sd_record.fileformat,
+            "unix_timestamp": self._timestamp_to_sec(sd_record.timestamp),
             "sensor2global_transform": sensor2global_transform,
             "sensor2global_translation": sensor2global_translation,
             "sensor2global_rotation": sensor2global_rotation,
