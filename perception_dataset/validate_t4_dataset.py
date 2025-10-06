@@ -5,7 +5,7 @@
 import argparse
 
 from loguru import logger
-from nuscenes.nuscenes import NuScenes
+from t4_devkit import Tier4
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.data_validator import validate_data_hz
@@ -25,9 +25,8 @@ def main():
 
     validate_directory_structure(args.root_path)
 
-    nusc = NuScenes(
-        version=T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value,
-        dataroot=args.root_path,
+    nusc = Tier4(
+        data_root=args.root_path,
         verbose=False,
     )
 
