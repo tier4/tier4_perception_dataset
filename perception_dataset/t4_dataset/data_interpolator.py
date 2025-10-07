@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import Axes
 import numpy as np
-from nuscenes import NuScenes
+from t4_devkit import Tier4
 from scipy.interpolate import CubicSpline
 from scipy.spatial.transform import Rotation, Slerp
 
@@ -101,7 +101,7 @@ class DataInterpolator(AbstractConverter):
         if version_dirs:
             version_id = sorted(version_dirs, key=int)[-1]
             data_root = osp.join(data_root, version_id)
-        nusc = NuScenes(version="annotation", dataroot=data_root, verbose=False)
+        nusc = Tier4(data_root=data_root, verbose=False)
 
         output_path = osp.join(self._output_base, dataset_id)
         os.makedirs(output_path, exist_ok=True)
@@ -137,13 +137,13 @@ class DataInterpolator(AbstractConverter):
         self._save_json(all_scenes, osp.join(annotation_root, "scene.json"))
 
     def interpolate_sample(
-        self, nusc: NuScenes
+        self, nusc: Tier4
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         Interpolate sample with non-key frame sample data.
 
         Args:
-            nusc (NuScenes): NuScenes instance.
+            nusc (Tier4): Tier4 instance.
 
         Returns:
             Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -151,17 +151,17 @@ class DataInterpolator(AbstractConverter):
                 and all sample data that `is_key_frame` is converted to `True`.
         """
         # interpolate sample record based on lidar timestamp
-        scene_token: str = nusc.sample[0]["scene_token"]
+        scene_token: str = nusc.sample[0].scene_token
         interpolated_samples_dict: Dict[str, Dict[str, Any]] = {}
         for sd_record in nusc.sample_data:
-            if sd_record["is_key_frame"] or sd_record["sensor_modality"] != "lidar":
+            if sd_record.is_key_frame or sd_record.modality != "lidar":
                 continue
 
             # [filename, pcd, bin]
-            filename: str = osp.basename(sd_record["filename"]).split(".")[0]
+            filename: str = osp.basename(sd_record.filename).split(".")[0]
             interpolated_samples_dict[filename] = {
                 "token": token_hex(16),
-                "timestamp": sd_record["timestamp"],
+                "timestamp": sd_record.timestamp,
                 "scene_token": scene_token,
                 "prev": None,
                 "next": None,
@@ -169,7 +169,7 @@ class DataInterpolator(AbstractConverter):
 
         # update prev/next token in sample record
         all_sorted_samples = sorted(
-            [{key: s[key] for key in self.SAMPLE_KEYS} for s in nusc.sample]
+            [{key: getattr(s, key) for key in self.SAMPLE_KEYS} for s in nusc.sample]
             + list(interpolated_samples_dict.values()),
             key=lambda s: s["timestamp"],
         )
@@ -184,7 +184,7 @@ class DataInterpolator(AbstractConverter):
 
         # update sample_token in sample_data
         all_sample_data = [
-            {name: record[name] for name in self.SAMPLE_DATA_KEYS if name in record.keys()}
+            {name: getattr(record, name) for name in self.SAMPLE_DATA_KEYS if hasattr(record, name)}
             for record in nusc.sample_data
         ]
         for sd_record in all_sample_data:
@@ -202,21 +202,21 @@ class DataInterpolator(AbstractConverter):
 
     def interpolate_sample_annotation(
         self,
-        nusc: NuScenes,
+        nusc: Tier4,
         all_samples: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """
         Interpolate sample annotation records.
 
         Args:
-            nusc (NuScenes): NuScenes instance.
+            nusc (Tier4): Tier4 instance.
             all_samples (List[Dict[str, Any]]): All sample records containing interpolated ones.
 
         Returns:
             List[Dict[str, Any]]: All sample annotation records containing interpolated ones.
         """
         # extract interpolated sample timestamps
-        original_timestamps_info = {s["token"]: s["timestamp"] for s in nusc.sample}
+        original_timestamps_info = {s.token: s.timestamp for s in nusc.sample}
         interpolated_timestamps: List[int] = []
         for sample in all_samples:
             # if sample timestamp is not contained in original timestamps, it is interpolated
@@ -225,10 +225,10 @@ class DataInterpolator(AbstractConverter):
                 interpolated_timestamps.append(sample["timestamp"])
 
         # separate original sample annotations by instance token
-        all_instance_anns = {ins["token"]: [] for ins in nusc.instance}
+        all_instance_anns = {ins.token: [] for ins in nusc.instance}
         for ann in nusc.sample_annotation:
-            tmp_ann = {key: ann.get(key, None) for key in self.SAMPLE_ANN_KEYS}
-            all_instance_anns[ann["instance_token"]].append(tmp_ann)
+            tmp_ann = {key: getattr(ann, key, None) for key in self.SAMPLE_ANN_KEYS}
+            all_instance_anns[ann.instance_token].append(tmp_ann)
 
         for ins_token, sample_anns in all_instance_anns.items():
             translations = []
@@ -352,10 +352,10 @@ class DataInterpolator(AbstractConverter):
 
     @staticmethod
     def update_instance_record(
-        nusc: NuScenes,
+        nusc: Tier4,
         all_sample_annotations: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        all_instances = nusc.instance.copy()
+        all_instances = [vars(inst) for inst in nusc.instance]
         for instance_record in all_instances:
             token = instance_record["token"]
             num_anns = len(
@@ -366,10 +366,10 @@ class DataInterpolator(AbstractConverter):
 
     @staticmethod
     def update_scene_record(
-        nusc: NuScenes,
+        nusc: Tier4,
         all_samples: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        all_scenes = nusc.scene.copy()
+        all_scenes = [vars(scene) for scene in nusc.scene]
         all_scenes[0]["nbr_samples"] = len(all_samples)
         description = all_scenes[0]["description"]
         if len(description) > 0:
@@ -399,11 +399,11 @@ class DataInterpolator(AbstractConverter):
 # ============================== DEBUG ==============================
 def plot_sample_annotation(
     ax: Axes,
-    nusc: NuScenes,
+    nusc: Tier4,
     sample_annotations: list[dict],
     instance_token: str,
 ) -> Axes:
-    sample_timestamps = {s["token"]: s["timestamp"] for s in nusc.sample}
+    sample_timestamps = {s.token: s.timestamp for s in nusc.sample}
     sample_annotations = sorted(
         sample_annotations, key=lambda s: sample_timestamps[s["sample_token"]]
     )
@@ -466,29 +466,29 @@ def test_with_plot():
     for data_root in data_paths:
         try:
             print(f"Start plotting >> {data_root}")
-            nusc = NuScenes("annotation", data_root, verbose=False)
+            nusc = Tier4(data_root=data_root, verbose=False)
 
             sample_annotations: Dict[str, List[Any]] = {}
             instances: List[Dict[str, Any]] = (
                 nusc.instance if args.num_max_plot is None else nusc.instance[: args.num_max_plot]
             )
             for record in instances:
-                token: str = record["token"]
-                next_ann_token: str = record["first_annotation_token"]
+                token: str = record.token
+                next_ann_token: str = record.first_annotation_token
                 prev_ann_token: str = ""
-                last_ann_token: str = record["last_annotation_token"]
+                last_ann_token: str = record.last_annotation_token
                 sample_annotations[token] = []
                 while next_ann_token != "":
                     sample_ann = nusc.get("sample_annotation", next_ann_token)
                     sample_annotations[token].append(sample_ann)
                     assert (
-                        prev_ann_token == sample_ann["prev"]
-                    ), f"Invalid prev token>> Expect: {prev_ann_token}, Result: {sample_ann['prev']}"
+                        prev_ann_token == sample_ann.prev
+                    ), f"Invalid prev token>> Expect: {prev_ann_token}, Result: {sample_ann.prev}"
                     prev_ann_token = next_ann_token
-                    next_ann_token = sample_ann["next"]
+                    next_ann_token = sample_ann.next
                 assert (
-                    sample_annotations[token][-1]["token"] == last_ann_token
-                ), f"Invalid last ann token>>: Expect: {last_ann_token}, Result: {sample_annotations[token][-1]['token']}"
+                    sample_annotations[token][-1].token == last_ann_token
+                ), f"Invalid last ann token>>: Expect: {last_ann_token}, Result: {sample_annotations[token][-1].token}"
 
             num_instances: int = len(sample_annotations.keys())
             num_cols = 5 if num_instances > 5 else num_instances
@@ -505,8 +505,8 @@ def test_with_plot():
                 )
                 ax = plot_sample_annotation(ax, nusc, ann, ins_token)
                 instance_record = nusc.get("instance", ins_token)
-                category_record = nusc.get("category", instance_record["category_token"])
-                ax.set_title(category_record["name"])
+                category_record = nusc.get("category", instance_record.category_token)
+                ax.set_title(category_record.name)
 
             if save_dir is not None:
                 scenario_name: str = osp.basename(data_root)

@@ -1,7 +1,7 @@
 from typing import List
 
 import numpy as np
-from nuscenes import NuScenes
+from t4_devkit import Tier4
 
 from perception_dataset.t4_dataset.classes.instance import InstanceTable
 from perception_dataset.t4_dataset.classes.object_ann import ObjectAnnRecord, ObjectAnnTable
@@ -17,11 +17,11 @@ def create_2d_annotations(
     object_ann_table: ObjectAnnTable,
     instance_table: InstanceTable,
 ):
-    nusc = NuScenes(version="annotation", dataroot=dataroot, verbose=False)
+    nusc = Tier4(data_root=dataroot, verbose=False)
     for sample in nusc.sample:
         for camera_sensor in camera_sensor_channels:
             camera_channel = camera_sensor["channel"]
-            camera_token = sample["data"][camera_channel]
+            camera_token = sample.data[camera_channel]
             _, boxes, camera_intrinsic = nusc.get_sample_data(camera_token)
 
             # map 3d cuboids to 2d bounding boxes
