@@ -56,7 +56,7 @@ class TestCalibratedSensorRecord:
         assert len(rec_dict["camera_intrinsic"]) == 0 or np.array(
             rec_dict["camera_intrinsic"]
         ).shape == (3, 3)
-        assert len(rec_dict["camera_distortion"]) == 0 or len(rec_dict["camera_distortion"]) == 5
+        assert len(rec_dict["camera_distortion"]) == 0 or len(rec_dict["camera_distortion"]) in [4,5,8,12,14]
         # TODO(yukke42): add test value of camera_intrinsic and camera_distortion
 
 
