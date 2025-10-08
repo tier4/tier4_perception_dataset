@@ -49,12 +49,12 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
     def _convert_one_scene(self, input_dir: str, scene_name: str):
         output_dir = self._output_base
         os.makedirs(output_dir, exist_ok=True)
-        nusc = Tier4(data_root=input_dir, verbose=False)
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
 
         logger.info(f"Converting {input_dir} to {output_dir}")
         output_label: List = []
 
-        for frame_index, sample_record in enumerate(nusc.sample):
+        for frame_index, sample_record in enumerate(t4_dataset.sample):
             sample_token = sample_record.token
             logger.info(f"sample_token: {sample_token}")
             for anno_token in sample_record.ann_3ds:
@@ -68,18 +68,18 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                 current_label_dict["version"] = "null"
                 current_label_dict["label_set_id"] = "default"
                 current_label_dict["stage_id"] = "Labelling"
-                anno = nusc.get("sample_annotation", anno_token)
+                anno = t4_dataset.get("sample_annotation", anno_token)
 
-                instance_record = nusc.get("instance", anno.instance_token)
-                instance_index = nusc.get_idx("instance", anno.instance_token) + 1
-                category_record = nusc.get("category", instance_record.category_token)
-                visibility_record = nusc.get("visibility", anno.visibility_token)
+                instance_record = t4_dataset.get("instance", anno.instance_token)
+                instance_index = t4_dataset.get_idx("instance", anno.instance_token) + 1
+                category_record = t4_dataset.get("category", instance_record.category_token)
+                visibility_record = t4_dataset.get("visibility", anno.visibility_token)
 
                 for sensor, token in sample_record.data.items():
                     if "LIDAR" in sensor:
                         break
 
-                sample_data_record = nusc.get("sample_data", sample_record.data[sensor])
+                sample_data_record = t4_dataset.get("sample_data", sample_record.data[sensor])
                 file_id = osp.basename(sample_data_record.filename).replace(".pcd.bin", ".pcd")
 
                 # Original T4 format names the file_id as 000000.pcd.bin for example.
@@ -89,7 +89,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                 label_category_id = self._label_converter.convert_label(category_record.name)
 
                 attributes_records = [
-                    nusc.get("attribute", token) for token in anno.attribute_tokens
+                    t4_dataset.get("attribute", token) for token in anno.attribute_tokens
                 ]
                 attributes_name = [
                     self._label_converter.convert_attribute(v.name) for v in attributes_records
@@ -129,20 +129,20 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                 print(f"{label_category_id}:{instance_index}")
 
         if osp.exists(osp.join(input_dir, "annotation", "object_ann.json")):
-            for frame_index, sample_record in enumerate(nusc.sample):
+            for frame_index, sample_record in enumerate(t4_dataset.sample):
                 for cam, sensor_id in self._camera_position.items():
                     if cam not in sample_record.data:
                         continue
                     sample_camera_token = sample_record.data[cam]
                     print(f"cam:{cam}, sample_camera_token: {sample_camera_token}")
                     object_anns = [
-                        o for o in nusc.object_ann if o.sample_data_token == sample_camera_token
+                        o for o in t4_dataset.object_ann if o.sample_data_token == sample_camera_token
                     ]
 
                     for ann in object_anns:
                         current_label_dict: Dict = {}
                         category_token = ann.category_token
-                        category_record = nusc.get("category", category_token)
+                        category_record = t4_dataset.get("category", category_token)
                         bbox = ann.bbox
                         bbox[2] = bbox[2] - bbox[0]
                         bbox[3] = bbox[3] - bbox[1]
@@ -153,9 +153,9 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                             category_record.name
                         )
                         try:
-                            instance_index = nusc.get_idx("instance", ann.instance_token) + 1
+                            instance_index = t4_dataset.get_idx("instance", ann.instance_token) + 1
                             attributes_records = [
-                                nusc.get("attribute", token) for token in ann.attribute_tokens
+                                t4_dataset.get("attribute", token) for token in ann.attribute_tokens
                             ]
                             attributes_name = [
                                 self._label_converter.convert_attribute(v.name)
@@ -194,10 +194,10 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
 
         logger.info(f"Done Conversion: {input_dir} to {output_dir}")
 
-    def _get_data(self, nusc: Tier4, sensor_channel_token: str) -> Dict[str, Any]:
-        sd_record = nusc.get("sample_data", sensor_channel_token)
-        cs_record = nusc.get("calibrated_sensor", sd_record.calibrated_sensor_token)
-        ep_record = nusc.get("ego_pose", sd_record.ego_pose_token)
+    def _get_data(self, t4_dataset: Tier4, sensor_channel_token: str) -> Dict[str, Any]:
+        sd_record = t4_dataset.get("sample_data", sensor_channel_token)
+        cs_record = t4_dataset.get("calibrated_sensor", sd_record.calibrated_sensor_token)
+        ep_record = t4_dataset.get("ego_pose", sd_record.ego_pose_token)
 
         sensor2ego_transform = transform_matrix(
             translation=cs_record.translation,

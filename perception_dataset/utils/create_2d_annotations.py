@@ -17,12 +17,12 @@ def create_2d_annotations(
     object_ann_table: ObjectAnnTable,
     instance_table: InstanceTable,
 ):
-    nusc = Tier4(data_root=dataroot, verbose=False)
-    for sample in nusc.sample:
+    t4_dataset = Tier4(data_root=dataroot, verbose=False)
+    for sample in t4_dataset.sample:
         for camera_sensor in camera_sensor_channels:
             camera_channel = camera_sensor["channel"]
             camera_token = sample.data[camera_channel]
-            _, boxes, camera_intrinsic = nusc.get_sample_data(camera_token)
+            _, boxes, camera_intrinsic = t4_dataset.get_sample_data(camera_token)
 
             # map 3d cuboids to 2d bounding boxes
             for box in boxes:

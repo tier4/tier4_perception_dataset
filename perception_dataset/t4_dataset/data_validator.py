@@ -4,10 +4,10 @@ from t4_devkit import Tier4
 from perception_dataset.t4_dataset.format_validator import _logger_wrapper
 
 @_logger_wrapper
-def validate_data_hz(nusc: Tier4):
+def validate_data_hz(t4_dataset: Tier4):
     def get_first_sample_data_list():
         sample_data_list = []
-        for sample_data in nusc.sample_data:
+        for sample_data in t4_dataset.sample_data:
             if sample_data.prev == "":
                 sample_data_list.append(sample_data)
         return sample_data_list
@@ -20,7 +20,7 @@ def validate_data_hz(nusc: Tier4):
         sample_data_counter: int = 0
         while sample_data.next:
             sample_data_counter += 1
-            sample_data = nusc.get("sample_data", sample_data.next)
+            sample_data = t4_dataset.get("sample_data", sample_data.next)
 
         data_duration_sec: float = float(sample_data.timestamp - first_timestamp) * 1e-6
         data_hz: float = sample_data_counter / data_duration_sec

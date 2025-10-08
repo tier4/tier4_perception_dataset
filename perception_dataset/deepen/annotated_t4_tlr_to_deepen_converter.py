@@ -23,23 +23,23 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
     def _convert_one_scene(self, input_dir: str, scene_name: str):
         output_dir = self._output_base
         os.makedirs(output_dir, exist_ok=True)
-        nusc = Tier4(data_root=input_dir, verbose=False)
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
 
         logger.info(f"Converting {input_dir} to {output_dir}")
         output_label: List = []
 
         if osp.exists(osp.join(input_dir, "annotation", "object_ann.json")):
-            for frame_index, sample_record in enumerate(nusc.sample):
+            for frame_index, sample_record in enumerate(t4_dataset.sample):
                 for cam, sensor_id in self._camera_position.items():
                     sample_camera_token = sample_record.data[cam]
                     object_anns = [
-                        o for o in nusc.object_ann if o.sample_data_token == sample_camera_token
+                        o for o in t4_dataset.object_ann if o.sample_data_token == sample_camera_token
                     ]
 
                     for ann in object_anns:
                         current_label_dict: Dict = {}
                         category_token = ann.category_token
-                        category_record = nusc.get("category", category_token)
+                        category_record = t4_dataset.get("category", category_token)
                         roi = ann.bbox
                         # Convert Roi tuple to bbox list and transform to width/height format
                         bbox = [roi[0], roi[1], roi[2] - roi[0], roi[3] - roi[1]]
@@ -50,7 +50,7 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
                             category_record.name
                         )
                         try:
-                            instance = nusc.get("instance", ann.instance_token)
+                            instance = t4_dataset.get("instance", ann.instance_token)
                             instance_name = instance.instance_name
                             traffic_light_id = instance_name.split("::")[1]
                             attributes: Dict = {

@@ -40,13 +40,13 @@ class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
 
     def _convert_one_scene(self, input_dir: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)
-        nusc = Tier4(data_root=input_dir, verbose=False)
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
 
         logger.info(f"Converting {input_dir} to {output_dir}")
-        for sample in nusc.sample:
+        for sample in t4_dataset.sample:
             for sample_data_token in sample.data.values():
                 # Note: This conversion tool will convert all camera data included in the t4dataset
-                sample_data = nusc.get("sample_data", sample_data_token)
+                sample_data = t4_dataset.get("sample_data", sample_data_token)
                 original_filename = sample_data.filename
                 input_path: Path = Path(input_dir) / original_filename
                 output_path: Path = Path(output_dir) / original_filename.replace("/", "_")

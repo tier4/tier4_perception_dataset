@@ -15,8 +15,8 @@ def calculate_num_points(
     dataroot: str, lidar_sensor_channel: str, annotation_table: SampleAnnotationTable
 ):
     """Calcluate number of points in each box and overwrite the annotation table"""
-    nusc = Tier4(data_root=dataroot, verbose=False)
-    for sample in nusc.sample:
+    t4_dataset = Tier4(data_root=dataroot, verbose=False)
+    for sample in t4_dataset.sample:
         if lidar_sensor_channel not in sample.data:
             continue
         lidar_token = sample.data[lidar_sensor_channel]
@@ -27,7 +27,7 @@ def calculate_num_points(
             continue
             
         # Get sample data with specific annotation tokens to maintain token mapping
-        lidar_path, boxes, _ = nusc.get_sample_data(lidar_token, selected_ann_tokens=ann_tokens)
+        lidar_path, boxes, _ = t4_dataset.get_sample_data(lidar_token, selected_ann_tokens=ann_tokens)
 
         points = np.fromfile(lidar_path, dtype=np.float32)
         points = points.reshape(-1, 5)
@@ -65,7 +65,7 @@ def calculate_num_points(
             annotation_table._token_to_record[ann_token] = new_record
 
     # connect next/prev tokens
-    for instance in nusc.instance:
+    for instance in t4_dataset.instance:
         if instance.nbr_annotations == 0:
             continue
         try:
