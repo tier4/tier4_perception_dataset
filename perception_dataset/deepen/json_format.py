@@ -69,11 +69,11 @@ class ImageData(AbstractData):
         assert fileformat in [EXTENSION_ENUM.JPG.value[1:], EXTENSION_ENUM.PNG.value[1:]]
         assert camera_model in ["pinhole", "fisheye"]
 
-        if camera_model == "pinhole":
+        if camera_distortion and camera_model == "pinhole":
             assert (
                 len(camera_distortion) == 5
             ), "For pinhole camera model, camera_distortion must have 5 parameters"
-        elif camera_model == "fisheye":
+        elif camera_distortion and camera_model == "fisheye":
             assert (
                 len(camera_distortion) == 4
             ), "For fisheye camera model, camera_distortion must have 4 parameters"
