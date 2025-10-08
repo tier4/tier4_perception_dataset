@@ -70,9 +70,13 @@ class ImageData(AbstractData):
         assert camera_model in ["pinhole", "fisheye"]
 
         if camera_model == "pinhole":
-            assert len(camera_distortion)==5, "For pinhole camera model, camera_distortion must have 5 parameters"
+            assert (
+                len(camera_distortion) == 5
+            ), "For pinhole camera model, camera_distortion must have 5 parameters"
         elif camera_model == "fisheye":
-            assert len(camera_distortion)==4, "For fisheye camera model, camera_distortion must have 4 parameters"
+            assert (
+                len(camera_distortion) == 4
+            ), "For fisheye camera model, camera_distortion must have 4 parameters"
 
         self._frame_index: int = frame_index
         self._channel: str = channel
