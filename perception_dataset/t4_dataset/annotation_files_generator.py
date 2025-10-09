@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from nptyping import NDArray
 import numpy as np
-from t4_devkit import Tier4
 from pycocotools import mask as cocomask
 from scipy.spatial.transform import Rotation
+from t4_devkit import Tier4
 
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable

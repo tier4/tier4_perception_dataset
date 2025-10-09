@@ -6,9 +6,9 @@ import time
 from typing import Any, Dict, List
 
 import numpy as np
-from t4_devkit import Tier4
 from nuscenes.utils.geometry_utils import transform_matrix
 from pyquaternion import Quaternion
+from t4_devkit import Tier4
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LABEL_PATH_ENUM
@@ -136,7 +136,9 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                     sample_camera_token = sample_record.data[cam]
                     print(f"cam:{cam}, sample_camera_token: {sample_camera_token}")
                     object_anns = [
-                        o for o in t4_dataset.object_ann if o.sample_data_token == sample_camera_token
+                        o
+                        for o in t4_dataset.object_ann
+                        if o.sample_data_token == sample_camera_token
                     ]
 
                     for ann in object_anns:
@@ -155,7 +157,8 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                         try:
                             instance_index = t4_dataset.get_idx("instance", ann.instance_token) + 1
                             attributes_records = [
-                                t4_dataset.get("attribute", token) for token in ann.attribute_tokens
+                                t4_dataset.get("attribute", token)
+                                for token in ann.attribute_tokens
                             ]
                             attributes_name = [
                                 self._label_converter.convert_attribute(v.name)

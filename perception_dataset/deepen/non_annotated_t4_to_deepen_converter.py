@@ -8,12 +8,11 @@ from typing import Any, Dict
 
 from nptyping import NDArray
 import numpy as np
-from t4_devkit import Tier4
-from t4_devkit.schema import CalibratedSensor, EgoPose, SampleData
-
 from nuscenes.utils.data_classes import LidarPointCloud
 from nuscenes.utils.geometry_utils import transform_matrix
 from pyquaternion import Quaternion
+from t4_devkit import Tier4
+from t4_devkit.schema import CalibratedSensor, EgoPose, SampleData
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import SENSOR_ENUM
@@ -169,9 +168,11 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         return camera_token
 
     def _get_data(self, t4_dataset: Tier4, sensor_channel_token: str) -> Dict[str, Any]:
-        sd_record : SampleData = t4_dataset.get("sample_data", sensor_channel_token)
-        cs_record : CalibratedSensor = t4_dataset.get("calibrated_sensor", sd_record.calibrated_sensor_token)
-        ep_record : EgoPose = t4_dataset.get("ego_pose", sd_record.ego_pose_token)
+        sd_record: SampleData = t4_dataset.get("sample_data", sensor_channel_token)
+        cs_record: CalibratedSensor = t4_dataset.get(
+            "calibrated_sensor", sd_record.calibrated_sensor_token
+        )
+        ep_record: EgoPose = t4_dataset.get("ego_pose", sd_record.ego_pose_token)
 
         sensor2ego_transform = transform_matrix(
             translation=cs_record.translation,

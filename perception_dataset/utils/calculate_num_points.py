@@ -20,14 +20,16 @@ def calculate_num_points(
         if lidar_sensor_channel not in sample.data:
             continue
         lidar_token = sample.data[lidar_sensor_channel]
-        
+
         # Get the annotation tokens from the sample
         ann_tokens = sample.ann_3ds
         if not ann_tokens:
             continue
-            
+
         # Get sample data with specific annotation tokens to maintain token mapping
-        lidar_path, boxes, _ = t4_dataset.get_sample_data(lidar_token, selected_ann_tokens=ann_tokens)
+        lidar_path, boxes, _ = t4_dataset.get_sample_data(
+            lidar_token, selected_ann_tokens=ann_tokens
+        )
 
         points = np.fromfile(lidar_path, dtype=np.float32)
         points = points.reshape(-1, 5)

@@ -86,7 +86,9 @@ def validate_sample(t4_dataset: Tier4):
         if next_token == "":
             no_next_token_count += 1
         else:
-            assert find_in_table(t4_dataset, "sample", next_token), "sample.next isn't found in sample."
+            assert find_in_table(
+                t4_dataset, "sample", next_token
+            ), "sample.next isn't found in sample."
 
         prev_token = sample.prev
         if prev_token == "":
