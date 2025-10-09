@@ -7,7 +7,6 @@ import argparse
 from loguru import logger
 from t4_devkit import Tier4
 
-from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.data_validator import validate_data_hz
 from perception_dataset.t4_dataset.format_validator import (
     validate_directory_structure,
