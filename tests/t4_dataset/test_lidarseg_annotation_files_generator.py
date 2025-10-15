@@ -136,7 +136,7 @@ class TestAnnotationFilesGenerator:
             dummy_t4 = DummyTier4()
             anno_dir = os.path.join(dir_name, "annotation")
             instance_for_test._convert_lidarseg_scene_annotations(
-                nusc=dummy_t4,
+                t4_dataset=dummy_t4,
                 scene_anno_dict=_default_lidarseg(default_tmp_dir=dir_name),
                 lidar_sensor_channel="LIDAR_CONCAT",
                 anno_dir=anno_dir,
