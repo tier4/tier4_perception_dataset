@@ -1,9 +1,9 @@
 import json
 import shutil
 
-from t4_devkit import Tier4
 import pandas as pd
 import pytest
+from t4_devkit import Tier4
 import yaml
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME

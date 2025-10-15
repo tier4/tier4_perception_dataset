@@ -3,9 +3,9 @@ import os
 import os.path as osp
 import shutil
 
-from t4_devkit import Tier4
 import pandas as pd
 import pytest
+from t4_devkit import Tier4
 import yaml
 
 from perception_dataset.constants import SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
