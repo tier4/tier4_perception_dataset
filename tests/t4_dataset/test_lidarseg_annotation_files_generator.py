@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from t4_devkit.schema import Sample, SampleData
+
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
 
@@ -46,6 +47,7 @@ def _default_lidarseg(default_tmp_dir: str) -> Dict[int, List[Dict[str, Any]]]:
 
 class DummyTier4:
     """Dummy Tier4 class for unit test."""
+
     def __init__(
         self,
         data_root: str = "dummy_data_root",
@@ -55,7 +57,7 @@ class DummyTier4:
         self.verbose = verbose
         self.sample_data = [
             SampleData(
-                token=str(i), 
+                token=str(i),
                 sample_token=str(i),
                 ego_pose_token="0",
                 calibrated_sensor_token="0",
@@ -71,7 +73,8 @@ class DummyTier4:
             )
             for i in range(6)
         ]
-        self.sample = [Sample(timestamp=0,token="0", scene_token="0",next="", prev="")]
+        self.sample = [Sample(timestamp=0, token="0", scene_token="0", next="", prev="")]
+
 
 # Note: test case1, case2 use the same scene_anno_dict
 class TestAnnotationFilesGenerator:
@@ -102,9 +105,7 @@ class TestAnnotationFilesGenerator:
         instance_for_test: AnnotationFilesGenerator,
     ) -> None:
         """Test running convert_one_scene function."""
-        with patch(
-            "perception_dataset.t4_dataset.annotation_files_generator.Tier4", DummyTier4
-        ):
+        with patch("perception_dataset.t4_dataset.annotation_files_generator.Tier4", DummyTier4):
             with tempfile.TemporaryDirectory() as dir_name:
                 anno_dir = os.path.join(dir_name, "t4_format")
                 anno_path = Path(anno_dir)

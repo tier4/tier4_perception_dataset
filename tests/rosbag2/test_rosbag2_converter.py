@@ -1,12 +1,11 @@
 import json
 import shutil
 
-from t4_devkit import Tier4
 import pandas as pd
 import pytest
+from t4_devkit import Tier4
 import yaml
 
-from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_t4_converter import Rosbag2ToT4Converter
 from perception_dataset.t4_dataset.data_validator import validate_data_hz

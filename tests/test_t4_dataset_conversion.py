@@ -3,12 +3,12 @@ import os
 import os.path as osp
 import shutil
 
-from t4_devkit import Tier4
 import pandas as pd
 import pytest
+from t4_devkit import Tier4
 import yaml
 
-from perception_dataset.constants import SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
+from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
     NonAnnotatedT4ToDeepenConverter,
