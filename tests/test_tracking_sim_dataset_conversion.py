@@ -3,7 +3,7 @@ import os
 import os.path as osp
 import shutil
 
-from nuscenes.nuscenes import NuScenes
+from t4_devkit import Tier4
 import pandas as pd
 import pytest
 import yaml
@@ -83,14 +83,13 @@ def load_json(t4_dataset_path, file_name):
 def test_t4_dataset_format(t4_dataset_path):
     validate_directory_structure(t4_dataset_path)
 
-    nusc = NuScenes(
-        version=T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value,
-        dataroot=t4_dataset_path,
+    t4_dataset = Tier4(
+        data_root=t4_dataset_path,
         verbose=False,
     )
 
-    validate_format(nusc, t4_dataset_path)
-    validate_data_hz(nusc)
+    validate_format(t4_dataset, t4_dataset_path)
+    validate_data_hz(t4_dataset)
 
 
 def get_empty(df, col):
