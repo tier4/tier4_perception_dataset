@@ -28,7 +28,7 @@ def find_in_table(t4_dataset: Tier4, table_name: str, token: str) -> bool:
         return False
 
     table = getattr(t4_dataset, table_name)
-    if token_ind < 0 and token_ind >= len(table):
+    if token_ind < 0 or token_ind >= len(table):
         return False
 
     return True

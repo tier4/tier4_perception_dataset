@@ -33,9 +33,9 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
                 for cam, sensor_id in self._camera_position.items():
                     sample_camera_token = sample_record.data[cam]
                     object_anns = [
-                        o
-                        for o in t4_dataset.object_ann
-                        if o.sample_data_token == sample_camera_token
+                        object_ann
+                        for object_ann in t4_dataset.object_ann
+                        if object_ann.sample_data_token == sample_camera_token
                     ]
 
                     for ann in object_anns:

@@ -11,7 +11,7 @@ from pyquaternion import Quaternion
 from t4_devkit import Tier4
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LABEL_PATH_ENUM
+from perception_dataset.constants import EXTENSION_ENUM, LABEL_PATH_ENUM
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
 
@@ -80,11 +80,13 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                         break
 
                 sample_data_record = t4_dataset.get("sample_data", sample_record.data[sensor])
-                file_id = osp.basename(sample_data_record.filename).replace(".pcd.bin", ".pcd")
+                file_id = osp.basename(sample_data_record.filename).replace(
+                    EXTENSION_ENUM.PCDBIN, EXTENSION_ENUM.PCD
+                )
 
                 # Original T4 format names the file_id as 000000.pcd.bin for example.
                 # We need to convert it to 0.pcd in this case.
-                file_id = str(int(file_id.split(".")[0])) + ".pcd"
+                file_id = str(int(file_id.split(".")[0])) + EXTENSION_ENUM.PCD
 
                 label_category_id = self._label_converter.convert_label(category_record.name)
 

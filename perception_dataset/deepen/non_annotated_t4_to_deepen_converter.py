@@ -147,10 +147,10 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
 
     @staticmethod
     def _get_camera_token(camera_channel: str, sample, t4_dataset) -> str | None:
-        """Get camera token for `camera_channel` in the given `sample` data from a NuScenes dataset.
+        """Get camera token for `camera_channel` in the given `sample` data from a Tier4 dataset.
         Args:
             camera_channel (str): Camera channel name e.g. CAM_FRONT to look for
-            sample: Sample data for a specific frame from NuScenes = `t4_dataset.sample[frame_index]`
+            sample: Sample data for a specific frame from Tier4 = `t4_dataset.sample[frame_index]`
             t4_dataset (Tier4): Tier4 dataset
         Return:
             camera_token: str | None
@@ -176,11 +176,11 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
 
         sensor2ego_transform = transform_matrix(
             translation=cs_record.translation,
-            rotation=Quaternion(cs_record.rotation),
+            rotation=cs_record.rotation,
         )
         ego2global_transform = transform_matrix(
             translation=ep_record.translation,
-            rotation=Quaternion(ep_record.rotation),
+            rotation=ep_record.rotation,
         )
 
         sensor2global_transform = ego2global_transform @ sensor2ego_transform
