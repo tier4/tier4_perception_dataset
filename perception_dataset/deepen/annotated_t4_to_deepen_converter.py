@@ -6,7 +6,6 @@ import time
 from typing import Any, Dict, List
 
 import numpy as np
-from nuscenes.utils.geometry_utils import transform_matrix
 from pyquaternion import Quaternion
 from t4_devkit import Tier4
 
@@ -14,6 +13,7 @@ from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import EXTENSION_ENUM, LABEL_PATH_ENUM
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
 

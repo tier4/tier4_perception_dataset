@@ -8,16 +8,16 @@ from typing import Any, Dict
 
 from nptyping import NDArray
 import numpy as np
-from nuscenes.utils.data_classes import LidarPointCloud
-from nuscenes.utils.geometry_utils import transform_matrix
 from pyquaternion import Quaternion
 from t4_devkit import Tier4
+from t4_devkit.dataclass import LidarPointCloud
 from t4_devkit.schema import CalibratedSensor, EgoPose, SampleData
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.json_format import ConfigData, ImageData
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
 

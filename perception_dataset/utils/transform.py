@@ -1,5 +1,7 @@
 from typing import List
 
+import numpy as np
+from pyquaternion import Quaternion
 from scipy.spatial.transform import Rotation
 
 
@@ -55,3 +57,30 @@ def compose_transform(trans1, rot1, trans2, rot2):
     quat = [quat[3], quat[0], quat[1], quat[2]]
 
     return t.tolist(), quat
+
+
+def transform_matrix(
+    translation: np.ndarray = np.array([0, 0, 0]),
+    rotation: Quaternion = Quaternion([1, 0, 0, 0]),
+    inverse: bool = False,
+) -> np.ndarray:
+    """
+    Taken from https://github.com/nutonomy/nuscenes-devkit/blob/4fbb41a72b5a32c634dc7e3135975643237914a7/python-sdk/nuscenes/utils/geometry_utils.py
+    Convert pose to transformation matrix.
+    :param translation: <np.float32: 3>. Translation in x, y, z.
+    :param rotation: Rotation in quaternions (w ri rj rk).
+    :param inverse: Whether to compute inverse transform matrix.
+    :return: <np.float32: 4, 4>. Transformation matrix.
+    """
+    tm = np.eye(4)
+
+    if inverse:
+        rot_inv = rotation.rotation_matrix.T
+        trans = np.transpose(-np.array(translation))
+        tm[:3, :3] = rot_inv
+        tm[:3, 3] = rot_inv.dot(trans)
+    else:
+        tm[:3, :3] = rotation.rotation_matrix
+        tm[:3, 3] = np.transpose(np.array(translation))
+
+    return tm
