@@ -15,7 +15,7 @@ from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 
 @pytest.fixture(scope="module")
 def t4_dataset_path():
-    test_rosbag_name = "traffic_light_sample_tf"
+    test_rosbag_name = "sample_bag"
     # before test - convert rosbag2 to t4
     with open(TEST_CONFIG_ROOT_DIR / "convert_rosbag2_to_annotated_t4_tlr.yaml") as f:
         config_dict = yaml.safe_load(f)

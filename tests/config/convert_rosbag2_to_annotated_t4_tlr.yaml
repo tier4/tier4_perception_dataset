@@ -2,8 +2,8 @@ task: convert_rosbag2_to_annotated_t4_tlr
 conversion:
   overwrite_mode: true
   # path to rosbag dir output by simulator
-  input_base: ./data/rosbag2_tlr
-  output_base: ./data/t4_annotated_tlr
+  input_base: ./data/t4_sample_0/filtered_rosbag_for_tlr
+  output_base: ./data/t4_sample_0/t4_tlr_annotated_from_rosbag_generated
   skip_timestamp: 0.2
   num_load_frames: 0
   workers_number: 6
