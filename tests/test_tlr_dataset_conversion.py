@@ -13,7 +13,6 @@ from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     Rosbag2ToNonAnnotatedT4Converter,
 )
-from perception_dataset.utils.rosbag2 import get_topic_count
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 from tests.utils.check_equality import diff_check_folder, diff_check_t4_dataset
 
