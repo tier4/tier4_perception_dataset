@@ -30,5 +30,5 @@ TOKEN_FIELD_NAMES = [
     "sample_token",
     "next",
     "prev",
-    "attribute_tokens"
+    "attribute_tokens",
 ]
