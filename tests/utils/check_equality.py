@@ -55,10 +55,6 @@ def _compare_json_files(target_file: Path, source_file: Path) -> None:
     target_filtered = _remove_token_fields(target_data)
     source_filtered = _remove_token_fields(source_data)
 
-    if target_filtered != source_filtered:
-        import pdb
-
-        pdb.set_trace()
     # Python's == operator works well for comparing dicts with standard data types
     assert target_filtered == source_filtered, (
         f"Differences found in {target_file.name}: "
@@ -151,8 +147,8 @@ def diff_check_rosbag(source_input_bag_path: Path, target_input_bag_path: Path) 
     assert target_db3_file.is_file(), f"DB3 file {source_db3_files[0].name} not found in target"
 
     # Load and compare metadata YAML files
-    target_metadata_yaml_path = source_input_bag_path / METADATA_YAML_FILENAME
-    source_metadata_yaml_path = target_input_bag_path / METADATA_YAML_FILENAME
+    target_metadata_yaml_path = target_input_bag_path / METADATA_YAML_FILENAME
+    source_metadata_yaml_path = source_input_bag_path / METADATA_YAML_FILENAME
 
     assert (
         target_metadata_yaml_path.is_file()
