@@ -2,7 +2,6 @@ import os.path as osp
 from pathlib import Path
 import shutil
 
-import pandas as pd
 import pytest
 import yaml
 

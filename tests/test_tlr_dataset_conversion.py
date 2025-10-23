@@ -1,5 +1,3 @@
-import json
-import os
 import os.path as osp
 from pathlib import Path
 import shutil
@@ -7,7 +5,6 @@ import shutil
 import pytest
 import yaml
 
-from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import (
     NonAnnotatedT4TlrToDeepenConverter,
