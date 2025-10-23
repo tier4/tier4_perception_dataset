@@ -3,9 +3,11 @@ import os.path as osp
 from pathlib import Path
 import shutil
 
+from nuscenes.nuscenes import NuScenes
 import pytest
 import yaml
 
+from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
     NonAnnotatedT4ToDeepenConverter,
@@ -14,16 +16,13 @@ from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     Rosbag2ToNonAnnotatedT4Converter,
 )
-
-from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
-from tests.utils.check_equality import diff_check_folder,diff_check_t4_dataset
-from nuscenes.nuscenes import NuScenes
 from perception_dataset.t4_dataset.data_validator import validate_data_hz
 from perception_dataset.t4_dataset.format_validator import (
     validate_directory_structure,
     validate_format,
 )
-from perception_dataset.constants import  T4_FORMAT_DIRECTORY_NAME
+from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
+from tests.utils.check_equality import diff_check_folder, diff_check_t4_dataset
 
 # Test constants
 TEST_ROSBAG_NAME = "sample_bag"
@@ -67,7 +66,7 @@ def deepen_path(non_annotated_t4_dataset_path):
     # Load configuration
     with open(TEST_CONFIG_ROOT_DIR / "convert_non_annotated_t4_to_deepen.yaml") as f:
         config_dict = yaml.safe_load(f)
-    
+
     t42d_input_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["input_base"])
     t42d_output_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["output_base"])
     camera_sensors = config_dict["conversion"]["camera_sensors"]
@@ -90,6 +89,7 @@ def deepen_path(non_annotated_t4_dataset_path):
     # Cleanup
     shutil.rmtree(osp.join(t42d_output_base), ignore_errors=True)
 
+
 @pytest.mark.parametrize("t4_dataset_path", [True, False], indirect=True)
 def test_t4_dataset_validation(t4_dataset_path):
     validate_directory_structure(t4_dataset_path)
@@ -102,6 +102,7 @@ def test_t4_dataset_validation(t4_dataset_path):
 
     validate_format(nusc, t4_dataset_path)
     validate_data_hz(nusc)
+
 
 @pytest.fixture(scope="module")
 def t4_dataset_path(request, deepen_path):
@@ -117,11 +118,11 @@ def t4_dataset_path(request, deepen_path):
     description = config_dict["description"]
     input_bag_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["input_bag_base"])
     topic_list_yaml_path = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["topic_list"])
-    
+
     ignore_interpolate_label = request.param
     if ignore_interpolate_label:
         d2t4_output_base = d2t4_output_base + "_wo_interpolate_label"
-    
+
     with open(topic_list_yaml_path) as f:
         topic_list_yaml = yaml.safe_load(f)
 
@@ -155,7 +156,7 @@ def test_non_annotated_t4_dataset_diff(non_annotated_t4_dataset_path):
     """Test that generated non-annotated T4 dataset matches expected output."""
     generated_path = Path(non_annotated_t4_dataset_path)
     expected_path = Path(str(generated_path).replace("_generated", ""))
-    
+
     diff_check_t4_dataset(generated_path, expected_path)
 
 
@@ -163,7 +164,7 @@ def test_deepen_dataset_diff(deepen_path):
     """Test that generated Deepen dataset matches expected output."""
     generated_path = Path(deepen_path)
     expected_path = Path(str(generated_path).replace("_generated", ""))
-    
+
     diff_check_folder(generated_path, expected_path)
 
 
@@ -172,5 +173,5 @@ def test_t4_dataset_diff(t4_dataset_path):
     """Test that generated T4 dataset matches expected output."""
     generated_path = Path(t4_dataset_path)
     expected_path = Path(str(generated_path).replace("_generated", ""))
-    
+
     diff_check_t4_dataset(generated_path, expected_path)

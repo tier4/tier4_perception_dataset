@@ -1,10 +1,11 @@
 import json
 import os.path as osp
+from pathlib import Path
+import shutil
+
 from nuscenes.nuscenes import NuScenes
 import pytest
 import yaml
-import shutil
-from pathlib import Path
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
@@ -20,7 +21,7 @@ from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 @pytest.fixture
 def t4_dataset_path():
     """
-    Test fixture to provide path to converted t4_dataset from rosbag2 mcap file. 
+    Test fixture to provide path to converted t4_dataset from rosbag2 mcap file.
     For rest of .db3 files check ../test_t4_dataset_conversion.py.
     """
     # before test - convert rosbag2 to t4
@@ -28,7 +29,7 @@ def t4_dataset_path():
 
     with open(TEST_CONFIG_ROOT_DIR / "convert_synthetic_data.yaml") as f:
         param_args = yaml.safe_load(f)
-    
+
     input_rosbag_base = osp.join(TEST_ROOT_DIR, param_args["conversion"]["input_base"])
     r2t4_output_base = osp.join(TEST_ROOT_DIR, param_args["conversion"]["output_base"])
 

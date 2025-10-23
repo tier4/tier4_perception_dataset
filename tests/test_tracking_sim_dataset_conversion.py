@@ -1,6 +1,7 @@
 import os.path as osp
 from pathlib import Path
 import shutil
+
 import pandas as pd
 import pytest
 import yaml
@@ -50,5 +51,5 @@ def test_tracking_sim_dataset_diff(t4_dataset_path):
     """Test that generated tracking sim dataset matches expected output."""
     generated_path = Path(t4_dataset_path)
     expected_path = Path(str(generated_path).replace("_generated", ""))
-    
+
     diff_check_t4_dataset(generated_path, expected_path)
