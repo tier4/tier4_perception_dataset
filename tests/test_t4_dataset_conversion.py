@@ -155,7 +155,7 @@ def load_json(t4_dataset_path, file_name):
 def test_non_annotated_t4_dataset_diff(non_annotated_t4_dataset_path):
     """Test that generated non-annotated T4 dataset matches expected output."""
     generated_path = Path(non_annotated_t4_dataset_path)
-    expected_path = Path(str(generated_path).replace("_generated", ""))
+    expected_path = Path(non_annotated_t4_dataset_path.replace("_generated", ""))
 
     diff_check_t4_dataset(generated_path, expected_path)
 
@@ -163,7 +163,7 @@ def test_non_annotated_t4_dataset_diff(non_annotated_t4_dataset_path):
 def test_deepen_dataset_diff(deepen_path):
     """Test that generated Deepen dataset matches expected output."""
     generated_path = Path(deepen_path)
-    expected_path = Path(str(generated_path).replace("_generated", ""))
+    expected_path = Path(deepen_path.replace("_generated", ""))
 
     diff_check_folder(generated_path, expected_path)
 
@@ -172,6 +172,6 @@ def test_deepen_dataset_diff(deepen_path):
 def test_t4_dataset_diff(t4_dataset_path):
     """Test that generated T4 dataset matches expected output."""
     generated_path = Path(t4_dataset_path)
-    expected_path = Path(str(generated_path).replace("_generated", ""))
+    expected_path = Path(t4_dataset_path.replace("_generated", ""))
 
     diff_check_t4_dataset(generated_path, expected_path)
