@@ -14,11 +14,11 @@ description:
     CAM_FRONT_LEFT: 5
 
 conversion:
-  input_base: ./data/non_annotated_t4_format
-  input_anno_file: ./data/deepen_format/lidar_annotations_accepted_deepen.json
-  input_bag_base: ./data/rosbag2
-  output_base: ./data/t4_format
+  input_base: ./data/t4_sample_0/non_annotated_dataset
+  input_anno_file: ./data/t4_sample_0/deepen_annotation/sampled_anonymized.json
+  input_bag_base: ./data/t4_sample_0/filtered_rosbag
+  output_base: ./data/t4_sample_0/annotated_t4_generated
   topic_list: ./config/topic_list.yaml
   ignore_interpolate_label: True
   dataset_corresponding:
-    sample_bag: i3BpFG1vXknBto6q2vPZ3M1i
+    sample_bag: ulu5JNre9Fi8h6tYgtduazsv

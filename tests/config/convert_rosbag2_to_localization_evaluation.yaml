@@ -4,7 +4,7 @@ description:
 conversion:
   make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
   overwrite_mode: false
-  input_base: ./data/rosbag2_lm_regression  # Input directory containing raw Rosbag2 files
-  output_base: ./data/localization_evaluation_t4_format  # Output directory for T4 format data
+  input_base: ./data/t4_sample_0/rosbag2_lm_regression  # Input directory containing raw Rosbag2 files
+  output_base: ./data/t4_sample_0/localization_evaluation_t4_format_generated  # Output directory for T4 format data
   skip_timestamp: 1.0  # Skip data points at intervals of 1.0 seconds
   num_load_frames: 0  # Number of frames to load; 0 means load all frames
