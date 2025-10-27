@@ -3,8 +3,8 @@ import os.path as osp
 from pathlib import Path
 import shutil
 
-from t4_devkit import Tier4
 import pytest
+from t4_devkit import Tier4
 import yaml
 
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
