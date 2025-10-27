@@ -1,0 +1,17 @@
+topic_list:
+  - /tf_static
+  - /perception/object_recognition/ground_truth/objects
+  - /perception/object_recognition/detection/objects
+  - /map/vector_map_marker
+  - /map/vector_map
+  - /map/pointcloud_map
+  - /tf
+  - /perception/obstacle_segmentation/pointcloud
+  - /map/map_projector_info
+  - /sensing/imu/imu_data
+  - /localization/kinematic_state
+  - /localization/initialization_state
+  - /localization/acceleration
+mandatory_topic_list:
+  - /tf_static
+  - /tf

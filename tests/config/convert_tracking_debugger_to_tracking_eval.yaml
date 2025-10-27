@@ -3,8 +3,8 @@ description:
   scene: ["tracking_regression", "synthetic"]
 conversion:
   # path to rosbag dir output by simulator
-  input_base: ./data/rosbag2_tracking_debugger
-  output_base: ./data/pseudo_labeling_t4_format
+  input_base: ./data/t4_sample_0/rosbag2_tracking_debugger
+  output_base: ./data/t4_sample_0/pseudo_labeling_t4_format_generated
   skip_timestamp: 1.0
   num_load_frames: 0
   object_topic_name: /perception/object_recognition/ground_truth/objects

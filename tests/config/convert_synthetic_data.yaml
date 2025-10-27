@@ -1,7 +1,7 @@
 task: convert_rosbag2_to_t4
 conversion:
-  input_base: OVERWRITE_IN_TEST
-  output_base: OVERWRITE_IN_TEST
+  input_base: ./data/t4_sample_0/awsim_rosbag2_mcap
+  output_base: ./data/t4_sample_0/t4_dataset_awsim_mcap_generated
   skip_timestamp: 0.01
   workers_number: 1
   num_load_frames: 10

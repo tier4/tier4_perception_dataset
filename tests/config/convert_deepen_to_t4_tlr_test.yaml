@@ -11,10 +11,10 @@ description:
   with_lidar: false
 
 conversion:
-  input_base: ./data/non_annotated_t4_format
-  input_anno_file: ./data/deepen_format/tlr_annotations_accepted_deepen.json
-  input_bag_base: ./data/rosbag2_tlr
-  output_base: ./data/t4_format
+  input_base: ./data/t4_sample_0/non_annotated_dataset_tlr
+  input_anno_file: ./data/t4_sample_0/deepen_annotation/sampled_anonymized_tlr.json
+  input_bag_base: ./data/t4_sample_0/filtered_rosbag
+  output_base: ./data/t4_sample_0/annotated_t4_tlr_generated
   topic_list: ./config/topic_list_tlr.yaml
   dataset_corresponding:
-    traffic_light_sample_tf: 4CzSKBMmLCqaTi5tJtqz7rUu
+    sample_bag: 4CzSKBMmLCqaTi5tJtqz7rUu
