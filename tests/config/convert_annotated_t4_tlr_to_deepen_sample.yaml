@@ -5,4 +5,3 @@ conversion:
   camera_position:
     CAM_TRAFFIC_LIGHT_FAR: camera_0
     CAM_TRAFFIC_LIGHT_NEAR: camera_1
-

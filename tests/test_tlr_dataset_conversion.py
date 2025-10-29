@@ -5,20 +5,24 @@ import shutil
 import pytest
 import yaml
 
+from perception_dataset.constants import EXTENSION_ENUM
+from perception_dataset.deepen.annotated_t4_tlr_to_deepen_converter import (
+    AnnotatedT4TlrToDeepenConverter,
+)
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import (
     NonAnnotatedT4TlrToDeepenConverter,
-)
-from perception_dataset.deepen.annotated_t4_tlr_to_deepen_converter import (
-    AnnotatedT4TlrToDeepenConverter,
 )
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     Rosbag2ToNonAnnotatedT4Converter,
 )
-from perception_dataset.constants import EXTENSION_ENUM
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
-from tests.utils.check_equality import diff_check_folder, diff_check_t4_dataset,diff_check_json_files
+from tests.utils.check_equality import (
+    diff_check_folder,
+    diff_check_json_files,
+    diff_check_t4_dataset,
+)
 
 # Downloaded rosbag name
 TEST_ROSBAG_NAME = "sample_bag"
@@ -112,6 +116,7 @@ def deepen_dataset_path(non_annotated_t4_dataset_path):
     # after test - remove resource
     shutil.rmtree(t4_to_deepen_output_base, ignore_errors=True)
 
+
 @pytest.fixture(scope="module")
 def deepen_dataset_from_annotated_t4_path(t4_dataset_path):
     # before test - convert annotated t4 to deepen label file
@@ -124,7 +129,7 @@ def deepen_dataset_from_annotated_t4_path(t4_dataset_path):
     converter = AnnotatedT4TlrToDeepenConverter(
         input_base=t4_to_deepen_input_base,
         output_base=t4_to_deepen_output_base,
-        camera_position=config_dict["conversion"]["camera_position"]
+        camera_position=config_dict["conversion"]["camera_position"],
     )
     converter.convert()
 
@@ -157,6 +162,7 @@ def test_deepen_tlr_dataset_diff(deepen_dataset_path):
     expected_path = Path(deepen_dataset_path.replace("_generated", ""))
 
     diff_check_folder(generated_path, expected_path)
+
 
 def test_deepen_from_annotated_tlr_dataset_diff(deepen_dataset_from_annotated_t4_path):
     """Test that generated Deepen TLR dataset matches expected output."""

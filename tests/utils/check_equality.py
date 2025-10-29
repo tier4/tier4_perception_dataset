@@ -224,6 +224,7 @@ def diff_check_folder(target_dir: Path, source_dir: Path) -> None:
         target_content = target_file.read_bytes()
         assert source_content == target_content, f"File contents differ: {relative_path}"
 
+
 def diff_check_json_files(target_file: Path, source_file: Path) -> None:
     """Compare two JSON files after removing token fields."""
     _compare_json_files(target_file, source_file)
