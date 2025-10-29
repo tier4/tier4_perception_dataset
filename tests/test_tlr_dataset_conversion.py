@@ -9,12 +9,16 @@ from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.deepen.non_annotated_t4_tlr_to_deepen_converter import (
     NonAnnotatedT4TlrToDeepenConverter,
 )
+from perception_dataset.deepen.annotated_t4_tlr_to_deepen_converter import (
+    AnnotatedT4TlrToDeepenConverter,
+)
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     Rosbag2ToNonAnnotatedT4Converter,
 )
+from perception_dataset.constants import EXTENSION_ENUM
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
-from tests.utils.check_equality import diff_check_folder, diff_check_t4_dataset
+from tests.utils.check_equality import diff_check_folder, diff_check_t4_dataset,diff_check_json_files
 
 # Downloaded rosbag name
 TEST_ROSBAG_NAME = "sample_bag"
@@ -51,7 +55,7 @@ def non_annotated_t4_dataset_path():
 
 
 @pytest.fixture(scope="module")
-def t4_dataset_path(non_annotated_t4_dataset_path):
+def t4_dataset_path(deepen_dataset_path):
     # before test - convert deepen to t4
     with open(TEST_CONFIG_ROOT_DIR / "convert_deepen_to_t4_tlr_test.yaml") as f:
         config_dict = yaml.safe_load(f)
@@ -108,6 +112,28 @@ def deepen_dataset_path(non_annotated_t4_dataset_path):
     # after test - remove resource
     shutil.rmtree(t4_to_deepen_output_base, ignore_errors=True)
 
+@pytest.fixture(scope="module")
+def deepen_dataset_from_annotated_t4_path(t4_dataset_path):
+    # before test - convert annotated t4 to deepen label file
+    with open(TEST_CONFIG_ROOT_DIR / "convert_annotated_t4_tlr_to_deepen_sample.yaml") as f:
+        config_dict = yaml.safe_load(f)
+
+    t4_to_deepen_input_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["input_base"])
+    t4_to_deepen_output_base = osp.join(TEST_ROOT_DIR, config_dict["conversion"]["output_base"])
+
+    converter = AnnotatedT4TlrToDeepenConverter(
+        input_base=t4_to_deepen_input_base,
+        output_base=t4_to_deepen_output_base,
+        camera_position=config_dict["conversion"]["camera_position"]
+    )
+    converter.convert()
+
+    # provide a path to converted deepen label file
+    yield osp.join(t4_to_deepen_output_base, TEST_ROSBAG_NAME + EXTENSION_ENUM.JSON.value)
+
+    # after test - remove resource
+    shutil.rmtree(t4_to_deepen_output_base, ignore_errors=True)
+
 
 def test_non_annotated_t4_tlr_dataset_diff(non_annotated_t4_dataset_path):
     """Test that generated non-annotated T4 TLR dataset matches expected output."""
@@ -131,3 +157,9 @@ def test_deepen_tlr_dataset_diff(deepen_dataset_path):
     expected_path = Path(deepen_dataset_path.replace("_generated", ""))
 
     diff_check_folder(generated_path, expected_path)
+
+def test_deepen_from_annotated_tlr_dataset_diff(deepen_dataset_from_annotated_t4_path):
+    """Test that generated Deepen TLR dataset matches expected output."""
+    generated_path = Path(deepen_dataset_from_annotated_t4_path)
+    expected_path = Path(deepen_dataset_from_annotated_t4_path.replace("_generated", ""))
+    diff_check_json_files(generated_path, expected_path)
