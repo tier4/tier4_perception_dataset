@@ -1,0 +1,7 @@
+task: convert_annotated_t4_tlr_to_deepen
+conversion:
+  input_base: ./data/t4_sample_0/annotated_t4_tlr
+  output_base: ./data/t4_sample_0/deepen_format_from_annotated_t4_tlr_generated
+  camera_position:
+    CAM_TRAFFIC_LIGHT_FAR: camera_0
+    CAM_TRAFFIC_LIGHT_NEAR: camera_1
