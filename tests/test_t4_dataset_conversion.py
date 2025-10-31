@@ -7,7 +7,7 @@ import pytest
 from t4_devkit import Tier4
 import yaml
 
-from perception_dataset.constants import EXTENSION_ENUM, T4_FORMAT_DIRECTORY_NAME
+from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.deepen.annotated_t4_to_deepen_converter import (
     AnnotatedT4ToDeepenConverter,
 )
