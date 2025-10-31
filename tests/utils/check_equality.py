@@ -80,6 +80,8 @@ def diff_check_annotation(target_dir: Path, source_dir: Path) -> None:
     target_annotation_dir = target_dir / T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value
     source_annotation_dir = source_dir / T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value
 
+    if not target_annotation_dir.exists() and not source_annotation_dir.exists():
+        return  # Both annotation directories are absent; nothing to compare
     assert (
         target_annotation_dir.is_dir()
     ), f"Target annotation directory not found: {target_annotation_dir}"
@@ -107,6 +109,8 @@ def diff_check_data(target_dir: Path, source_dir: Path) -> None:
     target_data_dir = target_dir / T4_FORMAT_DIRECTORY_NAME.DATA.value
     source_data_dir = source_dir / T4_FORMAT_DIRECTORY_NAME.DATA.value
 
+    if not target_data_dir.exists() and not source_data_dir.exists():
+        return  # Both data directories are absent; nothing to compare
     assert target_data_dir.is_dir(), f"Target data directory not found: {target_data_dir}"
     assert source_data_dir.is_dir(), f"Source data directory not found: {source_data_dir}"
 
@@ -219,3 +223,8 @@ def diff_check_folder(target_dir: Path, source_dir: Path) -> None:
         source_content = source_file.read_bytes()
         target_content = target_file.read_bytes()
         assert source_content == target_content, f"File contents differ: {relative_path}"
+
+
+def diff_check_json_files(target_file: Path, source_file: Path) -> None:
+    """Compare two JSON files after removing token fields."""
+    _compare_json_files(target_file, source_file)
