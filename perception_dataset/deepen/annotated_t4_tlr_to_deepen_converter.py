@@ -31,9 +31,9 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
         if osp.exists(osp.join(input_dir, "annotation", "object_ann.json")):
             for frame_index, sample_record in enumerate(t4_dataset.sample):
                 for cam, sensor_id in self._camera_position.items():
-                    if cam not in sample_record["data"]:
+                    if cam not in sample_record.data:
                         continue
-                    sample_camera_token = sample_record["data"][cam]
+                    sample_camera_token = sample_record.data[cam]
                     object_anns = [
                         object_ann
                         for object_ann in t4_dataset.object_ann

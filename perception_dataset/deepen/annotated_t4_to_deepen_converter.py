@@ -81,12 +81,12 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
 
                 sample_data_record = t4_dataset.get("sample_data", sample_record.data[sensor])
                 file_id = osp.basename(sample_data_record.filename).replace(
-                    EXTENSION_ENUM.PCDBIN, EXTENSION_ENUM.PCD
+                    EXTENSION_ENUM.PCDBIN.value, EXTENSION_ENUM.PCD.value
                 )
 
                 # Original T4 format names the file_id as 000000.pcd.bin for example.
                 # We need to convert it to 0.pcd in this case.
-                file_id = str(int(file_id.split(".")[0])) + EXTENSION_ENUM.PCD
+                file_id = str(int(file_id.split(".")[0])) + EXTENSION_ENUM.PCD.value
 
                 label_category_id = self._label_converter.convert_label(category_record.name)
 

@@ -18,10 +18,12 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import Axes
 import numpy as np
 from t4_devkit import Tier4
+from t4_devkit.common.serialize import serialize_dataclasses
 from scipy.interpolate import CubicSpline
 from scipy.spatial.transform import Rotation, Slerp
 
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME,EXTENSION_ENUM
 from perception_dataset.utils.logger import configure_logger
 
 
@@ -129,7 +131,7 @@ class DataInterpolator(AbstractConverter):
         self.logger.info("Finish updating scene")
 
         # save
-        annotation_root = osp.join(output_path, t4_dataset.version)
+        annotation_root = osp.join(output_path, t4_dataset.version or T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value)
         self._save_json(all_samples, osp.join(annotation_root, "sample.json"))
         self._save_json(all_sample_data, osp.join(annotation_root, "sample_data.json"))
         self._save_json(all_sample_anns, osp.join(annotation_root, "sample_annotation.json"))
@@ -191,7 +193,7 @@ class DataInterpolator(AbstractConverter):
             if sd_record["is_key_frame"]:
                 continue
             filename: str = osp.splitext(
-                osp.basename(sd_record["filename"].replace(".pcd.bin", ".pcd"))
+                osp.basename(sd_record["filename"].replace(EXTENSION_ENUM.PCDBIN.value, EXTENSION_ENUM.PCD.value))
             )[0]
             if filename in interpolated_samples_dict.keys():
                 sample_token: str = interpolated_samples_dict[filename]["token"]
@@ -226,9 +228,9 @@ class DataInterpolator(AbstractConverter):
 
         # separate original sample annotations by instance token
         all_instance_anns = {ins.token: [] for ins in t4_dataset.instance}
-        for ann in t4_dataset.sample_annotation:
-            tmp_ann = {key: getattr(ann, key, None) for key in self.SAMPLE_ANN_KEYS}
-            all_instance_anns[ann.instance_token].append(tmp_ann)
+        for ann in serialize_dataclasses(t4_dataset.sample_annotation):
+            tmp_ann = {key: ann.get(key,None) for key in self.SAMPLE_ANN_KEYS}
+            all_instance_anns[ann["instance_token"]].append(tmp_ann)
 
         for ins_token, sample_anns in all_instance_anns.items():
             translations = []
@@ -355,7 +357,7 @@ class DataInterpolator(AbstractConverter):
         t4_dataset: Tier4,
         all_sample_annotations: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        all_instances = [vars(inst) for inst in t4_dataset.instance]
+        all_instances = serialize_dataclasses(t4_dataset.instance)
         for instance_record in all_instances:
             token = instance_record["token"]
             num_anns = len(
