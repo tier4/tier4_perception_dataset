@@ -8,15 +8,16 @@ from typing import Any, Dict
 
 from nptyping import NDArray
 import numpy as np
-from nuscenes.nuscenes import NuScenes
-from nuscenes.utils.data_classes import LidarPointCloud
-from nuscenes.utils.geometry_utils import transform_matrix
 from pyquaternion import Quaternion
+from t4_devkit import Tier4
+from t4_devkit.dataclass import LidarPointCloud
+from t4_devkit.schema import CalibratedSensor, EgoPose, SampleData
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.json_format import ConfigData, ImageData
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
 
@@ -63,13 +64,13 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
 
     def _convert_one_scene(self, input_dir: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)
-        nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
 
         logger.info(f"Converting {input_dir} to {output_dir}")
 
         with ProcessPoolExecutor(max_workers=self._workers_number) as executor:
             future_list = []
-            for frame_index, sample in enumerate(nusc.sample):
+            for frame_index, sample in enumerate(t4_dataset.sample):
                 if frame_index % int(10 / self._annotation_hz) != 0:
                     continue
                 future = executor.submit(
@@ -82,13 +83,13 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
     def _convert_one_frame(self, input_dir: str, output_dir: str, frame_index: int):
         if frame_index % 10 == 0:
             logger.info(f"frame index: {frame_index}")
-        nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
-        sample = nusc.sample[frame_index]
-        camera_only_mode = SENSOR_ENUM.LIDAR_CONCAT.value["channel"] not in sample["data"]
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
+        sample = t4_dataset.sample[frame_index]
+        camera_only_mode = SENSOR_ENUM.LIDAR_CONCAT.value["channel"] not in sample.data
         if not camera_only_mode:
-            lidar_token: str = sample["data"][SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
-            lidar_path: str = nusc.get_sample_data(lidar_token)[0]
-            data_dict: Dict[str, Any] = self._get_data(nusc, lidar_token)
+            lidar_token: str = sample.data[SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
+            lidar_path: str = t4_dataset.get_sample_data(lidar_token)[0]
+            data_dict: Dict[str, Any] = self._get_data(t4_dataset, lidar_token)
 
             pointcloud: LidarPointCloud = LidarPointCloud.from_file(lidar_path)
             pointcloud.transform(data_dict["sensor2global_transform"])
@@ -105,7 +106,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
 
         for camera_sensor_type in self._camera_sensor_types:
             camera_channel = camera_sensor_type.value["channel"]
-            camera_token: str | None = self._get_camera_token(camera_channel, sample, nusc)
+            camera_token: str | None = self._get_camera_token(camera_channel, sample, t4_dataset)
 
             if camera_token is None:
                 if self._drop_camera_token_not_found:
@@ -118,8 +119,8 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                         f"Camera token not found for {camera_channel} in frame {frame_index}. "
                     )
                     continue
-            camera_path, _, cam_intrinsic = nusc.get_sample_data(camera_token)
-            data_dict: Dict[str, Any] = self._get_data(nusc, camera_token)
+            camera_path, _, cam_intrinsic = t4_dataset.get_sample_data(camera_token)
+            data_dict: Dict[str, Any] = self._get_data(t4_dataset, camera_token)
 
             image_data = ImageData(
                 frame_index=frame_index,
@@ -145,39 +146,41 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         config_data.save_json(output_dir)
 
     @staticmethod
-    def _get_camera_token(camera_channel: str, sample, nusc) -> str | None:
-        """Get camera token for `camera_channel` in the given `sample` data from a NuScenes dataset.
+    def _get_camera_token(camera_channel: str, sample, t4_dataset) -> str | None:
+        """Get camera token for `camera_channel` in the given `sample` data from a Tier4 dataset.
         Args:
             camera_channel (str): Camera channel name e.g. CAM_FRONT to look for
-            sample: Sample data for a specific frame from NuScenes = `nusc.sample[frame_index]`
-            nusc (NuScenes): NuScenes dataset
+            sample: Sample data for a specific frame from Tier4 = `t4_dataset.sample[frame_index]`
+            t4_dataset (Tier4): Tier4 dataset
         Return:
             camera_token: str | None
                 None if not found
         """
         camera_token: str | None = None
-        if camera_channel in sample["data"].keys():
-            camera_token = sample["data"][camera_channel]
+        if camera_channel in sample.data.keys():
+            camera_token = sample.data[camera_channel]
         else:
-            sample_data = [s for s in nusc.sample_data if s["sample_token"] == sample["token"]]
+            sample_data = [s for s in t4_dataset.sample_data if s.sample_token == sample.token]
             for sensor in sample_data:
-                if sensor["channel"] == camera_channel:
-                    camera_token = sensor["token"]
+                if sensor.channel == camera_channel:
+                    camera_token = sensor.token
                     break
         return camera_token
 
-    def _get_data(self, nusc: NuScenes, sensor_channel_token: str) -> Dict[str, Any]:
-        sd_record = nusc.get("sample_data", sensor_channel_token)
-        cs_record = nusc.get("calibrated_sensor", sd_record["calibrated_sensor_token"])
-        ep_record = nusc.get("ego_pose", sd_record["ego_pose_token"])
+    def _get_data(self, t4_dataset: Tier4, sensor_channel_token: str) -> Dict[str, Any]:
+        sd_record: SampleData = t4_dataset.get("sample_data", sensor_channel_token)
+        cs_record: CalibratedSensor = t4_dataset.get(
+            "calibrated_sensor", sd_record.calibrated_sensor_token
+        )
+        ep_record: EgoPose = t4_dataset.get("ego_pose", sd_record.ego_pose_token)
 
         sensor2ego_transform = transform_matrix(
-            translation=cs_record["translation"],
-            rotation=Quaternion(cs_record["rotation"]),
+            translation=cs_record.translation,
+            rotation=cs_record.rotation,
         )
         ego2global_transform = transform_matrix(
-            translation=ep_record["translation"],
-            rotation=Quaternion(ep_record["rotation"]),
+            translation=ep_record.translation,
+            rotation=ep_record.rotation,
         )
 
         sensor2global_transform = ego2global_transform @ sensor2ego_transform
@@ -185,8 +188,8 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         sensor2global_rotation = np.array(list(Quaternion(matrix=sensor2global_transform[:3, :3])))
 
         ret_dict = {
-            "fileformat": sd_record["fileformat"],
-            "unix_timestamp": self._timestamp_to_sec(sd_record["timestamp"]),
+            "fileformat": sd_record.fileformat,
+            "unix_timestamp": self._timestamp_to_sec(sd_record.timestamp),
             "sensor2global_transform": sensor2global_transform,
             "sensor2global_translation": sensor2global_translation,
             "sensor2global_rotation": sensor2global_rotation,

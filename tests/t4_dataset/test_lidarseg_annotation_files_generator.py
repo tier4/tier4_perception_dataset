@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from unittest.mock import patch
 
 import pytest
+from t4_devkit.schema import Sample, SampleData
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
@@ -44,41 +45,35 @@ def _default_lidarseg(default_tmp_dir: str) -> Dict[int, List[Dict[str, Any]]]:
     return default_lidarseg
 
 
-class DummyNuImages:
-    """Dummy clas for nuimages."""
+class DummyTier4:
+    """Dummy Tier4 class for unit test."""
 
     def __init__(
         self,
-        version: str = "dummy_version",
-        dataroot: str = "dummy_data_root",
+        data_root: str = "dummy_data_root",
         verbose: bool = False,
     ):
-        self.version = version
-        self.dummy_data_root = dataroot
-        self.verbose = verbose
-
-
-class DummyNuscenes:
-    """Dummy nuscenes class for unit test."""
-
-    def __init__(
-        self,
-        version: str = "dummy_version",
-        dataroot: str = "dummy_data_root",
-        verbose: bool = False,
-    ):
-        self.version = version
-        self.dummy_data_root = dataroot
+        self.dummy_data_root = data_root
         self.verbose = verbose
         self.sample_data = [
-            {"token": "0", "sample_token": "0", "filename": "data/LIDAR_CONCAT/00000.pcd.bin"},
-            {"token": "1", "sample_token": "1", "filename": "data/LIDAR_CONCAT/00001.pcd.bin"},
-            {"token": "2", "sample_token": "2", "filename": "data/LIDAR_CONCAT/00002.pcd.bin"},
-            {"token": "3", "sample_token": "3", "filename": "data/LIDAR_CONCAT/00003.pcd.bin"},
-            {"token": "4", "sample_token": "4", "filename": "data/LIDAR_CONCAT/00004.pcd.bin"},
-            {"token": "5", "sample_token": "5", "filename": "data/LIDAR_CONCAT/00005.pcd.bin"},
+            SampleData(
+                token=str(i),
+                sample_token=str(i),
+                ego_pose_token="0",
+                calibrated_sensor_token="0",
+                filename=f"data/LIDAR_CONCAT/0000{i}.pcd.bin",
+                fileformat="pcd.bin",
+                width=0,
+                height=0,
+                timestamp=0,
+                is_key_frame=True,
+                next="",
+                prev="",
+                is_valid=True,
+            )
+            for i in range(6)
         ]
-        self.sample = [{"token": "0", "data": "data/LIDAR_CONCAT/00003.pcd.bin"}]
+        self.sample = [Sample(timestamp=0, token="0", scene_token="0", next="", prev="")]
 
 
 # Note: test case1, case2 use the same scene_anno_dict
@@ -110,11 +105,7 @@ class TestAnnotationFilesGenerator:
         instance_for_test: AnnotationFilesGenerator,
     ) -> None:
         """Test running convert_one_scene function."""
-        with patch(
-            "perception_dataset.t4_dataset.annotation_files_generator.NuScenes", DummyNuscenes
-        ), patch(
-            "perception_dataset.t4_dataset.annotation_files_generator.NuImages", DummyNuImages
-        ):
+        with patch("perception_dataset.t4_dataset.annotation_files_generator.Tier4", DummyTier4):
             with tempfile.TemporaryDirectory() as dir_name:
                 anno_dir = os.path.join(dir_name, "t4_format")
                 anno_path = Path(anno_dir)
@@ -142,10 +133,10 @@ class TestAnnotationFilesGenerator:
     ) -> None:
         """Test running _convert_lidarseg_scene_annotations function."""
         with tempfile.TemporaryDirectory() as dir_name:
-            dummy_nuscenes = DummyNuscenes()
+            dummy_t4 = DummyTier4()
             anno_dir = os.path.join(dir_name, "annotation")
             instance_for_test._convert_lidarseg_scene_annotations(
-                nusc=dummy_nuscenes,
+                t4_dataset=dummy_t4,
                 scene_anno_dict=_default_lidarseg(default_tmp_dir=dir_name),
                 lidar_sensor_channel="LIDAR_CONCAT",
                 anno_dir=anno_dir,

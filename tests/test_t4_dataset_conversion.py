@@ -3,11 +3,11 @@ import os.path as osp
 from pathlib import Path
 import shutil
 
-from nuscenes.nuscenes import NuScenes
 import pytest
+from t4_devkit import Tier4
 import yaml
 
-from perception_dataset.constants import EXTENSION_ENUM, T4_FORMAT_DIRECTORY_NAME
+from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.deepen.annotated_t4_to_deepen_converter import (
     AnnotatedT4ToDeepenConverter,
 )
@@ -148,14 +148,13 @@ def deepen_path(non_annotated_t4_dataset_path):
 def test_t4_dataset_validation(t4_dataset_path):
     validate_directory_structure(t4_dataset_path)
 
-    nusc = NuScenes(
-        version=T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value,
-        dataroot=t4_dataset_path,
+    t4_dataset = Tier4(
+        data_root=t4_dataset_path,
         verbose=False,
     )
 
-    validate_format(nusc, t4_dataset_path)
-    validate_data_hz(nusc)
+    validate_format(t4_dataset, t4_dataset_path)
+    validate_data_hz(t4_dataset)
 
 
 @pytest.fixture(scope="module")

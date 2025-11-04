@@ -5,16 +5,15 @@ import os.path as osp
 import time
 from typing import Any, Dict, List
 
-from nuimages import NuImages
 import numpy as np
-from nuscenes.nuscenes import NuScenes
-from nuscenes.utils.geometry_utils import transform_matrix
 from pyquaternion import Quaternion
+from t4_devkit import Tier4
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LABEL_PATH_ENUM
+from perception_dataset.constants import EXTENSION_ENUM, LABEL_PATH_ENUM
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
 
@@ -50,16 +49,15 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
     def _convert_one_scene(self, input_dir: str, scene_name: str):
         output_dir = self._output_base
         os.makedirs(output_dir, exist_ok=True)
-        nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
-        nuim = NuImages(version="annotation", dataroot=input_dir, verbose=True, lazy=True)
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
 
         logger.info(f"Converting {input_dir} to {output_dir}")
         output_label: List = []
 
-        for frame_index, sample_record in enumerate(nusc.sample):
-            sample_token = sample_record["token"]
+        for frame_index, sample_record in enumerate(t4_dataset.sample):
+            sample_token = sample_record.token
             logger.info(f"sample_token: {sample_token}")
-            for anno_token in sample_record["anns"]:
+            for anno_token in sample_record.ann_3ds:
                 current_label_dict: Dict = {}
                 current_label_dict["attributes_source"] = {}
                 current_label_dict["create_time_millis"] = "null"
@@ -70,50 +68,52 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                 current_label_dict["version"] = "null"
                 current_label_dict["label_set_id"] = "default"
                 current_label_dict["stage_id"] = "Labelling"
-                anno = nusc.get("sample_annotation", anno_token)
+                anno = t4_dataset.get("sample_annotation", anno_token)
 
-                instance_record = nusc.get("instance", anno["instance_token"])
-                instance_index = nusc.getind("instance", anno["instance_token"]) + 1
-                category_record = nusc.get("category", instance_record["category_token"])
-                visibility_record = nusc.get("visibility", anno["visibility_token"])
+                instance_record = t4_dataset.get("instance", anno.instance_token)
+                instance_index = t4_dataset.get_idx("instance", anno.instance_token) + 1
+                category_record = t4_dataset.get("category", instance_record.category_token)
+                visibility_record = t4_dataset.get("visibility", anno.visibility_token)
 
-                for sensor, token in sample_record["data"].items():
+                for sensor, token in sample_record.data.items():
                     if "LIDAR" in sensor:
                         break
 
-                sample_data_record = nusc.get("sample_data", sample_record["data"][sensor])
-                file_id = osp.basename(sample_data_record["filename"]).replace(".pcd.bin", ".pcd")
+                sample_data_record = t4_dataset.get("sample_data", sample_record.data[sensor])
+                file_id = osp.basename(sample_data_record.filename).replace(
+                    EXTENSION_ENUM.PCDBIN.value, EXTENSION_ENUM.PCD.value
+                )
 
                 # Original T4 format names the file_id as 000000.pcd.bin for example.
                 # We need to convert it to 0.pcd in this case.
-                file_id = str(int(file_id.split(".")[0])) + ".pcd"
+                file_id = str(int(file_id.split(".")[0])) + EXTENSION_ENUM.PCD.value
 
-                label_category_id = self._label_converter.convert_label(category_record["name"])
+                label_category_id = self._label_converter.convert_label(category_record.name)
 
                 attributes_records = [
-                    nusc.get("attribute", token) for token in anno["attribute_tokens"]
+                    t4_dataset.get("attribute", token) for token in anno.attribute_tokens
                 ]
                 attributes_name = [
-                    self._label_converter.convert_attribute(v["name"]) for v in attributes_records
+                    self._label_converter.convert_attribute(v.name) for v in attributes_records
                 ]
                 attributes = {v[0 : v.find(".")]: v[v.find(".") + 1 :] for v in attributes_name}
                 if "occlusion_state" not in attributes:
                     attributes["occlusion_state"] = self._convert_to_visibility_occulusion(
-                        visibility_record["level"]
+                        visibility_record.level
                     )
 
                 three_d_bbox = {
-                    "cx": anno["translation"][0],
-                    "cy": anno["translation"][1],
-                    "cz": anno["translation"][2],
-                    "h": anno["size"][2],
-                    "l": anno["size"][1],
-                    "w": anno["size"][0],
+                    "cx": anno.translation[0],
+                    "cy": anno.translation[1],
+                    "cz": anno.translation[2],
+                    "h": anno.size[2],
+                    "l": anno.size[1],
+                    "w": anno.size[0],
                     "quaternion": {
-                        "x": anno["rotation"][1],
-                        "y": anno["rotation"][2],
-                        "z": anno["rotation"][3],
-                        "w": anno["rotation"][0],
+                        "x": anno.rotation[1],
+                        "y": anno.rotation[2],
+                        "z": anno.rotation[3],
+                        "w": anno.rotation[0],
                     },
                 }
                 current_label_dict["three_d_bbox"] = three_d_bbox
@@ -131,36 +131,39 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                 print(f"{label_category_id}:{instance_index}")
 
         if osp.exists(osp.join(input_dir, "annotation", "object_ann.json")):
-            for frame_index, sample_record in enumerate(nusc.sample):
+            for frame_index, sample_record in enumerate(t4_dataset.sample):
                 for cam, sensor_id in self._camera_position.items():
-                    if cam not in sample_record["data"]:
+                    if cam not in sample_record.data:
                         continue
-                    sample_camera_token = sample_record["data"][cam]
+                    sample_camera_token = sample_record.data[cam]
                     print(f"cam:{cam}, sample_camera_token: {sample_camera_token}")
                     object_anns = [
-                        o for o in nuim.object_ann if o["sample_data_token"] == sample_camera_token
+                        o
+                        for o in t4_dataset.object_ann
+                        if o.sample_data_token == sample_camera_token
                     ]
 
                     for ann in object_anns:
                         current_label_dict: Dict = {}
-                        category_token = ann["category_token"]
-                        category_record = nuim.get("category", category_token)
-                        bbox = ann["bbox"]
+                        category_token = ann.category_token
+                        category_record = t4_dataset.get("category", category_token)
+                        bbox = ann.bbox
                         bbox[2] = bbox[2] - bbox[0]
                         bbox[3] = bbox[3] - bbox[1]
                         label_type = "box"
                         current_label_dict["box"] = bbox
 
                         label_category_id = self._label_converter.convert_label(
-                            category_record["name"]
+                            category_record.name
                         )
                         try:
-                            instance_index = nusc.getind("instance", ann["instance_token"]) + 1
+                            instance_index = t4_dataset.get_idx("instance", ann.instance_token) + 1
                             attributes_records = [
-                                nusc.get("attribute", token) for token in ann["attribute_tokens"]
+                                t4_dataset.get("attribute", token)
+                                for token in ann.attribute_tokens
                             ]
                             attributes_name = [
-                                self._label_converter.convert_attribute(v["name"])
+                                self._label_converter.convert_attribute(v.name)
                                 for v in attributes_records
                             ]
                             attributes = {
@@ -187,7 +190,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
                             output_label.append(current_label_dict)
                             print(f"{label_category_id}:{instance_index}")
                         except KeyError:
-                            instance_id = ann["instance_token"]
+                            instance_id = ann.instance_token
                             print(f"There is no instance_id:{instance_id}")
 
         output_json = {"labels": output_label}
@@ -196,18 +199,18 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
 
         logger.info(f"Done Conversion: {input_dir} to {output_dir}")
 
-    def _get_data(self, nusc: NuScenes, sensor_channel_token: str) -> Dict[str, Any]:
-        sd_record = nusc.get("sample_data", sensor_channel_token)
-        cs_record = nusc.get("calibrated_sensor", sd_record["calibrated_sensor_token"])
-        ep_record = nusc.get("ego_pose", sd_record["ego_pose_token"])
+    def _get_data(self, t4_dataset: Tier4, sensor_channel_token: str) -> Dict[str, Any]:
+        sd_record = t4_dataset.get("sample_data", sensor_channel_token)
+        cs_record = t4_dataset.get("calibrated_sensor", sd_record.calibrated_sensor_token)
+        ep_record = t4_dataset.get("ego_pose", sd_record.ego_pose_token)
 
         sensor2ego_transform = transform_matrix(
-            translation=cs_record["translation"],
-            rotation=Quaternion(cs_record["rotation"]),
+            translation=cs_record.translation,
+            rotation=Quaternion(cs_record.rotation),
         )
         ego2global_transform = transform_matrix(
-            translation=ep_record["translation"],
-            rotation=Quaternion(ep_record["rotation"]),
+            translation=ep_record.translation,
+            rotation=Quaternion(ep_record.rotation),
         )
 
         sensor2global_transform = ego2global_transform @ sensor2ego_transform
@@ -215,8 +218,8 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
         sensor2global_rotation = np.array(list(Quaternion(matrix=sensor2global_transform[:3, :3])))
 
         ret_dict = {
-            "fileformat": sd_record["fileformat"],
-            "unix_timestamp": self._timestamp_to_sec(sd_record["timestamp"]),
+            "fileformat": sd_record.fileformat,
+            "unix_timestamp": self._timestamp_to_sec(sd_record.timestamp),
             "sensor2global_transform": sensor2global_transform,
             "sensor2global_translation": sensor2global_translation,
             "sensor2global_rotation": sensor2global_rotation,
