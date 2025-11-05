@@ -1,0 +1,577 @@
+{
+  "format_version": "0.1",
+  "categories": [
+    {
+      "name": "car",
+      "id": 1,
+      "color": [90, 135, 20],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "truck",
+      "id": 2,
+      "color": [42, 240, 59],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "bus",
+      "id": 3,
+      "color": [195, 43, 93],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "trailer",
+      "id": 4,
+      "color": [9, 132, 244],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "motorcycle",
+      "id": 5,
+      "color": [149, 51, 176],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "radio",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "bicycle",
+      "id": 6,
+      "color": [244, 143, 174],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "unknown",
+      "id": 7,
+      "color": [9, 219, 76],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "object_state",
+          "input_type": "select",
+          "values": ["still", "frying"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "pedestrian",
+      "id": 8,
+      "color": [218, 154, 219],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "pedestrian_state",
+          "input_type": "select",
+          "values": ["sitting", "lying_down", "standing"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "construction_worker",
+      "id": 9,
+      "color": [227, 177, 167],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "pedestrian_state",
+          "input_type": "select",
+          "values": ["sitting", "lying_down", "standing"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "radio",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "stroller",
+      "id": 10,
+      "color": [106, 146, 95],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "pedestrian_state",
+          "input_type": "radio",
+          "values": ["sitting", "lying_down", "standing"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "radio",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "wheelchair",
+      "id": 11,
+      "color": [26, 235, 242],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "pedestrian_state",
+          "input_type": "radio",
+          "values": ["sitting", "lying_down"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "radio",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "police_officer",
+      "id": 12,
+      "color": [162, 180, 214],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "pedestrian_state",
+          "input_type": "select",
+          "values": ["sitting", "lying_down", "standing"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "police_car",
+      "id": 13,
+      "color": [193, 75, 227],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "emergency_vehicle_lights_state",
+          "input_type": "select",
+          "values": ["on", "off", "unknown"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "fire_truck",
+      "id": 14,
+      "color": [32, 18, 164],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "emergency_vehicle_lights_state",
+          "input_type": "select",
+          "values": ["on", "off", "unknown"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "ambulance",
+      "id": 15,
+      "color": [19, 42, 167],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "emergency_vehicle_lights_state",
+          "input_type": "select",
+          "values": ["on", "off", "unknown"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "forklift",
+      "id": 16,
+      "color": [228, 54, 85],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "tractor_unit",
+      "id": 17,
+      "color": [55, 253, 98],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "semi_trailer",
+      "id": 18,
+      "color": [144, 160, 64],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "kart",
+      "id": 19,
+      "color": [176, 57, 65],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "radio",
+          "values": ["none", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    },
+    {
+      "name": "construction_vehicle",
+      "id": 20,
+      "color": [135, 178, 161],
+      "has_instances": true,
+      "dimensions": null,
+      "link_attributes": null,
+      "attributes": [
+        {
+          "name": "occlusion_state",
+          "input_type": "select",
+          "values": ["none", "partial", "most", "full"],
+          "is_mandatory": false
+        },
+        {
+          "name": "vehicle_state",
+          "input_type": "select",
+          "values": ["driving", "parked"],
+          "is_mandatory": false
+        },
+        {
+          "name": "extremities_state",
+          "input_type": "multi_select",
+          "values": ["none", "open_door", "protruding_object"],
+          "is_mandatory": false
+        }
+      ]
+    }
+  ]
+}
