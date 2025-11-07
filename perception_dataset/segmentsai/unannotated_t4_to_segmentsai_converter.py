@@ -170,6 +170,7 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
                     "timestamp": lidar_metadata["timestamp"],
                     "ego_pose": self._build_ego_pose(lidar_metadata),
                 }
+                lidar_frame_entry["default_z"] = lidar_frame_entry["ego_pose"]["position"]["z"]
 
             for sensor_enum in self._camera_sensor_types:
                 camera_channel = sensor_enum.value["channel"]

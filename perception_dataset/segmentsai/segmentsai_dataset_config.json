@@ -6,7 +6,7 @@
       "id": 1,
       "color": [90, 135, 20],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 4.5,  "y": 2.0, "z": 1.5},
       "link_attributes": null,
       "attributes": [
         {
@@ -34,7 +34,7 @@
       "id": 2,
       "color": [42, 240, 59],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 8.0,  "y": 2.5, "z": 3.0},
       "link_attributes": null,
       "attributes": [
         {
@@ -62,7 +62,7 @@
       "id": 3,
       "color": [195, 43, 93],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x":10.0,  "y": 3.0, "z": 3.4},
       "link_attributes": null,
       "attributes": [
         {
@@ -90,7 +90,7 @@
       "id": 4,
       "color": [9, 132, 244],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 12.0, "y": 4.0, "z": 4.5},
       "link_attributes": null,
       "attributes": [
         {
@@ -118,7 +118,7 @@
       "id": 5,
       "color": [149, 51, 176],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 2.0, "y": 0.8, "z": 1.2},
       "link_attributes": null,
       "attributes": [
         {
@@ -146,7 +146,7 @@
       "id": 6,
       "color": [244, 143, 174],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 1.8, "y": 0.6, "z": 1.0},
       "link_attributes": null,
       "attributes": [
         {
@@ -174,7 +174,7 @@
       "id": 7,
       "color": [9, 219, 76],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 1.0,  "y": 1.0, "z": 1.0},
       "link_attributes": null,
       "attributes": [
         {
@@ -196,7 +196,7 @@
       "id": 8,
       "color": [218, 154, 219],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 0.9,  "y": 0.6, "z": 1.8},
       "link_attributes": null,
       "attributes": [
         {
@@ -224,7 +224,7 @@
       "id": 9,
       "color": [227, 177, 167],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 0.9,  "y": 0.6, "z": 1.8},
       "link_attributes": null,
       "attributes": [
         {
@@ -252,7 +252,7 @@
       "id": 10,
       "color": [106, 146, 95],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 1.5,  "y": 0.6, "z": 1.2},
       "link_attributes": null,
       "attributes": [
         {
@@ -280,7 +280,7 @@
       "id": 11,
       "color": [26, 235, 242],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 1.2,  "y": 0.7, "z": 1.4},
       "link_attributes": null,
       "attributes": [
         {
@@ -308,7 +308,7 @@
       "id": 12,
       "color": [162, 180, 214],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 0.9,  "y": 0.6, "z": 1.8},
       "link_attributes": null,
       "attributes": [
         {
@@ -336,7 +336,7 @@
       "id": 13,
       "color": [193, 75, 227],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 4.5,  "y": 2.0, "z": 1.5},
       "link_attributes": null,
       "attributes": [
         {
@@ -370,7 +370,7 @@
       "id": 14,
       "color": [32, 18, 164],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 9.0,  "y": 2.6, "z": 3.3},
       "link_attributes": null,
       "attributes": [
         {
@@ -404,7 +404,7 @@
       "id": 15,
       "color": [19, 42, 167],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 5.0,  "y": 2.2, "z": 2.1},
       "link_attributes": null,
       "attributes": [
         {
@@ -438,7 +438,7 @@
       "id": 16,
       "color": [228, 54, 85],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 3.5,  "y": 1.6, "z": 2.6},
       "link_attributes": null,
       "attributes": [
         {
@@ -466,7 +466,7 @@
       "id": 17,
       "color": [55, 253, 98],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 6.0,  "y": 2.5, "z": 3.0},
       "link_attributes": null,
       "attributes": [
         {
@@ -494,7 +494,7 @@
       "id": 18,
       "color": [144, 160, 64],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x":12.0,  "y": 2.5, "z": 3.0},
       "link_attributes": null,
       "attributes": [
         {
@@ -522,7 +522,7 @@
       "id": 19,
       "color": [176, 57, 65],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x": 2.0,  "y": 1.0, "z": 1.0},
       "link_attributes": null,
       "attributes": [
         {
@@ -550,7 +550,7 @@
       "id": 20,
       "color": [135, 178, 161],
       "has_instances": true,
-      "dimensions": null,
+      "dimensions": {"x":7.0,"y":3.0, "z":3.0},
       "link_attributes": null,
       "attributes": [
         {
