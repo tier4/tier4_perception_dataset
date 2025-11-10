@@ -47,6 +47,10 @@ Note: This sample dataset contains only lidar point cloud sensor data and includ
       - 0.pcd.bin (point cloud [x, y, z, intensity, ring_idx])
       - 1.pcd.bin
       - {frame_id}.pcd.bin
+    - /LIDAR_CONCAT_INFO
+      - 0.json (json file corresponding to autoware_sensing_msgs.msg.ConcatenatedPointCloudInfo )
+      - 1.json
+      - {frame_id}.json
     - /RADAR_FRONT
       - 0.pcd.bin (fields [x, y, z, class, id, rcs, vx, vy, vx_comp, vy_comp, is_quality_valid, ambiguity_state, x_rms, y_rms, invalid_state, confidence, vx_rms, vy_rms])
       - {frame_id}.pcd.bin
@@ -290,14 +294,12 @@ e.g.:
 
 #### Description
 
-Definition of a particular sensor (lidar, camera) as calibrated on a particular vehicle. All extrinsic parameters are given with respect to ~~the ego vehicle body frame~~ the world origin. Although the distortion parameters (k1, k2, p1, p2, k3) are given, but
+Definition of a particular sensor (lidar, camera) as calibrated on a particular vehicle. All extrinsic parameters are given with respect to ~~the ego vehicle body frame~~ the world origin. Although the distortion parameters (k1, k2, p1, p2[, k3[, k4, k5, k6[, s1, s2, s3, s4[, τx, τy]]]]) are given, but
 its calibration is not done. So, if cameras used in collecting the data have any distortion, it is responsible for you to consider the parameters.
 
 #### Caution
 
-- Currently, this converter does not consider the calibration of distortion.
-  Camera distortion parameters (k1, k2, p1, p2, k3) are temporarily stored in calibrated_sensor.json.
-  **As long as there is no distortion, there is no problem. If not, it does not work correctly for now.**
+- Camera distortion parameters are stored in calibrated_sensor.json following the [OpenCV](https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html#ga7dfb72c9cf9780a347fbe3d1c47e5d5a) distortion model convention. The system now supports multiple distortion models (4, 5, 8, 12, or 14 parameters) for comprehensive camera calibration.
 - While all extrinsic parameters are given with respect to the ego vehicle body frame in the original nuScenes dataset, they are given with respect to **the world coordinate** in this format for now because the information about ego pose is not available.
 - The translation and rotation in a record of LiDAR data are equals to those of the base_link.
 
@@ -309,7 +311,7 @@ its calibration is not done. So, if cameras used in collecting the data have any
   - "translation": [float] [3] -- Coordinate system origin in meters: (x, y, z).
   - "rotation": [float] [4] -- Coordinate system orientation as - quaternion: (w, x, y, z).
   - "camera_intrinsic": [float] [3, 3] -- Intrinsic camera calibration. Empty list `[]` for sensors other than cameras.
-  - "camera_distortion": [float] [5] -- Distortion parameters (k1, k2, p1, p2, k3) Empty list '[]' for sensors other than cameras. **(Added)**
+  - "camera_distortion": [float] [4|5|8|12|14] -- Camera distortion coefficients following OpenCV convention. Supports 4, 5, 8, 12, or 14 elements for different distortion models: (k1, k2, p1, p2[, k3[, k4, k5, k6[, s1, s2, s3, s4[, τx, τy]]]]). Empty list '[]' for sensors other than cameras. **(Added)**
 
 ### category.json
 
@@ -563,6 +565,7 @@ A sensor data e.g. image, point cloud or radar return. For sample_data with is_k
   - "next": [str] -- Foreign key. Sample data from the same sensor that follows this in time. Empty if end of scene.
   - "prev": [str] -- Foreign key. Sample data from the same sensor that precedes this in time. Empty if start of scene.
   - "is_valid": [bool] -- True if the data is valid, else False. Invalid data should be ignored.
+  - "info_filename":[str] -- Relative path to the metainformation of the sensor data, empty if none. Usually a json file. For concatenated lidar, it includes point index ranges of component lidars, and their timestamps.
   - "autolabel_metadata": [Optional[dict]] -- Metadata about the automatic annotation applied to this entire sample_data item (e.g., image or scan). **(Added)**
     - "models": [{ name: str, score: float, uncertainty?: float }] -- List of models used for autolabeling. Each object includes the model name, confidence score, and optionally its uncertainty.
       - "name": [str] -- Name of the model used for annotation. Can include version information.

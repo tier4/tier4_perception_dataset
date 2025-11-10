@@ -3,8 +3,7 @@ import os
 import os.path as osp
 from typing import Dict, List
 
-from nuimages import NuImages
-from nuscenes.nuscenes import NuScenes
+from t4_devkit import Tier4
 
 from perception_dataset.constants import LABEL_PATH_ENUM
 from perception_dataset.deepen.annotated_t4_to_deepen_converter import AnnotatedT4ToDeepenConverter
@@ -24,36 +23,39 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
     def _convert_one_scene(self, input_dir: str, scene_name: str):
         output_dir = self._output_base
         os.makedirs(output_dir, exist_ok=True)
-        nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
-        nuim = NuImages(version="annotation", dataroot=input_dir, verbose=True, lazy=True)
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
 
         logger.info(f"Converting {input_dir} to {output_dir}")
         output_label: List = []
 
         if osp.exists(osp.join(input_dir, "annotation", "object_ann.json")):
-            for frame_index, sample_record in enumerate(nusc.sample):
+            for frame_index, sample_record in enumerate(t4_dataset.sample):
                 for cam, sensor_id in self._camera_position.items():
-                    sample_camera_token = sample_record["data"][cam]
+                    if cam not in sample_record.data:
+                        continue
+                    sample_camera_token = sample_record.data[cam]
                     object_anns = [
-                        o for o in nuim.object_ann if o["sample_data_token"] == sample_camera_token
+                        object_ann
+                        for object_ann in t4_dataset.object_ann
+                        if object_ann.sample_data_token == sample_camera_token
                     ]
 
                     for ann in object_anns:
                         current_label_dict: Dict = {}
-                        category_token = ann["category_token"]
-                        category_record = nuim.get("category", category_token)
-                        bbox = ann["bbox"]
-                        bbox[2] = bbox[2] - bbox[0]
-                        bbox[3] = bbox[3] - bbox[1]
+                        category_token = ann.category_token
+                        category_record = t4_dataset.get("category", category_token)
+                        roi = ann.bbox
+                        # Convert Roi tuple to bbox list and transform to width/height format
+                        bbox = [roi[0], roi[1], roi[2] - roi[0], roi[3] - roi[1]]
                         label_type = "box"
                         current_label_dict["box"] = bbox
 
                         label_category_id = self._label_converter.convert_label(
-                            category_record["name"]
+                            category_record.name
                         )
                         try:
-                            instance = nusc.get("instance", ann["instance_token"])
-                            instance_name = instance["instance_name"]
+                            instance = t4_dataset.get("instance", ann.instance_token)
+                            instance_name = instance.instance_name
                             traffic_light_id = instance_name.split("::")[1]
                             attributes: Dict = {
                                 "Occlusion_State": "none",
@@ -80,7 +82,7 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
 
                             output_label.append(current_label_dict)
                         except KeyError:
-                            instance_id = ann["instance_token"]
+                            instance_id = ann.instance_token
                             print(f"There is no instance_id:{instance_id}")
 
         output_json = {"labels": output_label}

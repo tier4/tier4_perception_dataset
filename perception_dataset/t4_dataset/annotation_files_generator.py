@@ -6,11 +6,10 @@ import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
 from nptyping import NDArray
-from nuimages import NuImages
 import numpy as np
-from nuscenes.nuscenes import NuScenes
 from pycocotools import mask as cocomask
 from scipy.spatial.transform import Rotation
+from t4_devkit import Tier4
 
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
@@ -106,27 +105,26 @@ class AnnotationFilesGenerator:
         if not osp.exists(anno_dir):
             raise ValueError(f"Annotations files doesn't exist in {anno_dir}")
 
-        nusc = NuScenes(version="annotation", dataroot=input_dir, verbose=False)
+        t4_dataset = Tier4(data_root=input_dir, verbose=False)
         try:
-            if "LIDAR_TOP" in nusc.sample[0]["data"]:
+            if "LIDAR_TOP" in t4_dataset.sample[0].data:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_TOP.value["channel"]
             else:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_CONCAT.value["channel"]
         except KeyError as e:
             print(e)
 
-        nuim = NuImages(version="annotation", dataroot=input_dir, verbose=False)
         # TODO (KokSeang): Support lidarseg and other annotations at the same time
         if self._with_lidarseg:
             self._convert_lidarseg_scene_annotations(
                 scene_anno_dict=scene_anno_dict,
-                nusc=nusc,
+                t4_dataset=t4_dataset,
                 anno_dir=anno_dir,
                 lidar_sensor_channel=lidar_sensor_channel,
             )
         else:
             self._convert_scene_annotations(
-                scene_anno_dict=scene_anno_dict, dataset_name=dataset_name, nuim=nuim, nusc=nusc
+                scene_anno_dict=scene_anno_dict, dataset_name=dataset_name, t4_dataset=t4_dataset
             )
 
         self._attribute_table.save_json(anno_dir)
@@ -146,20 +144,18 @@ class AnnotationFilesGenerator:
         self,
         scene_anno_dict: Dict[int, List[Dict[str, Any]]],
         dataset_name: str,
-        nusc: NuScenes,
-        nuim: NuImages,
+        t4_dataset: Tier4,
     ) -> None:
         """
         Convert scene annotations to T4 dataset format.
         :param scene_anno_dict: Scene annotations.
         :param dataset_name: Dataset name.
-        :param nusc: NuScenes object.
-        :param nuim: Nuimages object.
+        :param t4_dataset: Tier4 object.
         """
         frame_index_to_sample_token: Dict[int, str] = {}
-        for sample_data in nusc.sample_data:
-            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
-            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
+        for sample_data in t4_dataset.sample_data:
+            frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
+            frame_index_to_sample_token[frame_index] = sample_data.sample_token
 
         # FIXME: Avoid hard coding the number of cameras
         num_cameras = 6 if self._camera2idx is None else len(self._camera2idx)
@@ -178,17 +174,17 @@ class AnnotationFilesGenerator:
             object_mask: NDArray = np.zeros((0, 0), dtype=np.uint8)
             prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
-            for _, sample_nuim in enumerate(nuim.sample_data):
-                if sample_nuim["fileformat"] == "png" or sample_nuim["fileformat"] == "jpg":
-                    cam = sample_nuim["filename"].split("/")[1]
+            for _, sample_data in enumerate(t4_dataset.sample_data):
+                if sample_data.fileformat == "png" or sample_data.fileformat == "jpg":
+                    cam = sample_data.filename.split("/")[1]
                     cam_idx = self._camera2idx[cam]
 
-                    frame_index = int((sample_nuim["filename"].split("/")[2]).split(".")[0])
+                    frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
                     frame_index_to_sample_data_token[cam_idx].update(
-                        {frame_index: sample_nuim["token"]}
+                        {frame_index: sample_data.token}
                     )
 
-                    hgt_wid = (sample_nuim["height"], sample_nuim["width"])
+                    hgt_wid = (sample_data.height, sample_data.width)
                     if hgt_wid != prev_wid_hgt:
                         prev_wid_hgt = hgt_wid
                         object_mask = np.zeros(hgt_wid, dtype=np.uint8)
@@ -204,7 +200,7 @@ class AnnotationFilesGenerator:
             dataset_name=dataset_name,
             frame_index_to_sample_data_token=frame_index_to_sample_data_token,
             mask=mask,
-            nusc=nusc,
+            t4_dataset=t4_dataset,
         )
 
     def convert_annotations(
@@ -214,7 +210,7 @@ class AnnotationFilesGenerator:
         dataset_name: str,
         frame_index_to_sample_data_token: Optional[List[Dict[int, str]]] = None,
         mask: Optional[List[Dict[int, str]]] = None,
-        nusc: NuScenes = None,
+        t4_dataset: Tier4 = None,
     ):
         self._convert_to_t4_format(
             scene_anno_dict=scene_anno_dict,
@@ -222,7 +218,7 @@ class AnnotationFilesGenerator:
             dataset_name=dataset_name,
             frame_index_to_sample_data_token=frame_index_to_sample_data_token,
             mask=mask,
-            nusc=nusc,
+            t4_dataset=t4_dataset,
         )
         self._connect_annotations_in_scene()
 
@@ -233,9 +229,9 @@ class AnnotationFilesGenerator:
         dataset_name: str,
         frame_index_to_sample_data_token: List[Dict[int, str]],
         mask: List[Dict[int, str]],
-        nusc: NuScenes = None,
+        t4_dataset: Tier4 = None,
     ):
-        """Convert the annotations to the NuScenes format.
+        """Convert the annotations to the Tier4 format.
 
         Args:
             scene_anno_dict (Dict[int, List[Dict[str, Any]]]): [description]
@@ -331,7 +327,7 @@ class AnnotationFilesGenerator:
                 if "three_d_bbox" in anno.keys():
                     sample_token: str = frame_index_to_sample_token[frame_index]
                     anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(
-                        anno["three_d_bbox"], sample_token=sample_token, nusc=nusc
+                        anno["three_d_bbox"], sample_token=sample_token, t4_dataset=t4_dataset
                     )
 
                     sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
@@ -397,7 +393,7 @@ class AnnotationFilesGenerator:
         self,
         three_d_bbox: Dict[str, float],
         sample_token: str,
-        nusc: NuScenes,
+        t4_dataset: Tier4,
     ) -> Dict[str, float]:
         if self._label_coordinates == "map":
             return three_d_bbox
@@ -405,19 +401,19 @@ class AnnotationFilesGenerator:
             assert (
                 "translation" in three_d_bbox.keys() or "rotation" in three_d_bbox.keys()
             ), "translation and rotation must be in three_d_bbox"
-            assert nusc is not None, "nusc must be set in _transform_cuboid"
-            sample = nusc.get("sample", sample_token)
-            lidar_token: str = sample["data"][SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
+            assert t4_dataset is not None, "t4_dataset must be set in _transform_cuboid"
+            sample = t4_dataset.get("sample", sample_token)
+            lidar_token: str = sample.data[SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
 
-            sd_record = nusc.get("sample_data", lidar_token)
-            cs_record = nusc.get("calibrated_sensor", sd_record["calibrated_sensor_token"])
-            ep_record = nusc.get("ego_pose", sd_record["ego_pose_token"])
+            sd_record = t4_dataset.get("sample_data", lidar_token)
+            cs_record = t4_dataset.get("calibrated_sensor", sd_record.calibrated_sensor_token)
+            ep_record = t4_dataset.get("ego_pose", sd_record.ego_pose_token)
 
             lidar_to_map_translation, lidar_to_map_rotation = compose_transform(
-                trans1=cs_record["translation"],
-                rot1=cs_record["rotation"],
-                trans2=ep_record["translation"],
-                rot2=ep_record["rotation"],
+                trans1=cs_record.translation,
+                rot1=cs_record.rotation,
+                trans2=ep_record.translation,
+                rot2=ep_record.rotation,
             )
             lidar_to_map_rotation_quaternion = Rotation.from_quat(
                 lidar_to_map_rotation[1:] + [lidar_to_map_rotation[0]]  # [x, y, z, w]
@@ -501,7 +497,7 @@ class AnnotationFilesGenerator:
         self,
         scene_anno_dict: Dict[int, List[Dict[str, Any]]],
         lidar_sensor_channel: str,
-        nusc: NuScenes,
+        t4_dataset: Tier4,
         anno_dir: str,
     ) -> None:
         """
@@ -509,18 +505,18 @@ class AnnotationFilesGenerator:
         Specifically, it creates lidarseg.json and update category.json.
         :param scene_anno_dict: Dict of annotations for every scenes.
         :param lidar_sensor_channel: Lidar sensor channel name.
-        :param nusc: Nuscene object for this dataset.
+        :param t4_dataset: Tier4 object for this dataset.
         :param anno_dir: Annotation directory.
         """
         lidarseg_table = LidarSegTable()
 
         frame_index_to_sample_data_token: Dict[int, str] = {}
         frame_index_to_sample_token: Dict[int, str] = {}
-        for sample_data in nusc.sample_data:
-            frame_index = int((sample_data["filename"].split("/")[2]).split(".")[0])
-            frame_index_to_sample_token[frame_index] = sample_data["sample_token"]
-            if lidar_sensor_channel in sample_data["filename"]:
-                frame_index_to_sample_data_token[frame_index] = sample_data["token"]
+        for sample_data in t4_dataset.sample_data:
+            frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
+            frame_index_to_sample_token[frame_index] = sample_data.sample_token
+            if lidar_sensor_channel in sample_data.filename:
+                frame_index_to_sample_data_token[frame_index] = sample_data.token
 
         # Create lidarseg folder in
         anno_path = Path(anno_dir)
@@ -529,7 +525,7 @@ class AnnotationFilesGenerator:
         lidarseg_relative_path = osp.join(
             T4_FORMAT_DIRECTORY_NAME.LIDARSEG_ANNO_FOLDER.value, version_name
         )
-        # We need to move the level same as anno_dir, and create "lidarseg/<version_name>" because of the design in NuScenes dataset
+        # We need to move the level same as anno_dir, and create "lidarseg/<version_name>" because of the design in Tier4 dataset
         lidarseg_anno_path = anno_path.parents[0] / lidarseg_relative_path
         lidarseg_anno_path.mkdir(parents=True, exist_ok=True)
         for frame_index in sorted(scene_anno_dict.keys()):
@@ -550,7 +546,9 @@ class AnnotationFilesGenerator:
             for anno in anno_list:
                 # Category
                 for category_name in anno["paint_categories"]:
-                    self._category_table.get_token_from_name(name=category_name)
+                    self._category_table.get_token_from_name(
+                        name=category_name.lower()
+                    )  # Make category name lowercase
 
                 # Visibility
                 self._visibility_table.get_token_from_level(
@@ -576,6 +574,11 @@ class AnnotationFilesGenerator:
                 lidarseg_table.set_record_to_table(
                     record=lidarseg_record,
                 )
+
+        # Add a case for unpainted point cloud
+        self._category_table.add_category_to_record(
+            name="unpainted", index=0, description="unpainted points"
+        )
 
         lidarseg_table.save_json(anno_dir)
 

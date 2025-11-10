@@ -59,6 +59,15 @@ class CategoryTable(AbstractTable[CategoryRecord]):
         record = self.select_record_from_token(token=token)
         return record.index
 
+    def add_category_to_record(self, name: str, index: int, description: str) -> None:
+        """Add a category to the table records."""
+        # Skip if the category already exists
+        if name in self._name_to_token:
+            return
+
+        token = self.insert_into_table(name=name, description=description, index=index)
+        self._name_to_token[name] = token
+
     @classmethod
     def from_json(
         cls,

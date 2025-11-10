@@ -1,4 +1,4 @@
-task: convert_non_annotated_t4_to_deepen
+task: convert_non_annotated_t4_tlr_to_deepen
 conversion:
-  input_base: ./data/non_annotated_t4_format
-  output_base: ./data/deepen_format
+  input_base: ./data/t4_sample_0/non_annotated_dataset_tlr
+  output_base: ./data/t4_sample_0/deepen_dataset_tlr_generated

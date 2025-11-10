@@ -1,21 +1,22 @@
 task: convert_rosbag2_to_non_annotated_t4
 description:
-  scene: sample_scene_description
+  scene: ""
 conversion:
-  input_base: ./data/t4_sample_0/filtered_rosbag
-  output_base: ./data/t4_sample_0/non_annotated_dataset_generated
-  world_frame_id: "map"
-  start_timestamp_sec: 0 # Enter here if there is a timestamp for the start time. If not used, enter 0.
-  skip_timestamp: 2.0 # Do not load data for the first point cloud timestamp for skip_timestamp seconds.
-  num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
-  # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
-  max_camera_jitter_sec: 0.010
-  lidar_latency_sec: 0.020
-  system_scan_period_sec: 0.100
+  without_compress: true
+  input_base: ../inputbag
+  output_base: ../t4dataset
+  skip_timestamp: 2.0
+  num_load_frames: 0
+  start_timestamp_sec: 0.0
+  accept_frame_drop: True
+  undistort_image: True
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
-  camera_sensors: #  Keep the same order as each camera exposure timing
+    lidar_info_topic: /sensing/lidar/concatenated/pointcloud_info # Do not set to disable saving lidar info
+    lidar_info_channel: LIDAR_CONCAT_INFO
+    accept_no_info: True # If True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+  camera_sensors:
     - topic: /sensing/camera/camera8/image_raw/compressed
       channel: CAM_FRONT
       delay_msec: 45
@@ -34,3 +35,4 @@ conversion:
     - topic: /sensing/camera/camera9/image_raw/compressed
       channel: CAM_BACK_RIGHT
       delay_msec: 80
+  ignore_no_ego_transform_at_rosbag_beginning: True

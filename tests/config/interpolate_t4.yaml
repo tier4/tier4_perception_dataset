@@ -1,0 +1,7 @@
+task: interpolate
+description:
+  scene: "Interpolate"
+conversion:
+  input_base: ./data/t4_sample_0/annotated_t4/sample_bag
+  output_base: ./data/t4_sample_0/interpolated_t4_generated/sample_bag
+  copy_excludes: ["data", "input_bag", "pointcloud_map*"]

@@ -22,7 +22,7 @@ jobs:
 
       - name: Download test data
         run: |
-          gh release download test-data -D tests/data
+          gh release download t4-sample-0-2025-10-23 -D tests/data/t4_sample_0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -30,9 +30,10 @@ jobs:
         uses: actions/upload-artifact@v4.6.0
         with:
           name: test-data
-          path: tests/data
+          path: tests/data/t4_sample_0/
 
   build-and-test:
+    needs: download-test-data
     runs-on: ubuntu-latest
     timeout-minutes: 20
     container:
@@ -52,17 +53,17 @@ jobs:
           apt update -yqq
           apt install -yqq curl python3-venv python-is-python3 \
             libgl1-mesa-dev libboost-dev ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap \
-            ros-${ROS_DISTRO}-radar-msgs unzip tree
+            ros-${ROS_DISTRO}-radar-msgs unzip tree rsync
 
       - name: Download test data
         uses: actions/download-artifact@v4.1.8
         with:
           name: test-data
-          path: tests/data
+          path: tests/data/t4_sample_0
 
       - name: Unzip test data
         run: |
-          unzip 'tests/data/*.zip' -d tests/data/
+          unzip 'tests/data/t4_sample_0/*.zip' -d tests/data/t4_sample_0/
 
       - name: Check test data
         run: |
