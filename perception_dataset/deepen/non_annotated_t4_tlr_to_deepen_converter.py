@@ -18,8 +18,10 @@ class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
         self,
         input_base: str,
         output_base: str,
+        without_compress: bool = False
     ):
         super().__init__(input_base, output_base)
+        self._without_compress = without_compress
 
     def convert(self):
         start_time = time.time()
@@ -33,7 +35,8 @@ class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
                 scene_dir,
                 out_dir,
             )
-            shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            if self._without_compress:
+                shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
 
         elapsed_time = time.time() - start_time
         logger.info(f"Elapsed time: {elapsed_time:.1f} [sec]")

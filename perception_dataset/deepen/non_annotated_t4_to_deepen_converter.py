@@ -32,6 +32,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         workers_number: int = 32,
         drop_camera_token_not_found: bool = False,
         save_intensity: bool = False,
+        without_compress: bool = False,
     ):
         super().__init__(input_base, output_base)
 
@@ -41,6 +42,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
         self._annotation_hz = annotation_hz
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
+        self._without_compress = without_compress
         if isinstance(camera_sensors, list):
             for cam in camera_sensors:
                 self._camera_sensor_types.append(SENSOR_ENUM[cam["channel"]])
@@ -57,7 +59,8 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter):
                 scene_dir,
                 out_dir,
             )
-            shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            if self._without_compress:
+                shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
 
         elapsed_time = time.time() - start_time
         logger.info(f"Elapsed time: {elapsed_time:.1f} [sec]")
