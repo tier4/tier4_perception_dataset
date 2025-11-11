@@ -57,7 +57,7 @@ class NonAnnotatedT4TlrToDeepenConverter(
 
         elapsed_time = time.time() - start_time
         logger.info(f"Elapsed time: {elapsed_time:.1f} [sec]")
-        return NonAnnotatedT4TlrToDeepenConverterOutputItem(
+        return NonAnnotatedT4TlrToDeepenConverterOutput(
             items=output_items,
         )
 
