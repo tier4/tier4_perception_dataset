@@ -28,12 +28,7 @@ class NonAnnotatedT4TlrToDeepenConverterOutput:
 class NonAnnotatedT4TlrToDeepenConverter(
     AbstractConverter[NonAnnotatedT4TlrToDeepenConverterOutput]
 ):
-    def __init__(
-        self,
-        input_base: str,
-        output_base: str,
-        without_compress: bool = False
-    ):
+    def __init__(self, input_base: str, output_base: str, without_compress: bool = False):
         super().__init__(input_base, output_base)
         self._without_compress = without_compress
 

@@ -44,7 +44,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
         workers_number: int = 32,
         drop_camera_token_not_found: bool = False,
         save_intensity: bool = False,
-        without_compress: bool = False
+        without_compress: bool = False,
     ):
         super().__init__(input_base, output_base)
 
