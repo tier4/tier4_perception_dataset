@@ -16,7 +16,8 @@ logger = configure_logger(modname=__name__)
 
 @dataclass
 class NonAnnotatedT4TlrToDeepenConverterOutputItem:
-    output_path: str
+    uncompressed_path: str
+    output_zip_path: str | None = None
 
 
 @dataclass
@@ -31,8 +32,10 @@ class NonAnnotatedT4TlrToDeepenConverter(
         self,
         input_base: str,
         output_base: str,
+        without_compress: bool = False
     ):
         super().__init__(input_base, output_base)
+        self._without_compress = without_compress
 
     def convert(self) -> NonAnnotatedT4TlrToDeepenConverterOutput:
         start_time = time.time()
@@ -47,10 +50,13 @@ class NonAnnotatedT4TlrToDeepenConverter(
                 scene_dir,
                 out_dir,
             )
-            output_path = shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            output_zip_path: str | None = None
+            if not self._without_compress:
+                output_zip_path = shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
             output_items.append(
                 NonAnnotatedT4TlrToDeepenConverterOutputItem(
-                    output_path=output_path,
+                    uncompressed_path=out_dir,
+                    output_zip_path=output_zip_path,
                 )
             )
 

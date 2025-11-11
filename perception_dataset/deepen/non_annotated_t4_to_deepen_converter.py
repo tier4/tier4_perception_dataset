@@ -25,7 +25,8 @@ logger = configure_logger(modname=__name__)
 
 @dataclass
 class NonAnnotatedT4ToDeepenConverterOutputItem:
-    output_path: str
+    output_zip_path: str | None = None
+    uncompressed_path: str
 
 
 @dataclass
@@ -43,6 +44,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
         workers_number: int = 32,
         drop_camera_token_not_found: bool = False,
         save_intensity: bool = False,
+        without_compress: bool = False
     ):
         super().__init__(input_base, output_base)
 
@@ -52,6 +54,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
         self._annotation_hz = annotation_hz
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
+        self._without_compress = without_compress
         if isinstance(camera_sensors, list):
             for cam in camera_sensors:
                 self._camera_sensor_types.append(SENSOR_ENUM[cam["channel"]])
@@ -69,10 +72,13 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
                 scene_dir,
                 out_dir,
             )
-            output_path = shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            output_zip_path: str | None = None
+            if not self._without_compress:
+                output_zip_path = shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
             output_items.append(
                 NonAnnotatedT4ToDeepenConverterOutputItem(
-                    output_path=output_path,
+                    uncompressed_path=out_dir,
+                    output_zip_path=output_zip_path,
                 )
             )
 
