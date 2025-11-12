@@ -1,5 +1,6 @@
 {
   "format_version": "0.1",
+  "circle_radius": 200,
   "categories": [
     {
       "name": "car",
@@ -23,7 +24,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -51,7 +52,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -79,7 +80,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -107,7 +108,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -163,7 +164,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "protruding_object"],
           "is_mandatory": false
         }
@@ -213,7 +214,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "protruding_object"],
           "is_mandatory": false
         }
@@ -325,7 +326,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "protruding_object"],
           "is_mandatory": false
         }
@@ -359,7 +360,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -393,7 +394,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -427,7 +428,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -455,7 +456,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -483,7 +484,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -511,7 +512,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }
@@ -567,7 +568,7 @@
         },
         {
           "name": "extremities_state",
-          "input_type": "multi_select",
+          "input_type": "multiselect",
           "values": ["none", "open_door", "protruding_object"],
           "is_mandatory": false
         }

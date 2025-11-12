@@ -28,6 +28,12 @@ DEFAULT_CAMERA_CONFIG = os.path.join(
     "convert_non_annotated_t4_to_deepen.yaml",
 )
 
+SUPPORTED_DATASET_TYPES = {
+    TaskType.MULTISENSOR_SEQUENCE,
+    TaskType.POINTCLOUD_SEGMENTATION_SEQUENCE,
+    TaskType.IMAGE_SEGMENTATION_SEQUENCE,
+}
+
 
 class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
     def __init__(
@@ -42,7 +48,7 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
         dataset_task_type: TaskType = TaskType.MULTISENSOR_SEQUENCE,
         dataset_task_attributes_path: Optional[str] = None,
         create_dataset: bool = False,
-        sample_prefix: str = None,
+        sample_prefix: Optional[str] = None,
         pcd_type: PCDType = PCDType.NUSCENES,
         lidar_sensor_name: str = "Lidar",
     ):
@@ -69,6 +75,11 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
         self._dataset_name = dataset_name
         self._dataset_description = dataset_description
         self._dataset_task_type = TaskType(dataset_task_type)
+        if self._dataset_task_type not in SUPPORTED_DATASET_TYPES:
+            raise ValueError(
+                f"Unsupported dataset task type {self._dataset_task_type}. "
+                f"Supported types: {[t.value for t in SUPPORTED_DATASET_TYPES]}"
+            )
         self._task_attributes = self._load_task_attributes(dataset_task_attributes_path)
         self._create_dataset_flag = create_dataset
         self._sample_prefix = sample_prefix
@@ -245,11 +256,15 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
                 }
             )
 
-        if not sensors:
-            logger.warning(f"No sensors collected for scene {scene_name}. Skipping sample creation.")
+        sample_attributes = self._build_sample_attributes(
+            sensors=sensors,
+            pointcloud_frames=pointcloud_frames,
+            camera_frames=camera_frames,
+        )
+        if sample_attributes is None:
+            logger.warning(f"Could not build sample attributes for scene {scene_name}. Skipping.")
             return
 
-        sample_attributes = {"sensors": sensors}
         sample_name = scene_name.replace(".", "-")
 
         sample_attributes_path = os.path.join(out_dir, f"{sample_name}_attributes.json")
@@ -261,6 +276,7 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
             "frame_stride": frame_stride,
             "camera_channels": [channel for channel, frames in camera_frames.items() if frames],
             "pointcloud_frame_count": len(pointcloud_frames),
+            "dataset_task_type": self._dataset_task_type.value,
         }
 
         try:
@@ -369,8 +385,6 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
 
         normalized = input_type.strip().lower()
         mapping = {
-            "multi_select": InputType.MULTISELECT.value,
-            "multi-select": InputType.MULTISELECT.value,
             "multiselect": InputType.MULTISELECT.value,
             "radio": InputType.SELECT.value,
             "select": InputType.SELECT.value,
@@ -383,6 +397,55 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
         }
 
         return mapping.get(normalized, normalized)
+
+    def _build_sample_attributes(
+        self,
+        sensors: List[Dict[str, Any]],
+        pointcloud_frames: List[Dict[str, Any]],
+        camera_frames: Dict[str, List[Dict[str, Any]]],
+    ) -> Optional[Dict[str, Any]]:
+        if self._dataset_task_type == TaskType.MULTISENSOR_SEQUENCE:
+            if not sensors:
+                logger.warning("Multisensor dataset requires at least one sensor entry.")
+                return None
+            return {"sensors": sensors}
+
+        if self._dataset_task_type == TaskType.POINTCLOUD_SEGMENTATION_SEQUENCE:
+            if not pointcloud_frames:
+                logger.warning("Pointcloud segmentation dataset requires lidar frames.")
+                return None
+            return {"frames": pointcloud_frames}
+
+        if self._dataset_task_type == TaskType.IMAGE_SEGMENTATION_SEQUENCE:
+            primary_channel: Optional[str] = None
+            for sensor_enum in self._camera_sensor_types:
+                channel = sensor_enum.value["channel"]
+                if camera_frames.get(channel):
+                    primary_channel = channel
+                    break
+            if primary_channel is None:
+                for channel, frames in camera_frames.items():
+                    if frames:
+                        primary_channel = channel
+                        break
+            if primary_channel is None:
+                logger.warning("Image segmentation dataset requires camera frames.")
+                return None
+            active_frames = camera_frames.get(primary_channel, [])
+            if not active_frames:
+                logger.warning(
+                    f"No frames recorded for primary camera channel {primary_channel}."
+                )
+                return None
+            if len([frames for frames in camera_frames.values() if frames]) > 1:
+                logger.info(
+                    "Image segmentation dataset only supports a single camera sequence. "
+                    f"Using channel {primary_channel}."
+                )
+            return {"frames": active_frames}
+
+        logger.error(f"Unsupported dataset task type {self._dataset_task_type}.")
+        return None
 
     def _build_ego_pose(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         translation = metadata["sensor2global_translation"]
@@ -476,12 +539,17 @@ class NonAnnotatedT4ToSegmentsAIConverter(AbstractConverter):
 
 
 if __name__ == "__main__":
+    # supported dataset types
+    # TaskType.MULTISENSOR_SEQUENCE,
+    # TaskType.POINTCLOUD_SEGMENTATION_SEQUENCE,
+    # TaskType.IMAGE_SEGMENTATION_SEQUENCE,
     converter = NonAnnotatedT4ToSegmentsAIConverter(
         input_base="test_data/unannotated/",
         output_base="test_data/segmentsai/",
+        dataset_task_type=TaskType.POINTCLOUD_SEGMENTATION_SEQUENCE,
         camera_sensors=None,
         annotation_hz=1,
-        dataset_name="test_tier4_dataset",
+        dataset_name="test_tier4_dataset_3d_segmentation",
         dataset_description="Test dataset converted from unannotated Tier4 data",
         create_dataset=True,
     )
