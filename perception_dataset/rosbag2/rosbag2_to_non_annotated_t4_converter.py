@@ -193,7 +193,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for lidar info topic
         self._lidar_info_topic: str = self._lidar_sensor.get("lidar_info_topic", None)
         self._lidar_info_channel: str = self._lidar_sensor.get("lidar_info_channel", None)
-        self._lidar_sources_mapping: Dict[str, str] = self._lidar_sensor.get("lidar_sources_mapping", {})
+        self._lidar_sources_mapping: Dict[str, str] = self._lidar_sensor.get(
+            "lidar_sources_mapping", {}
+        )
 
         if self._lidar_info_topic:
             assert IMPORTED_CONCATENATED_POINT_CLOUD_INFO, (
@@ -756,7 +758,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         """Convert lidar_info message to dictionary."""
 
         # Create reverse mapping from topic to source_id
-        topic_to_source_id = {topic: source_id for source_id, topic in self._lidar_sources_mapping.items()}
+        topic_to_source_id = {
+            topic: source_id for source_id, topic in self._lidar_sources_mapping.items()
+        }
 
         # Build sources dictionary with source_id as keys
         sources = []

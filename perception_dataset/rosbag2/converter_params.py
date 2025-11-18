@@ -13,6 +13,7 @@ class DataType(enum.Enum):
     REAL = "real"
     SYNTHETIC = "synthetic"
 
+
 class BaseModelWithDictAccess(BaseModel):
     def __getitem__(self, key: str):
         """Make the model subscriptable by key."""
@@ -29,14 +30,20 @@ class BaseModelWithDictAccess(BaseModel):
     def get(self, key: str, default=None):
         """Get a value by key with a default fallback, just like a dict."""
         return getattr(self, key, default)
-    
+
+
 class LidarSensor(BaseModelWithDictAccess):
     topic: str = ""
     channel: str = ""
     lidar_info_topic: Optional[str] = None  # topic for lidar info, e.g., "/lidar_info"
     lidar_info_channel: Optional[str] = None  # channel for lidar info, e.g., "LIDAR_INFO"
-    accept_no_info: bool = False  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
-    lidar_sources_mapping: Dict[str, str] = {}  # mapping from lidar source to topic, e.g., {"LIDAR_TOP": "/lidar_top_points", "LIDAR_FRONT": "/lidar_front_points"}
+    accept_no_info: bool = (
+        False  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+    )
+    lidar_sources_mapping: Dict[str, str] = (
+        {}
+    )  # mapping from lidar source to topic, e.g., {"LIDAR_TOP": "/lidar_top_points", "LIDAR_FRONT": "/lidar_front_points"}
+
 
 class Rosbag2ConverterParams(BaseModelWithDictAccess):
     task: str
