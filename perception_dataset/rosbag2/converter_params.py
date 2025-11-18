@@ -13,8 +13,32 @@ class DataType(enum.Enum):
     REAL = "real"
     SYNTHETIC = "synthetic"
 
+class BaseModelWithDictAccess(BaseModel):
+    def __getitem__(self, key: str):
+        """Make the model subscriptable by key."""
+        return getattr(self, key)
 
-class Rosbag2ConverterParams(BaseModel):
+    def __setitem__(self, key: str, value):
+        """Allow setting values using dictionary-style syntax."""
+        setattr(self, key, value)
+
+    def __contains__(self, key: str) -> bool:
+        """Check if a key exists in the model."""
+        return hasattr(self, key)
+
+    def get(self, key: str, default=None):
+        """Get a value by key with a default fallback, just like a dict."""
+        return getattr(self, key, default)
+    
+class LidarSensor(BaseModelWithDictAccess):
+    topic: str = ""
+    channel: str = ""
+    lidar_info_topic: Optional[str] = None  # topic for lidar info, e.g., "/lidar_info"
+    lidar_info_channel: Optional[str] = None  # channel for lidar info, e.g., "LIDAR_INFO"
+    accept_no_info: bool = False  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+    lidar_sources_mapping: Dict[str, str] = {}  # mapping from lidar source to topic, e.g., {"LIDAR_TOP": "/lidar_top_points", "LIDAR_FRONT": "/lidar_front_points"}
+
+class Rosbag2ConverterParams(BaseModelWithDictAccess):
     task: str
     input_base: str  # path to the input rosbag2 directory (multiple rosbags in the directory)
     input_bag_path: Optional[str] = None  # path to the input rosbag2 (a single rosbag)
@@ -34,13 +58,7 @@ class Rosbag2ConverterParams(BaseModel):
     data_type: DataType = DataType.REAL  # real or synthetic
 
     # rosbag config
-    lidar_sensor: Dict[str, Union[str, bool]] = {
-        "topic": "",
-        "channel": "",
-        "lidar_info_topic": None,  # topic for lidar info, e.g., "/lidar_info"
-        "lidar_info_channel": None,  # channel for lidar info, e.g., "LIDAR_INFO"
-        "accept_no_info": False,  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
-    }  # lidar_sensor, {topic: , channel, Optional[lidar_info_topic]}
+    lidar_sensor: LidarSensor = LidarSensor()
     radar_sensors: List[Dict[str, str]] = []  # radar sensors
     camera_sensors: List[Dict[str, Union[str, float]]] = []  # camera sensors,
     object_topic_name: str = ""
