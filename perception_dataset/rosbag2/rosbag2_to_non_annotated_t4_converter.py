@@ -764,13 +764,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # Get source_id from topic, fallback to topic if not in mapping
             source_id = topic_to_source_id.get(src.topic, src.topic)
             sources.append({
+                "id": source_id,
+                "idx_begin": src.idx_begin,
+                "length": src.length,
                 "stamp": {
                     "sec": src.header.stamp.sec,
                     "nanosec": src.header.stamp.nanosec,
                 },
-                "idx_begin": src.idx_begin,
-                "length": src.length,
-                "source_id": source_id,
             })
 
         return {
