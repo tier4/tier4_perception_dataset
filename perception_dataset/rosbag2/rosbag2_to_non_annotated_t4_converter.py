@@ -756,7 +756,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo):
         """Convert lidar_info message to dictionary."""
-
         # Create reverse mapping from topic to source_id
         topic_to_source_id = {
             topic: source_id for source_id, topic in self._lidar_sources_mapping.items()
