@@ -36,7 +36,11 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
-from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams, LidarSensor
+from perception_dataset.rosbag2.converter_params import (
+    DataType,
+    LidarSensor,
+    Rosbag2ConverterParams,
+)
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
@@ -754,8 +758,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sources = []
         for src in msg.source_info:
             # Get source_id from topic, fallback to topic if not in mapping
-            assert src.topic in topic_to_source_id, \
-                f" Topic {src.topic} not found in sources mapping. Please update lidar_sensor.lidar_sources_mapping in configs"
+            assert (
+                src.topic in topic_to_source_id
+            ), f" Topic {src.topic} not found in sources mapping. Please update lidar_sensor.lidar_sources_mapping in configs"
             source_id = topic_to_source_id[src.topic]
             sources.append(
                 {

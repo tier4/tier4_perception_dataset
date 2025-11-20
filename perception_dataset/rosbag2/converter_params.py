@@ -33,33 +33,38 @@ class BaseModelWithDictAccess(BaseModel):
 
 
 class LidarSensor(BaseModelWithDictAccess):
-    topic: Optional[str] = None  # e.g., "/lidar_points" 
+    topic: Optional[str] = None  # e.g., "/lidar_points"
     channel: Optional[str] = None  # e.g., "LIDAR_TOP"
-    lidar_info_topic: Optional[str] = None # topic for lidar info, e.g., "/lidar_info"
+    lidar_info_topic: Optional[str] = None  # topic for lidar info, e.g., "/lidar_info"
     lidar_info_channel: Optional[str] = None  # channel for lidar info, e.g., "LIDAR_INFO"
-    accept_no_info: Optional[bool] = None  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
-    lidar_sources_mapping: Optional[Dict[str, str]] = None  # mapping from lidar source to topic, e.g., {"LIDAR_TOP": "/lidar_top_points", "LIDAR_FRONT": "/lidar_front_points"}
+    accept_no_info: Optional[bool] = (
+        None  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+    )
+    lidar_sources_mapping: Optional[Dict[str, str]] = (
+        None  # mapping from lidar source to topic, e.g., {"LIDAR_TOP": "/lidar_top_points", "LIDAR_FRONT": "/lidar_front_points"}
+    )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_lidar_info_fields(self):
         """Validate that if any lidar_info field is defined, all must be defined."""
         fields = [
-            ('lidar_info_topic', self.lidar_info_topic),
-            ('lidar_info_channel', self.lidar_info_channel),
-            ('accept_no_info', self.accept_no_info),
-            ('lidar_sources_mapping', self.lidar_sources_mapping)
+            ("lidar_info_topic", self.lidar_info_topic),
+            ("lidar_info_channel", self.lidar_info_channel),
+            ("accept_no_info", self.accept_no_info),
+            ("lidar_sources_mapping", self.lidar_sources_mapping),
         ]
-        
+
         defined_fields = [name for name, value in fields if value]
-        
+
         if defined_fields and len(defined_fields) != len(fields):
             undefined_fields = [name for name, value in fields if not value]
             raise ValueError(
                 f"If any of lidar_info_topic, lidar_info_channel, accept_no_info, or lidar_sources_mapping "
                 f"is defined, all must be defined. Defined: {defined_fields}. Undefined: {undefined_fields}"
             )
-        
+
         return self
+
 
 class Rosbag2ConverterParams(BaseModelWithDictAccess):
     task: str
