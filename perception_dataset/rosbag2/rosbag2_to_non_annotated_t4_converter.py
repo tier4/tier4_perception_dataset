@@ -36,7 +36,7 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
-from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams
+from perception_dataset.rosbag2.converter_params import DataType, Rosbag2ConverterParams, LidarSensor
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
@@ -163,7 +163,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # Note: The delay tolerance is set to 1.5 times the system scan period.
         self._timestamp_diff = params.system_scan_period_sec * 1.5
 
-        self._lidar_sensor: Dict[str, str] = params.lidar_sensor
+        self._lidar_sensor: LidarSensor = params.lidar_sensor
         self._radar_sensors: List[Dict[str, str]] = params.radar_sensors
         self._camera_sensors: List[Dict[str, str]] = params.camera_sensors
         self._sensor_enums: List = []
@@ -171,12 +171,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         self._sensor_mode: SensorMode = SensorMode.DEFAULT
         if (
-            self._lidar_sensor["topic"] == ""
+            not self._lidar_sensor.topic
             and len(self._radar_sensors) == 0
             and len(self._camera_sensors) == 0
         ):
             self._sensor_mode = SensorMode.NO_SENSOR
-        elif self._lidar_sensor["topic"] == "":
+        elif not self._lidar_sensor.topic:
             self._sensor_mode = SensorMode.NO_LIDAR
 
         # init directories
@@ -190,28 +190,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
         self._msg_display_interval = 100
 
-        # for lidar info topic
-        self._lidar_info_topic: str = self._lidar_sensor.get("lidar_info_topic", None)
-        self._lidar_info_channel: str = self._lidar_sensor.get("lidar_info_channel", None)
-        self._lidar_sources_mapping: Dict[str, str] = self._lidar_sensor.get(
-            "lidar_sources_mapping", {}
-        )
+        # for lidar info topic. Checks for keys are done in LidarSensor pydantic model.
+        self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
+        self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
+        self._lidar_sources_mapping: Dict[str, str] = self._lidar_sensor["lidar_sources_mapping"]
+        self._accept_no_info: bool = self._lidar_sensor["accept_no_info"]
 
         if self._lidar_info_topic:
             assert IMPORTED_CONCATENATED_POINT_CLOUD_INFO, (
                 "ConcatenatedPointCloudInfo is not properly imported. "
                 "Please install a version of autoware_sensing_msgs with ConcatenatedPointCloudInfo to use lidar_info_topic functionality."
             )
-            assert (
-                self._lidar_info_channel is not None
-            ), "When lidar_info_topic is specified, lidar_info_channel field must be configured under lidar_sensor."
-            assert (
-                "accept_no_info" in self._lidar_sensor
-            ), "When lidar_info_topic is specified, accept_no_info field must be configured under lidar_sensor."
-            assert (
-                "lidar_sources_mapping" in self._lidar_sensor
-            ), "When lidar_info_topic is specified, lidar_sources_mapping field must be configured under lidar_sensor."
-            self._accept_no_info: bool = self._lidar_sensor.get("accept_no_info")
             self._lidar_info_messages: Dict[float, ConcatenatedPointCloudInfo] = {}
 
         shutil.rmtree(self._output_scene_dir, ignore_errors=True)
@@ -765,7 +754,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sources = []
         for src in msg.source_info:
             # Get source_id from topic, fallback to topic if not in mapping
-            source_id = topic_to_source_id.get(src.topic, src.topic)
+            assert src.topic in topic_to_source_id, \
+                f" Topic {src.topic} not found in sources mapping. Please update lidar_sensor.lidar_sources_mapping in configs"
+            source_id = topic_to_source_id[src.topic]
             sources.append(
                 {
                     "id": source_id,
