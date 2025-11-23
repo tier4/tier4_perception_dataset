@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import glob
 import os
 import os.path as osp
@@ -13,17 +14,28 @@ from perception_dataset.utils.logger import configure_logger
 logger = configure_logger(modname=__name__)
 
 
-class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
-    def __init__(
-        self,
-        input_base: str,
-        output_base: str,
-    ):
-        super().__init__(input_base, output_base)
+@dataclass
+class NonAnnotatedT4TlrToDeepenConverterOutputItem:
+    uncompressed_output_path: str
+    zipped_output_path: str | None = None
 
-    def convert(self):
+
+@dataclass
+class NonAnnotatedT4TlrToDeepenConverterOutput:
+    items: list[NonAnnotatedT4TlrToDeepenConverterOutputItem]
+
+
+class NonAnnotatedT4TlrToDeepenConverter(
+    AbstractConverter[NonAnnotatedT4TlrToDeepenConverterOutput]
+):
+    def __init__(self, input_base: str, output_base: str, without_compress: bool = False):
+        super().__init__(input_base, output_base)
+        self._without_compress = without_compress
+
+    def convert(self) -> NonAnnotatedT4TlrToDeepenConverterOutput:
         start_time = time.time()
 
+        output_items: list[NonAnnotatedT4TlrToDeepenConverterOutputItem] = []
         for scene_dir in glob.glob(osp.join(self._input_base, "*")):
             if not osp.isdir(scene_dir):
                 continue
@@ -33,10 +45,21 @@ class NonAnnotatedT4TlrToDeepenConverter(AbstractConverter):
                 scene_dir,
                 out_dir,
             )
-            shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            zipped_output_path: str | None = None
+            if not self._without_compress:
+                zipped_output_path = shutil.make_archive(f"{out_dir}", "zip", root_dir=out_dir)
+            output_items.append(
+                NonAnnotatedT4TlrToDeepenConverterOutputItem(
+                    uncompressed_output_path=out_dir,
+                    zipped_output_path=zipped_output_path,
+                )
+            )
 
         elapsed_time = time.time() - start_time
         logger.info(f"Elapsed time: {elapsed_time:.1f} [sec]")
+        return NonAnnotatedT4TlrToDeepenConverterOutput(
+            items=output_items,
+        )
 
     def _convert_one_scene(self, input_dir: str, output_dir: str):
         os.makedirs(output_dir, exist_ok=True)

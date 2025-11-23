@@ -18,7 +18,7 @@ from perception_dataset.utils.transform import transform_matrix
 logger = configure_logger(modname=__name__)
 
 
-class AnnotatedT4ToDeepenConverter(AbstractConverter):
+class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
     def __init__(self, input_base: str, output_base: str, camera_position: Dict):
         super().__init__(input_base, output_base)
         self._camera_position = camera_position
@@ -27,7 +27,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter):
             attribute_path=LABEL_PATH_ENUM.ATTRIBUTE,
         )
 
-    def convert(self):
+    def convert(self) -> None:
         start_time = time.time()
 
         for scene_dir in glob.glob(osp.join(self._input_base, "*")):

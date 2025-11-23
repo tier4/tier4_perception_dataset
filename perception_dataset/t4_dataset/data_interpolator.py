@@ -27,7 +27,7 @@ from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME,EXTENSION_ENUM
 from perception_dataset.utils.logger import configure_logger
 
 
-class DataInterpolator(AbstractConverter):
+class DataInterpolator(AbstractConverter[None]):
     """A class to interpolate annotations."""
 
     SAMPLE_KEYS = ("token", "timestamp", "scene_token", "next", "prev")
