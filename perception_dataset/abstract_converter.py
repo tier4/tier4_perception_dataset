@@ -1,7 +1,10 @@
 from abc import ABCMeta, abstractmethod
+from typing import Generic, TypeVar
+
+OUTPUT_TYPE = TypeVar("OUTPUT_TYPE")
 
 
-class AbstractConverter(object, metaclass=ABCMeta):
+class AbstractConverter(Generic[OUTPUT_TYPE], metaclass=ABCMeta):
     def __init__(
         self,
         input_base: str,
@@ -12,5 +15,5 @@ class AbstractConverter(object, metaclass=ABCMeta):
         self._output_base = output_base
 
     @abstractmethod
-    def convert(self):
+    def convert(self) -> OUTPUT_TYPE:
         raise NotImplementedError()
