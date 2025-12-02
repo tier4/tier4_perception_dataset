@@ -360,7 +360,7 @@ class AnnotationFilesGenerator:
                         if "two_d_box" in anno.keys()
                         else None
                     )
-                    self._object_ann_table.insert_into_table(
+                    object_ann_token = self._object_ann_table.insert_into_table(
                         sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
                         instance_token=instance_token,
                         category_token=category_token,
@@ -372,6 +372,9 @@ class AnnotationFilesGenerator:
                             else mask[sensor_id][frame_index]
                         ),
                         automatic_annotation=False,
+                    )
+                    self._instance_token_to_annotation_token_list[instance_token].append(
+                        object_ann_token
                     )
 
                 # Surface Annotation
