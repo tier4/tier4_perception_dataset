@@ -31,3 +31,9 @@ repositories:
     type: git
     url: https://github.com/tier4/pacmod_interface.git
     version: feat/comlops_drs
+
+  # nebula is build by autoware_cmake
+  autoware_cmake:
+    type: git
+    url: https://github.com/autowarefoundation/autoware_cmake.git
+    version: main
