@@ -3,7 +3,7 @@ description:
   scene: ""
 conversion:
   without_compress: true
-  input_base: ../inputbag
+  input_base: /mnt/HDD_16TB/samrat/semaseg/annotation_dataset/10e2fe62-990d-4faf-aa5d-9ecd57cbf8de/0/intermediate_artifacts
   output_base: ../t4dataset
   skip_timestamp: 2.0
   num_load_frames: 0
@@ -17,14 +17,30 @@ conversion:
     lidar_info_channel: LIDAR_CONCAT_INFO
     accept_no_info: True # If True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
     lidar_sources_mapping:
-      REAR_UPPER: /sensing/lidar/rear_upper/pointcloud_before_sync
-      REAR_LOWER: /sensing/lidar/rear_lower/pointcloud_before_sync
-      LEFT_UPPER: /sensing/lidar/left_upper/pointcloud_before_sync
-      LEFT_LOWER: /sensing/lidar/left_lower/pointcloud_before_sync
-      FRONT_UPPER: /sensing/lidar/front_upper/pointcloud_before_sync
-      FRONT_LOWER: /sensing/lidar/front_lower/pointcloud_before_sync
-      RIGHT_UPPER: /sensing/lidar/right_upper/pointcloud_before_sync
-      RIGHT_LOWER: /sensing/lidar/right_lower/pointcloud_before_sync
+      - topic: /sensing/lidar/rear_upper/pointcloud_before_sync     # name of the source topic in lidar info message
+        channel: LIDAR_REAR_UPPER                                   # channel name for this source in T4 dataset                
+        frame_id: rear_upper/lidar_base_link                        # frame_id of this source in TF tree
+      - topic: /sensing/lidar/rear_lower/pointcloud_before_sync
+        channel: LIDAR_REAR_LOWER
+        frame_id: rear_lower/lidar_base_link
+      - topic: /sensing/lidar/left_upper/pointcloud_before_sync
+        channel: LIDAR_LEFT_UPPER
+        frame_id: left_upper/lidar_base_link
+      - topic: /sensing/lidar/left_lower/pointcloud_before_sync
+        channel: LIDAR_LEFT_LOWER 
+        frame_id: left_lower/lidar_base_link
+      - topic: /sensing/lidar/front_upper/pointcloud_before_sync
+        channel: LIDAR_FRONT_UPPER
+        frame_id: front_upper/lidar_base_link
+      - topic: /sensing/lidar/front_lower/pointcloud_before_sync
+        channel: LIDAR_FRONT_LOWER
+        frame_id: front_lower/lidar_base_link
+      - topic: /sensing/lidar/right_upper/pointcloud_before_sync
+        channel: LIDAR_RIGHT_UPPER
+        frame_id: right_upper/lidar_base_link
+      - topic: /sensing/lidar/right_lower/pointcloud_before_sync
+        channel: LIDAR_RIGHT_LOWER
+        frame_id: right_lower/lidar_base_link
   camera_sensors:
     - topic: /sensing/camera/camera8/image_raw/compressed
       channel: CAM_FRONT

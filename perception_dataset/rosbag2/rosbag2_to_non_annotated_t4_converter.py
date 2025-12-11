@@ -223,7 +223,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for lidar info topic. Checks for keys are done in LidarSensor pydantic model.
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
-        self._lidar_sources_mapping: Dict[str, str] = self._lidar_sensor["lidar_sources_mapping"]
+        self._lidar_sources_mapping: Optional[List] = self._lidar_sensor["lidar_sources_mapping"]
         self._accept_no_info: bool = self._lidar_sensor["accept_no_info"]
 
         if self._lidar_info_topic:
@@ -387,11 +387,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # vehicle
         self._log_table = LogTable()
         self._map_table = MapTable()
-        self._sensor_table = SensorTable(
-            channel_to_modality={
-                enum.value["channel"]: enum.value["modality"] for enum in self._sensor_enums
-            }
-        )
+        
+        # Build channel_to_modality including lidar sources
+        channel_to_modality = {
+            enum.value["channel"]: enum.value["modality"] for enum in self._sensor_enums
+        }
+        # Add lidar sources to channel_to_modality
+        if self._lidar_sources_mapping:
+            for source_mapping in self._lidar_sources_mapping:
+                channel_to_modality[source_mapping.channel] = SENSOR_MODALITY_ENUM.LIDAR.value
+        
+        self._sensor_table = SensorTable(channel_to_modality=channel_to_modality)
         self._calibrated_sensor_table = CalibratedSensorTable()
         # extraction
         self._scene_table = SceneTable()
@@ -590,6 +596,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             log_token=log_token,
         )
 
+        # Add calibrated sensors for lidar sources
+        if self._lidar_sources_mapping:
+            start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(self._calc_start_timestamp())
+            for source_mapping in self._lidar_sources_mapping:
+                self._generate_calibrated_sensor_for_lidar_source(
+                    sensor_channel=source_mapping.channel,
+                    topic=source_mapping.topic,
+                    frame_id=source_mapping.frame_id,
+                    start_timestamp=start_time_in_time,
+                )
+
         return scene_token
 
     def _convert_pointcloud(
@@ -785,22 +802,27 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo):
         """Convert lidar_info message to dictionary."""
-        # Create reverse mapping from topic to source_id
-        topic_to_source_id = {
-            topic: source_id for source_id, topic in self._lidar_sources_mapping.items()
+        # Create reverse mapping from topic to channel
+        topic_to_channel = {
+            source_mapping.topic: source_mapping.channel 
+            for source_mapping in self._lidar_sources_mapping
         }
 
-        # Build sources dictionary with source_id as keys
+        # Build sources list matching PointCloudSourceInfo structure
         sources = []
         for src in msg.source_info:
-            # Get source_id from topic, fallback to topic if not in mapping
+            # Get channel from topic
             assert (
-                src.topic in topic_to_source_id
+                src.topic in topic_to_channel
             ), f" Topic {src.topic} not found in sources mapping. Please update lidar_sensor.lidar_sources_mapping in configs"
-            source_id = topic_to_source_id[src.topic]
+            channel = topic_to_channel[src.topic]
+            
+            # Get the sensor token from SensorTable using the channel
+            sensor_token = self._sensor_table.get_token_from_channel(channel)
+            
             sources.append(
                 {
-                    "id": source_id,
+                    "sensor_token": sensor_token,
                     "idx_begin": src.idx_begin,
                     "length": src.length,
                     "stamp": {
@@ -1292,6 +1314,60 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
 
         return vehicle_state_token
+
+    def _generate_calibrated_sensor_for_lidar_source(
+        self,
+        sensor_channel: str,
+        topic: str,
+        frame_id: str,
+        start_timestamp: builtin_interfaces.msg.Time,
+    ) -> str:
+        """Generate calibrated sensor for a lidar source from lidar_sources_mapping.
+        
+        Args:
+            sensor_channel: The channel name from lidar_sources_mapping
+            topic: The topic name from lidar_sources_mapping
+            frame_id: The frame_id from lidar_sources_mapping
+            start_timestamp: The timestamp to use for TF lookup
+            
+        Returns:
+            The calibrated sensor token
+        """
+        # Get or create sensor token using the channel
+        # This ensures we don't create duplicate entries
+        sensor_token = self._sensor_table.get_token_from_channel(sensor_channel)
+
+        translation = {"x": 0.0, "y": 0.0, "z": 0.0}
+        rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
+        print(
+            f"generate_calib_sensor for lidar source, start_timestamp:{start_timestamp}, topic:{topic}, frame id:{frame_id}"
+        )
+        if frame_id is not None:
+            transform_stamped = self._bag_reader.get_transform_stamped(
+                target_frame=self._calibrated_sensor_target_frame,
+                source_frame=frame_id,
+                stamp=start_timestamp,
+            )
+            translation = {
+                "x": transform_stamped.transform.translation.x,
+                "y": transform_stamped.transform.translation.y,
+                "z": transform_stamped.transform.translation.z,
+            }
+            rotation = {
+                "w": transform_stamped.transform.rotation.w,
+                "x": transform_stamped.transform.rotation.x,
+                "y": transform_stamped.transform.rotation.y,
+                "z": transform_stamped.transform.rotation.z,
+            }
+
+        calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
+            sensor_token=sensor_token,
+            translation=translation,
+            rotation=rotation,
+            camera_intrinsic=[],
+            camera_distortion=[],
+        )
+        return calibrated_sensor_token
 
     def _generate_calibrated_sensor(
         self,
