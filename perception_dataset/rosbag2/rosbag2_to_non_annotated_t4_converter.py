@@ -387,7 +387,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # vehicle
         self._log_table = LogTable()
         self._map_table = MapTable()
-        
+
         # Build channel_to_modality including lidar sources
         channel_to_modality = {
             enum.value["channel"]: enum.value["modality"] for enum in self._sensor_enums
@@ -396,7 +396,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         if self._lidar_sources_mapping:
             for source_mapping in self._lidar_sources_mapping:
                 channel_to_modality[source_mapping.channel] = SENSOR_MODALITY_ENUM.LIDAR.value
-        
+
         self._sensor_table = SensorTable(channel_to_modality=channel_to_modality)
         self._calibrated_sensor_table = CalibratedSensorTable()
         # extraction
@@ -598,7 +598,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Add calibrated sensors for lidar sources
         if self._lidar_sources_mapping:
-            start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(self._calc_start_timestamp())
+            start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(
+                self._calc_start_timestamp()
+            )
             for source_mapping in self._lidar_sources_mapping:
                 self._generate_calibrated_sensor_for_lidar_source(
                     sensor_channel=source_mapping.channel,
@@ -804,7 +806,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         """Convert lidar_info message to dictionary."""
         # Create reverse mapping from topic to channel
         topic_to_channel = {
-            source_mapping.topic: source_mapping.channel 
+            source_mapping.topic: source_mapping.channel
             for source_mapping in self._lidar_sources_mapping
         }
 
@@ -816,10 +818,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 src.topic in topic_to_channel
             ), f" Topic {src.topic} not found in sources mapping. Please update lidar_sensor.lidar_sources_mapping in configs"
             channel = topic_to_channel[src.topic]
-            
+
             # Get the sensor token from SensorTable using the channel
             sensor_token = self._sensor_table.get_token_from_channel(channel)
-            
+
             sources.append(
                 {
                     "sensor_token": sensor_token,
@@ -1323,13 +1325,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         start_timestamp: builtin_interfaces.msg.Time,
     ) -> str:
         """Generate calibrated sensor for a lidar source from lidar_sources_mapping.
-        
+
         Args:
             sensor_channel: The channel name from lidar_sources_mapping
             topic: The topic name from lidar_sources_mapping
             frame_id: The frame_id from lidar_sources_mapping
             start_timestamp: The timestamp to use for TF lookup
-            
+
         Returns:
             The calibrated sensor token
         """

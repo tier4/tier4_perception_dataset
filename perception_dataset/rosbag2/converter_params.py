@@ -34,6 +34,7 @@ class BaseModelWithDictAccess(BaseModel):
 
 class LidarSourceMapping(BaseModel):
     """Model for individual lidar source mapping entry."""
+
     topic: str  # e.g., "/sensing/lidar/rear_upper/pointcloud_before_sync"
     channel: str  # e.g., "LIDAR_REAR_UPPER"
     frame_id: str  # e.g., "rear_upper/lidar_base_link"

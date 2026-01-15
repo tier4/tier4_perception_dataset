@@ -18,7 +18,7 @@ conversion:
     accept_no_info: True # If True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
     lidar_sources_mapping:
       - topic: /sensing/lidar/rear_upper/pointcloud_before_sync     # name of the source topic in lidar info message
-        channel: LIDAR_REAR_UPPER                                   # channel name for this source in T4 dataset                
+        channel: LIDAR_REAR_UPPER                                   # channel name for this source in T4 dataset
         frame_id: rear_upper/lidar_base_link                        # frame_id of this source in TF tree
       - topic: /sensing/lidar/rear_lower/pointcloud_before_sync
         channel: LIDAR_REAR_LOWER
@@ -27,7 +27,7 @@ conversion:
         channel: LIDAR_LEFT_UPPER
         frame_id: left_upper/lidar_base_link
       - topic: /sensing/lidar/left_lower/pointcloud_before_sync
-        channel: LIDAR_LEFT_LOWER 
+        channel: LIDAR_LEFT_LOWER
         frame_id: left_lower/lidar_base_link
       - topic: /sensing/lidar/front_upper/pointcloud_before_sync
         channel: LIDAR_FRONT_UPPER
