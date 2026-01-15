@@ -3,7 +3,7 @@ description:
   scene: ""
 conversion:
   without_compress: true
-  input_base: /mnt/HDD_16TB/samrat/semaseg/annotation_dataset/10e2fe62-990d-4faf-aa5d-9ecd57cbf8de/0/intermediate_artifacts
+  input_base: ../inputbag
   output_base: ../t4dataset
   skip_timestamp: 2.0
   num_load_frames: 0
