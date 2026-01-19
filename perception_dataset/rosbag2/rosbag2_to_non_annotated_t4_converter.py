@@ -40,6 +40,7 @@ from perception_dataset.constants import (
 from perception_dataset.rosbag2.converter_params import (
     DataType,
     LidarSensor,
+    LidarSourceMapping,
     Rosbag2ConverterParams,
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
@@ -223,7 +224,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for lidar info topic. Checks for keys are done in LidarSensor pydantic model.
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
-        self._lidar_sources_mapping: Optional[List] = self._lidar_sensor["lidar_sources_mapping"]
+        self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor["lidar_sources_mapping"]
         self._accept_no_info: bool = self._lidar_sensor["accept_no_info"]
 
         if self._lidar_info_topic:
