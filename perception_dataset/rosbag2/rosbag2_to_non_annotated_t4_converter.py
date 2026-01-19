@@ -143,7 +143,7 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter[Rosbag2ToNonAnnotatedT4
                     raise e
                 continue
             logger.info(f"Conversion of {bag_dir} is completed")
-            print(
+            logger.info(
                 "--------------------------------------------------------------------------------------------------------------------------"
             )
 
@@ -433,14 +433,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
 
     def _save_tables(self):
-        print(
+        logger.info(
             "--------------------------------------------------------------------------------------------------------------------------"
         )
         for cls_attr in self.__dict__.values():
             if isinstance(cls_attr, AbstractTable):
-                print(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
+                logger.info(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
                 cls_attr.save_json(self._output_anno_dir)
-        print(
+        logger.info(
             "--------------------------------------------------------------------------------------------------------------------------"
         )
 
@@ -508,7 +508,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
         self._add_scene_description(self._scene_description)
-        print(f"Total elapsed time: {time.time() - start:.2f} sec")
+        logger.info(f"Total elapsed time: {time.time() - start:.2f} sec")
 
         if self._with_vehicle_status:
             self._convert_vehicle_state()
@@ -540,7 +540,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     scene_token=scene_token,
                 )
             )
-            print(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec\n")
+            logger.info(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec")
             for radar_sensor in self._radar_sensors:
                 radar_sensor_channel = radar_sensor["channel"]
                 sensor_channel_to_sample_data_token_list[radar_sensor_channel] = (
@@ -575,8 +575,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 scene_token=scene_token,
             )
 
-            print(
-                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec\n"
+            logger.info(
+                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec"
             )
 
     def _convert_static_data(self):
@@ -674,7 +674,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             if frame_index > 0:
                 time_diff = unix_timestamp - prev_frame_unix_timestamp
                 if frame_index % self._msg_display_interval == 0:
-                    print(
+                    logger.info(
                         f"frame_index:{frame_index}: {unix_timestamp}, unix_timestamp - prev_frame_unix_timestamp: {time_diff}"
                     )
                 # Note: LiDAR Message drops are not accepted unless accept_frame_drop is True.
@@ -881,7 +881,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(radar_tracks_msg.header.stamp)
             if frame_index > 0:
                 # NOTE: Message drops are not tolerated.
-                print(
+                logger.info(
                     f"frame_index: {frame_index}, unix_timestamp - prev_frame_unix_timestamp: {unix_timestamp - prev_frame_unix_timestamp}"
                 )
                 if (
@@ -1071,7 +1071,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     try:
                         ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
                     except Exception as e:
-                        print(e)
+                        logger.error(e)
                         continue
                     ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
                         ego_pose_token
@@ -1090,7 +1090,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         is_data_found = True
 
                 if is_data_found:
-                    print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
+                    logger.info(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
                     sample_data_token = self._generate_image_data(
                         rosbag2_utils.compressed_msg_to_numpy(image_msg),
                         image_unix_timestamp,
@@ -1341,7 +1341,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         translation = {"x": 0.0, "y": 0.0, "z": 0.0}
         rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
-        print(
+        logger.info(
             f"generate_calib_sensor for lidar source, start_timestamp:{start_timestamp}, topic:{topic}, frame id:{frame_id}"
         )
         if frame_id is not None:
@@ -1394,7 +1394,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             translation = {"x": 0.0, "y": 0.0, "z": 0.0}
             rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
-            print(
+            logger.info(
                 f"generate_calib_sensor, start_timestamp:{start_timestamp}, topic name:{topic_name}, frame id:{frame_id}"
             )
             if frame_id is not None:
