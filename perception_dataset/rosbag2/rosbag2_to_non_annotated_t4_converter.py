@@ -224,7 +224,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for lidar info topic. Checks for keys are done in LidarSensor pydantic model.
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
-        self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor["lidar_sources_mapping"]
+        self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor[
+            "lidar_sources_mapping"
+        ]
         self._accept_no_info: bool = self._lidar_sensor["accept_no_info"]
 
         if self._lidar_info_topic:
@@ -1091,7 +1093,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         is_data_found = True
 
                 if is_data_found:
-                    logger.info(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
+                    logger.info(
+                        f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}"
+                    )
                     sample_data_token = self._generate_image_data(
                         rosbag2_utils.compressed_msg_to_numpy(image_msg),
                         image_unix_timestamp,
