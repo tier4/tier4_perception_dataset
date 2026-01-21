@@ -1,14 +1,15 @@
 """some implementations are from https://github.com/tier4/ros2bag_extensions/blob/main/ros2bag_extensions/ros2bag_extensions/verb/__init__.py"""
 
 import os.path as osp
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-import uuid
 
 import builtin_interfaces.msg
 import cv2
-from nptyping import NDArray
 import numpy as np
+import yaml
+from nptyping import NDArray
 from pypcd4 import PointCloud
 from radar_msgs.msg import RadarTrack, RadarTracks
 from rclpy.time import Time
@@ -20,7 +21,6 @@ from rosbag2_py import (
     StorageOptions,
 )
 from sensor_msgs.msg import CompressedImage, PointCloud2
-import yaml
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 
@@ -30,8 +30,12 @@ def get_options(
     storage_options: Optional[StorageOptions] = None,
     converter_options: Optional[ConverterOptions] = None,
 ) -> Tuple[StorageOptions, ConverterOptions]:
-    storage_options = storage_options if storage_options else get_default_storage_options(bag_dir)
-    converter_options = converter_options if converter_options else get_default_converter_options()
+    storage_options = (
+        storage_options if storage_options else get_default_storage_options(bag_dir)
+    )
+    converter_options = (
+        converter_options if converter_options else get_default_converter_options()
+    )
     return storage_options, converter_options
 
 
@@ -40,7 +44,9 @@ def create_reader(
     storage_options: Optional[StorageOptions] = None,
     converter_options: Optional[ConverterOptions] = None,
 ) -> SequentialReader:
-    storage_options, converter_options = get_options(bag_dir, storage_options, converter_options)
+    storage_options, converter_options = get_options(
+        bag_dir, storage_options, converter_options
+    )
     reader = SequentialReader()
     reader.open(storage_options, converter_options)
 
@@ -98,7 +104,9 @@ def get_topic_count(bag_dir: str) -> Dict[str, int]:
         bagfile_metadata = yaml.safe_load(f)["rosbag2_bagfile_information"]
     topic_name_to_topic_count: Dict[str, int] = {}
     for topic in bagfile_metadata["topics_with_message_count"]:
-        topic_name_to_topic_count[topic["topic_metadata"]["name"]] = topic["message_count"]
+        topic_name_to_topic_count[topic["topic_metadata"]["name"]] = topic[
+            "message_count"
+        ]
     return topic_name_to_topic_count
 
 
@@ -109,7 +117,9 @@ def get_default_converter_options() -> ConverterOptions:
     )
 
 
-def infer_storage_id(bag_dir: str, storage_ids={".db3": "sqlite3", ".mcap": "mcap"}) -> str:
+def infer_storage_id(
+    bag_dir: str, storage_ids={".db3": "sqlite3", ".mcap": "mcap"}
+) -> str:
     bag_dir_path = Path(bag_dir)
     data_file = next(p for p in bag_dir_path.glob("*") if p.suffix in storage_ids)
     if data_file.suffix not in storage_ids:
@@ -137,7 +147,9 @@ def _get_field(
     return np.full((num_points,), -1, dtype=np.float32)
 
 
-def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, num_lidar_feats: int = 5) -> NDArray:
+def pointcloud_msg_to_numpy(
+    pointcloud_msg: PointCloud2, num_lidar_feats: int = 5
+) -> NDArray:
     """Convert ROS PointCloud2 message to a float32 numpy array."""
     if num_lidar_feats not in (5, 7):
         raise ValueError(f"num_lidar_feats must be 5 or 7, got {num_lidar_feats}")
@@ -206,6 +218,18 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
             }
         )
     return radar_tracks
+
+
+def image_msg_to_numpy(image_msg: Image) -> NDArray:
+    try:
+        np_arr = np.frombuffer(image_msg.data, np.uint8)
+        image = np.reshape(np_arr, (image_msg.height, image_msg.width, 3))
+        if image_msg.encoding == "rgb8":
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    except Exception as e:
+        print(e)
+        return None
+    return image
 
 
 def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
