@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from perception_dataset.constants import SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
+from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from tests.constants import (
     DB3_FILE_PATTERN,
     INPUT_BAG_DIR_NAME,
