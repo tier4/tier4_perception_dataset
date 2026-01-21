@@ -1,0 +1,43 @@
+task: convert_rosbag2_to_non_annotated_t4
+description:
+  scene: ""
+conversion:
+  input_base: ./data/t4_sample_0/filtered_rosbag_with_lidarinfo
+  output_base: ./data/t4_sample_0/non_annotated_dataset_lidar_info_generated
+  skip_timestamp: 2.0
+  num_load_frames: 0
+  start_timestamp_sec: 0.0
+  world_frame_id: "map"
+  lidar_sensor:
+    topic: /sensing/lidar/concatenated/pointcloud
+    channel: LIDAR_CONCAT
+    lidar_info_topic: /sensing/lidar/concatenated/pointcloud_info # Do not set to disable saving lidar info
+    lidar_info_channel: LIDAR_CONCAT_INFO
+    accept_no_info: True # If True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+    lidar_sources_mapping:
+      - topic: /sensing/lidar/rear_upper/pointcloud_before_sync     # name of the source topic in lidar info message
+        channel: LIDAR_REAR_UPPER                                   # channel name for this source in T4 dataset
+        frame_id: rear_upper/lidar_base_link                        # frame_id of this source in TF tree
+      - topic: /sensing/lidar/rear_lower/pointcloud_before_sync
+        channel: LIDAR_REAR_LOWER
+        frame_id: rear_lower/lidar_base_link
+      - topic: /sensing/lidar/left_upper/pointcloud_before_sync
+        channel: LIDAR_LEFT_UPPER
+        frame_id: left_upper/lidar_base_link
+      - topic: /sensing/lidar/left_lower/pointcloud_before_sync
+        channel: LIDAR_LEFT_LOWER
+        frame_id: left_lower/lidar_base_link
+      - topic: /sensing/lidar/front_upper/pointcloud_before_sync
+        channel: LIDAR_FRONT_UPPER
+        frame_id: front_upper/lidar_base_link
+      - topic: /sensing/lidar/front_lower/pointcloud_before_sync
+        channel: LIDAR_FRONT_LOWER
+        frame_id: front_lower/lidar_base_link
+      - topic: /sensing/lidar/right_upper/pointcloud_before_sync
+        channel: LIDAR_RIGHT_UPPER
+        frame_id: right_upper/lidar_base_link
+      - topic: /sensing/lidar/right_lower/pointcloud_before_sync
+        channel: LIDAR_RIGHT_LOWER
+        frame_id: right_lower/lidar_base_link
+  camera_sensors: []
+  ignore_no_ego_transform_at_rosbag_beginning: True

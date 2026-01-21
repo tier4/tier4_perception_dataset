@@ -70,11 +70,11 @@ poetry install
 - [GitHub CLI](https://github.com/cli/cli#installation)
 
 ```shell
-gh release download test-data -D tests/data
-unzip 'tests/data/*.zip' -d tests/data/
+gh release download t4-sample-0-2025-10-23 -D tests/data/t4_sample_0
+unzip 'tests/data/t4_sample_0/*.zip' -d tests/data/t4_sample_0/
 ```
 
-or manually download zipped data from [the release page](https://github.com/tier4/tier4_perception_dataset/releases/tag/test-data) to a `test/data` directory
+or manually download zipped data from [the release page](https://github.com/tier4/tier4_perception_dataset/releases/tag/t4-sample-0-2025-10-23) to a `test/data` directory
 
 #### Run tests
 
