@@ -393,7 +393,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Build channel_to_modality including lidar sources
         channel_to_modality = {
-            sensor_enum.value["channel"]: sensor_enum.value["modality"] for sensor_enum in self._sensor_enums
+            sensor_enum.value["channel"]: sensor_enum.value["modality"]
+            for sensor_enum in self._sensor_enums
         }
         # Add lidar sources to channel_to_modality
         if self._lidar_sources_mapping is not None:
@@ -1352,13 +1353,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             source_frame=frame_id,
             stamp=start_timestamp,
         )
-        
+
         translation = {
             "x": transform_stamped.transform.translation.x,
             "y": transform_stamped.transform.translation.y,
             "z": transform_stamped.transform.translation.z,
         }
-        
+
         rotation = {
             "w": transform_stamped.transform.rotation.w,
             "x": transform_stamped.transform.rotation.x,
