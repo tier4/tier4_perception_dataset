@@ -393,10 +393,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         # Build channel_to_modality including lidar sources
         channel_to_modality = {
-            enum.value["channel"]: enum.value["modality"] for enum in self._sensor_enums
+            sensor_enum.value["channel"]: sensor_enum.value["modality"] for sensor_enum in self._sensor_enums
         }
         # Add lidar sources to channel_to_modality
-        if self._lidar_sources_mapping:
+        if self._lidar_sources_mapping is not None:
             for source_mapping in self._lidar_sources_mapping:
                 channel_to_modality[source_mapping.channel] = SENSOR_MODALITY_ENUM.LIDAR.value
 
@@ -600,7 +600,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
 
         # Add calibrated sensors for lidar sources
-        if self._lidar_sources_mapping:
+        if self._lidar_sources_mapping is not None:
             start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(
                 self._calc_start_timestamp()
             )
@@ -1328,7 +1328,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         frame_id: str,
         start_timestamp: builtin_interfaces.msg.Time,
-    ) -> str:
+    ):
         """Generate calibrated sensor for a lidar source from lidar_sources_mapping.
 
         Args:
@@ -1338,43 +1338,41 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             start_timestamp: The timestamp to use for TF lookup
 
         Returns:
-            The calibrated sensor token
+            None
         """
         # Get or create sensor token using the channel
         # This ensures we don't create duplicate entries
         sensor_token = self._sensor_table.get_token_from_channel(sensor_channel)
 
-        translation = {"x": 0.0, "y": 0.0, "z": 0.0}
-        rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
         logger.info(
             f"generate_calib_sensor for lidar source, start_timestamp:{start_timestamp}, topic:{topic}, frame id:{frame_id}"
         )
-        if frame_id is not None:
-            transform_stamped = self._bag_reader.get_transform_stamped(
-                target_frame=self._calibrated_sensor_target_frame,
-                source_frame=frame_id,
-                stamp=start_timestamp,
-            )
-            translation = {
-                "x": transform_stamped.transform.translation.x,
-                "y": transform_stamped.transform.translation.y,
-                "z": transform_stamped.transform.translation.z,
-            }
-            rotation = {
-                "w": transform_stamped.transform.rotation.w,
-                "x": transform_stamped.transform.rotation.x,
-                "y": transform_stamped.transform.rotation.y,
-                "z": transform_stamped.transform.rotation.z,
-            }
+        transform_stamped = self._bag_reader.get_transform_stamped(
+            target_frame=self._calibrated_sensor_target_frame,
+            source_frame=frame_id,
+            stamp=start_timestamp,
+        )
+        
+        translation = {
+            "x": transform_stamped.transform.translation.x,
+            "y": transform_stamped.transform.translation.y,
+            "z": transform_stamped.transform.translation.z,
+        }
+        
+        rotation = {
+            "w": transform_stamped.transform.rotation.w,
+            "x": transform_stamped.transform.rotation.x,
+            "y": transform_stamped.transform.rotation.y,
+            "z": transform_stamped.transform.rotation.z,
+        }
 
-        calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
+        self._calibrated_sensor_table.insert_into_table(
             sensor_token=sensor_token,
             translation=translation,
             rotation=rotation,
             camera_intrinsic=[],
             camera_distortion=[],
         )
-        return calibrated_sensor_token
 
     def _generate_calibrated_sensor(
         self,
@@ -1396,29 +1394,27 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 modality=modality,
             )
 
-            translation = {"x": 0.0, "y": 0.0, "z": 0.0}
-            rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
+            assert frame_id is not None, f"frame_id not found for topic: {topic_name}"
             logger.info(
                 f"generate_calib_sensor, start_timestamp:{start_timestamp}, topic name:{topic_name}, frame id:{frame_id}"
             )
-            if frame_id is not None:
-                transform_stamped = self._bag_reader.get_transform_stamped(
-                    target_frame=self._calibrated_sensor_target_frame,
-                    source_frame=frame_id,
-                    stamp=start_timestamp,
-                )
-                translation = {
-                    "x": transform_stamped.transform.translation.x,
-                    "y": transform_stamped.transform.translation.y,
-                    "z": transform_stamped.transform.translation.z,
-                }
-                rotation = {
-                    "w": transform_stamped.transform.rotation.w,
-                    "x": transform_stamped.transform.rotation.x,
-                    "y": transform_stamped.transform.rotation.y,
-                    "z": transform_stamped.transform.rotation.z,
-                }
+            transform_stamped = self._bag_reader.get_transform_stamped(
+                target_frame=self._calibrated_sensor_target_frame,
+                source_frame=frame_id,
+                stamp=start_timestamp,
+            )
+            translation = {
+                "x": transform_stamped.transform.translation.x,
+                "y": transform_stamped.transform.translation.y,
+                "z": transform_stamped.transform.translation.z,
+            }
+            rotation = {
+                "w": transform_stamped.transform.rotation.w,
+                "x": transform_stamped.transform.rotation.x,
+                "y": transform_stamped.transform.rotation.y,
+                "z": transform_stamped.transform.rotation.z,
+            }
 
             if modality in (
                 SENSOR_MODALITY_ENUM.LIDAR.value,
