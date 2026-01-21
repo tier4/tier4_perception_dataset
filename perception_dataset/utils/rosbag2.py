@@ -18,7 +18,7 @@ from rosbag2_py import (
     SequentialWriter,
     StorageOptions,
 )
-from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
+from sensor_msgs.msg import CompressedImage, Image, PointCloud2, PointField
 import yaml
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -168,7 +168,9 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
         points_arr = points_arr[:, :NUM_DIMENSIONS]
     elif points_arr.shape[1] < NUM_DIMENSIONS:
         padding = np.full(
-            (points_arr.shape[0], NUM_DIMENSIONS - points_arr.shape[1]), -1, dtype=np.float32
+            (points_arr.shape[0], NUM_DIMENSIONS - points_arr.shape[1]),
+            -1,
+            dtype=np.float32,
         )
         points_arr = np.hstack((points_arr, padding))
 
@@ -218,6 +220,18 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
             }
         )
     return radar_tracks
+
+
+def image_msg_to_numpy(image_msg: Image) -> NDArray:
+    try:
+        np_arr = np.frombuffer(image_msg.data, np.uint8)
+        image = np.reshape(np_arr, (image_msg.height, image_msg.width, 3))
+        if image_msg.encoding == "rgb8":
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    except Exception as e:
+        print(e)
+        return None
+    return image
 
 
 def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:

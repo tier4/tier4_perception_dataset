@@ -62,6 +62,27 @@ def main():
         logger.info(
             f"[END] Converting Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
         )
+    elif task == "convert_camera_only_rosbag2_to_non_annotated_t4":
+        from perception_dataset.rosbag2.camera_only_rosbag2_to_non_annotated_t4_converter import (
+            CameraOnlyRosbag2ToNonAnnotatedT4Converter,
+        )
+
+        param_args = {
+            "task": config_dict["task"],
+            "scene_description": config_dict["description"]["scene"],
+            "overwrite_mode": args.overwrite,
+            "without_compress": args.without_compress,
+            **config_dict["conversion"],
+        }
+        params = Rosbag2ConverterParams(**param_args)
+        converter = CameraOnlyRosbag2ToNonAnnotatedT4Converter(params)
+        logger.info(
+            f"[BEGIN] Converting Camera Only Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[END] Converting Camera Only Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
+        )
     elif task == "convert_non_annotated_t4_to_deepen":
         from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
             NonAnnotatedT4ToDeepenConverter,
