@@ -1395,27 +1395,29 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 modality=modality,
             )
 
+            translation = {"x": 0.0, "y": 0.0, "z": 0.0}
+            rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
-            assert frame_id is not None, f"frame_id not found for topic: {topic_name}"
             logger.info(
                 f"generate_calib_sensor, start_timestamp:{start_timestamp}, topic name:{topic_name}, frame id:{frame_id}"
             )
-            transform_stamped = self._bag_reader.get_transform_stamped(
-                target_frame=self._calibrated_sensor_target_frame,
-                source_frame=frame_id,
-                stamp=start_timestamp,
-            )
-            translation = {
-                "x": transform_stamped.transform.translation.x,
-                "y": transform_stamped.transform.translation.y,
-                "z": transform_stamped.transform.translation.z,
-            }
-            rotation = {
-                "w": transform_stamped.transform.rotation.w,
-                "x": transform_stamped.transform.rotation.x,
-                "y": transform_stamped.transform.rotation.y,
-                "z": transform_stamped.transform.rotation.z,
-            }
+            if frame_id is not None:
+                transform_stamped = self._bag_reader.get_transform_stamped(
+                    target_frame=self._calibrated_sensor_target_frame,
+                    source_frame=frame_id,
+                    stamp=start_timestamp,
+                )
+                translation = {
+                    "x": transform_stamped.transform.translation.x,
+                    "y": transform_stamped.transform.translation.y,
+                    "z": transform_stamped.transform.translation.z,
+                }
+                rotation = {
+                    "w": transform_stamped.transform.rotation.w,
+                    "x": transform_stamped.transform.rotation.x,
+                    "y": transform_stamped.transform.rotation.y,
+                    "z": transform_stamped.transform.rotation.z,
+                }
 
             if modality in (
                 SENSOR_MODALITY_ENUM.LIDAR.value,
