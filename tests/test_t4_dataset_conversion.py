@@ -40,7 +40,9 @@ TEST_ROSBAG_NAME = "sample_bag"
 def non_annotated_t4_dataset_with_lidar_info_path():
     """Convert rosbag2 to non-annotated T4 dataset with lidar info."""
     # Load configuration
-    with open(TEST_CONFIG_ROOT_DIR / "convert_rosbag2_to_non_annotated_t4_with_lidar_info_test.yaml") as f:
+    with open(
+        TEST_CONFIG_ROOT_DIR / "convert_rosbag2_to_non_annotated_t4_with_lidar_info_test.yaml"
+    ) as f:
         param_args = yaml.safe_load(f)
 
     input_rosbag_base = osp.join(TEST_ROOT_DIR, param_args["conversion"]["input_base"])
@@ -65,6 +67,7 @@ def non_annotated_t4_dataset_with_lidar_info_path():
 
     # Cleanup
     shutil.rmtree(r2t4_output_base, ignore_errors=True)
+
 
 @pytest.fixture(scope="module")
 def non_annotated_t4_dataset_path():
@@ -242,11 +245,15 @@ def test_non_annotated_t4_dataset_diff(non_annotated_t4_dataset_path):
 
     diff_check_t4_dataset(generated_path, expected_path)
 
-def test_non_annotated_t4_dataset_with_lidar_info_diff(non_annotated_t4_dataset_with_lidar_info_path):
+
+def test_non_annotated_t4_dataset_with_lidar_info_diff(
+    non_annotated_t4_dataset_with_lidar_info_path,
+):
     """Test that generated non-annotated T4 dataset with lidar info matches expected output."""
     generated_path = Path(non_annotated_t4_dataset_with_lidar_info_path)
     expected_path = Path(non_annotated_t4_dataset_with_lidar_info_path.replace("_generated", ""))
     diff_check_t4_dataset(generated_path, expected_path)
+
 
 def test_deepen_dataset_diff(deepen_path):
     """Test that generated Deepen dataset matches expected output."""

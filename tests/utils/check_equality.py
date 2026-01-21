@@ -7,9 +7,9 @@ from perception_dataset.constants import SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from tests.constants import (
     DB3_FILE_PATTERN,
     INPUT_BAG_DIR_NAME,
+    JSON_EXTENSION,
     METADATA_YAML_FILENAME,
     TOKEN_FIELD_NAMES,
-    JSON_EXTENSION
 )
 
 
@@ -131,7 +131,7 @@ def diff_check_data(target_dir: Path, source_dir: Path) -> None:
         assert target_file.is_file(), f"File {relative_path} exists in source but not in target"
         if str(relative_path).endswith(JSON_EXTENSION):
             _compare_json_files(target_file, source_file)
-        else:        
+        else:
             source_content = source_file.read_bytes()
             target_content = target_file.read_bytes()
             assert source_content == target_content, f"File contents differ: {relative_path}"
