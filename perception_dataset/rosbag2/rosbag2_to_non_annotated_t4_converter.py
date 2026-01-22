@@ -1329,7 +1329,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         frame_id: str,
         start_timestamp: builtin_interfaces.msg.Time,
-    ):
+    ) -> None:
         """Generate calibrated sensor for a lidar source from lidar_sources_mapping.
 
         Args:
