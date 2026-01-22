@@ -59,7 +59,7 @@ from t4_devkit.schema.tables import (
     VehicleState,
     Visibility,
 )
-from 
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -380,29 +380,27 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _init_tables(self):
         # vehicle
-        self._log_table = LogTable()
-        self._map_table = MapTable()
-        self._sensor_table = SensorTable(
-            channel_to_modality={
-                enum.value["channel"]: enum.value["modality"] for enum in self._sensor_enums
-            }
-        )
-        self._calibrated_sensor_table = CalibratedSensorTable()
+        self._log_table = TableHandler(Log)
+        self._map_table = TableHandler(Map)
+        self._sensor_table = TableHandler(Sensor)
+        for enum in self._sensor_enums:
+            self._sensor_table.insert_into_table(channel=enum.value["channel"], modality=enum.value["modality"]) 
+        self._calibrated_sensor_table = TableHandler(CalibratedSensor)
         # extraction
-        self._scene_table = SceneTable()
-        self._sample_table = SampleTable()
-        self._sample_data_table = SampleDataTable()
-        self._ego_pose_table = EgoPoseTable()
+        self._scene_table = TableHandler(Scene)
+        self._sample_table = TableHandler(Sample)
+        self._sample_data_table = TableHandler(SampleData)
+        self._ego_pose_table = TableHandler(EgoPose)
         # annotation (empty file)
-        self._instance_table = InstanceTable()
-        self._sample_annotation_table = SampleAnnotationTable()
+        self._instance_table = TableHandler(Instance)
+        self._sample_annotation_table = TableHandler(SampleAnnotation)
         # taxonomy (empty file)
-        self._category_table = CategoryTable(name_to_description={}, default_value="")
-        self._attribute_table = AttributeTable(name_to_description={}, default_value="")
-        self._visibility_table = VisibilityTable(level_to_description={}, default_value="")
+        self._category_table = TableHandler(Category)
+        self._attribute_table = TableHandler(Attribute)
+        self._visibility_table = TableHandler(Visibility)
 
         # additional (used in Co-MLops)
-        self._vehicle_state_table = VehicleStateTable()
+        self._vehicle_state_table = TableHandler(VehicleState)
 
     def convert(self) -> Rosbag2ToNonAnnotatedT4ConverterOutputItem:
         self._convert()
@@ -426,7 +424,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             "--------------------------------------------------------------------------------------------------------------------------"
         )
         for cls_attr in self.__dict__.values():
-            if isinstance(cls_attr, AbstractTable):
+            if isinstance(cls_attr, TableHandler):
                 print(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
                 cls_attr.save_json(self._output_anno_dir)
         print(
@@ -543,7 +541,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             # Note: Align the loading order of the cameras with the shutter sequence.
             # Note: The timing of lidar scan initiation and the first camera data acquisition is the same, but the camera has a delay due to data transfer and edge processing on the timestamp.
-            first_sample_data_record: SampleDataRecord = self._sample_data_table.to_records()[0]
+            first_sample_data_record: SampleData = self._sample_data_table.to_records()[0]
 
         if self._sensor_mode == SensorMode.NO_LIDAR or self._sensor_mode == SensorMode.NO_SENSOR:
             # temporaly use start_timestamp instead of recorded timestamp for non synced data
@@ -706,7 +704,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 is_key_frame=True,
                 info_filename=info_filename,
             )
-            sample_data_record: SampleDataRecord = (
+            sample_data_record: SampleData = (
                 self._sample_data_table.select_record_from_token(sample_data_token)
             )
 
@@ -879,7 +877,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 timestamp=nusc_timestamp,
                 is_key_frame=False,
             )
-            sample_data_record: SampleDataRecord = (
+            sample_data_record: SampleData = (
                 self._sample_data_table.select_record_from_token(sample_data_token)
             )
 
@@ -904,7 +902,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
     ):
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
-        sample_records: List[SampleRecord] = self._sample_table.to_records()
+        sample_records: List[Sample] = self._sample_table.to_records()
 
         # Get calibrated sensor token
         start_timestamp = (
@@ -1044,7 +1042,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     except Exception as e:
                         print(e)
                         continue
-                    ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
+                    ego_pose: EgoPose = self._ego_pose_table.select_record_from_token(
                         ego_pose_token
                     )
                     translation: Dict[str, float] = ego_pose.translation
@@ -1140,7 +1138,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             is_valid=(not output_blank_image),
         )
 
-        sample_data_record: SampleDataRecord = self._sample_data_table.select_record_from_token(
+        sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
             sample_data_token
         )
         if isinstance(image_arr, np.ndarray):
@@ -1404,18 +1402,18 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return camera_intrinsic, camera_distortion, camera_info
 
     def _set_scene_data(self):
-        scene_records: List[SceneRecord] = self._scene_table.to_records()
+        scene_records: List[Scene] = self._scene_table.to_records()
         assert len(scene_records) == 1, "#scene_records must be 1."
 
         sample_token_list: List[str] = [rec.token for rec in self._sample_table.to_records()]
-        scene_record: SceneRecord = scene_records[0]
+        scene_record: Scene = scene_records[0]
 
         scene_record.nbr_samples = len(sample_token_list)
         scene_record.first_sample_token = sample_token_list[0]
         scene_record.last_sample_token = sample_token_list[-1]
 
     def _add_scene_description(self, text: str):
-        scene_records: List[SceneRecord] = self._scene_table.to_records()
+        scene_records: List[Scene] = self._scene_table.to_records()
         if scene_records[0].description != "":
             scene_records[0].description += ", "
         scene_records[0].description += f"{text}"
@@ -1428,11 +1426,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             prev_token: str = sample_token_list[token_i - 1]
             cur_token: str = sample_token_list[token_i]
 
-            prev_rec: SampleRecord = self._sample_table.select_record_from_token(prev_token)
+            prev_rec: Sample = self._sample_table.select_record_from_token(prev_token)
             prev_rec.next = cur_token
             self._sample_table.set_record_to_table(prev_rec)
 
-            cur_rec: SampleRecord = self._sample_table.select_record_from_token(cur_token)
+            cur_rec: Sample = self._sample_table.select_record_from_token(cur_token)
             cur_rec.prev = prev_token
             self._sample_table.set_record_to_table(cur_rec)
 
@@ -1445,21 +1443,21 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 prev_token: str = sample_data_token_list[token_i - 1]
                 cur_token: str = sample_data_token_list[token_i]
 
-                prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
+                prev_rec: Sample = self._sample_data_table.select_record_from_token(
                     prev_token
                 )
                 prev_rec.next = cur_token
                 self._sample_data_table.set_record_to_table(prev_rec)
 
-                cur_rec: SampleRecord = self._sample_data_table.select_record_from_token(cur_token)
+                cur_rec: Sample = self._sample_data_table.select_record_from_token(cur_token)
                 cur_rec.prev = prev_token
                 self._sample_data_table.set_record_to_table(cur_rec)
-                prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
+                prev_rec: Sample = self._sample_data_table.select_record_from_token(
                     prev_token
                 )
                 prev_rec.next = cur_token
                 self._sample_data_table.set_record_to_table(prev_rec)
 
-                cur_rec: SampleRecord = self._sample_data_table.select_record_from_token(cur_token)
+                cur_rec: Sample = self._sample_data_table.select_record_from_token(cur_token)
                 cur_rec.prev = prev_token
                 self._sample_data_table.set_record_to_table(cur_rec)
