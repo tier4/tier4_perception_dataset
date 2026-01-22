@@ -43,28 +43,23 @@ from perception_dataset.rosbag2.converter_params import (
     Rosbag2ConverterParams,
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
-from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
-from perception_dataset.t4_dataset.classes.attribute import AttributeTable
-from perception_dataset.t4_dataset.classes.calibrated_sensor import (
-    CalibratedSensorTable,
+from t4_devkit.schema.tables import (
+    Attribute,
+    CalibratedSensor,
+    Category,
+    EgoPose,
+    Instance,
+    Log,
+    Map,
+    Sample,
+    SampleAnnotation,
+    SampleData,
+    Scene,
+    Sensor,
+    VehicleState,
+    Visibility,
 )
-from perception_dataset.t4_dataset.classes.category import CategoryTable
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord, EgoPoseTable
-from perception_dataset.t4_dataset.classes.instance import InstanceTable
-from perception_dataset.t4_dataset.classes.log import LogTable
-from perception_dataset.t4_dataset.classes.map import MapTable
-from perception_dataset.t4_dataset.classes.sample import SampleRecord, SampleTable
-from perception_dataset.t4_dataset.classes.sample_annotation import (
-    SampleAnnotationTable,
-)
-from perception_dataset.t4_dataset.classes.sample_data import (
-    SampleDataRecord,
-    SampleDataTable,
-)
-from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
-from perception_dataset.t4_dataset.classes.sensor import SensorTable
-from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
-from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
+from 
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
