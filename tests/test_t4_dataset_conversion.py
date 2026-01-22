@@ -37,6 +37,39 @@ TEST_ROSBAG_NAME = "sample_bag"
 
 
 @pytest.fixture(scope="module")
+def non_annotated_t4_dataset_with_lidar_info_path():
+    """Convert rosbag2 to non-annotated T4 dataset with lidar info."""
+    # Load configuration
+    with open(
+        TEST_CONFIG_ROOT_DIR / "convert_rosbag2_to_non_annotated_t4_with_lidar_info_test.yaml"
+    ) as f:
+        param_args = yaml.safe_load(f)
+
+    input_rosbag_base = osp.join(TEST_ROOT_DIR, param_args["conversion"]["input_base"])
+    r2t4_output_base = osp.join(TEST_ROOT_DIR, param_args["conversion"]["output_base"])
+
+    param_args["conversion"]["input_base"] = input_rosbag_base
+    param_args["conversion"]["output_base"] = r2t4_output_base
+    assert osp.exists(input_rosbag_base), f"input_base doesn't exist: {input_rosbag_base}"
+
+    # Convert rosbag2 to non-annotated T4
+    converter_params = Rosbag2ConverterParams(
+        task=param_args["task"],
+        scene_description=param_args["description"]["scene"],
+        overwrite_mode=True,
+        without_compress=True,
+        **param_args["conversion"],
+    )
+    converter = Rosbag2ToNonAnnotatedT4Converter(converter_params)
+    converter.convert()
+    # Return the output path
+    yield osp.join(r2t4_output_base, TEST_ROSBAG_NAME)
+
+    # Cleanup
+    shutil.rmtree(r2t4_output_base, ignore_errors=True)
+
+
+@pytest.fixture(scope="module")
 def non_annotated_t4_dataset_path():
     """Convert rosbag2 to non-annotated T4 dataset."""
     # Load configuration
@@ -210,6 +243,15 @@ def test_non_annotated_t4_dataset_diff(non_annotated_t4_dataset_path):
     generated_path = Path(non_annotated_t4_dataset_path)
     expected_path = Path(non_annotated_t4_dataset_path.replace("_generated", ""))
 
+    diff_check_t4_dataset(generated_path, expected_path)
+
+
+def test_non_annotated_t4_dataset_with_lidar_info_diff(
+    non_annotated_t4_dataset_with_lidar_info_path,
+):
+    """Test that generated non-annotated T4 dataset with lidar info matches expected output."""
+    generated_path = Path(non_annotated_t4_dataset_with_lidar_info_path)
+    expected_path = Path(non_annotated_t4_dataset_with_lidar_info_path.replace("_generated", ""))
     diff_check_t4_dataset(generated_path, expected_path)
 
 

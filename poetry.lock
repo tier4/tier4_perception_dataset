@@ -2085,6 +2085,25 @@ notebook = ["rerun-notebook (==0.20.0)"]
 tests = ["pytest (==7.1.2)"]
 
 [[package]]
+name = "returns"
+version = "0.26.0"
+description = "Make your functions return something meaningful, typed, and safe!"
+optional = false
+python-versions = "<4.0,>=3.10"
+groups = ["main"]
+files = [
+    {file = "returns-0.26.0-py3-none-any.whl", hash = "sha256:7cae94c730d6c56ffd9d0f583f7a2c0b32cfe17d141837150c8e6cff3eb30d71"},
+    {file = "returns-0.26.0.tar.gz", hash = "sha256:180320e0f6e9ea9845330ccfc020f542330f05b7250941d9b9b7c00203fcc3da"},
+]
+
+[package.dependencies]
+typing-extensions = ">=4.0,<5.0"
+
+[package.extras]
+check-laws = ["hypothesis (>=6.136,<7.0)", "pytest (>=8.0,<9.0)"]
+compatible-mypy = ["mypy (>=1.12,<1.18)"]
+
+[[package]]
 name = "rich"
 version = "14.1.0"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
@@ -2347,7 +2366,7 @@ files = [
 
 [[package]]
 name = "t4-devkit"
-version = "0.4.1"
+version = "0.5.3"
 description = "A toolkit to load and operate T4 dataset."
 optional = false
 python-versions = ">=3.10,<3.13"
@@ -2360,7 +2379,8 @@ matplotlib = ">=3.9.2"
 pycocotools = ">=2.0.8"
 pyquaternion = ">=0.9.9"
 pyyaml = ">=6.0.2"
-rerun-sdk = "0.20.0"
+rerun-sdk = ">=0.20.0,<0.28.0"
+returns = ">=0.26.0"
 shapely = [
     {version = "<2.0.0", markers = "python_version == \"3.10\""},
     {version = ">=2.0.0", markers = "python_version > \"3.10\""},
@@ -2372,8 +2392,8 @@ typer = ">=0.15.3"
 [package.source]
 type = "git"
 url = "https://github.com/tier4/t4-devkit.git"
-reference = "v0.4.1"
-resolved_reference = "c1e02035d78bd6e0ac04b21ea81fe4e58465305a"
+reference = "v0.5.3"
+resolved_reference = "0523223056d4ef868c5212996907ad3f8813113c"
 
 [[package]]
 name = "tabulate"
@@ -2671,4 +2691,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.13"
-content-hash = "efdc5a0a9ffa85ece136416141d6adc487778ae2ae71d50e0929ba5c300a939a"
+content-hash = "6691c7b75cf7a49d25f5f456ad94f0da909053dbfe732d1f39c6def3af3a6acc"
