@@ -46,22 +46,15 @@ from perception_dataset.rosbag2.converter_params import (
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
 from perception_dataset.t4_dataset.classes.attribute import AttributeTable
-from perception_dataset.t4_dataset.classes.calibrated_sensor import (
-    CalibratedSensorTable,
-)
+from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
 from perception_dataset.t4_dataset.classes.category import CategoryTable
 from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord, EgoPoseTable
 from perception_dataset.t4_dataset.classes.instance import InstanceTable
 from perception_dataset.t4_dataset.classes.log import LogTable
 from perception_dataset.t4_dataset.classes.map import MapTable
 from perception_dataset.t4_dataset.classes.sample import SampleRecord, SampleTable
-from perception_dataset.t4_dataset.classes.sample_annotation import (
-    SampleAnnotationTable,
-)
-from perception_dataset.t4_dataset.classes.sample_data import (
-    SampleDataRecord,
-    SampleDataTable,
-)
+from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnotationTable
+from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
 from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
 from perception_dataset.t4_dataset.classes.sensor import SensorTable
 from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
@@ -759,7 +752,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self,
         unix_timestamp: float,
         frame_index: int,
-    ) -> Tuple[str, Optional[ConcatenatedPointCloudInfo]]:
+    ) -> Tuple[Optional[str], Optional[ConcatenatedPointCloudInfo]]:
         """Process lidar info data if available.
 
         Args:
@@ -769,7 +762,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         Returns:
             Tuple of (info_filename, lidar_info_message)
         """
-        info_filename = ""
+        info_filename = None
         lidar_info_message = None
 
         if self._lidar_info_topic:
