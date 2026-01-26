@@ -301,7 +301,11 @@ class AnnotationFilesGenerator:
                     field_name="name",
                     field_value=anno["category_name"]
                 )
-
+                if category_token is None:
+                    category_token = self._category_table.insert_into_table(
+                        name=anno["category_name"],
+                        description="",
+                    )
                 # Instance
                 instance_name = dataset_name + "::" + str(anno["instance_id"])
                 instance_token: str = self._instance_table.get_token_from_field(
@@ -312,15 +316,24 @@ class AnnotationFilesGenerator:
                     instance_token = self._instance_table.insert_into_table(
                         instance_name=instance_name,
                         category_token=category_token,
+                        nbr_annotations=0,
+                        first_annotation_token="",
+                        last_annotation_token="",
                     )
 
                 # Attribute
-                attribute_tokens: List[str] = [
-                    self._attribute_table.get_token_from_field(
+                attribute_tokens: List[str] = []
+                for attr_name in anno["attribute_names"]:
+                    attr_token = self._attribute_table.get_token_from_field(
                         field_name="name",
-                        field_value=attr_name
-                    ) for attr_name in anno["attribute_names"]
-                ]
+                        field_value=attr_name,
+                    )
+                    if not attr_token:  
+                        attr_token = self._attribute_table.insert_into_table(
+                            name=attr_name,
+                            description="",
+                        )
+                    attribute_tokens.append(attr_token)
 
                 # Visibility
                 visibility_token: str = self._visibility_table.get_token_from_field(
@@ -334,20 +347,21 @@ class AnnotationFilesGenerator:
                     anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(
                         anno["three_d_bbox"], sample_token=sample_token, t4_dataset=t4_dataset
                     )
-
                     sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
                         sample_token=sample_token,
                         instance_token=instance_token,
                         attribute_tokens=attribute_tokens,
                         visibility_token=visibility_token,
-                        translation=anno_three_d_bbox["translation"],
-                        velocity=anno_three_d_bbox["velocity"],
-                        acceleration=anno_three_d_bbox["acceleration"],
-                        size=anno_three_d_bbox["size"],
-                        rotation=anno_three_d_bbox["rotation"],
+                        translation=tuple(anno_three_d_bbox["translation"].values()),
+                        velocity=tuple(anno_three_d_bbox["velocity"].values()) if anno_three_d_bbox.get("velocity") else None,
+                        acceleration=tuple(anno_three_d_bbox["acceleration"].values()) if anno_three_d_bbox.get("acceleration") else None,
+                        size=tuple(anno_three_d_bbox["size"].values()),
+                        rotation=tuple(anno_three_d_bbox["rotation"].values()),
                         num_lidar_pts=anno["num_lidar_pts"],
                         num_radar_pts=anno["num_radar_pts"],
                         automatic_annotation=False,
+                        next="",
+                        prev="",
                     )
                     self._instance_token_to_annotation_token_list[instance_token].append(
                         sample_annotation_token
@@ -549,9 +563,9 @@ class AnnotationFilesGenerator:
             for anno in anno_list:
                 # Category
                 for category_name in anno["paint_categories"]:
-                    self._category_table.get_token_from_name(
+                    self._category_table.insert_into_table(
                         name=category_name.lower()
-                    )  # Make category name lowercase
+                    ) 
 
                 # Visibility
                 self._visibility_table.get_token_from_level(

@@ -3,16 +3,18 @@ import os.path as osp
 from pathlib import Path
 from typing import Any, Dict, List
 
-from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.classes import (
-    AttributeTable,
-    CategoryTable,
-    InstanceTable,
-    ObjectAnnTable,
-    SampleAnnotationTable,
-    SurfaceAnnTable,
-    VisibilityTable,
+from t4_devkit.schema.tables import (
+    Attribute,
+    Category,
+    Instance,
+    ObjectAnn,
+    SampleAnnotation,
+    SurfaceAnn,
+    Visibility,
 )
+
+from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
+from perception_dataset.t4_dataset.table_handler import TableHandler, get_schema_name
 from perception_dataset.t4_dataset.resolver.duplicated_annotation_remover import (
     DuplicatedAnnotationRemover,
 )
@@ -64,48 +66,60 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
         KeyFrameConsistencyResolver().inspect_and_fix_t4_segment(Path(output_dir))
 
     def _init_table_from_json(self, anno_dir: str) -> None:
-        self._attribute_table = AttributeTable.from_json(
-            filepath=osp.join(anno_dir, AttributeTable.FILENAME),
-            name_to_description={},
-            default_value="",
+        self._attribute_table = TableHandler.from_json(
+            schema_type=Attribute,
+            filepath=osp.join(anno_dir, "attribute.json"),
         )
 
-        self._category_table = CategoryTable.from_json(
-            filepath=osp.join(anno_dir, CategoryTable.FILENAME),
-            name_to_description={},
-            default_value="",
+        self._category_table = TableHandler.from_json(
+            schema_type=Category,
+            filepath=osp.join(anno_dir, "category.json"),
         )
 
-        self._instance_table = InstanceTable.from_json(
-            filepath=osp.join(anno_dir, InstanceTable.FILENAME)
+        self._instance_table = TableHandler.from_json(
+            schema_type=Instance,
+            filepath=osp.join(anno_dir, "instance.json"),
         )
 
-        self._visibility_table = VisibilityTable.from_json(
-            filepath=osp.join(anno_dir, VisibilityTable.FILENAME),
-            level_to_description=self.description.get(
-                "visibility",
-                {
-                    "v0-40": "visibility of whole object is between 0 and 40%",
-                    "v40-60": "visibility of whole object is between 40 and 60%",
-                    "v60-80": "visibility of whole object is between 60 and 80%",
-                    "v80-100": "visibility of whole object is between 80 and 100%",
-                    "none": "visibility isn't available",
-                },
-            ),
-            default_value="",
+        self._visibility_table = TableHandler.from_json(
+            schema_type=Visibility,
+            filepath=osp.join(anno_dir, "visibility.json"),
         )
+        
+        # Ensure default visibility levels exist
+        for level, desc in self.description.get(
+            "visibility",
+            {
+                "v0-40": "visibility of whole object is between 0 and 40%",
+                "v40-60": "visibility of whole object is between 40 and 60%",
+                "v60-80": "visibility of whole object is between 60 and 80%",
+                "v80-100": "visibility of whole object is between 80 and 100%",
+                "none": "visibility isn't available",
+            },
+        ).items():
+            if not self._visibility_table.get_token_from_field("level", level):
+                self._visibility_table.insert_into_table(
+                    level=level,
+                    description=desc,
+                )
 
-        if osp.exists(osp.join(anno_dir, SampleAnnotationTable.FILENAME)):
-            self._sample_annotation_table = SampleAnnotationTable.from_json(
-                osp.join(anno_dir, SampleAnnotationTable.FILENAME)
+        sample_annotation_filepath = osp.join(anno_dir, f"{get_schema_name(SampleAnnotation)}.json")
+        if osp.exists(sample_annotation_filepath):
+            self._sample_annotation_table = TableHandler.from_json(
+                schema_type=SampleAnnotation,
+                filepath=sample_annotation_filepath,
             )
 
-        if osp.exists(osp.join(anno_dir, ObjectAnnTable.FILENAME)):
-            self._object_ann_table = ObjectAnnTable.from_json(
-                osp.join(anno_dir, ObjectAnnTable.FILENAME)
+        objectann_filepath = osp.join(anno_dir, f"{get_schema_name(ObjectAnn)}.json")
+        if osp.exists(objectann_filepath):
+            self._object_ann_table = TableHandler.from_json(
+                schema_type=ObjectAnn,
+                filepath=objectann_filepath,
             )
 
-        if osp.exists(osp.join(anno_dir, SurfaceAnnTable.FILENAME)):
-            self._surface_ann_table = SurfaceAnnTable.from_json(
-                osp.join(anno_dir, SurfaceAnnTable.FILENAME)
+        surfaceann_filepath = osp.join(anno_dir, f"{get_schema_name(SurfaceAnn)}.json")
+        if osp.exists(surfaceann_filepath):
+            self._surface_ann_table = TableHandler.from_json(
+                schema_type=SurfaceAnn,
+                filepath=surfaceann_filepath,
             )

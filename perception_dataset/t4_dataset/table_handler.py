@@ -2,6 +2,7 @@ from __future__ import annotations
 from t4_devkit.schema import SchemaBase,build_schema
 from t4_devkit.common.serialize import serialize_dataclass
 from t4_devkit.schema.tables.registry import SCHEMAS
+import attrs
 import json
 import os.path as osp
 from typing import Any, Dict, Generic, List, TypeVar
@@ -23,7 +24,7 @@ class TableHandler(Generic[SchemaRecord]):
         self._schema_name = get_schema_name(schema_type)
         self._token_to_record: Dict[str, SchemaRecord] = {}
         self._field_to_token_cache: Dict[str, Dict[Any, str]] = {}
-    
+        self._field_names: set[str] = {f.name for f in attrs.fields(schema_type)}
     @property
     def schema_name(self) -> str:
         return self._schema_name
@@ -48,6 +49,11 @@ class TableHandler(Generic[SchemaRecord]):
         ), f"Token {token} isn't in table {self._schema_type.__name__}."
         return self._token_to_record[token]
 
+    def replace_record_in_table(self, record: SchemaRecord):
+        assert (
+            record.token in self._token_to_record
+        ), f"Token {record.token} isn't in table {self._schema_type.__name__}."
+        self._token_to_record[record.token] = record
     def get_token_from_field(self, field_name: str, field_value: Any) -> str:
         """Find token by searching for a unique field value in the table.
         
@@ -68,9 +74,10 @@ class TableHandler(Generic[SchemaRecord]):
         if field_value in self._field_to_token_cache[field_name]:
             return self._field_to_token_cache[field_name][field_value]
         
-        # Verify field exists on the schema type
-        assert hasattr(self._schema_type, field_name), (
-            f"Field '{field_name}' does not exist in table {self._schema_type.__name__}."
+        # Verify field exists on the schema type (check attrs fields)
+        assert field_name in self._field_names, (
+            f"Field '{field_name}' does not exist in table {self._schema_type.__name__}. "
+            f"Available fields: {self._field_names}"
         )
         
         # Search for matching records
