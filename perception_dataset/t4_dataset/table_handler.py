@@ -6,7 +6,7 @@ import json
 import os.path as osp
 from typing import Any, Dict, Generic, List, TypeVar
 
-SchemaRecord = TypeVar("SchemaTable", bound=SchemaBase)
+SchemaRecord = TypeVar("SchemaRecord", bound=SchemaBase)
 
 
 def get_schema_name(schema_type: SchemaRecord) -> str:
@@ -15,13 +15,19 @@ def get_schema_name(schema_type: SchemaRecord) -> str:
             return schema_name
     raise ValueError(f"Schema type {schema_type.__name__} not found in SCHEMAS registry")
 
-class TableHandler:
+class TableHandler(Generic[SchemaRecord]):
     TOKEN_NBYTES = 16
 
     def __init__(self, schema_type: SchemaRecord):
         self._schema_type = schema_type
+        self._schema_name = get_schema_name(schema_type)
         self._token_to_record: Dict[str, SchemaRecord] = {}
-        
+        self._field_to_token_cache: Dict[str, Dict[Any, str]] = {}
+    
+    @property
+    def schema_name(self) -> str:
+        return self._schema_name
+    
     def __len__(self) -> int:
         return len(self._token_to_record)
 
@@ -42,6 +48,51 @@ class TableHandler:
         ), f"Token {token} isn't in table {self._schema_type.__name__}."
         return self._token_to_record[token]
 
+    def get_token_from_field(self, field_name: str, field_value: Any) -> str:
+        """Find token by searching for a unique field value in the table.
+        
+        Args:
+            field_name (str): Name of the field to search by
+            field_value (Any): Value of the field to search for
+            
+        Returns:
+            str: Token of the record with matching field value
+            
+        Raises:
+            AssertionError: If field doesn't exist, or if zero or multiple records match the field value
+        """
+        # Check cache first
+        if field_name not in self._field_to_token_cache:
+            self._field_to_token_cache[field_name] = {}
+        
+        if field_value in self._field_to_token_cache[field_name]:
+            return self._field_to_token_cache[field_name][field_value]
+        
+        # Verify field exists on the schema type
+        assert hasattr(self._schema_type, field_name), (
+            f"Field '{field_name}' does not exist in table {self._schema_type.__name__}."
+        )
+        
+        # Search for matching records
+        matching_tokens = [
+            token for token, record in self._token_to_record.items()
+            if getattr(record, field_name) == field_value
+        ]
+        
+        if not matching_tokens:
+            return None 
+    
+        # Assert exactly one match found
+        assert len(matching_tokens) == 1, (
+            f"Field '{field_name}' with value '{field_value}' must be unique in table "
+            f"{self._schema_type.__name__}. Found {len(matching_tokens)} matches."
+        )
+        
+        token = matching_tokens[0]
+        # Cache the result
+        self._field_to_token_cache[field_name][field_value] = token
+        return token
+
     def to_data(self) -> List[Dict[str, Any]]:
         return [serialize_dataclass(rec) for rec in self._token_to_record.values()]
 
@@ -58,7 +109,7 @@ class TableHandler:
             output_dir (str): path to directory
         """
         table_data = self.to_data()
-        with open(osp.join(output_dir, f"{get_schema_name(self._schema_type)}.json"), "w") as f:
+        with open(osp.join(output_dir, f"{self._schema_name}.json"), "w") as f:
             json.dump(table_data, f, indent=4)
 
     @classmethod

@@ -65,7 +65,7 @@ def non_annotated_t4_dataset_path():
     yield osp.join(r2t4_output_base, TEST_ROSBAG_NAME)
 
     # Cleanup
-    shutil.rmtree(r2t4_output_base, ignore_errors=True)
+    # shutil.rmtree(r2t4_output_base, ignore_errors=True)
 
 
 @pytest.fixture(scope="module")
