@@ -1,5 +1,5 @@
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from perception_dataset.rosbag2.converter_params import (
     LidarSensor,

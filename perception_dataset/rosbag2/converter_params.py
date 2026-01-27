@@ -1,8 +1,8 @@
 import enum
 from typing import Dict, List, Optional, Union
 
-import yaml
 from pydantic import BaseModel, field_validator, model_validator
+import yaml
 
 from perception_dataset.utils.logger import configure_logger
 
@@ -44,9 +44,7 @@ class LidarSensor(BaseModelWithDictAccess):
     topic: Optional[str] = None  # e.g., "/lidar_points"
     channel: Optional[str] = None  # e.g., "LIDAR_TOP"
     lidar_info_topic: Optional[str] = None  # topic for lidar info, e.g., "/lidar_info"
-    lidar_info_channel: Optional[str] = (
-        None  # channel for lidar info, e.g., "LIDAR_INFO"
-    )
+    lidar_info_channel: Optional[str] = None  # channel for lidar info, e.g., "LIDAR_INFO"
     accept_no_info: Optional[bool] = (
         None  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
     )
@@ -59,21 +57,15 @@ class LidarSensor(BaseModelWithDictAccess):
         """Validate that if any lidar_info field is defined, all must be defined."""
         fields = {
             "lidar_info_topic": _check_check_lidar_info_field(self.lidar_info_topic),
-            "lidar_info_channel": _check_check_lidar_info_field(
-                self.lidar_info_channel
-            ),
+            "lidar_info_channel": _check_check_lidar_info_field(self.lidar_info_channel),
             "accept_no_info": _check_check_lidar_info_field(self.accept_no_info),
-            "lidar_sources_mapping": _check_check_lidar_info_field(
-                self.lidar_sources_mapping
-            ),
+            "lidar_sources_mapping": _check_check_lidar_info_field(self.lidar_sources_mapping),
         }
 
         defined_fields = [name for name, is_defined in fields.items() if is_defined]
 
         if defined_fields and len(defined_fields) != len(fields):
-            undefined_fields = [
-                name for name, is_defined in fields.items() if not is_defined
-            ]
+            undefined_fields = [name for name, is_defined in fields.items() if not is_defined]
             raise ValueError(
                 "If any of lidar_info_topic, lidar_info_channel, accept_no_info, or lidar_sources_mapping is defined, all must be defined. "
                 f"Defined: {defined_fields}. Undefined: {undefined_fields}"
@@ -94,9 +86,7 @@ def _check_check_lidar_info_field(
 
 class Rosbag2ConverterParams(BaseModelWithDictAccess):
     task: str
-    input_base: (
-        str  # path to the input rosbag2 directory (multiple rosbags in the directory)
-    )
+    input_base: str  # path to the input rosbag2 directory (multiple rosbags in the directory)
     input_bag_path: Optional[str] = None  # path to the input rosbag2 (a single rosbag)
     output_base: str  # path to the output directory
     gt_label_base: str = ""  # path to the gt labels directory
@@ -126,10 +116,14 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     generate_bbox_from_cuboid: bool = False
 
     # rosbag reader
-    num_load_frames: int  # the number of frames to be loaded. if the value isn't positive, read all messages.
+    num_load_frames: (
+        int  # the number of frames to be loaded. if the value isn't positive, read all messages.
+    )
     skip_timestamp: float  # not read for the second after the first topic
     start_timestamp_sec: float = 0.0  # conversion start timestamp in sec
-    crop_frames_unit: int = 1  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
+    crop_frames_unit: int = (
+        1  # crop frames from the end so that the number of frames is divisible by crop_frames_unit. Set to 0 or 1 so as not to crop any frames.
+    )
 
     # Maximum camera jitter in seconds. This value MUST be set large enough since the camera jitter smaller than this value is not considererd.
     # Also, do not set this value larger than system_scan_period_sec.
@@ -143,14 +137,14 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     topic_list: list = []  # topic list for input_bag
     mandatory_topic_list: list = []  # mandatory topic list for input_bag
 
-    lidar_points_ratio_threshold: float = 0.2  # ratio of lidar points to be used proportion to the maximum number of lidar points in a frame
+    lidar_points_ratio_threshold: float = (
+        0.2  # ratio of lidar points to be used proportion to the maximum number of lidar points in a frame
+    )
 
     # in synthetic data (from AWSIM) it may be the case that there is no ego transform available at the beginning of rosbag
     ignore_no_ego_transform_at_rosbag_beginning: bool = False
     generate_frame_every: int = 1  # pick frames out of every this number.
-    generate_frame_every_meter: float = (
-        5.0  # pick frames when ego vehicle moves certain meters
-    )
+    generate_frame_every_meter: float = 5.0  # pick frames when ego vehicle moves certain meters
 
     # for Co-MLOps
     with_ins: bool = False  # whether to convert rosbag with INS topics
