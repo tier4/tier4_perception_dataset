@@ -227,16 +227,16 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     sample_data_token_list.append(sample_data_token)
         else:  # camera only mode
 
-            def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
-                dx: float = trans1["x"] - trans2["x"]
-                dy: float = trans1["y"] - trans2["y"]
-                dz: float = trans1["z"] - trans2["z"]
+            def get_move_distance(trans1: List[float], trans2: List[float]) -> float:
+                dx: float = trans1[0] - trans2[0]
+                dy: float = trans1[1] - trans2[1]
+                dz: float = trans1[2] - trans2[2]
                 return (dx * dx + dy * dy + dz * dz) ** 0.5
 
             frame_index: int = 0
             generated_frame_index: int = 0
 
-            last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
+            last_translation: List[float] = [0.0, 0.0, 0.0]
             for image_msg in self._bag_reader.read_messages(
                 topics=[topic],
                 start_time=start_time_in_time,
@@ -274,7 +274,10 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         if not self._is_traffic_light_label_available(nusc_timestamp):
                             continue
                         sample_token: str = self._sample_table.insert_into_table(
-                            timestamp=nusc_timestamp, scene_token=scene_token
+                            timestamp=nusc_timestamp, 
+                            scene_token=scene_token,
+                            next="tmp_token",  # cannot be left empty, will be replaced downstream
+                            prev="tmp_token",  # cannot be left empty, will be replaced downstream
                         )
                         is_data_found = True
 

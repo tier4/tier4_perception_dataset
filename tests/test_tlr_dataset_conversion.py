@@ -92,7 +92,7 @@ def t4_dataset_path(deepen_dataset_path):
     yield osp.join(d2t4_output_base, TEST_ROSBAG_NAME, "t4_dataset")
 
     # after test - remove resource
-    shutil.rmtree(d2t4_output_base, ignore_errors=True)
+    # shutil.rmtree(d2t4_output_base, ignore_errors=True)
 
 
 @pytest.fixture(scope="module")
