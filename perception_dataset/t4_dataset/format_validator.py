@@ -4,8 +4,23 @@ from loguru import logger
 from t4_devkit import Tier4
 
 from perception_dataset.constants import EXTENSION_ENUM, T4_FORMAT_DIRECTORY_NAME
-from perception_dataset.t4_dataset.classes import schema_names
 
+
+MANDATORY_SCHEMA_NAMES = [
+    "attribute",
+    "calibrated_sensor",
+    "category",
+    "ego_pose",
+    "instance",
+    "log",
+    "map",
+    "sample",
+    "sample_annotation",
+    "sample_data",
+    "scene",
+    "sensor",
+    "visibility",
+]
 
 def validate_format(t4_dataset: Tier4, root_path: str):
     validate_scene(t4_dataset)
@@ -52,7 +67,7 @@ def validate_directory_structure(root_path: str):
     assert anno_path.is_dir(), f"{anno_path} isn't found"
     assert data_path.is_dir(), f"{data_path} isn't found"
 
-    for schema_name in schema_names:
+    for schema_name in MANDATORY_SCHEMA_NAMES:
         json_path = anno_path / (schema_name + EXTENSION_ENUM.JSON.value)
         assert json_path.is_file(), f"{schema_name} isn't found"
 

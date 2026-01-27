@@ -580,8 +580,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             description="",
             log_token=log_token,
             nbr_samples=0,
-            first_sample_token="",
-            last_sample_token="",
+            first_sample_token="tmp_token",  # cannot be left empty, will be replaced downstream
+            last_sample_token="tmp_token",  # cannot be left empty, will be replaced downstream
         )
 
         return scene_token

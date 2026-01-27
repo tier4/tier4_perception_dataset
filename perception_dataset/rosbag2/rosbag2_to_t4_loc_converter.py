@@ -162,7 +162,10 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
         calibrated_sensor_token = self._generate_dummy_sensor(start_time_in_time)
         ego_pose_token = self._generate_ego_pose(start_time_in_time)
         sample_token = self._sample_table.insert_into_table(
-            timestamp=nusc_timestamp, scene_token=scene_token
+            timestamp=nusc_timestamp, 
+            scene_token=scene_token,
+            next="",
+            prev=""
         )
 
         fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
@@ -175,6 +178,10 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
             fileformat=fileformat,
             timestamp=nusc_timestamp,
             is_key_frame=True,
+            width=0,
+            height=0,
+            next="",
+            prev="",
         )
         sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
             sample_data_token
@@ -196,25 +203,23 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
                 modality=modality,
             )
 
-            translation = {"x": 0.0, "y": 0.0, "z": 0.0}
-            rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
             frame_id = "base_link"
             transform_stamped = self._bag_reader.get_transform_stamped(
                 target_frame=self._calibrated_sensor_target_frame,
                 source_frame=frame_id,
                 stamp=start_timestamp,
             )
-            translation = {
-                "x": transform_stamped.transform.translation.x,
-                "y": transform_stamped.transform.translation.y,
-                "z": transform_stamped.transform.translation.z,
-            }
-            rotation = {
-                "w": transform_stamped.transform.rotation.w,
-                "x": transform_stamped.transform.rotation.x,
-                "y": transform_stamped.transform.rotation.y,
-                "z": transform_stamped.transform.rotation.z,
-            }
+            translation = (
+                transform_stamped.transform.translation.x,
+                transform_stamped.transform.translation.y,
+                transform_stamped.transform.translation.z,
+            )
+            rotation = (
+                transform_stamped.transform.rotation.w,
+                transform_stamped.transform.rotation.x,
+                transform_stamped.transform.rotation.y,
+                transform_stamped.transform.rotation.z,
+            )
 
             calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                 sensor_token=sensor_token,

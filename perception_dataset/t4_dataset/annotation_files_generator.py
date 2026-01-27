@@ -58,10 +58,10 @@ class AnnotationFilesGenerator:
             "visibility",
             {
                 "v0-40": "visibility of whole object is between 0 and 40%",
+                "none": "visibility isn't available",
                 "v40-60": "visibility of whole object is between 40 and 60%",
                 "v60-80": "visibility of whole object is between 60 and 80%",
                 "v80-100": "visibility of whole object is between 80 and 100%",
-                "none": "visibility isn't available",
             },
         ).items():
             self._visibility_table.insert_into_table(
@@ -564,7 +564,8 @@ class AnnotationFilesGenerator:
                 # Category
                 for category_name in anno["paint_categories"]:
                     self._category_table.insert_into_table(
-                        name=category_name.lower()
+                        name=category_name.lower(),
+                        description="",
                     ) 
 
                 # Visibility
@@ -594,7 +595,9 @@ class AnnotationFilesGenerator:
 
         # Add a case for unpainted point cloud
         self._category_table.insert_into_table(
-            name="unpainted", index=0, description="unpainted points"
+            name="unpainted", 
+            index=0, 
+            description="unpainted points",
         )
 
         lidarseg_table.save_json(anno_dir)
