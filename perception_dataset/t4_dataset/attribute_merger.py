@@ -6,13 +6,11 @@ from typing import Any, Dict, List
 
 # TODO(SamratThapa120) : replace with Tier4 from t4_devkit. Forgotten in previous refactoring PR.
 from nuimages import NuImages
+from t4_devkit.schema.tables import Attribute
 from tqdm import tqdm
 
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
-
 from perception_dataset.t4_dataset.table_handler import TableHandler
-from t4_devkit.schema.tables import Attribute
-
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -179,13 +177,10 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         for attr_name in max_iou_anno["attribute_names"]:
             if attr_name not in attribute_names:
                 token = self._attribute_table.get_token_from_field(
-                    field_name="name",
-                    name=attr_name
+                    field_name="name", name=attr_name
                 )
                 if token is None:
-                    token = self._attribute_table.insert_into_table(
-                        name=attr_name, description=""
-                    )
+                    token = self._attribute_table.insert_into_table(name=attr_name, description="")
                 out_attribute.append(
                     {
                         "token": token,

@@ -5,6 +5,16 @@ import shutil
 from typing import Dict, List
 
 import builtin_interfaces.msg
+from t4_devkit.schema.tables import (
+    CalibratedSensor,
+    EgoPose,
+    Log,
+    Map,
+    Sample,
+    SampleData,
+    Scene,
+    Sensor,
+)
 
 from perception_dataset.constants import (
     EXTENSION_ENUM,
@@ -21,16 +31,6 @@ from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.misc import get_sample_data_filename
 import perception_dataset.utils.rosbag2 as rosbag2_utils
-from t4_devkit.schema.tables import (
-    CalibratedSensor,
-    EgoPose,
-    Log,
-    Map,
-    Sample,
-    SampleData,
-    Scene,
-    Sensor,
-)
 
 logger = configure_logger(modname=__name__)
 
@@ -111,7 +111,9 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
         self._map_table = TableHandler(Map)
         self._sensor_table = TableHandler(Sensor)
         for enum in self._sensor_enums:
-            self._sensor_table.insert_into_table(channel=enum.value["channel"], modality=enum.value["modality"])
+            self._sensor_table.insert_into_table(
+                channel=enum.value["channel"], modality=enum.value["modality"]
+            )
         self._calibrated_sensor_table = TableHandler(CalibratedSensor)
         # extraction
         self._scene_table = TableHandler(Scene)
@@ -162,10 +164,7 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
         calibrated_sensor_token = self._generate_dummy_sensor(start_time_in_time)
         ego_pose_token = self._generate_ego_pose(start_time_in_time)
         sample_token = self._sample_table.insert_into_table(
-            timestamp=nusc_timestamp, 
-            scene_token=scene_token,
-            next="",
-            prev=""
+            timestamp=nusc_timestamp, scene_token=scene_token, next="", prev=""
         )
 
         fileformat = EXTENSION_ENUM.PCDBIN.value[1:]

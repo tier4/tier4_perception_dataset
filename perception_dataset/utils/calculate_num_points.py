@@ -1,7 +1,7 @@
 import numpy as np
 from t4_devkit import Tier4
-
 from t4_devkit.schema.tables import SampleAnnotation
+
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils import box_np_ops
 from perception_dataset.utils.logger import configure_logger
@@ -49,7 +49,7 @@ def calculate_num_points(
             # Create new record with num_lidar_pts and overwrite the original one
             record = annotation_table.select_record_from_token(ann_token)
             record.num_lidar_pts = int(num)
-            
+
     # connect next/prev tokens
     for instance in t4_dataset.instance:
         if instance.nbr_annotations == 0:
@@ -59,9 +59,7 @@ def calculate_num_points(
                 instance.first_annotation_token
             )
             annotation_data_list = [
-                v
-                for v in annotation_table.to_records()
-                if v.instance_token == instance.token
+                v for v in annotation_table.to_records() if v.instance_token == instance.token
             ]
             annotation_data_list[0].prev = ""
             for sample_data_i in range(1, len(annotation_data_list)):

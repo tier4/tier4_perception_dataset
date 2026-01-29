@@ -5,7 +5,6 @@ from t4_devkit import Tier4
 
 from perception_dataset.constants import EXTENSION_ENUM, T4_FORMAT_DIRECTORY_NAME
 
-
 MANDATORY_SCHEMA_NAMES = [
     "attribute",
     "calibrated_sensor",
@@ -21,6 +20,7 @@ MANDATORY_SCHEMA_NAMES = [
     "sensor",
     "visibility",
 ]
+
 
 def validate_format(t4_dataset: Tier4, root_path: str):
     validate_scene(t4_dataset)

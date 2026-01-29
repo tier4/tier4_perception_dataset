@@ -10,9 +10,6 @@ import numpy as np
 from pycocotools import mask as cocomask
 from scipy.spatial.transform import Rotation
 from t4_devkit import Tier4
-
-from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
-
 from t4_devkit.schema.tables import (
     Attribute,
     Category,
@@ -21,10 +18,11 @@ from t4_devkit.schema.tables import (
     ObjectAnn,
     SampleAnnotation,
     SurfaceAnn,
-    Visibility
+    Visibility,
 )
-from perception_dataset.t4_dataset.table_handler import TableHandler
 
+from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.transform import compose_transform
 
@@ -53,7 +51,7 @@ class AnnotationFilesGenerator:
         self._attribute_table = TableHandler(Attribute)
         self._category_table = TableHandler(Category)
         self._instance_table = TableHandler(Instance)
-        self._visibility_table = TableHandler(Visibility) 
+        self._visibility_table = TableHandler(Visibility)
         for level, desc in description.get(
             "visibility",
             {
@@ -298,8 +296,7 @@ class AnnotationFilesGenerator:
             for anno in anno_list:
                 # Category
                 category_token: str = self._category_table.get_token_from_field(
-                    field_name="name",
-                    field_value=anno["category_name"]
+                    field_name="name", field_value=anno["category_name"]
                 )
                 if category_token is None:
                     category_token = self._category_table.insert_into_table(
@@ -328,7 +325,7 @@ class AnnotationFilesGenerator:
                         field_name="name",
                         field_value=attr_name,
                     )
-                    if not attr_token:  
+                    if not attr_token:
                         attr_token = self._attribute_table.insert_into_table(
                             name=attr_name,
                             description="",
@@ -337,8 +334,7 @@ class AnnotationFilesGenerator:
 
                 # Visibility
                 visibility_token: str = self._visibility_table.get_token_from_field(
-                    field_name="level",
-                    field_value=anno.get("visibility_name", "unavailable")
+                    field_name="level", field_value=anno.get("visibility_name", "unavailable")
                 )
                 if not visibility_token:
                     visibility_token = self._visibility_table.insert_into_table(
@@ -358,8 +354,16 @@ class AnnotationFilesGenerator:
                         attribute_tokens=attribute_tokens,
                         visibility_token=visibility_token,
                         translation=tuple(anno_three_d_bbox["translation"].values()),
-                        velocity=tuple(anno_three_d_bbox["velocity"].values()) if anno_three_d_bbox.get("velocity") else None,
-                        acceleration=tuple(anno_three_d_bbox["acceleration"].values()) if anno_three_d_bbox.get("acceleration") else None,
+                        velocity=(
+                            tuple(anno_three_d_bbox["velocity"].values())
+                            if anno_three_d_bbox.get("velocity")
+                            else None
+                        ),
+                        acceleration=(
+                            tuple(anno_three_d_bbox["acceleration"].values())
+                            if anno_three_d_bbox.get("acceleration")
+                            else None
+                        ),
                         size=tuple(anno_three_d_bbox["size"].values()),
                         rotation=tuple(anno_three_d_bbox["rotation"].values()),
                         num_lidar_pts=anno["num_lidar_pts"],
@@ -490,9 +494,7 @@ class AnnotationFilesGenerator:
             annotation_token_list,
         ) in self._instance_token_to_annotation_token_list.items():
             # set info in instance
-            inst_rec: Instance = self._instance_table.select_record_from_token(
-                instance_token
-            )
+            inst_rec: Instance = self._instance_table.select_record_from_token(instance_token)
             inst_rec.nbr_annotations = len(annotation_token_list)
             inst_rec.first_annotation_token = annotation_token_list[0]
             inst_rec.last_annotation_token = annotation_token_list[-1]
@@ -509,8 +511,8 @@ class AnnotationFilesGenerator:
                 prev_rec.next = cur_token
                 self._sample_annotation_table.set_record_to_table(prev_rec)
 
-                cur_rec: SampleAnnotation = (
-                    self._sample_annotation_table.select_record_from_token(cur_token)
+                cur_rec: SampleAnnotation = self._sample_annotation_table.select_record_from_token(
+                    cur_token
                 )
                 cur_rec.prev = prev_token
                 self._sample_annotation_table.set_record_to_table(cur_rec)
@@ -571,11 +573,10 @@ class AnnotationFilesGenerator:
                     self._category_table.insert_into_table(
                         name=category_name.lower(),
                         description="",
-                    ) 
+                    )
 
                 if not self._visibility_table.get_token_from_field(
-                    field_name="level",
-                    field_value=anno.get("visibility_name", "unavailable")
+                    field_name="level", field_value=anno.get("visibility_name", "unavailable")
                 ):
                     self._visibility_table.insert_into_table(
                         level=anno.get("visibility_name", "unavailable"),
@@ -594,7 +595,9 @@ class AnnotationFilesGenerator:
                 shutil.move(anno["lidarseg_anno_file"], new_lidarseg_anno_filename)
 
                 # Update the lidarseg record with the new filename
-                lidarseg_record : LidarSeg = lidarseg_table.select_record_from_token(token=lidarseg_token)
+                lidarseg_record: LidarSeg = lidarseg_table.select_record_from_token(
+                    token=lidarseg_token
+                )
                 lidarseg_record.filename = osp.join(
                     lidarseg_relative_path, (lidarseg_token + EXTENSION_ENUM.BIN.value)
                 )
@@ -604,8 +607,8 @@ class AnnotationFilesGenerator:
 
         # Add a case for unpainted point cloud
         self._category_table.insert_into_table(
-            name="unpainted", 
-            index=0, 
+            name="unpainted",
+            index=0,
             description="unpainted points",
         )
 

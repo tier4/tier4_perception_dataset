@@ -86,9 +86,9 @@ def _compare_json_files(target_file: Path, source_file: Path) -> None:
     source_set = set(map(lambda x: json.dumps(x, sort_keys=True), source_normalized))
     intersection = target_set & source_set
     assert len(intersection) == len(target_set), (
-        f"Differences found in {target_file.name}: "
-        f"Not all target elements exist in source"
+        f"Differences found in {target_file.name}: " f"Not all target elements exist in source"
     )
+
 
 def _count_files_recursively(directory: Path) -> int:
     """Count all files in a directory recursively."""

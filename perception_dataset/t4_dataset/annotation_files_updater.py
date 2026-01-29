@@ -14,13 +14,13 @@ from t4_devkit.schema.tables import (
 )
 
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.table_handler import TableHandler, get_schema_name
 from perception_dataset.t4_dataset.resolver.duplicated_annotation_remover import (
     DuplicatedAnnotationRemover,
 )
 from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
     KeyFrameConsistencyResolver,
 )
+from perception_dataset.t4_dataset.table_handler import TableHandler, get_schema_name
 
 
 def _load_json(filepath: str) -> Any:
@@ -85,7 +85,7 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
             schema_type=Visibility,
             filepath=osp.join(anno_dir, "visibility.json"),
         )
-        
+
         # Ensure default visibility levels exist
         for level, desc in self.description.get(
             "visibility",
@@ -103,7 +103,9 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
                     description=desc,
                 )
 
-        sample_annotation_filepath = osp.join(anno_dir, f"{get_schema_name(SampleAnnotation)}.json")
+        sample_annotation_filepath = osp.join(
+            anno_dir, f"{get_schema_name(SampleAnnotation)}.json"
+        )
         if osp.exists(sample_annotation_filepath):
             self._sample_annotation_table = TableHandler.from_json(
                 schema_type=SampleAnnotation,

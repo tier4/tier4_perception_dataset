@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
+from t4_devkit.schema.tables import EgoPose, Sample, SampleData
 from tier4_perception_msgs.msg import TrafficLightArray, TrafficLightRoiArray
 import yaml
 
@@ -21,7 +22,6 @@ from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
     _Rosbag2ToT4Converter,
 )
 from perception_dataset.utils.logger import configure_logger
-from t4_devkit.schema.tables import EgoPose, Sample, SampleData
 import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -274,7 +274,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         if not self._is_traffic_light_label_available(nusc_timestamp):
                             continue
                         sample_token: str = self._sample_table.insert_into_table(
-                            timestamp=nusc_timestamp, 
+                            timestamp=nusc_timestamp,
                             scene_token=scene_token,
                             next="tmp_token",  # cannot be left empty, will be replaced downstream
                             prev="tmp_token",  # cannot be left empty, will be replaced downstream
@@ -331,9 +331,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         object_mask = cocomask.encode(np.asfortranarray(object_mask))
         object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
 
-        def get_sample_idx(
-            sample_records: List[Sample], sample_data: SampleData
-        ) -> int | None:
+        def get_sample_idx(sample_records: List[Sample], sample_data: SampleData) -> int | None:
             """get the index of the sample in the sample_records under the following conditions:
             Image data exists and is key frame.
             """

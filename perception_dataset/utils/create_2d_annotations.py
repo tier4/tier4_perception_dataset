@@ -2,10 +2,10 @@ from typing import List
 
 import numpy as np
 from t4_devkit import Tier4
+from t4_devkit.schema.tables import Instance, ObjectAnn, SampleAnnotation, SampleData
 
-
-from t4_devkit.schema.tables import Instance,ObjectAnn,SampleAnnotation,SampleData
 from perception_dataset.t4_dataset.table_handler import TableHandler
+
 
 def create_2d_annotations(
     dataroot: str,
@@ -41,7 +41,9 @@ def create_2d_annotations(
                 sample_annotation_record = annotation_table.select_record_from_token(box.token)
                 instance_token = sample_annotation_record.instance_token
                 attribute_tokens = sample_annotation_record.attribute_tokens
-                category_token = instance_table.select_record_from_token(instance_token).category_token
+                category_token = instance_table.select_record_from_token(
+                    instance_token
+                ).category_token
                 imsize = [
                     sample_data_table.select_record_from_token(camera_token).width,
                     sample_data_table.select_record_from_token(camera_token).height,

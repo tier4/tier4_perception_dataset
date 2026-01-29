@@ -29,21 +29,6 @@ import numpy as np
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CameraInfo, CompressedImage, PointCloud2
-
-from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import (
-    EXTENSION_ENUM,
-    SENSOR_ENUM,
-    SENSOR_MODALITY_ENUM,
-    T4_FORMAT_DIRECTORY_NAME,
-)
-from perception_dataset.rosbag2.converter_params import (
-    DataType,
-    LidarSensor,
-    LidarSourceMapping,
-    Rosbag2ConverterParams,
-)
-from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from t4_devkit.schema.tables import (
     Attribute,
     CalibratedSensor,
@@ -60,6 +45,21 @@ from t4_devkit.schema.tables import (
     VehicleState,
     Visibility,
 )
+
+from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.constants import (
+    EXTENSION_ENUM,
+    SENSOR_ENUM,
+    SENSOR_MODALITY_ENUM,
+    T4_FORMAT_DIRECTORY_NAME,
+)
+from perception_dataset.rosbag2.converter_params import (
+    DataType,
+    LidarSensor,
+    LidarSourceMapping,
+    Rosbag2ConverterParams,
+)
+from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
@@ -419,7 +419,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             zipped_input_path=zipped_input_path,
         )
 
-
     def _save_tables(self):
         logger.info(
             "--------------------------------------------------------------------------------------------------------------------------"
@@ -721,12 +720,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 is_key_frame=True,
                 info_filename=info_filename,
                 next="",
-                prev="",    
+                prev="",
                 width=0,
                 height=0,
             )
-            sample_data_record: SampleData = (
-                self._sample_data_table.select_record_from_token(sample_data_token)
+            sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
+                sample_data_token
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
@@ -903,8 +902,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 timestamp=nusc_timestamp,
                 is_key_frame=False,
             )
-            sample_data_record: SampleData = (
-                self._sample_data_table.select_record_from_token(sample_data_token)
+            sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
+                sample_data_token
             )
 
             # TODO(ktro2828): Add support of PCD format.
@@ -1080,7 +1079,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                             image_msg.header.stamp
                         )
                         sample_token: str = self._sample_table.insert_into_table(
-                            timestamp=nusc_timestamp, 
+                            timestamp=nusc_timestamp,
                             scene_token=scene_token,
                             next="tmp_token",  # cannot be left empty, will be replaced downstream
                             prev="tmp_token",  # cannot be left empty, will be replaced downstream
@@ -1343,8 +1342,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
         if not sensor_token:
             sensor_token = self._sensor_table.insert_into_table(
-                channel=sensor_channel,
-                modality=SENSOR_MODALITY_ENUM.LIDAR.value
+                channel=sensor_channel, modality=SENSOR_MODALITY_ENUM.LIDAR.value
             )
         logger.info(
             f"generate_calib_sensor for lidar source, start_timestamp:{start_timestamp}, topic:{topic}, frame id:{frame_id}"
@@ -1413,7 +1411,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     transform_stamped.transform.translation.y,
                     transform_stamped.transform.translation.z,
                 )
-                rotation =(
+                rotation = (
                     transform_stamped.transform.rotation.w,
                     transform_stamped.transform.rotation.x,
                     transform_stamped.transform.rotation.y,
@@ -1533,18 +1531,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 prev_token: str = sample_data_token_list[token_i - 1]
                 cur_token: str = sample_data_token_list[token_i]
 
-                prev_rec: Sample = self._sample_data_table.select_record_from_token(
-                    prev_token
-                )
+                prev_rec: Sample = self._sample_data_table.select_record_from_token(prev_token)
                 prev_rec.next = cur_token
                 self._sample_data_table.set_record_to_table(prev_rec)
 
                 cur_rec: Sample = self._sample_data_table.select_record_from_token(cur_token)
                 cur_rec.prev = prev_token
                 self._sample_data_table.set_record_to_table(cur_rec)
-                prev_rec: Sample = self._sample_data_table.select_record_from_token(
-                    prev_token
-                )
+                prev_rec: Sample = self._sample_data_table.select_record_from_token(prev_token)
                 prev_rec.next = cur_token
                 self._sample_data_table.set_record_to_table(prev_rec)
 
