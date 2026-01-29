@@ -5,6 +5,17 @@ import os
 import sys
 from typing import Any, Dict, List
 
+from t4_devkit.schema.tables import (
+    CalibratedSensor,
+    EgoPose,
+    Log,
+    Map,
+    Sample,
+    SampleData,
+    Scene,
+    Sensor,
+)
+
 from perception_dataset.abstract_converter_to_t4 import AbstractAnnotatedToT4Converter
 from perception_dataset.ros2.tf2_geometry_msgs.tf2_geometry_msgs import do_transform_pose
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
@@ -17,16 +28,6 @@ from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.create_2d_annotations import create_2d_annotations
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.rosbag2 as rosbag2_utils
-from t4_devkit.schema.tables import (
-    CalibratedSensor,
-    EgoPose,
-    Log,
-    Map,
-    Sample,
-    SampleData,
-    Scene,
-    Sensor,
-)
 
 from .autoware_msgs import parse_perception_objects
 
@@ -124,7 +125,9 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         self._map_table = TableHandler(Map)
         self._sensor_table = TableHandler(Sensor)
         for enum in self._sensor_enums:
-            self._sensor_table.insert_into_table(channel=enum.value["channel"], modality=enum.value["modality"])
+            self._sensor_table.insert_into_table(
+                channel=enum.value["channel"], modality=enum.value["modality"]
+            )
         self._calibrated_sensor_table = TableHandler(CalibratedSensor)
         # extraction
         self._scene_table = TableHandler(Scene)
