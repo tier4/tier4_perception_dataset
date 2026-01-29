@@ -56,7 +56,7 @@ class AnnotationFilesGenerator:
             "visibility",
             {
                 "v0-40": "visibility of whole object is between 0 and 40%",
-                "unavailable": "visibility is not available",
+                "unavailable": "visibility isn't available",
                 "v40-60": "visibility of whole object is between 40 and 60%",
                 "v60-80": "visibility of whole object is between 60 and 80%",
                 "v80-100": "visibility of whole object is between 80 and 100%",
