@@ -815,8 +815,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             # Get the sensor token from SensorTable using the channel
             sensor_token = self._sensor_table.get_token_from_field(
-                field_name="channel",
-                field_value=channel
+                field_name="channel", field_value=channel
             )
 
             sources.append(
