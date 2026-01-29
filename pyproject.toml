@@ -27,7 +27,7 @@ importlib-metadata = "^7.1.0"
 transforms3d = "^0.4.2"
 fastlabel = "^0.16.1"
 scikit-image = "^0.24.0"
-t4-devkit = {git = "https://github.com/tier4/t4-devkit.git", rev = "v0.4.1"}
+t4-devkit = {git = "https://github.com/tier4/t4-devkit.git", rev = "v0.5.3"}
 
 
 [tool.poetry.dev-dependencies]

@@ -40,6 +40,7 @@ from perception_dataset.constants import (
 from perception_dataset.rosbag2.converter_params import (
     DataType,
     LidarSensor,
+    LidarSourceMapping,
     Rosbag2ConverterParams,
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
@@ -138,7 +139,7 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter[Rosbag2ToNonAnnotatedT4
                     raise e
                 continue
             logger.info(f"Conversion of {bag_dir} is completed")
-            print(
+            logger.info(
                 "--------------------------------------------------------------------------------------------------------------------------"
             )
 
@@ -218,7 +219,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for lidar info topic. Checks for keys are done in LidarSensor pydantic model.
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
-        self._lidar_sources_mapping: Dict[str, str] = self._lidar_sensor["lidar_sources_mapping"]
+        self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor[
+            "lidar_sources_mapping"
+        ]
         self._accept_no_info: bool = self._lidar_sensor["accept_no_info"]
 
         if self._lidar_info_topic:
@@ -418,14 +421,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
 
     def _save_tables(self):
-        print(
+        logger.info(
             "--------------------------------------------------------------------------------------------------------------------------"
         )
         for cls_attr in self.__dict__.values():
             if isinstance(cls_attr, TableHandler):
                 print(f"{cls_attr.schema_name}: #rows {len(cls_attr)}")
                 cls_attr.save_json(self._output_anno_dir)
-        print(
+        logger.info(
             "--------------------------------------------------------------------------------------------------------------------------"
         )
 
@@ -493,7 +496,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._connect_sample_in_scene()
         self._connect_sample_data_in_scene(sensor_channel_to_sample_data_token_list)
         self._add_scene_description(self._scene_description)
-        print(f"Total elapsed time: {time.time() - start:.2f} sec")
+        logger.info(f"Total elapsed time: {time.time() - start:.2f} sec")
 
         if self._with_vehicle_status:
             self._convert_vehicle_state()
@@ -525,7 +528,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     scene_token=scene_token,
                 )
             )
-            print(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec\n")
+            logger.info(f"LiDAR conversion. total elapsed time: {time.time() - start:.2f} sec")
             for radar_sensor in self._radar_sensors:
                 radar_sensor_channel = radar_sensor["channel"]
                 sensor_channel_to_sample_data_token_list[radar_sensor_channel] = (
@@ -560,8 +563,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 scene_token=scene_token,
             )
 
-            print(
-                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec\n"
+            logger.info(
+                f"camera {camera_sensor['channel']} conversion. total elapsed time: {time.time() - start:.2f} sec"
             )
 
     def _convert_static_data(self):
@@ -583,6 +586,19 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             first_sample_token="tmp_token",  # cannot be left empty, will be replaced downstream
             last_sample_token="tmp_token",  # cannot be left empty, will be replaced downstream
         )
+
+        # Add calibrated sensors for lidar sources
+        if self._lidar_sources_mapping is not None:
+            start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(
+                self._calc_start_timestamp()
+            )
+            for source_mapping in self._lidar_sources_mapping:
+                self._generate_calibrated_sensor_for_lidar_source(
+                    sensor_channel=source_mapping.channel,
+                    topic=source_mapping.topic,
+                    frame_id=source_mapping.frame_id,
+                    start_timestamp=start_time_in_time,
+                )
 
         return scene_token
 
@@ -649,7 +665,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             if frame_index > 0:
                 time_diff = unix_timestamp - prev_frame_unix_timestamp
                 if frame_index % self._msg_display_interval == 0:
-                    print(
+                    logger.info(
                         f"frame_index:{frame_index}: {unix_timestamp}, unix_timestamp - prev_frame_unix_timestamp: {time_diff}"
                     )
                 # Note: LiDAR Message drops are not accepted unless accept_frame_drop is True.
@@ -734,7 +750,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self,
         unix_timestamp: float,
         frame_index: int,
-    ) -> Tuple[str, Optional[ConcatenatedPointCloudInfo]]:
+    ) -> Tuple[Optional[str], Optional[ConcatenatedPointCloudInfo]]:
         """Process lidar info data if available.
 
         Args:
@@ -744,7 +760,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         Returns:
             Tuple of (info_filename, lidar_info_message)
         """
-        info_filename = ""
+        info_filename = None
         lidar_info_message = None
 
         if self._lidar_info_topic:
@@ -783,22 +799,27 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo):
         """Convert lidar_info message to dictionary."""
-        # Create reverse mapping from topic to source_id
-        topic_to_source_id = {
-            topic: source_id for source_id, topic in self._lidar_sources_mapping.items()
+        # Create reverse mapping from topic to channel
+        topic_to_channel = {
+            source_mapping.topic: source_mapping.channel
+            for source_mapping in self._lidar_sources_mapping
         }
 
-        # Build sources dictionary with source_id as keys
+        # Build sources list matching PointCloudSourceInfo structure
         sources = []
         for src in msg.source_info:
-            # Get source_id from topic, fallback to topic if not in mapping
+            # Get channel from topic
             assert (
-                src.topic in topic_to_source_id
+                src.topic in topic_to_channel
             ), f" Topic {src.topic} not found in sources mapping. Please update lidar_sensor.lidar_sources_mapping in configs"
-            source_id = topic_to_source_id[src.topic]
+            channel = topic_to_channel[src.topic]
+
+            # Get the sensor token from SensorTable using the channel
+            sensor_token = self._sensor_table.get_token_from_channel(channel)
+
             sources.append(
                 {
-                    "id": source_id,
+                    "sensor_token": sensor_token,
                     "idx_begin": src.idx_begin,
                     "length": src.length,
                     "stamp": {
@@ -855,7 +876,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             unix_timestamp = rosbag2_utils.stamp_to_unix_timestamp(radar_tracks_msg.header.stamp)
             if frame_index > 0:
                 # NOTE: Message drops are not tolerated.
-                print(
+                logger.info(
                     f"frame_index: {frame_index}, unix_timestamp - prev_frame_unix_timestamp: {unix_timestamp - prev_frame_unix_timestamp}"
                 )
                 if (
@@ -1045,7 +1066,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     try:
                         ego_pose_token = self._generate_ego_pose(image_msg.header.stamp)
                     except Exception as e:
-                        print(e)
+                        logger.error(e)
                         continue
                     ego_pose: EgoPose = self._ego_pose_table.select_record_from_token(
                         ego_pose_token
@@ -1067,7 +1088,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         is_data_found = True
 
                 if is_data_found:
-                    print(f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}")
+                    logger.info(
+                        f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}"
+                    )
                     sample_data_token = self._generate_image_data(
                         rosbag2_utils.compressed_msg_to_numpy(image_msg),
                         image_unix_timestamp,
@@ -1297,6 +1320,62 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return vehicle_state_token
 
+    def _generate_calibrated_sensor_for_lidar_source(
+        self,
+        sensor_channel: str,
+        topic: str,
+        frame_id: str,
+        start_timestamp: builtin_interfaces.msg.Time,
+    ) -> None:
+        """Generate calibrated sensor for a lidar source from lidar_sources_mapping.
+
+        Args:
+            sensor_channel: The channel name from lidar_sources_mapping
+            topic: The topic name from lidar_sources_mapping
+            frame_id: The frame_id from lidar_sources_mapping
+            start_timestamp: The timestamp to use for TF lookup
+
+        Returns:
+            None
+        """
+        sensor_token: str = self._sensor_table.get_token_from_field(
+            field_name="channel", field_value=sensor_channel
+        )
+        if not sensor_token:
+            sensor_token = self._sensor_table.insert_into_table(
+                channel=sensor_channel,
+                modality=SENSOR_MODALITY_ENUM.LIDAR.value
+            )
+        logger.info(
+            f"generate_calib_sensor for lidar source, start_timestamp:{start_timestamp}, topic:{topic}, frame id:{frame_id}"
+        )
+        transform_stamped = self._bag_reader.get_transform_stamped(
+            target_frame=self._calibrated_sensor_target_frame,
+            source_frame=frame_id,
+            stamp=start_timestamp,
+        )
+
+        translation = {
+            "x": transform_stamped.transform.translation.x,
+            "y": transform_stamped.transform.translation.y,
+            "z": transform_stamped.transform.translation.z,
+        }
+
+        rotation = {
+            "w": transform_stamped.transform.rotation.w,
+            "x": transform_stamped.transform.rotation.x,
+            "y": transform_stamped.transform.rotation.y,
+            "z": transform_stamped.transform.rotation.z,
+        }
+
+        self._calibrated_sensor_table.insert_into_table(
+            sensor_token=sensor_token,
+            translation=translation,
+            rotation=rotation,
+            camera_intrinsic=[],
+            camera_distortion=[],
+        )
+
     def _generate_calibrated_sensor(
         self,
         sensor_channel: str,
@@ -1320,7 +1399,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             translation = (0.0, 0.0, 0.0)
             rotation = (1.0, 0.0, 0.0, 0.0)
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
-            print(
+            logger.info(
                 f"generate_calib_sensor, start_timestamp:{start_timestamp}, topic name:{topic_name}, frame id:{frame_id}"
             )
             if frame_id is not None:

@@ -32,6 +32,14 @@ class BaseModelWithDictAccess(BaseModel):
         return getattr(self, key, default)
 
 
+class LidarSourceMapping(BaseModel):
+    """Model for individual lidar source mapping entry."""
+
+    topic: str  # e.g., "/sensing/lidar/rear_upper/pointcloud_before_sync"
+    channel: str  # e.g., "LIDAR_REAR_UPPER"
+    frame_id: str  # e.g., "rear_upper/lidar_base_link"
+
+
 class LidarSensor(BaseModelWithDictAccess):
     topic: Optional[str] = None  # e.g., "/lidar_points"
     channel: Optional[str] = None  # e.g., "LIDAR_TOP"
@@ -40,8 +48,8 @@ class LidarSensor(BaseModelWithDictAccess):
     accept_no_info: Optional[bool] = (
         None  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
     )
-    lidar_sources_mapping: Optional[Dict[str, str]] = (
-        None  # mapping from lidar source to topic, e.g., {"LIDAR_TOP": "/lidar_top_points", "LIDAR_FRONT": "/lidar_front_points"}
+    lidar_sources_mapping: Optional[List[LidarSourceMapping]] = (
+        None  # list of lidar source mappings with topic, channel, and frame_id
     )
 
     @model_validator(mode="after")
