@@ -815,7 +815,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             channel = topic_to_channel[src.topic]
 
             # Get the sensor token from SensorTable using the channel
-            sensor_token = self._sensor_table.get_token_from_channel(channel)
+            sensor_token = self._sensor_table.get_token_from_field(
+                field_name="channel",
+                field_value=channel
+            )
 
             sources.append(
                 {
@@ -1203,37 +1206,37 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             geocoordinate = self._ins_handler.lookup_nav_sat_fixes(stamp)
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
-                translation={
-                    "x": ego_state.translation.x,
-                    "y": ego_state.translation.y,
-                    "z": ego_state.translation.z,
-                },
-                rotation={
-                    "w": ego_state.rotation.w,
-                    "x": ego_state.rotation.x,
-                    "y": ego_state.rotation.y,
-                    "z": ego_state.rotation.z,
-                },
+                translation=(
+                    ego_state.translation.x,
+                    ego_state.translation.y,
+                    ego_state.translation.z,
+                ),
+                rotation=(
+                    ego_state.rotation.w,
+                    ego_state.rotation.x,
+                    ego_state.rotation.y,
+                    ego_state.rotation.z,
+                ),
                 timestamp=rosbag2_utils.stamp_to_nusc_timestamp(ego_state.header.stamp),
-                twist={
-                    "vx": ego_state.twist.linear.x,
-                    "vy": ego_state.twist.linear.y,
-                    "vz": ego_state.twist.linear.z,
-                    "yaw_rate": ego_state.twist.angular.z,
-                    "pitch_rate": ego_state.twist.angular.y,
-                    "roll_rate": ego_state.twist.angular.x,
-                },
-                acceleration={
-                    "ax": ego_state.accel.x,
-                    "ay": ego_state.accel.y,
-                    "az": ego_state.accel.z,
-                },
+                twist=(
+                    ego_state.twist.linear.x,
+                    ego_state.twist.linear.y,
+                    ego_state.twist.linear.z,
+                    ego_state.twist.angular.z,
+                    ego_state.twist.angular.y,
+                    ego_state.twist.angular.x,
+                ),
+                acceleration=(
+                    ego_state.accel.x,
+                    ego_state.accel.y,
+                    ego_state.accel.z,
+                ),
                 geocoordinate=(
-                    {
-                        "latitude": geocoordinate.latitude,
-                        "longitude": geocoordinate.longitude,
-                        "altitude": geocoordinate.altitude,
-                    }
+                    (
+                        geocoordinate.latitude,
+                        geocoordinate.longitude,
+                        geocoordinate.altitude,
+                    )
                     if geocoordinate is not None
                     else None
                 ),
@@ -1355,18 +1358,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             stamp=start_timestamp,
         )
 
-        translation = {
-            "x": transform_stamped.transform.translation.x,
-            "y": transform_stamped.transform.translation.y,
-            "z": transform_stamped.transform.translation.z,
-        }
-
-        rotation = {
-            "w": transform_stamped.transform.rotation.w,
-            "x": transform_stamped.transform.rotation.x,
-            "y": transform_stamped.transform.rotation.y,
-            "z": transform_stamped.transform.rotation.z,
-        }
+        translation = (
+            transform_stamped.transform.translation.x,
+            transform_stamped.transform.translation.y,
+            transform_stamped.transform.translation.z,
+        )
+        rotation = (
+            transform_stamped.transform.rotation.w,
+            transform_stamped.transform.rotation.x,
+            transform_stamped.transform.rotation.y,
+            transform_stamped.transform.rotation.z,
+        )
 
         self._calibrated_sensor_table.insert_into_table(
             sensor_token=sensor_token,
@@ -1441,12 +1443,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     axes_fix_rotation = Quaternion(0.5, -0.5, 0.5, -0.5)
                     rotation = rotation * axes_fix_rotation
 
-                    rotation = {
-                        "w": rotation.w,
-                        "x": rotation.x,
-                        "y": rotation.y,
-                        "z": rotation.z,
-                    }
+                    rotation = (
+                        rotation.w,
+                        rotation.x,
+                        rotation.y,
+                        rotation.z,
+                    )
 
                 topic_name_splitted = topic_name.split("/")
                 cam_info_topic = "/".join(topic_name_splitted[:4]) + "/camera_info"
