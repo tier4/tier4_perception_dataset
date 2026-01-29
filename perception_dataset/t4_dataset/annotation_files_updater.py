@@ -94,7 +94,7 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
                 "v40-60": "visibility of whole object is between 40 and 60%",
                 "v60-80": "visibility of whole object is between 60 and 80%",
                 "v80-100": "visibility of whole object is between 80 and 100%",
-                "unavailable": "visibility isn't available",
+                "unavailable": "visibility is not available",
             },
         ).items():
             if not self._visibility_table.get_token_from_field("level", level):
