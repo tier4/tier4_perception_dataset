@@ -1317,8 +1317,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 modality=modality,
             )
 
-            translation = {"x": 0.0, "y": 0.0, "z": 0.0}
-            rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
+            translation = (0.0, 0.0, 0.0)
+            rotation = (1.0, 0.0, 0.0, 0.0)
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
             print(
                 f"generate_calib_sensor, start_timestamp:{start_timestamp}, topic name:{topic_name}, frame id:{frame_id}"

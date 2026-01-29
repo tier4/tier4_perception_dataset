@@ -58,7 +58,7 @@ class AnnotationFilesGenerator:
             "visibility",
             {
                 "v0-40": "visibility of whole object is between 0 and 40%",
-                "none": "visibility isn't available",
+                "unavailable": "visibility isn't available",
                 "v40-60": "visibility of whole object is between 40 and 60%",
                 "v60-80": "visibility of whole object is between 60 and 80%",
                 "v80-100": "visibility of whole object is between 80 and 100%",
@@ -338,8 +338,13 @@ class AnnotationFilesGenerator:
                 # Visibility
                 visibility_token: str = self._visibility_table.get_token_from_field(
                     field_name="level",
-                    field_value=anno.get("visibility_name", "none")
+                    field_value=anno.get("visibility_name", "unavailable")
                 )
+                if not visibility_token:
+                    visibility_token = self._visibility_table.insert_into_table(
+                        level=anno.get("visibility_name", "unavailable"),
+                        description="",
+                    )
 
                 # Sample Annotation
                 if "three_d_bbox" in anno.keys():
@@ -568,10 +573,14 @@ class AnnotationFilesGenerator:
                         description="",
                     ) 
 
-                # Visibility
-                self._visibility_table.get_token_from_level(
-                    level=anno.get("visibility_name", "none")
-                )
+                if not self._visibility_table.get_token_from_field(
+                    field_name="level",
+                    field_value=anno.get("visibility_name", "unavailable")
+                ):
+                    self._visibility_table.insert_into_table(
+                        level=anno.get("visibility_name", "unavailable"),
+                        description="",
+                    )
 
                 # Get a LidarSeg token
                 lidarseg_token = lidarseg_table.insert_into_table(

@@ -74,7 +74,7 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     gt_label_base: str = ""  # path to the gt labels directory
     overwrite_mode: bool = False
     without_compress: bool = False
-    raise_exception: bool = True
+    raise_exception: bool = False
     workers_number: int = 1
     with_gt_label: bool = False  # whether to use gt labels
     scene_description: str = ""  # scene description
