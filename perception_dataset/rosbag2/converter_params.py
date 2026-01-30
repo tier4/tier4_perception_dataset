@@ -55,23 +55,33 @@ class LidarSensor(BaseModelWithDictAccess):
     @model_validator(mode="after")
     def check_lidar_info_fields(self):
         """Validate that if any lidar_info field is defined, all must be defined."""
-        fields = [
-            ("lidar_info_topic", self.lidar_info_topic),
-            ("lidar_info_channel", self.lidar_info_channel),
-            ("accept_no_info", self.accept_no_info),
-            ("lidar_sources_mapping", self.lidar_sources_mapping),
-        ]
+        fields = {
+            "lidar_info_topic": _check_check_lidar_info_field(self.lidar_info_topic),
+            "lidar_info_channel": _check_check_lidar_info_field(self.lidar_info_channel),
+            "accept_no_info": _check_check_lidar_info_field(self.accept_no_info),
+            "lidar_sources_mapping": _check_check_lidar_info_field(self.lidar_sources_mapping),
+        }
 
-        defined_fields = [name for name, value in fields if value]
+        defined_fields = [name for name, is_defined in fields.items() if is_defined]
 
         if defined_fields and len(defined_fields) != len(fields):
-            undefined_fields = [name for name, value in fields if not value]
+            undefined_fields = [name for name, is_defined in fields.items() if not is_defined]
             raise ValueError(
-                f"If any of lidar_info_topic, lidar_info_channel, accept_no_info, or lidar_sources_mapping "
-                f"is defined, all must be defined. Defined: {defined_fields}. Undefined: {undefined_fields}"
+                "If any of lidar_info_topic, lidar_info_channel, accept_no_info, or lidar_sources_mapping is defined, all must be defined. "
+                f"Defined: {defined_fields}. Undefined: {undefined_fields}"
             )
 
         return self
+
+
+def _check_check_lidar_info_field(
+    value: Union[str, bool, list[LidarSourceMapping] | None],
+) -> bool:
+    if value is None:
+        return False
+    if type(value) is list:
+        return len(value) > 0
+    return True
 
 
 class Rosbag2ConverterParams(BaseModelWithDictAccess):
