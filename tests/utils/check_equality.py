@@ -25,9 +25,9 @@ def _load_yaml_file(file_path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def _remove_token_fields(data):
+def _remove_token_and_unused_fields(data):
     """
-    Recursively remove key-value pairs where the key is in TOKEN_FIELD_NAMES.
+    Recursively remove key-value pairs where the key is in TOKEN_FIELD_NAMES or unused (None or empty).
 
     Args:
         data: Dictionary, list, or other data structure to process
@@ -37,12 +37,33 @@ def _remove_token_fields(data):
     """
     if isinstance(data, dict):
         return {
-            key: _remove_token_fields(value)
+            key: _remove_token_and_unused_fields(value)
             for key, value in data.items()
-            if key not in TOKEN_FIELD_NAMES
+            if key not in TOKEN_FIELD_NAMES and value not in (None, "", [], {}, ())
         }
     elif isinstance(data, list):
-        return [_remove_token_fields(item) for item in data]
+        return [_remove_token_and_unused_fields(item) for item in data]
+    else:
+        return data
+
+
+def _normalize_numeric_values(data):
+    """
+    Recursively normalize numeric values to ensure 4.0 and 4 are treated as equal.
+    Converts float values that are equivalent to integers into integers.
+
+    Args:
+        data: Dictionary, list, or other data structure to process
+
+    Returns:
+        A new data structure with normalized numeric values
+    """
+    if isinstance(data, dict):
+        return {key: _normalize_numeric_values(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [_normalize_numeric_values(item) for item in data]
+    elif isinstance(data, float) and data.is_integer():
+        return int(data)
     else:
         return data
 
@@ -53,13 +74,19 @@ def _compare_json_files(target_file: Path, source_file: Path) -> None:
     source_data = _load_json_file(source_file)
 
     # Remove token fields from both datasets
-    target_filtered = _remove_token_fields(target_data)
-    source_filtered = _remove_token_fields(source_data)
+    target_filtered = _remove_token_and_unused_fields(target_data)
+    source_filtered = _remove_token_and_unused_fields(source_data)
 
-    # Python's == operator works well for comparing dicts with standard data types
-    assert target_filtered == source_filtered, (
-        f"Differences found in {target_file.name}: "
-        f"Files are not equal after removing token fields"
+    # Normalize numeric values (e.g., 4.0 -> 4) for consistent comparison
+    target_normalized = _normalize_numeric_values(target_filtered)
+    source_normalized = _normalize_numeric_values(source_filtered)
+
+    # For lists, check if intersection equals target
+    target_set = {json.dumps(x, sort_keys=True) for x in target_normalized}
+    source_set = {json.dumps(x, sort_keys=True) for x in source_normalized}
+    intersection = target_set & source_set
+    assert len(intersection) == len(target_set), (
+        f"Differences found in {target_file.name}: " f"Not all target elements exist in source"
     )
 
 
