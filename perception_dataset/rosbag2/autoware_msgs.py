@@ -182,10 +182,10 @@ def parse_perception_objects(msg) -> List[Dict[str, Any]]:
             "z": pose.position.z,
         }
         orientation: Dict[str, Any] = {
-            "w": pose.orientation.w,
             "x": pose.orientation.x,
             "y": pose.orientation.y,
             "z": pose.orientation.z,
+            "w": pose.orientation.w,
         }
         dimension: Dict[str, Any] = {
             "width": obj.shape.dimensions.y,

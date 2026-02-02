@@ -36,7 +36,7 @@ def t4_dataset_path():
     yield osp.join(t4_output_base, test_rosbag_name)
 
     # after test - remove resource
-    shutil.rmtree(t4_output_base, ignore_errors=True)
+    # shutil.rmtree(t4_output_base, ignore_errors=True)
 
 
 def test_annotated_tlr_dataset_diff(t4_dataset_path):

@@ -177,7 +177,7 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         for attr_name in max_iou_anno["attribute_names"]:
             if attr_name not in attribute_names:
                 token = self._attribute_table.get_token_from_field(
-                    field_name="name", name=attr_name
+                    field_name="name", field_value=attr_name
                 )
                 if token is None:
                     token = self._attribute_table.insert_into_table(name=attr_name, description="")

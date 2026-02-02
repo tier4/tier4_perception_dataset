@@ -182,9 +182,9 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
             next="",
             prev="",
         )
-        sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
+        sample_data_record: SampleData = self._sample_data_table._token_to_record[
             sample_data_token
-        )
+        ]
         points_arr = rosbag2_utils.pointcloud_msg_to_numpy(None)
         points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
 

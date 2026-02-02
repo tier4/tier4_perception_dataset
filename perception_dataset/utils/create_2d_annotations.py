@@ -38,16 +38,12 @@ def create_2d_annotations(
                 min_y = int(np.min(perspective_y))
                 max_y = int(np.max(perspective_y))
 
-                sample_annotation_record = annotation_table.select_record_from_token(box.token)
+                sample_annotation_record = annotation_table._token_to_record[box.token]
                 instance_token = sample_annotation_record.instance_token
                 attribute_tokens = sample_annotation_record.attribute_tokens
-                category_token = instance_table.select_record_from_token(
-                    instance_token
-                ).category_token
-                imsize = [
-                    sample_data_table.select_record_from_token(camera_token).width,
-                    sample_data_table.select_record_from_token(camera_token).height,
-                ]
+                category_token = instance_table._token_to_record[instance_token].category_token
+                sample_data_record = sample_data_table._token_to_record[camera_token]
+                imsize = [sample_data_record.width, sample_data_record.height]
 
                 object_ann_table.insert_into_table(
                     sample_data_token=camera_token,

@@ -47,17 +47,14 @@ def calculate_num_points(
 
         for ann_token, box, num in zip(ann_tokens, boxes, num_points):
             # Create new record with num_lidar_pts and overwrite the original one
-            record = annotation_table.select_record_from_token(ann_token)
-            record.num_lidar_pts = int(num)
+            annotation_table.update_record_from_token(ann_token, num_lidar_pts=int(num))
 
     # connect next/prev tokens
     for instance in t4_dataset.instance:
         if instance.nbr_annotations == 0:
             continue
         try:
-            prev_sample_data = annotation_table.select_record_from_token(
-                instance.first_annotation_token
-            )
+            prev_sample_data = annotation_table._token_to_record[instance.first_annotation_token]
             annotation_data_list = [
                 v for v in annotation_table.to_records() if v.instance_token == instance.token
             ]

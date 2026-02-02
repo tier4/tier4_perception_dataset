@@ -724,9 +724,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 width=0,
                 height=0,
             )
-            sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
+            sample_data_record: SampleData = self._sample_data_table._token_to_record[
                 sample_data_token
-            )
+            ]
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
             points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
@@ -904,9 +904,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 timestamp=nusc_timestamp,
                 is_key_frame=False,
             )
-            sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
+            sample_data_record: SampleData = self._sample_data_table._token_to_record[
                 sample_data_token
-            )
+            ]
 
             # TODO(ktro2828): Add support of PCD format.
             radar_tracks = rosbag2_utils.radar_tracks_msg_to_list(radar_tracks_msg)
@@ -1069,9 +1069,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     except Exception as e:
                         logger.error(e)
                         continue
-                    ego_pose: EgoPose = self._ego_pose_table.select_record_from_token(
-                        ego_pose_token
-                    )
+                    ego_pose: EgoPose = self._ego_pose_table._token_to_record[ego_pose_token]
                     translation: Dict[str, float] = ego_pose.translation
                     distance = get_move_distance(translation, last_translation)
                     if distance >= self._generate_frame_every_meter:
@@ -1173,9 +1171,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             prev="",
         )
 
-        sample_data_record: SampleData = self._sample_data_table.select_record_from_token(
+        sample_data_record: SampleData = self._sample_data_table._token_to_record[
             sample_data_token
-        )
+        ]
         if isinstance(image_arr, np.ndarray):
             cv2.imwrite(
                 osp.join(self._output_scene_dir, sample_data_record.filename),
@@ -1389,12 +1387,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             if channel != sensor_channel:
                 continue
-
-            sensor_token = self._sensor_table.insert_into_table(
-                channel=channel,
-                modality=modality,
+            sensor_token = self._sensor_table.get_token_from_field(
+                field_name="channel", field_value=sensor_channel
             )
-
+            if not sensor_token:
+                sensor_token = self._sensor_table.insert_into_table(
+                    channel=channel,
+                    modality=modality,
+                )
             translation = (0.0, 0.0, 0.0)
             rotation = (1.0, 0.0, 0.0, 0.0)
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
@@ -1515,13 +1515,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             prev_token: str = sample_token_list[token_i - 1]
             cur_token: str = sample_token_list[token_i]
 
-            prev_rec: Sample = self._sample_table.select_record_from_token(prev_token)
-            prev_rec.next = cur_token
-            self._sample_table.set_record_to_table(prev_rec)
-
-            cur_rec: Sample = self._sample_table.select_record_from_token(cur_token)
-            cur_rec.prev = prev_token
-            self._sample_table.set_record_to_table(cur_rec)
+            self._sample_table.update_record_from_token(prev_token, next=cur_token)
+            self._sample_table.update_record_from_token(cur_token, prev=prev_token)
 
     def _connect_sample_data_in_scene(
         self, sensor_channel_to_sample_data_token_list: Dict[str, List[str]]
@@ -1532,17 +1527,5 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 prev_token: str = sample_data_token_list[token_i - 1]
                 cur_token: str = sample_data_token_list[token_i]
 
-                prev_rec: Sample = self._sample_data_table.select_record_from_token(prev_token)
-                prev_rec.next = cur_token
-                self._sample_data_table.set_record_to_table(prev_rec)
-
-                cur_rec: Sample = self._sample_data_table.select_record_from_token(cur_token)
-                cur_rec.prev = prev_token
-                self._sample_data_table.set_record_to_table(cur_rec)
-                prev_rec: Sample = self._sample_data_table.select_record_from_token(prev_token)
-                prev_rec.next = cur_token
-                self._sample_data_table.set_record_to_table(prev_rec)
-
-                cur_rec: Sample = self._sample_data_table.select_record_from_token(cur_token)
-                cur_rec.prev = prev_token
-                self._sample_data_table.set_record_to_table(cur_rec)
+                self._sample_data_table.update_record_from_token(prev_token, next=cur_token)
+                self._sample_data_table.update_record_from_token(cur_token, prev=prev_token)

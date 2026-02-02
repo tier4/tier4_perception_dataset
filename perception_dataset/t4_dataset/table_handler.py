@@ -41,23 +41,80 @@ class TableHandler(Generic[SchemaRecord]):
 
     def set_record_to_table(self, record: SchemaRecord):
         self._token_to_record[record.token] = record
+        
+    def get_record_from_token(self, token: str) -> SchemaRecord:
+        """Retrieve a record from the table by its token.
+
+        Args:
+            token (str): Token of the record to retrieve
+        Returns:
+            SchemaRecord: The record associated with the given token
+        """
+        if token not in self._token_to_record:
+            raise KeyError(f"Token {token} isn't in table {self._schema_type.__name__}.")
+        return self._token_to_record[token]
+
+    def _is_duplicate_record(self, record1: SchemaRecord, record2: SchemaRecord) -> bool:
+        """Check if two records are equal excluding the token field.
+        
+        Args:
+            record1: First record to compare
+            record2: Second record to compare
+            
+        Returns:
+            bool: True if records are duplicates (all fields except token are equal)
+        """
+        dict1 = serialize_dataclass(record1)
+        dict2 = serialize_dataclass(record2)
+        
+        # Remove token field from both dictionaries
+        dict1.pop("token", None)
+        dict2.pop("token", None)
+        
+        return dict1 == dict2
 
     def insert_into_table(self, **kwargs) -> str:
-        record = self._to_record(**kwargs)
-        self.set_record_to_table(record)
-        return record.token
+        # Create a temporary record to compare
+        temp_record = self._to_record(**kwargs)
+        
+        # Check if a record with the same field values (excluding token) already exists
+        for existing_token, existing_record in self._token_to_record.items():
+            if self._is_duplicate_record(temp_record, existing_record):
+                raise ValueError(
+                    f"Duplicate record found in table {self._schema_type.__name__}. "
+                    f"Existing token: {existing_token}"
+                )
+        
+        # No duplicate found, add the new record
+        self.set_record_to_table(temp_record)
+        return temp_record.token
 
-    def select_record_from_token(self, token: str) -> SchemaRecord:
+    def update_record_from_token(self, token: str, **kwargs) -> None:
+        """Update specific fields of a record in the table.
+        
+        Args:
+            token (str): Token of the record to update
+            **kwargs: Field names and their new values to update
+            
+        Raises:
+            AssertionError: If token doesn't exist in the table
+            AssertionError: If any field name is invalid for the schema type
+        """
         assert (
             token in self._token_to_record
         ), f"Token {token} isn't in table {self._schema_type.__name__}."
-        return self._token_to_record[token]
-
-    def replace_record_in_table(self, record: SchemaRecord):
-        assert (
-            record.token in self._token_to_record
-        ), f"Token {record.token} isn't in table {self._schema_type.__name__}."
-        self._token_to_record[record.token] = record
+        
+        # Verify all field names are valid
+        for field_name in kwargs:
+            assert field_name in self._field_names, (
+                f"Field '{field_name}' does not exist in table {self._schema_type.__name__}. "
+                f"Available fields: {self._field_names}"
+            )
+        
+        # Get the current record and update it using attrs.evolve
+        current_record = self._token_to_record[token]
+        updated_record = attrs.evolve(current_record, **kwargs)
+        self._token_to_record[token] = updated_record
 
     def get_token_from_field(self, field_name: str, field_value: Any) -> str:
         """Find token by searching for a unique field value in the table.

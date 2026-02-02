@@ -353,19 +353,34 @@ class AnnotationFilesGenerator:
                         instance_token=instance_token,
                         attribute_tokens=attribute_tokens,
                         visibility_token=visibility_token,
-                        translation=tuple(anno_three_d_bbox["translation"].values()),
+                        translation=(anno_three_d_bbox["translation"]["x"],
+                                     anno_three_d_bbox["translation"]["y"],
+                                     anno_three_d_bbox["translation"]["z"]),
                         velocity=(
-                            tuple(anno_three_d_bbox["velocity"].values())
+                            (anno_three_d_bbox["velocity"]["x"],
+                             anno_three_d_bbox["velocity"]["y"],
+                             anno_three_d_bbox["velocity"]["z"])
                             if anno_three_d_bbox.get("velocity")
                             else None
                         ),
                         acceleration=(
-                            tuple(anno_three_d_bbox["acceleration"].values())
+                            (anno_three_d_bbox["acceleration"]["x"],
+                             anno_three_d_bbox["acceleration"]["y"],
+                             anno_three_d_bbox["acceleration"]["z"])
                             if anno_three_d_bbox.get("acceleration")
                             else None
                         ),
-                        size=tuple(anno_three_d_bbox["size"].values()),
-                        rotation=tuple(anno_three_d_bbox["rotation"].values()),
+                        size=(
+                            anno_three_d_bbox["size"]["width"],
+                            anno_three_d_bbox["size"]["length"],
+                            anno_three_d_bbox["size"]["height"]
+                        ),
+                        rotation=(
+                            anno_three_d_bbox["rotation"]["w"],
+                            anno_three_d_bbox["rotation"]["x"],
+                            anno_three_d_bbox["rotation"]["y"],
+                            anno_three_d_bbox["rotation"]["z"]
+                        ),
                         num_lidar_pts=anno["num_lidar_pts"],
                         num_radar_pts=anno["num_radar_pts"],
                         automatic_annotation=False,
@@ -494,28 +509,20 @@ class AnnotationFilesGenerator:
             annotation_token_list,
         ) in self._instance_token_to_annotation_token_list.items():
             # set info in instance
-            inst_rec: Instance = self._instance_table.select_record_from_token(instance_token)
-            inst_rec.nbr_annotations = len(annotation_token_list)
-            inst_rec.first_annotation_token = annotation_token_list[0]
-            inst_rec.last_annotation_token = annotation_token_list[-1]
-            self._instance_table.set_record_to_table(inst_rec)
+            self._instance_table.update_record_from_token(
+                instance_token,
+                nbr_annotations=len(annotation_token_list),
+                first_annotation_token=annotation_token_list[0],
+                last_annotation_token=annotation_token_list[-1],
+            )
 
             # set next/prev of sample_annotation
             for token_i in range(1, len(annotation_token_list)):
                 prev_token: str = annotation_token_list[token_i - 1]
                 cur_token: str = annotation_token_list[token_i]
 
-                prev_rec: SampleAnnotation = (
-                    self._sample_annotation_table.select_record_from_token(prev_token)
-                )
-                prev_rec.next = cur_token
-                self._sample_annotation_table.set_record_to_table(prev_rec)
-
-                cur_rec: SampleAnnotation = self._sample_annotation_table.select_record_from_token(
-                    cur_token
-                )
-                cur_rec.prev = prev_token
-                self._sample_annotation_table.set_record_to_table(cur_rec)
+                self._sample_annotation_table.update_record_from_token(prev_token, next=cur_token)
+                self._sample_annotation_table.update_record_from_token(cur_token, prev=prev_token)
 
     def _convert_lidarseg_scene_annotations(
         self,
@@ -552,6 +559,15 @@ class AnnotationFilesGenerator:
         # We need to move the level same as anno_dir, and create "lidarseg/<version_name>" because of the design in Tier4 dataset
         lidarseg_anno_path = anno_path.parents[0] / lidarseg_relative_path
         lidarseg_anno_path.mkdir(parents=True, exist_ok=True)
+
+        # Add a case for unpainted point cloud
+        self._category_table.insert_into_table(
+            name="unpainted",
+            index=0,
+            description="unpainted points",
+        )
+        category_index = 1
+
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
             # in case of the first frame in annotation is not 0
@@ -570,11 +586,15 @@ class AnnotationFilesGenerator:
             for anno in anno_list:
                 # Category
                 for category_name in anno["paint_categories"]:
-                    self._category_table.insert_into_table(
-                        name=category_name.lower(),
-                        description="",
-                    )
-
+                    if not self._category_table.get_token_from_field(
+                        field_name="name", field_value=category_name.lower()
+                    ):
+                        self._category_table.insert_into_table(
+                            name=category_name.lower(),
+                            description="",
+                            index=category_index,
+                        )
+                        category_index += 1
                 if not self._visibility_table.get_token_from_field(
                     field_name="level", field_value=anno.get("visibility_name", "unavailable")
                 ):
@@ -595,22 +615,12 @@ class AnnotationFilesGenerator:
                 shutil.move(anno["lidarseg_anno_file"], new_lidarseg_anno_filename)
 
                 # Update the lidarseg record with the new filename
-                lidarseg_record: LidarSeg = lidarseg_table.select_record_from_token(
-                    token=lidarseg_token
+                lidarseg_table.update_record_from_token(
+                    lidarseg_token,
+                    filename=osp.join(
+                        lidarseg_relative_path, (lidarseg_token + EXTENSION_ENUM.BIN.value)
+                    ),
                 )
-                lidarseg_record.filename = osp.join(
-                    lidarseg_relative_path, (lidarseg_token + EXTENSION_ENUM.BIN.value)
-                )
-                lidarseg_table.set_record_to_table(
-                    record=lidarseg_record,
-                )
-
-        # Add a case for unpainted point cloud
-        self._category_table.insert_into_table(
-            name="unpainted",
-            index=0,
-            description="unpainted points",
-        )
 
         lidarseg_table.save_json(anno_dir)
 

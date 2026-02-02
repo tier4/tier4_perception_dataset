@@ -258,7 +258,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     except Exception as e:
                         print(e)
                         continue
-                    ego_pose: EgoPose = self._ego_pose_table.select_record_from_token(
+                    ego_pose: EgoPose = self._ego_pose_table.get_record_from_token(
                         ego_pose_token
                     )
                     translation: Dict[str, float] = ego_pose.translation
