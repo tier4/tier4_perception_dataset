@@ -729,6 +729,8 @@ The annotation of a background object (driveable surface) in an image. Each back
       - "name": [str] -- Name of the model used for annotation. Can include version information.
       - "score": [float] -- Label score for the annotation from this model (range: 0.0–1.0).
       - "uncertainty": [Optional[float]] -- Model-reported uncertainty for the annotation (range: 0.0–1.0). Lower values imply higher confidence.
+  - "instance_token": [Optional[str]] -- Token identifying the instance associated with the annotation.
+  - "attribute_tokens": [Optional[List[str]]] -- List of tokens identifying the attributes associated with the annotation.
 
 ### 3D lidarseg annotation format in T4 format
 
