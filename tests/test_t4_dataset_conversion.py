@@ -29,7 +29,7 @@ from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 from tests.utils.check_equality import (
     diff_check_folder,
     diff_check_json_files,
-    diff_check_t4_dataset,
+    diff_check_and_validate_t4_datasets,
 )
 
 # Test constants
@@ -243,7 +243,7 @@ def test_non_annotated_t4_dataset_diff(non_annotated_t4_dataset_path):
     generated_path = Path(non_annotated_t4_dataset_path)
     expected_path = Path(non_annotated_t4_dataset_path.replace("_generated", ""))
 
-    diff_check_t4_dataset(generated_path, expected_path)
+    diff_check_and_validate_t4_datasets(generated_path, expected_path)
 
 
 def test_non_annotated_t4_dataset_with_lidar_info_diff(
@@ -252,7 +252,7 @@ def test_non_annotated_t4_dataset_with_lidar_info_diff(
     """Test that generated non-annotated T4 dataset with lidar info matches expected output."""
     generated_path = Path(non_annotated_t4_dataset_with_lidar_info_path)
     expected_path = Path(non_annotated_t4_dataset_with_lidar_info_path.replace("_generated", ""))
-    diff_check_t4_dataset(generated_path, expected_path)
+    diff_check_and_validate_t4_datasets(generated_path, expected_path)
 
 
 def test_deepen_dataset_diff(deepen_path):
@@ -269,7 +269,7 @@ def test_t4_dataset_diff(t4_dataset_path):
     generated_path = Path(t4_dataset_path)
     expected_path = Path(t4_dataset_path.replace("_generated", ""))
 
-    diff_check_t4_dataset(generated_path, expected_path)
+    diff_check_and_validate_t4_datasets(generated_path, expected_path)
 
 
 @pytest.mark.parametrize("t4_dataset_path", [False], indirect=True)
@@ -277,7 +277,7 @@ def test_t4_dataset_interpolator(t4_dataset_post_interpolated_path):
     """Test that generated interpolated T4 dataset matches expected output."""
     generated_path = Path(t4_dataset_post_interpolated_path)
     expected_path = Path(t4_dataset_post_interpolated_path.replace("_generated", ""))
-    diff_check_t4_dataset(generated_path, expected_path)
+    diff_check_and_validate_t4_datasets(generated_path, expected_path)
 
 
 @pytest.mark.parametrize("t4_dataset_path", [False], indirect=True)

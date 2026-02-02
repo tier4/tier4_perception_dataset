@@ -21,7 +21,7 @@ from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 from tests.utils.check_equality import (
     diff_check_folder,
     diff_check_json_files,
-    diff_check_t4_dataset,
+    diff_check_and_validate_t4_datasets,
 )
 
 # Downloaded rosbag name
@@ -145,7 +145,7 @@ def test_non_annotated_t4_tlr_dataset_diff(non_annotated_t4_dataset_path):
     generated_path = Path(non_annotated_t4_dataset_path)
     expected_path = Path(non_annotated_t4_dataset_path.replace("_generated", ""))
 
-    diff_check_t4_dataset(generated_path, expected_path)
+    diff_check_and_validate_t4_datasets(generated_path, expected_path)
 
 
 def test_t4_tlr_dataset_diff(t4_dataset_path):
@@ -153,7 +153,7 @@ def test_t4_tlr_dataset_diff(t4_dataset_path):
     generated_path = Path(t4_dataset_path)
     expected_path = Path(t4_dataset_path.replace("_generated", ""))
 
-    diff_check_t4_dataset(generated_path, expected_path)
+    diff_check_and_validate_t4_datasets(generated_path, expected_path)
 
 
 def test_deepen_tlr_dataset_diff(deepen_dataset_path):

@@ -11,7 +11,7 @@ from tests.constants import (
     METADATA_YAML_FILENAME,
     TOKEN_FIELD_NAMES,
 )
-
+from t4_devkit.cli.sanity import sanity_check
 
 def _load_json_file(file_path: Path) -> dict:
     """Load and return JSON data from a file."""
@@ -196,13 +196,19 @@ def diff_check_rosbag(source_input_bag_path: Path, target_input_bag_path: Path) 
     )
 
 
-def diff_check_t4_dataset(target_dir: Path, source_dir: Path) -> None:
+def diff_check_and_validate_t4_datasets(target_dir: Path, source_dir: Path) -> None:
     """
-    Comprehensive comparison of T4 dataset directories.
+    Comprehensive comparison and validation of T4 dataset directories.
 
     Compares annotation files, data files, and optionally input_bag directories
     between target and source datasets.
     """
+
+    # Run sanity checks on the datasets to be compared
+    sanity_check(target_dir)
+    sanity_check(source_dir)
+
+
     diff_check_annotation(target_dir, source_dir)
     diff_check_data(target_dir, source_dir)
 

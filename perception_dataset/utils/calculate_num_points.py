@@ -54,7 +54,7 @@ def calculate_num_points(
         if instance.nbr_annotations == 0:
             continue
         try:
-            prev_sample_data = annotation_table._token_to_record[instance.first_annotation_token]
+            prev_sample_data = annotation_table.get_record_from_token(instance.first_annotation_token)
             annotation_data_list = [
                 v for v in annotation_table.to_records() if v.instance_token == instance.token
             ]
@@ -62,11 +62,17 @@ def calculate_num_points(
             for sample_data_i in range(1, len(annotation_data_list)):
                 cur_sample_data = annotation_data_list[sample_data_i]
                 if prev_sample_data.instance_token != cur_sample_data.instance_token:
-                    prev_sample_data.next = ""
-                    cur_sample_data.prev = ""
+                    annotation_table.update_record_from_token(
+                        prev_sample_data.token, next=""
+                    )
+                    annotation_table.update_record_from_token(cur_sample_data.token, prev="")
                 else:
-                    prev_sample_data.next = cur_sample_data.token
-                    cur_sample_data.prev = prev_sample_data.token
+                    annotation_table.update_record_from_token(
+                        prev_sample_data.token, next=cur_sample_data.token
+                    )
+                    annotation_table.update_record_from_token(
+                        cur_sample_data.token, 
+                    prev=prev_sample_data.token)
                 prev_sample_data = cur_sample_data
         except KeyError as e:
             logger.error(f"no key {e} in annotation table")
