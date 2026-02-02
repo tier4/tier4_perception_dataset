@@ -48,22 +48,59 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         )
         self._input_base = Path(input_base)
         self._output_base = Path(output_base)
-        self._t4dataset_name_to_merge: Dict[str, str] = dataset_corresponding
+        self._input_anno_base = Path(input_anno_base)
         self._camera2idx = description.get("camera_index")
-        self._input_anno_files: List[Path] = []
-        for f in Path(input_anno_base).rglob("*.json"):
-            self._input_anno_files.append(f)
         self._label_converter = LabelConverter(
             label_path=LABEL_PATH_ENUM.OBJECT_LABEL,
             attribute_path=LABEL_PATH_ENUM.ATTRIBUTE,
         )
 
-    def convert(self):
-        # Load and format Fastlabel annotations
-        anno_jsons_dict = self._load_annotation_jsons()
-        fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
+    def _group_annotation_files_by_dataset(
+        self, t4_datasets: List[str]
+    ) -> Dict[str, List[Path]]:
+        """Group annotation files by t4_dataset name.
+        
+        Matches annotation files to datasets by checking if the dataset name
+        is contained in the annotation filename.
+        
+        Args:
+            t4_datasets: List of t4_dataset names to match against.
+            
+        Returns:
+            Dictionary mapping dataset names to lists of annotation file paths.
+        """
+        logger.info("Grouping annotation files by dataset")
+        anno_files_by_dataset: Dict[str, List[Path]] = defaultdict(list)
+        
+        all_anno_files = list(self._input_anno_base.rglob("*.json"))
+        logger.info(f"Found {len(all_anno_files)} annotation files total")
+        
+        # Use list comprehension for more efficient filtering - iterate over datasets instead of files
+        for dataset_name in tqdm(t4_datasets):
+            matched_files = [f for f in all_anno_files if dataset_name in f.name]
+            if matched_files:
+                anno_files_by_dataset[dataset_name] = matched_files
+        
+        logger.info(f"Grouped files for {len(anno_files_by_dataset)} datasets")
+        for dataset_name, files in anno_files_by_dataset.items():
+            logger.info(f"  {dataset_name}: {len(files)} annotation files")
+        
+        return anno_files_by_dataset
 
-        for t4dataset_name in self._t4dataset_name_to_merge.keys():
+    def convert(self):
+        # Get list of t4_datasets
+        t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
+        logger.info(f"Found {len(t4_datasets)} datasets to process")
+        
+        # Group annotation files by dataset
+        anno_files_by_dataset = self._group_annotation_files_by_dataset(t4_datasets)
+
+        for t4dataset_name in t4_datasets:
+            if t4dataset_name not in anno_files_by_dataset:
+                logger.warning(f"No annotation files found for {t4dataset_name}")
+                continue
+            logger.info(f"Processing dataset: {t4dataset_name}")
+            
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
@@ -73,12 +110,15 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
 
             # Check if output directory already exists
             output_dir = self._output_base / t4dataset_name
-            output_dir = output_dir / "t4_dataset"
+            # output_dir = output_dir / "t4_dataset"
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
+            
+            is_dir_exist = False
             if osp.exists(output_dir):
                 logger.warning(f"{output_dir} already exists.")
                 is_dir_exist = True
+            
             if self._overwrite_mode or not is_dir_exist:
                 # Remove existing output directory
                 shutil.rmtree(output_dir, ignore_errors=True)
@@ -92,42 +132,48 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     self._make_rosbag(str(input_bag_dir), str(output_dir))
             else:
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
+            
+            anno_files = anno_files_by_dataset[t4dataset_name]
+            logger.info(f"Loading {len(anno_files)} annotation files for {t4dataset_name}")
+            
+            annotations = self._load_annotation_jsons_for_dataset(anno_files, t4dataset_name)
+            fl_annotations = self._format_fastlabel_annotation(annotations, t4dataset_name)
 
             # Start converting annotations
             annotation_files_generator = AnnotationFilesGenerator(description=self._description)
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
-                scene_anno_dict=fl_annotations[t4dataset_name],
+                scene_anno_dict=fl_annotations,
                 dataset_name=t4dataset_name,
             )
 
-    def _load_annotation_jsons(
-        self, t4_datasets: Optional[List[str]] = None, delimiter: Optional[str] = None
-    ) -> Dict[str, List[dict[str, Any]]]:
-        """Load annotations from all JSON files in the input directory and return as a dictionary."""
-        logger.info("Loading annotation JSON files")
-        anno_dict = defaultdict(list)
-        if t4_datasets is None:
-            for file in self._input_anno_files:
-                with open(file) as f:
-                    anno_dict[file.name] = json.load(f)
-                    return anno_dict
-
-        pbar = tqdm(total=len(self._input_anno_files), desc="Loading annotation files")
-        for file in self._input_anno_files:
-            pbar.update(1)
-            t4_dataset_name = file.name.split(delimiter)[0]
-            for dataset in t4_datasets:
-                if dataset in t4_dataset_name:
-                    break
-            else:
-                continue
+    def _load_annotation_jsons_for_dataset(
+        self, anno_files: List[Path], dataset_name: str
+    ) -> List[Dict[str, Any]]:
+        """Load annotations from JSON files for a specific dataset.
+        
+        Args:
+            anno_files: List of annotation file paths for this dataset.
+            dataset_name: Name of the dataset.
+        Returns:
+            List of annotation dictionaries.
+        """
+        annotations = []
+        for file in anno_files:
             with open(file) as f:
-                one_label = json.load(f)
-                anno_dict[dataset].extend(one_label)
-        pbar.close()
-        return anno_dict
+                file_annotations = json.load(f)
+                if isinstance(file_annotations, list):
+                    annotations.extend(file_annotations)
+                else:
+                    annotations.append(file_annotations)
+        filtered_annotations = []
+        for ann in annotations:
+            if ann.get("name","").split("/")[0]==dataset_name:
+                filtered_annotations.append(ann)
+            else:
+                logger.warning(f"Skipping annotation {ann.get('name','')} not matching dataset {dataset_name}")
+        return filtered_annotations
 
     def _process_annotation(self, dataset_name, annotation):
         filename: str = annotation["name"].split("/")[-1]
@@ -187,10 +233,12 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
 
         return dataset_name, file_id, labels
 
-    def _format_fastlabel_annotation(self, annotations: Dict[str, List[Dict[str, Any]]]):
+    def _format_fastlabel_annotation(
+        self, annotations: List[Dict[str, Any]], dataset_name: str
+    ) -> Dict[int, List[Dict[str, Any]]]:
         """
         e.g. of input_anno_file(fastlabel):
-        "DBv2.0_1-1.json": [
+        [
         {
             "name": "CAM_BACK/0.png",
             "width": 1440,
@@ -251,25 +299,21 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         ],
         ....
         """
-        fl_annotations: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
+        fl_annotations: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
         with ProcessPoolExecutor() as executor:
             futures = []
-            for filename, ann_list in sorted(annotations.items()):
-                dataset_name: str = Path(filename).stem
-                for ann in ann_list:
-                    futures.append(executor.submit(self._process_annotation, dataset_name, ann))
+            for ann in annotations:
+                futures.append(executor.submit(self._process_annotation, dataset_name, ann))
 
-                for future in tqdm(
-                    as_completed(futures),
-                    total=len(futures),
-                    desc=f"Processing {dataset_name} labels",
-                ):
-                    dataset_name, file_id, labels = future.result()
-                    if dataset_name not in fl_annotations:
-                        fl_annotations[dataset_name] = defaultdict(list)
-                    for label_t4_dict in labels:
-                        fl_annotations[dataset_name][file_id].append(label_t4_dict)
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc=f"Processing {dataset_name} labels",
+            ):
+                _, file_id, labels = future.result()
+                for label_t4_dict in labels:
+                    fl_annotations[file_id].append(label_t4_dict)
 
         return fl_annotations
 
