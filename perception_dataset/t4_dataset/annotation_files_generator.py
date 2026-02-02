@@ -353,33 +353,39 @@ class AnnotationFilesGenerator:
                         instance_token=instance_token,
                         attribute_tokens=attribute_tokens,
                         visibility_token=visibility_token,
-                        translation=(anno_three_d_bbox["translation"]["x"],
-                                     anno_three_d_bbox["translation"]["y"],
-                                     anno_three_d_bbox["translation"]["z"]),
+                        translation=(
+                            anno_three_d_bbox["translation"]["x"],
+                            anno_three_d_bbox["translation"]["y"],
+                            anno_three_d_bbox["translation"]["z"],
+                        ),
                         velocity=(
-                            (anno_three_d_bbox["velocity"]["x"],
-                             anno_three_d_bbox["velocity"]["y"],
-                             anno_three_d_bbox["velocity"]["z"])
+                            (
+                                anno_three_d_bbox["velocity"]["x"],
+                                anno_three_d_bbox["velocity"]["y"],
+                                anno_three_d_bbox["velocity"]["z"],
+                            )
                             if anno_three_d_bbox.get("velocity")
                             else None
                         ),
                         acceleration=(
-                            (anno_three_d_bbox["acceleration"]["x"],
-                             anno_three_d_bbox["acceleration"]["y"],
-                             anno_three_d_bbox["acceleration"]["z"])
+                            (
+                                anno_three_d_bbox["acceleration"]["x"],
+                                anno_three_d_bbox["acceleration"]["y"],
+                                anno_three_d_bbox["acceleration"]["z"],
+                            )
                             if anno_three_d_bbox.get("acceleration")
                             else None
                         ),
                         size=(
                             anno_three_d_bbox["size"]["width"],
                             anno_three_d_bbox["size"]["length"],
-                            anno_three_d_bbox["size"]["height"]
+                            anno_three_d_bbox["size"]["height"],
                         ),
                         rotation=(
                             anno_three_d_bbox["rotation"]["w"],
                             anno_three_d_bbox["rotation"]["x"],
                             anno_three_d_bbox["rotation"]["y"],
-                            anno_three_d_bbox["rotation"]["z"]
+                            anno_three_d_bbox["rotation"]["z"],
                         ),
                         num_lidar_pts=anno["num_lidar_pts"],
                         num_radar_pts=anno["num_radar_pts"],
