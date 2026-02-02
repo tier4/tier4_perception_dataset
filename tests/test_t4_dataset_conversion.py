@@ -27,9 +27,9 @@ from perception_dataset.t4_dataset.format_validator import (
 )
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
 from tests.utils.check_equality import (
+    diff_check_and_validate_t4_datasets,
     diff_check_folder,
     diff_check_json_files,
-    diff_check_and_validate_t4_datasets,
 )
 
 # Test constants

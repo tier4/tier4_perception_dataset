@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from t4_devkit.cli.sanity import sanity_check
 import yaml
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
@@ -11,7 +12,7 @@ from tests.constants import (
     METADATA_YAML_FILENAME,
     TOKEN_FIELD_NAMES,
 )
-from t4_devkit.cli.sanity import sanity_check
+
 
 def _load_json_file(file_path: Path) -> dict:
     """Load and return JSON data from a file."""
@@ -207,7 +208,6 @@ def diff_check_and_validate_t4_datasets(target_dir: Path, source_dir: Path) -> N
     # Run sanity checks on the datasets to be compared
     sanity_check(target_dir)
     sanity_check(source_dir)
-
 
     diff_check_annotation(target_dir, source_dir)
     diff_check_data(target_dir, source_dir)

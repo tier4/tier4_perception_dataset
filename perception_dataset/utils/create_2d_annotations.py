@@ -41,7 +41,9 @@ def create_2d_annotations(
                 sample_annotation_record = annotation_table.get_record_from_token(box.token)
                 instance_token = sample_annotation_record.instance_token
                 attribute_tokens = sample_annotation_record.attribute_tokens
-                category_token = instance_table.get_record_from_token(instance_token).category_token
+                category_token = instance_table.get_record_from_token(
+                    instance_token
+                ).category_token
                 sample_data_record = sample_data_table.get_record_from_token(camera_token)
                 imsize = [sample_data_record.width, sample_data_record.height]
 
