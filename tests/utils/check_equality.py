@@ -204,7 +204,6 @@ def diff_check_and_validate_t4_datasets(target_dir: Path, source_dir: Path) -> N
     Compares annotation files, data files, and optionally input_bag directories
     between target and source datasets.
     """
-
     # Run sanity checks on the datasets to be compared
     sanity_check(target_dir)
     sanity_check(source_dir)
