@@ -3,10 +3,11 @@ from pathlib import Path
 
 import yaml
 
-from perception_dataset.constants import SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
+from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from tests.constants import (
     DB3_FILE_PATTERN,
     INPUT_BAG_DIR_NAME,
+    JSON_EXTENSION,
     METADATA_YAML_FILENAME,
     TOKEN_FIELD_NAMES,
 )
@@ -128,14 +129,12 @@ def diff_check_data(target_dir: Path, source_dir: Path) -> None:
         target_file = target_data_dir / relative_path
 
         assert target_file.is_file(), f"File {relative_path} exists in source but not in target"
-
-        # Skip LIDAR_CONCAT files as they have expected differences
-        if str(relative_path).startswith(SENSOR_ENUM.LIDAR_CONCAT.value["channel"]):
-            continue
-
-        source_content = source_file.read_bytes()
-        target_content = target_file.read_bytes()
-        assert source_content == target_content, f"File contents differ: {relative_path}"
+        if str(relative_path).endswith(JSON_EXTENSION):
+            _compare_json_files(target_file, source_file)
+        else:
+            source_content = source_file.read_bytes()
+            target_content = target_file.read_bytes()
+            assert source_content == target_content, f"File contents differ: {relative_path}"
 
 
 def diff_check_rosbag(source_input_bag_path: Path, target_input_bag_path: Path) -> None:

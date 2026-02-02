@@ -21,7 +21,7 @@ class SampleDataRecord(AbstractRecord):
         next_token: str = "",
         prev_token: str = "",
         is_valid: bool = True,
-        info_filename: str = "",
+        info_filename: str | None = None,
     ):
         super().__init__()
 
@@ -37,7 +37,7 @@ class SampleDataRecord(AbstractRecord):
         self.next: str = next_token
         self.prev: str = prev_token
         self._is_valid: bool = is_valid
-        self.info_filename: str = info_filename
+        self.info_filename: str | None = info_filename
 
     def to_dict(self):
         d = {
@@ -90,6 +90,7 @@ class SampleDataTable(AbstractTable[SampleDataRecord]):
                 next_token=item["next"],
                 prev_token=item["prev"],
                 is_valid=item["is_valid"],
+                info_filename=item.get("info_filename", None),
             )
             record.token = item["token"]
             table.set_record_to_table(record)

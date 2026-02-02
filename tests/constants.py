@@ -9,6 +9,7 @@ TEST_ROOT_DIR = Path(__file__).resolve().parent
 INPUT_BAG_DIR_NAME = "input_bag"
 DB3_FILE_PATTERN = "*.db3"
 METADATA_YAML_FILENAME = "metadata.yaml"
+JSON_EXTENSION = ".json"
 
 # Token field names to exclude in T4 dataset comparisons (test-only)
 TOKEN_FIELD_NAMES = [

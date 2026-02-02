@@ -1,4 +1,5 @@
 from collections import defaultdict
+from dataclasses import dataclass
 import os
 import os.path as osp
 from pathlib import Path
@@ -22,7 +23,9 @@ from perception_dataset.deepen.segmentation import (
     DeepenSegmentationPolygon2D,
 )
 from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
-from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
+from perception_dataset.t4_dataset.annotation_files_generator import (
+    AnnotationFilesGenerator,
+)
 from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
     KeyFrameConsistencyResolver,
 )
@@ -32,8 +35,17 @@ import perception_dataset.utils.misc as misc_utils
 logger = configure_logger(modname=__name__)
 
 
-class DeepenToT4Converter(AbstractConverter):
+@dataclass
+class DeepenToT4ConverterOutputItem:
+    output_path: str
 
+
+@dataclass
+class DeepenToT4ConverterOutput:
+    items: list[DeepenToT4ConverterOutputItem]
+
+
+class DeepenToT4Converter(AbstractConverter[DeepenToT4ConverterOutput]):
     def __init__(
         self,
         input_base: str,
@@ -113,7 +125,7 @@ class DeepenToT4Converter(AbstractConverter):
             )
         return scenes_anno_dict
 
-    def convert(self):
+    def convert(self) -> DeepenToT4ConverterOutput:
         """Convert all scene annotations to T4 dataset format."""
         scenes_anno_dict = self._format_annotations()
 
@@ -137,13 +149,15 @@ class DeepenToT4Converter(AbstractConverter):
             else:
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
+        items: list[DeepenToT4ConverterOutputItem] = []
         # insert annotation to t4 dataset
         for t4data_name, dataset_id in self._t4data_name_to_deepen_dataset_id.items():
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             input_dir = osp.join(self._input_base, t4data_name)
 
             annotation_files_generator = AnnotationFilesGenerator(
-                description=self._description, surface_categories=self._surface_categories
+                description=self._description,
+                surface_categories=self._surface_categories,
             )
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
@@ -151,12 +165,21 @@ class DeepenToT4Converter(AbstractConverter):
                 scene_anno_dict=scenes_anno_dict[dataset_id],
                 dataset_name=t4data_name,
             )
+            items.append(
+                DeepenToT4ConverterOutputItem(
+                    output_path=output_dir,
+                )
+            )
 
         # fix non-keyframe (no-labeled frame) in t4 dataset
         for t4data_name in self._t4data_name_to_deepen_dataset_id.keys():
             output_dir = osp.join(self._output_base, t4data_name, self._t4_dataset_dir_name)
             modifier = KeyFrameConsistencyResolver()
             modifier.inspect_and_fix_t4_segment(Path(output_dir))
+
+        return DeepenToT4ConverterOutput(
+            items=items,
+        )
 
     def _copy_data(self, input_dir: str, output_dir: str):
         if input_dir != output_dir:
@@ -221,7 +244,9 @@ class DeepenToT4Converter(AbstractConverter):
             return "full"
 
     def _format_deepen_annotation(
-        self, label_dicts: List[Dict[str, Any]], camera_index: Optional[Dict[str, int]] = None
+        self,
+        label_dicts: List[Dict[str, Any]],
+        camera_index: Optional[Dict[str, int]] = None,
     ):
         """
         e.g.:

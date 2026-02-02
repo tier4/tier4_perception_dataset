@@ -1,7 +1,7 @@
 import enum
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 import yaml
 
 from perception_dataset.utils.logger import configure_logger
@@ -14,7 +14,77 @@ class DataType(enum.Enum):
     SYNTHETIC = "synthetic"
 
 
-class Rosbag2ConverterParams(BaseModel):
+class BaseModelWithDictAccess(BaseModel):
+    def __getitem__(self, key: str):
+        """Make the model subscriptable by key."""
+        return getattr(self, key)
+
+    def __setitem__(self, key: str, value):
+        """Allow setting values using dictionary-style syntax."""
+        setattr(self, key, value)
+
+    def __contains__(self, key: str) -> bool:
+        """Check if a key exists in the model."""
+        return hasattr(self, key)
+
+    def get(self, key: str, default=None):
+        """Get a value by key with a default fallback, just like a dict."""
+        return getattr(self, key, default)
+
+
+class LidarSourceMapping(BaseModel):
+    """Model for individual lidar source mapping entry."""
+
+    topic: str  # e.g., "/sensing/lidar/rear_upper/pointcloud_before_sync"
+    channel: str  # e.g., "LIDAR_REAR_UPPER"
+    frame_id: str  # e.g., "rear_upper/lidar_base_link"
+
+
+class LidarSensor(BaseModelWithDictAccess):
+    topic: Optional[str] = None  # e.g., "/lidar_points"
+    channel: Optional[str] = None  # e.g., "LIDAR_TOP"
+    lidar_info_topic: Optional[str] = None  # topic for lidar info, e.g., "/lidar_info"
+    lidar_info_channel: Optional[str] = None  # channel for lidar info, e.g., "LIDAR_INFO"
+    accept_no_info: Optional[bool] = (
+        None  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+    )
+    lidar_sources_mapping: Optional[List[LidarSourceMapping]] = (
+        None  # list of lidar source mappings with topic, channel, and frame_id
+    )
+
+    @model_validator(mode="after")
+    def check_lidar_info_fields(self):
+        """Validate that if any lidar_info field is defined, all must be defined."""
+        fields = {
+            "lidar_info_topic": _check_check_lidar_info_field(self.lidar_info_topic),
+            "lidar_info_channel": _check_check_lidar_info_field(self.lidar_info_channel),
+            "accept_no_info": _check_check_lidar_info_field(self.accept_no_info),
+            "lidar_sources_mapping": _check_check_lidar_info_field(self.lidar_sources_mapping),
+        }
+
+        defined_fields = [name for name, is_defined in fields.items() if is_defined]
+
+        if defined_fields and len(defined_fields) != len(fields):
+            undefined_fields = [name for name, is_defined in fields.items() if not is_defined]
+            raise ValueError(
+                "If any of lidar_info_topic, lidar_info_channel, accept_no_info, or lidar_sources_mapping is defined, all must be defined. "
+                f"Defined: {defined_fields}. Undefined: {undefined_fields}"
+            )
+
+        return self
+
+
+def _check_check_lidar_info_field(
+    value: Union[str, bool, list[LidarSourceMapping] | None],
+) -> bool:
+    if value is None:
+        return False
+    if type(value) is list:
+        return len(value) > 0
+    return True
+
+
+class Rosbag2ConverterParams(BaseModelWithDictAccess):
     task: str
     input_base: str  # path to the input rosbag2 directory (multiple rosbags in the directory)
     input_bag_path: Optional[str] = None  # path to the input rosbag2 (a single rosbag)
@@ -34,13 +104,7 @@ class Rosbag2ConverterParams(BaseModel):
     data_type: DataType = DataType.REAL  # real or synthetic
 
     # rosbag config
-    lidar_sensor: Dict[str, Union[str, bool]] = {
-        "topic": "",
-        "channel": "",
-        "lidar_info_topic": None,  # topic for lidar info, e.g., "/lidar_info"
-        "lidar_info_channel": None,  # channel for lidar info, e.g., "LIDAR_INFO"
-        "accept_no_info": False,  # if True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
-    }  # lidar_sensor, {topic: , channel, Optional[lidar_info_topic]}
+    lidar_sensor: LidarSensor = LidarSensor()
     radar_sensors: List[Dict[str, str]] = []  # radar sensors
     camera_sensors: List[Dict[str, Union[str, float]]] = []  # camera sensors,
     object_topic_name: str = ""
