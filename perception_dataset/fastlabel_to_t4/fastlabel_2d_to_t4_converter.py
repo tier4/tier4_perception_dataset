@@ -28,11 +28,11 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         input_base: str,
         output_base: str,
         input_anno_base: str,
-        dataset_corresponding: Dict[str, int],
         overwrite_mode: bool,
         description: Dict[str, Dict[str, str]],
         input_bag_base: Optional[str],
         topic_list: Union[Dict[str, List[str]], List[str]],
+        tlr_mode: bool = True,
     ):
         super().__init__(
             input_base,
@@ -51,7 +51,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         self._input_anno_base = Path(input_anno_base)
         self._camera2idx = description.get("camera_index")
         self._label_converter = LabelConverter(
-            label_path=LABEL_PATH_ENUM.OBJECT_LABEL,
+            label_path=LABEL_PATH_ENUM.OBJECT_LABEL if tlr_mode else LABEL_PATH_ENUM.TRAFFIC_LIGHT_LABEL,
             attribute_path=LABEL_PATH_ENUM.ATTRIBUTE,
         )
 
@@ -74,13 +74,11 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         
         all_anno_files = list(self._input_anno_base.rglob("*.json"))
         logger.info(f"Found {len(all_anno_files)} annotation files total")
-        
         # Use list comprehension for more efficient filtering - iterate over datasets instead of files
         for dataset_name in tqdm(t4_datasets):
             matched_files = [f for f in all_anno_files if dataset_name in f.name]
             if matched_files:
                 anno_files_by_dataset[dataset_name] = matched_files
-        
         logger.info(f"Grouped files for {len(anno_files_by_dataset)} datasets")
         for dataset_name, files in anno_files_by_dataset.items():
             logger.info(f"  {dataset_name}: {len(files)} annotation files")

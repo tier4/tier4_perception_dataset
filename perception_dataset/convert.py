@@ -353,10 +353,11 @@ def main():
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
         input_anno_base = config_dict["conversion"]["input_anno_base"]
-        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
         description = config_dict["description"]
         input_bag_base = config_dict["conversion"]["input_bag_base"]
         topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+        tlr_mode = config_dict["conversion"].get("tlr_mode", False)
+        
         with open(topic_list_yaml_path) as f:
             topic_list_yaml = yaml.safe_load(f)
 
@@ -364,11 +365,11 @@ def main():
             input_base=input_base,
             output_base=output_base,
             input_anno_base=input_anno_base,
-            dataset_corresponding=dataset_corresponding,
             overwrite_mode=args.overwrite,
             description=description,
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
+            tlr_mode=tlr_mode,
         )
         logger.info(f"[BEGIN] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
         converter.convert()
