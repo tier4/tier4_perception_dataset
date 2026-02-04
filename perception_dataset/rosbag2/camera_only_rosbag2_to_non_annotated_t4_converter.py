@@ -65,13 +65,11 @@ class CameraOnlyRosbag2ToNonAnnotatedT4Converter(
 
     def _get_bag_dirs(self) -> list[str]:
         ret_bag_files: list[str] = []
-        for bag_dir in glob.glob(osp.join(self._input_base, "*")):
+        for metadata_file in glob.glob(
+            osp.join(self._input_base, "**/metadata.yaml"), recursive=True
+        ):
+            bag_dir = osp.dirname(metadata_file)
             if not osp.isdir(bag_dir):
-                continue
-
-            db3_file = osp.join(bag_dir, "metadata.yaml")
-            if not osp.exists(db3_file):
-                logger.warning(f"{bag_dir} is directory, but metadata.yaml doesn't exist.")
                 continue
 
             ret_bag_files.append(bag_dir)
