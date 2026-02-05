@@ -145,9 +145,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                 dataset_name=t4dataset_name,
             )
 
-    def _load_annotation_jsons_for_dataset(
-        self, anno_files: List[Path]
-    ) -> List[Dict[str, Any]]:
+    def _load_annotation_jsons_for_dataset(self, anno_files: List[Path]) -> List[Dict[str, Any]]:
         """Load annotations from JSON files for a specific dataset.
 
         Args:

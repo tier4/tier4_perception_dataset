@@ -128,7 +128,9 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                 shutil.rmtree(output_dir, ignore_errors=True)
                 continue
 
-    def _process_3d_annotation(self, annotation: Dict[str, Any]) -> tuple[int, List[Dict[str, Any]]]:
+    def _process_3d_annotation(
+        self, annotation: Dict[str, Any]
+    ) -> tuple[int, List[Dict[str, Any]]]:
         """Process a single 3D annotation.
 
         Args:
