@@ -17,8 +17,8 @@ description:
 
 conversion:
   make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
-  input_base: /mnt/qnapdata/internal/comlops/non_annotated_t4s
-  input_anno_base: /mnt/qnapdata/internal/comlops/fastlabel_annotations_pcd/pcd_annotation/pcd_annotation
-  output_base: /mnt/qnapdata/internal/comlops/comlops_t4_dataset_cuboids
+  input_base: /path/to/non_annotated_t4s
+  input_anno_base: /path/to/fastlabel_annotations_pcd
+  output_base: /path/to/comlops_t4_dataset_cuboids
   input_bag_base: null  #optional
   topic_list: null  #necessary if input_bag_base is not null
