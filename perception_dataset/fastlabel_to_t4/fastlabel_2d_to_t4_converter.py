@@ -52,7 +52,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         self._camera2idx = description.get("camera_index")
         self._label_converter = LabelConverter(
             label_path=(
-                LABEL_PATH_ENUM.OBJECT_LABEL if tlr_mode else LABEL_PATH_ENUM.TRAFFIC_LIGHT_LABEL
+                LABEL_PATH_ENUM.TRAFFIC_LIGHT_LABEL if tlr_mode else LABEL_PATH_ENUM.OBJECT_LABEL
             ),
             attribute_path=LABEL_PATH_ENUM.ATTRIBUTE,
         )
@@ -108,7 +108,6 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
 
             # Check if output directory already exists
             output_dir = self._output_base / t4dataset_name
-            # output_dir = output_dir / "t4_dataset"
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
 
@@ -134,8 +133,8 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             anno_files = anno_files_by_dataset[t4dataset_name]
             logger.info(f"Loading {len(anno_files)} annotation files for {t4dataset_name}")
 
-            annotations = self._load_annotation_jsons_for_dataset(anno_files, t4dataset_name)
-            fl_annotations = self._format_fastlabel_annotation(annotations, t4dataset_name)
+            annotations = self._load_annotation_jsons_for_dataset(anno_files)
+            fl_annotations = self._format_fastlabel_annotation(annotations)
 
             # Start converting annotations
             annotation_files_generator = AnnotationFilesGenerator(description=self._description)
@@ -147,13 +146,12 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             )
 
     def _load_annotation_jsons_for_dataset(
-        self, anno_files: List[Path], dataset_name: str
+        self, anno_files: List[Path]
     ) -> List[Dict[str, Any]]:
         """Load annotations from JSON files for a specific dataset.
 
         Args:
             anno_files: List of annotation file paths for this dataset.
-            dataset_name: Name of the dataset.
         Returns:
             List of annotation dictionaries.
         """
@@ -167,15 +165,10 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     annotations.append(file_annotations)
         filtered_annotations = []
         for ann in annotations:
-            if ann.get("name", "").split("/")[0] == dataset_name:
-                filtered_annotations.append(ann)
-            else:
-                logger.warning(
-                    f"Skipping annotation {ann.get('name','')} not matching dataset {dataset_name}"
-                )
+            filtered_annotations.append(ann)
         return filtered_annotations
 
-    def _process_annotation(self, dataset_name, annotation):
+    def _process_annotation(self, annotation):
         filename: str = annotation["name"].split("/")[-1]
         file_id: int = int(filename.split(".")[0])
         frame_no: int = file_id + 1
@@ -231,7 +224,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
             labels.append(label_t4_dict)
 
-        return dataset_name, file_id, labels
+        return file_id, labels
 
     def _format_fastlabel_annotation(
         self, annotations: List[Dict[str, Any]], dataset_name: str
@@ -304,14 +297,14 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         with ProcessPoolExecutor() as executor:
             futures = []
             for ann in annotations:
-                futures.append(executor.submit(self._process_annotation, dataset_name, ann))
+                futures.append(executor.submit(self._process_annotation, ann))
 
             for future in tqdm(
                 as_completed(futures),
                 total=len(futures),
                 desc=f"Processing {dataset_name} labels",
             ):
-                _, file_id, labels = future.result()
+                file_id, labels = future.result()
                 for label_t4_dict in labels:
                     fl_annotations[file_id].append(label_t4_dict)
 
