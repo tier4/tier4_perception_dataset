@@ -4,10 +4,11 @@ import os.path as osp
 from typing import Any, Dict, Generic, List, TypeVar
 
 import attrs
-from t4_devkit.common.serialize import serialize_dataclasses,serialize_dataclass
+from t4_devkit.common.io import save_json
+from t4_devkit.common.serialize import serialize_dataclass, serialize_dataclasses
 from t4_devkit.schema import SchemaBase, build_schema
 from t4_devkit.schema.tables.registry import SCHEMAS
-from t4_devkit.common.io import save_json   
+
 SchemaRecord = TypeVar("SchemaRecord", bound=SchemaBase)
 
 
@@ -178,8 +179,8 @@ class TableHandler(Generic[SchemaRecord]):
             output_dir (str): path to directory
         """
         table_data = self.to_data()
-        save_json(table_data,osp.join(output_dir, f"{self._schema_name}.json"))
-        
+        save_json(table_data, osp.join(output_dir, f"{self._schema_name}.json"))
+
     @classmethod
     def from_json(cls, schema_type: SchemaRecord, filepath: str):
         table_handler = cls(schema_type)
