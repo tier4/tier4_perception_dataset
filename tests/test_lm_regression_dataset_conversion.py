@@ -8,7 +8,7 @@ import yaml
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_t4_loc_converter import Rosbag2ToT4LocConverter
 from tests.constants import TEST_CONFIG_ROOT_DIR, TEST_ROOT_DIR
-from tests.utils.check_equality import diff_check_t4_dataset
+from tests.utils.check_equality import diff_check_and_validate_t4_datasets
 
 
 @pytest.fixture(scope="module")
@@ -47,4 +47,4 @@ def test_lm_regression_dataset_diff(t4_dataset_path):
     generated_path = Path(t4_dataset_path)
     expected_path = Path(t4_dataset_path.replace("_generated", ""))
 
-    diff_check_t4_dataset(generated_path, expected_path)
+    diff_check_and_validate_t4_datasets(generated_path, expected_path)

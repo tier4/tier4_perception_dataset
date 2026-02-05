@@ -5,6 +5,17 @@ import os
 import sys
 from typing import Any, Dict, List
 
+from t4_devkit.schema.tables import (
+    CalibratedSensor,
+    EgoPose,
+    Log,
+    Map,
+    Sample,
+    SampleData,
+    Scene,
+    Sensor,
+)
+
 from perception_dataset.abstract_converter_to_t4 import AbstractAnnotatedToT4Converter
 from perception_dataset.ros2.tf2_geometry_msgs.tf2_geometry_msgs import do_transform_pose
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
@@ -12,14 +23,7 @@ from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     _Rosbag2ToNonAnnotatedT4Converter,
 )
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseTable
-from perception_dataset.t4_dataset.classes.log import LogTable
-from perception_dataset.t4_dataset.classes.map import MapTable
-from perception_dataset.t4_dataset.classes.sample import SampleRecord, SampleTable
-from perception_dataset.t4_dataset.classes.sample_data import SampleDataTable
-from perception_dataset.t4_dataset.classes.scene import SceneTable
-from perception_dataset.t4_dataset.classes.sensor import SensorTable
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.create_2d_annotations import create_2d_annotations
 from perception_dataset.utils.logger import configure_logger
@@ -117,19 +121,19 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
 
     def _init_tables(self):
         # vehicle
-        self._log_table = LogTable()
-        self._map_table = MapTable()
-        self._sensor_table = SensorTable(
-            channel_to_modality={
-                enum.value["channel"]: enum.value["modality"] for enum in self._sensor_enums
-            }
-        )
-        self._calibrated_sensor_table = CalibratedSensorTable()
+        self._log_table = TableHandler(Log)
+        self._map_table = TableHandler(Map)
+        self._sensor_table = TableHandler(Sensor)
+        for enum in self._sensor_enums:
+            self._sensor_table.insert_into_table(
+                channel=enum.value["channel"], modality=enum.value["modality"]
+            )
+        self._calibrated_sensor_table = TableHandler(CalibratedSensor)
         # extraction
-        self._scene_table = SceneTable()
-        self._sample_table = SampleTable()
-        self._sample_data_table = SampleDataTable()
-        self._ego_pose_table = EgoPoseTable()
+        self._scene_table = TableHandler(Scene)
+        self._sample_table = TableHandler(Sample)
+        self._sample_data_table = TableHandler(SampleData)
+        self._ego_pose_table = TableHandler(EgoPose)
 
     def convert(self):
         if self._start_timestamp < sys.float_info.epsilon:
@@ -217,7 +221,7 @@ class _Rosbag2ToT4Converter(_Rosbag2ToNonAnnotatedT4Converter):
         scene_anno_dict: Dict[int, List[Dict[str, Any]]] = {}
         frame_index_to_sample_token: Dict[int, str] = {}
         for idx, sample in enumerate(self._sample_table.to_records()):
-            sample: SampleRecord
+            sample: Sample
             object_dict = self._get_closest_timestamp(
                 scene_timestamp_objects_pair_list,
                 sample.timestamp,

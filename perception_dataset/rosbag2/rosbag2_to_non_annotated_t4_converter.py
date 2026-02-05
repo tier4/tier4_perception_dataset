@@ -29,6 +29,22 @@ import numpy as np
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CameraInfo, CompressedImage, PointCloud2
+from t4_devkit.schema.tables import (
+    Attribute,
+    CalibratedSensor,
+    Category,
+    EgoPose,
+    Instance,
+    Log,
+    Map,
+    Sample,
+    SampleAnnotation,
+    SampleData,
+    Scene,
+    Sensor,
+    VehicleState,
+    Visibility,
+)
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
@@ -44,21 +60,7 @@ from perception_dataset.rosbag2.converter_params import (
     Rosbag2ConverterParams,
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
-from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
-from perception_dataset.t4_dataset.classes.attribute import AttributeTable
-from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
-from perception_dataset.t4_dataset.classes.category import CategoryTable
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord, EgoPoseTable
-from perception_dataset.t4_dataset.classes.instance import InstanceTable
-from perception_dataset.t4_dataset.classes.log import LogTable
-from perception_dataset.t4_dataset.classes.map import MapTable
-from perception_dataset.t4_dataset.classes.sample import SampleRecord, SampleTable
-from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnotationTable
-from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
-from perception_dataset.t4_dataset.classes.scene import SceneRecord, SceneTable
-from perception_dataset.t4_dataset.classes.sensor import SensorTable
-from perception_dataset.t4_dataset.classes.vehicle_state import VehicleStateTable
-from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -381,36 +383,25 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _init_tables(self):
         # vehicle
-        self._log_table = LogTable()
-        self._map_table = MapTable()
-
-        # Build channel_to_modality including lidar sources
-        channel_to_modality = {
-            sensor_enum.value["channel"]: sensor_enum.value["modality"]
-            for sensor_enum in self._sensor_enums
-        }
-        # Add lidar sources to channel_to_modality
-        if self._lidar_sources_mapping is not None:
-            for source_mapping in self._lidar_sources_mapping:
-                channel_to_modality[source_mapping.channel] = SENSOR_MODALITY_ENUM.LIDAR.value
-
-        self._sensor_table = SensorTable(channel_to_modality=channel_to_modality)
-        self._calibrated_sensor_table = CalibratedSensorTable()
+        self._log_table = TableHandler(Log)
+        self._map_table = TableHandler(Map)
+        self._sensor_table = TableHandler(Sensor)
+        self._calibrated_sensor_table = TableHandler(CalibratedSensor)
         # extraction
-        self._scene_table = SceneTable()
-        self._sample_table = SampleTable()
-        self._sample_data_table = SampleDataTable()
-        self._ego_pose_table = EgoPoseTable()
+        self._scene_table = TableHandler(Scene)
+        self._sample_table = TableHandler(Sample)
+        self._sample_data_table = TableHandler(SampleData)
+        self._ego_pose_table = TableHandler(EgoPose)
         # annotation (empty file)
-        self._instance_table = InstanceTable()
-        self._sample_annotation_table = SampleAnnotationTable()
+        self._instance_table = TableHandler(Instance)
+        self._sample_annotation_table = TableHandler(SampleAnnotation)
         # taxonomy (empty file)
-        self._category_table = CategoryTable(name_to_description={}, default_value="")
-        self._attribute_table = AttributeTable(name_to_description={}, default_value="")
-        self._visibility_table = VisibilityTable(level_to_description={}, default_value="")
+        self._category_table = TableHandler(Category)
+        self._attribute_table = TableHandler(Attribute)
+        self._visibility_table = TableHandler(Visibility)
 
         # additional (used in Co-MLops)
-        self._vehicle_state_table = VehicleStateTable()
+        self._vehicle_state_table = TableHandler(VehicleState)
 
     def convert(self) -> Rosbag2ToNonAnnotatedT4ConverterOutputItem:
         self._convert()
@@ -422,7 +413,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         zipped_input_path: str | None = None
         if not self._without_compress:
             (zipped_output_path, zipped_input_path) = self._compress_directory()
-
         return Rosbag2ToNonAnnotatedT4ConverterOutputItem(
             uncompressed_output_path=self._output_scene_dir,
             zipped_output_path=zipped_output_path,
@@ -434,8 +424,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             "--------------------------------------------------------------------------------------------------------------------------"
         )
         for cls_attr in self.__dict__.values():
-            if isinstance(cls_attr, AbstractTable):
-                logger.info(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
+            if isinstance(cls_attr, TableHandler):
+                print(f"{cls_attr.schema_name}: #rows {len(cls_attr)}")
                 cls_attr.save_json(self._output_anno_dir)
         logger.info(
             "--------------------------------------------------------------------------------------------------------------------------"
@@ -551,7 +541,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             # Note: Align the loading order of the cameras with the shutter sequence.
             # Note: The timing of lidar scan initiation and the first camera data acquisition is the same, but the camera has a delay due to data transfer and edge processing on the timestamp.
-            first_sample_data_record: SampleDataRecord = self._sample_data_table.to_records()[0]
+            first_sample_data_record: SampleData = self._sample_data_table.to_records()[0]
 
         if self._sensor_mode == SensorMode.NO_LIDAR or self._sensor_mode == SensorMode.NO_SENSOR:
             # temporaly use start_timestamp instead of recorded timestamp for non synced data
@@ -577,7 +567,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
     def _convert_static_data(self):
-        # Log, Map
+        # Initialize Log, Map
         log_token = self._log_table.insert_into_table(
             logfile="",
             vehicle="",
@@ -586,11 +576,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
         self._map_table.insert_into_table(log_tokens=[log_token], category="", filename="")
 
-        # Scene
+        # Initialize scene
         scene_token = self._scene_table.insert_into_table(
             name=self._bag_name,
             description="",
             log_token=log_token,
+            nbr_samples=0,
+            first_sample_token="tmp_token",  # cannot be left empty, will be replaced downstream
+            last_sample_token="tmp_token",  # cannot be left empty, will be replaced downstream
         )
 
         # Add calibrated sensors for lidar sources
@@ -714,7 +707,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
             sample_token = self._sample_table.insert_into_table(
-                timestamp=nusc_timestamp, scene_token=scene_token
+                timestamp=nusc_timestamp, scene_token=scene_token, next="", prev=""
             )
 
             sample_data_token = self._sample_data_table.insert_into_table(
@@ -726,9 +719,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 timestamp=nusc_timestamp,
                 is_key_frame=True,
                 info_filename=info_filename,
+                next="",
+                prev="",
+                width=0,
+                height=0,
             )
-            sample_data_record: SampleDataRecord = (
-                self._sample_data_table.select_record_from_token(sample_data_token)
+            sample_data_record: SampleData = self._sample_data_table.get_record_from_token(
+                sample_data_token
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
@@ -817,7 +814,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             channel = topic_to_channel[src.topic]
 
             # Get the sensor token from SensorTable using the channel
-            sensor_token = self._sensor_table.get_token_from_channel(channel)
+            sensor_token = self._sensor_table.get_token_from_field(
+                field_name="channel", field_value=channel
+            )
 
             sources.append(
                 {
@@ -890,7 +889,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(radar_tracks_msg.header.stamp)
             sample_token = self._sample_table.insert_into_table(
-                timestamp=nusc_timestamp, scene_token=scene_token
+                timestamp=nusc_timestamp, scene_token=scene_token, next="", prev=""
             )
 
             # TODO(ktro2828): add support of PCD format
@@ -905,8 +904,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 timestamp=nusc_timestamp,
                 is_key_frame=False,
             )
-            sample_data_record: SampleDataRecord = (
-                self._sample_data_table.select_record_from_token(sample_data_token)
+            sample_data_record: SampleData = self._sample_data_table.get_record_from_token(
+                sample_data_token
             )
 
             # TODO(ktro2828): Add support of PCD format.
@@ -930,7 +929,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
     ):
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
-        sample_records: List[SampleRecord] = self._sample_table.to_records()
+        sample_records: List[Sample] = self._sample_table.to_records()
 
         # Get calibrated sensor token
         start_timestamp = (
@@ -1039,16 +1038,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     sample_data_token_list.append(sample_data_token)
         else:  # camera only mode
 
-            def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
-                dx: float = trans1["x"] - trans2["x"]
-                dy: float = trans1["y"] - trans2["y"]
-                dz: float = trans1["z"] - trans2["z"]
+            def get_move_distance(trans1: List[float], trans2: List[float]) -> float:
+                dx: float = trans1[0] - trans2[0]
+                dy: float = trans1[1] - trans2[1]
+                dz: float = trans1[2] - trans2[2]
                 return (dx * dx + dy * dy + dz * dz) ** 0.5
 
             frame_index: int = 0
             generated_frame_index: int = 0
 
-            last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
+            last_translation: List[float] = [0.0, 0.0, 0.0]
             for image_msg in self._bag_reader.read_messages(
                 topics=[topic],
                 start_time=start_time_in_time,
@@ -1070,9 +1069,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     except Exception as e:
                         logger.error(e)
                         continue
-                    ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
-                        ego_pose_token
-                    )
+                    ego_pose: EgoPose = self._ego_pose_table.get_record_from_token(ego_pose_token)
                     translation: Dict[str, float] = ego_pose.translation
                     distance = get_move_distance(translation, last_translation)
                     if distance >= self._generate_frame_every_meter:
@@ -1082,7 +1079,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                             image_msg.header.stamp
                         )
                         sample_token: str = self._sample_table.insert_into_table(
-                            timestamp=nusc_timestamp, scene_token=scene_token
+                            timestamp=nusc_timestamp,
+                            scene_token=scene_token,
+                            next="tmp_token",  # cannot be left empty, will be replaced downstream
+                            prev="tmp_token",  # cannot be left empty, will be replaced downstream
                         )
                         is_data_found = True
 
@@ -1166,9 +1166,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             height=image_shape[0],
             width=image_shape[1],
             is_valid=(not output_blank_image),
+            info_filename="",
+            next="",
+            prev="",
         )
 
-        sample_data_record: SampleDataRecord = self._sample_data_table.select_record_from_token(
+        sample_data_record: SampleData = self._sample_data_table.get_record_from_token(
             sample_data_token
         )
         if isinstance(image_arr, np.ndarray):
@@ -1199,37 +1202,37 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             geocoordinate = self._ins_handler.lookup_nav_sat_fixes(stamp)
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
-                translation={
-                    "x": ego_state.translation.x,
-                    "y": ego_state.translation.y,
-                    "z": ego_state.translation.z,
-                },
-                rotation={
-                    "w": ego_state.rotation.w,
-                    "x": ego_state.rotation.x,
-                    "y": ego_state.rotation.y,
-                    "z": ego_state.rotation.z,
-                },
+                translation=(
+                    ego_state.translation.x,
+                    ego_state.translation.y,
+                    ego_state.translation.z,
+                ),
+                rotation=(
+                    ego_state.rotation.w,
+                    ego_state.rotation.x,
+                    ego_state.rotation.y,
+                    ego_state.rotation.z,
+                ),
                 timestamp=rosbag2_utils.stamp_to_nusc_timestamp(ego_state.header.stamp),
-                twist={
-                    "vx": ego_state.twist.linear.x,
-                    "vy": ego_state.twist.linear.y,
-                    "vz": ego_state.twist.linear.z,
-                    "yaw_rate": ego_state.twist.angular.z,
-                    "pitch_rate": ego_state.twist.angular.y,
-                    "roll_rate": ego_state.twist.angular.x,
-                },
-                acceleration={
-                    "ax": ego_state.accel.x,
-                    "ay": ego_state.accel.y,
-                    "az": ego_state.accel.z,
-                },
+                twist=(
+                    ego_state.twist.linear.x,
+                    ego_state.twist.linear.y,
+                    ego_state.twist.linear.z,
+                    ego_state.twist.angular.z,
+                    ego_state.twist.angular.y,
+                    ego_state.twist.angular.x,
+                ),
+                acceleration=(
+                    ego_state.accel.x,
+                    ego_state.accel.y,
+                    ego_state.accel.z,
+                ),
                 geocoordinate=(
-                    {
-                        "latitude": geocoordinate.latitude,
-                        "longitude": geocoordinate.longitude,
-                        "altitude": geocoordinate.altitude,
-                    }
+                    (
+                        geocoordinate.latitude,
+                        geocoordinate.longitude,
+                        geocoordinate.altitude,
+                    )
                     if geocoordinate is not None
                     else None
                 ),
@@ -1242,17 +1245,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
-                translation={
-                    "x": transform_stamped.transform.translation.x,
-                    "y": transform_stamped.transform.translation.y,
-                    "z": transform_stamped.transform.translation.z,
-                },
-                rotation={
-                    "w": transform_stamped.transform.rotation.w,
-                    "x": transform_stamped.transform.rotation.x,
-                    "y": transform_stamped.transform.rotation.y,
-                    "z": transform_stamped.transform.rotation.z,
-                },
+                translation=(
+                    transform_stamped.transform.translation.x,
+                    transform_stamped.transform.translation.y,
+                    transform_stamped.transform.translation.z,
+                ),
+                rotation=(
+                    transform_stamped.transform.rotation.w,
+                    transform_stamped.transform.rotation.x,
+                    transform_stamped.transform.rotation.y,
+                    transform_stamped.transform.rotation.z,
+                ),
                 timestamp=rosbag2_utils.stamp_to_nusc_timestamp(transform_stamped.header.stamp),
             )
 
@@ -1334,10 +1337,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         Returns:
             None
         """
-        # Get or create sensor token using the channel
-        # This ensures we don't create duplicate entries
-        sensor_token = self._sensor_table.get_token_from_channel(sensor_channel)
-
+        sensor_token: str = self._sensor_table.get_token_from_field(
+            field_name="channel", field_value=sensor_channel
+        )
+        if not sensor_token:
+            sensor_token = self._sensor_table.insert_into_table(
+                channel=sensor_channel, modality=SENSOR_MODALITY_ENUM.LIDAR.value
+            )
         logger.info(
             f"generate_calib_sensor for lidar source, start_timestamp:{start_timestamp}, topic:{topic}, frame id:{frame_id}"
         )
@@ -1347,18 +1353,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             stamp=start_timestamp,
         )
 
-        translation = {
-            "x": transform_stamped.transform.translation.x,
-            "y": transform_stamped.transform.translation.y,
-            "z": transform_stamped.transform.translation.z,
-        }
-
-        rotation = {
-            "w": transform_stamped.transform.rotation.w,
-            "x": transform_stamped.transform.rotation.x,
-            "y": transform_stamped.transform.rotation.y,
-            "z": transform_stamped.transform.rotation.z,
-        }
+        translation = (
+            transform_stamped.transform.translation.x,
+            transform_stamped.transform.translation.y,
+            transform_stamped.transform.translation.z,
+        )
+        rotation = (
+            transform_stamped.transform.rotation.w,
+            transform_stamped.transform.rotation.x,
+            transform_stamped.transform.rotation.y,
+            transform_stamped.transform.rotation.z,
+        )
 
         self._calibrated_sensor_table.insert_into_table(
             sensor_token=sensor_token,
@@ -1382,14 +1387,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             if channel != sensor_channel:
                 continue
-
-            sensor_token = self._sensor_table.insert_into_table(
-                channel=channel,
-                modality=modality,
+            sensor_token = self._sensor_table.get_token_from_field(
+                field_name="channel", field_value=sensor_channel
             )
-
-            translation = {"x": 0.0, "y": 0.0, "z": 0.0}
-            rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
+            if not sensor_token:
+                sensor_token = self._sensor_table.insert_into_table(
+                    channel=channel,
+                    modality=modality,
+                )
+            translation = (0.0, 0.0, 0.0)
+            rotation = (1.0, 0.0, 0.0, 0.0)
             frame_id = self._bag_reader.sensor_topic_to_frame_id.get(topic_name)
             logger.info(
                 f"generate_calib_sensor, start_timestamp:{start_timestamp}, topic name:{topic_name}, frame id:{frame_id}"
@@ -1400,17 +1407,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     source_frame=frame_id,
                     stamp=start_timestamp,
                 )
-                translation = {
-                    "x": transform_stamped.transform.translation.x,
-                    "y": transform_stamped.transform.translation.y,
-                    "z": transform_stamped.transform.translation.z,
-                }
-                rotation = {
-                    "w": transform_stamped.transform.rotation.w,
-                    "x": transform_stamped.transform.rotation.x,
-                    "y": transform_stamped.transform.rotation.y,
-                    "z": transform_stamped.transform.rotation.z,
-                }
+                translation = (
+                    transform_stamped.transform.translation.x,
+                    transform_stamped.transform.translation.y,
+                    transform_stamped.transform.translation.z,
+                )
+                rotation = (
+                    transform_stamped.transform.rotation.w,
+                    transform_stamped.transform.rotation.x,
+                    transform_stamped.transform.rotation.y,
+                    transform_stamped.transform.rotation.z,
+                )
 
             if modality in (
                 SENSOR_MODALITY_ENUM.LIDAR.value,
@@ -1433,12 +1440,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     axes_fix_rotation = Quaternion(0.5, -0.5, 0.5, -0.5)
                     rotation = rotation * axes_fix_rotation
 
-                    rotation = {
-                        "w": rotation.w,
-                        "x": rotation.x,
-                        "y": rotation.y,
-                        "z": rotation.z,
-                    }
+                    rotation = (
+                        rotation.w,
+                        rotation.x,
+                        rotation.y,
+                        rotation.z,
+                    )
 
                 topic_name_splitted = topic_name.split("/")
                 cam_info_topic = "/".join(topic_name_splitted[:4]) + "/camera_info"
@@ -1484,18 +1491,18 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         return camera_intrinsic, camera_distortion, camera_info
 
     def _set_scene_data(self):
-        scene_records: List[SceneRecord] = self._scene_table.to_records()
+        scene_records: List[Scene] = self._scene_table.to_records()
         assert len(scene_records) == 1, "#scene_records must be 1."
 
         sample_token_list: List[str] = [rec.token for rec in self._sample_table.to_records()]
-        scene_record: SceneRecord = scene_records[0]
+        scene_record: Scene = scene_records[0]
 
         scene_record.nbr_samples = len(sample_token_list)
         scene_record.first_sample_token = sample_token_list[0]
         scene_record.last_sample_token = sample_token_list[-1]
 
     def _add_scene_description(self, text: str):
-        scene_records: List[SceneRecord] = self._scene_table.to_records()
+        scene_records: List[Scene] = self._scene_table.to_records()
         if scene_records[0].description != "":
             scene_records[0].description += ", "
         scene_records[0].description += f"{text}"
@@ -1508,13 +1515,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             prev_token: str = sample_token_list[token_i - 1]
             cur_token: str = sample_token_list[token_i]
 
-            prev_rec: SampleRecord = self._sample_table.select_record_from_token(prev_token)
-            prev_rec.next = cur_token
-            self._sample_table.set_record_to_table(prev_rec)
-
-            cur_rec: SampleRecord = self._sample_table.select_record_from_token(cur_token)
-            cur_rec.prev = prev_token
-            self._sample_table.set_record_to_table(cur_rec)
+            self._sample_table.update_record_from_token(prev_token, next=cur_token)
+            self._sample_table.update_record_from_token(cur_token, prev=prev_token)
 
     def _connect_sample_data_in_scene(
         self, sensor_channel_to_sample_data_token_list: Dict[str, List[str]]
@@ -1525,21 +1527,5 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 prev_token: str = sample_data_token_list[token_i - 1]
                 cur_token: str = sample_data_token_list[token_i]
 
-                prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
-                    prev_token
-                )
-                prev_rec.next = cur_token
-                self._sample_data_table.set_record_to_table(prev_rec)
-
-                cur_rec: SampleRecord = self._sample_data_table.select_record_from_token(cur_token)
-                cur_rec.prev = prev_token
-                self._sample_data_table.set_record_to_table(cur_rec)
-                prev_rec: SampleRecord = self._sample_data_table.select_record_from_token(
-                    prev_token
-                )
-                prev_rec.next = cur_token
-                self._sample_data_table.set_record_to_table(prev_rec)
-
-                cur_rec: SampleRecord = self._sample_data_table.select_record_from_token(cur_token)
-                cur_rec.prev = prev_token
-                self._sample_data_table.set_record_to_table(cur_rec)
+                self._sample_data_table.update_record_from_token(prev_token, next=cur_token)
+                self._sample_data_table.update_record_from_token(cur_token, prev=prev_token)

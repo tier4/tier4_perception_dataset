@@ -10,20 +10,19 @@ import numpy as np
 from pycocotools import mask as cocomask
 from scipy.spatial.transform import Rotation
 from t4_devkit import Tier4
+from t4_devkit.schema.tables import (
+    Attribute,
+    Category,
+    Instance,
+    LidarSeg,
+    ObjectAnn,
+    SampleAnnotation,
+    SurfaceAnn,
+    Visibility,
+)
 
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
-from perception_dataset.t4_dataset.classes.abstract_class import AbstractTable
-from perception_dataset.t4_dataset.classes.attribute import AttributeTable
-from perception_dataset.t4_dataset.classes.category import CategoryTable
-from perception_dataset.t4_dataset.classes.instance import InstanceRecord, InstanceTable
-from perception_dataset.t4_dataset.classes.lidarseg import LidarSegTable
-from perception_dataset.t4_dataset.classes.object_ann import ObjectAnnTable
-from perception_dataset.t4_dataset.classes.sample_annotation import (
-    SampleAnnotationRecord,
-    SampleAnnotationTable,
-)
-from perception_dataset.t4_dataset.classes.surface_ann import SurfaceAnnTable
-from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.transform import compose_transform
 
@@ -49,32 +48,27 @@ class AnnotationFilesGenerator:
             "lidar",
         }, "label_coordinates must be either 'map' or 'lidar'"
         self._label_coordinates = label_coordinates
-        # TODO(yukke42): remove the hard coded attribute description
-        self._attribute_table = AttributeTable(
-            name_to_description={},
-            default_value="",
-        )
-        # TODO(yukke42): remove the hard coded category description
-        self._category_table = CategoryTable(
-            name_to_description={}, default_value="", lidarseg=self._with_lidarseg
-        )
-        self._instance_table = InstanceTable()
-        self._visibility_table = VisibilityTable(
-            level_to_description=description.get(
-                "visibility",
-                {
-                    "v0-40": "visibility of whole object is between 0 and 40%",
-                    "v40-60": "visibility of whole object is between 40 and 60%",
-                    "v60-80": "visibility of whole object is between 60 and 80%",
-                    "v80-100": "visibility of whole object is between 80 and 100%",
-                    "none": "visibility isn't available",
-                },
-            ),
-            default_value="",
-        )
-        self._sample_annotation_table = SampleAnnotationTable()
-        self._object_ann_table = ObjectAnnTable()
-        self._surface_ann_table = SurfaceAnnTable()
+        self._attribute_table = TableHandler(Attribute)
+        self._category_table = TableHandler(Category)
+        self._instance_table = TableHandler(Instance)
+        self._visibility_table = TableHandler(Visibility)
+        for level, desc in description.get(
+            "visibility",
+            {
+                "v0-40": "visibility of whole object is between 0 and 40%",
+                "unavailable": "visibility isn't available",
+                "v40-60": "visibility of whole object is between 40 and 60%",
+                "v60-80": "visibility of whole object is between 60 and 80%",
+                "v80-100": "visibility of whole object is between 80 and 100%",
+            },
+        ).items():
+            self._visibility_table.insert_into_table(
+                level=level,
+                description=desc,
+            )
+        self._sample_annotation_table = TableHandler(SampleAnnotation)
+        self._object_ann_table = TableHandler(ObjectAnn)
+        self._surface_ann_table = TableHandler(SurfaceAnn)
 
         self._instance_token_to_annotation_token_list: Dict[str, List[str]] = defaultdict(list)
 
@@ -90,8 +84,8 @@ class AnnotationFilesGenerator:
 
     def save_tables(self, anno_dir: str):
         for cls_attr in self.__dict__.values():
-            if isinstance(cls_attr, AbstractTable):
-                print(f"{cls_attr.FILENAME}: #rows {len(cls_attr)}")
+            if isinstance(cls_attr, TableHandler):
+                print(f"{cls_attr.schema_name}: #rows {len(cls_attr)}")
                 cls_attr.save_json(anno_dir)
 
     def convert_one_scene(
@@ -301,27 +295,52 @@ class AnnotationFilesGenerator:
 
             for anno in anno_list:
                 # Category
-                category_token: str = self._category_table.get_token_from_name(
-                    name=anno["category_name"]
+                category_token: str = self._category_table.get_token_from_field(
+                    field_name="name", field_value=anno["category_name"]
                 )
-
+                if category_token is None:
+                    category_token = self._category_table.insert_into_table(
+                        name=anno["category_name"],
+                        description="",
+                    )
                 # Instance
-                instance_token: str = self._instance_table.get_token_from_id(
-                    instance_id=anno["instance_id"],
-                    category_token=category_token,
-                    dataset_name=dataset_name,
+                instance_name = dataset_name + "::" + str(anno["instance_id"])
+                instance_token: str = self._instance_table.get_token_from_field(
+                    field_name="instance_name",
+                    field_value=instance_name,
                 )
+                if not instance_token:
+                    instance_token = self._instance_table.insert_into_table(
+                        instance_name=instance_name,
+                        category_token=category_token,
+                        nbr_annotations=0,
+                        first_annotation_token="",
+                        last_annotation_token="",
+                    )
 
                 # Attribute
-                attribute_tokens: List[str] = [
-                    self._attribute_table.get_token_from_name(name=attr_name)
-                    for attr_name in anno["attribute_names"]
-                ]
+                attribute_tokens: List[str] = []
+                for attr_name in anno["attribute_names"]:
+                    attr_token = self._attribute_table.get_token_from_field(
+                        field_name="name",
+                        field_value=attr_name,
+                    )
+                    if not attr_token:
+                        attr_token = self._attribute_table.insert_into_table(
+                            name=attr_name,
+                            description="",
+                        )
+                    attribute_tokens.append(attr_token)
 
                 # Visibility
-                visibility_token: str = self._visibility_table.get_token_from_level(
-                    level=anno.get("visibility_name", "none")
+                visibility_token: str = self._visibility_table.get_token_from_field(
+                    field_name="level", field_value=anno.get("visibility_name", "unavailable")
                 )
+                if not visibility_token:
+                    visibility_token = self._visibility_table.insert_into_table(
+                        level=anno.get("visibility_name", "unavailable"),
+                        description="",
+                    )
 
                 # Sample Annotation
                 if "three_d_bbox" in anno.keys():
@@ -329,20 +348,50 @@ class AnnotationFilesGenerator:
                     anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(
                         anno["three_d_bbox"], sample_token=sample_token, t4_dataset=t4_dataset
                     )
-
                     sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
                         sample_token=sample_token,
                         instance_token=instance_token,
                         attribute_tokens=attribute_tokens,
                         visibility_token=visibility_token,
-                        translation=anno_three_d_bbox["translation"],
-                        velocity=anno_three_d_bbox["velocity"],
-                        acceleration=anno_three_d_bbox["acceleration"],
-                        size=anno_three_d_bbox["size"],
-                        rotation=anno_three_d_bbox["rotation"],
+                        translation=(
+                            anno_three_d_bbox["translation"]["x"],
+                            anno_three_d_bbox["translation"]["y"],
+                            anno_three_d_bbox["translation"]["z"],
+                        ),
+                        velocity=(
+                            (
+                                anno_three_d_bbox["velocity"]["x"],
+                                anno_three_d_bbox["velocity"]["y"],
+                                anno_three_d_bbox["velocity"]["z"],
+                            )
+                            if anno_three_d_bbox.get("velocity")
+                            else None
+                        ),
+                        acceleration=(
+                            (
+                                anno_three_d_bbox["acceleration"]["x"],
+                                anno_three_d_bbox["acceleration"]["y"],
+                                anno_three_d_bbox["acceleration"]["z"],
+                            )
+                            if anno_three_d_bbox.get("acceleration")
+                            else None
+                        ),
+                        size=(
+                            anno_three_d_bbox["size"]["width"],
+                            anno_three_d_bbox["size"]["length"],
+                            anno_three_d_bbox["size"]["height"],
+                        ),
+                        rotation=(
+                            anno_three_d_bbox["rotation"]["w"],
+                            anno_three_d_bbox["rotation"]["x"],
+                            anno_three_d_bbox["rotation"]["y"],
+                            anno_three_d_bbox["rotation"]["z"],
+                        ),
                         num_lidar_pts=anno["num_lidar_pts"],
                         num_radar_pts=anno["num_radar_pts"],
                         automatic_annotation=False,
+                        next="",
+                        prev="",
                     )
                     self._instance_token_to_annotation_token_list[instance_token].append(
                         sample_annotation_token
@@ -466,32 +515,20 @@ class AnnotationFilesGenerator:
             annotation_token_list,
         ) in self._instance_token_to_annotation_token_list.items():
             # set info in instance
-            inst_rec: InstanceRecord = self._instance_table.select_record_from_token(
-                instance_token
-            )
-            inst_rec.set_annotation_info(
+            self._instance_table.update_record_from_token(
+                instance_token,
                 nbr_annotations=len(annotation_token_list),
                 first_annotation_token=annotation_token_list[0],
                 last_annotation_token=annotation_token_list[-1],
             )
-            self._instance_table.set_record_to_table(inst_rec)
 
             # set next/prev of sample_annotation
             for token_i in range(1, len(annotation_token_list)):
                 prev_token: str = annotation_token_list[token_i - 1]
                 cur_token: str = annotation_token_list[token_i]
 
-                prev_rec: SampleAnnotationRecord = (
-                    self._sample_annotation_table.select_record_from_token(prev_token)
-                )
-                prev_rec.next_token = cur_token
-                self._sample_annotation_table.set_record_to_table(prev_rec)
-
-                cur_rec: SampleAnnotationRecord = (
-                    self._sample_annotation_table.select_record_from_token(cur_token)
-                )
-                cur_rec.prev_token = prev_token
-                self._sample_annotation_table.set_record_to_table(cur_rec)
+                self._sample_annotation_table.update_record_from_token(prev_token, next=cur_token)
+                self._sample_annotation_table.update_record_from_token(cur_token, prev=prev_token)
 
     def _convert_lidarseg_scene_annotations(
         self,
@@ -508,7 +545,7 @@ class AnnotationFilesGenerator:
         :param t4_dataset: Tier4 object for this dataset.
         :param anno_dir: Annotation directory.
         """
-        lidarseg_table = LidarSegTable()
+        lidarseg_table = TableHandler(LidarSeg)
 
         frame_index_to_sample_data_token: Dict[int, str] = {}
         frame_index_to_sample_token: Dict[int, str] = {}
@@ -528,6 +565,15 @@ class AnnotationFilesGenerator:
         # We need to move the level same as anno_dir, and create "lidarseg/<version_name>" because of the design in Tier4 dataset
         lidarseg_anno_path = anno_path.parents[0] / lidarseg_relative_path
         lidarseg_anno_path.mkdir(parents=True, exist_ok=True)
+
+        # Add a case for unpainted point cloud
+        self._category_table.insert_into_table(
+            name="unpainted",
+            index=0,
+            description="unpainted points",
+        )
+        category_index = 1
+
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
             # in case of the first frame in annotation is not 0
@@ -546,14 +592,22 @@ class AnnotationFilesGenerator:
             for anno in anno_list:
                 # Category
                 for category_name in anno["paint_categories"]:
-                    self._category_table.get_token_from_name(
-                        name=category_name.lower()
-                    )  # Make category name lowercase
-
-                # Visibility
-                self._visibility_table.get_token_from_level(
-                    level=anno.get("visibility_name", "none")
-                )
+                    if not self._category_table.get_token_from_field(
+                        field_name="name", field_value=category_name.lower()
+                    ):
+                        self._category_table.insert_into_table(
+                            name=category_name.lower(),
+                            description="",
+                            index=category_index,
+                        )
+                        category_index += 1
+                if not self._visibility_table.get_token_from_field(
+                    field_name="level", field_value=anno.get("visibility_name", "unavailable")
+                ):
+                    self._visibility_table.insert_into_table(
+                        level=anno.get("visibility_name", "unavailable"),
+                        description="",
+                    )
 
                 # Get a LidarSeg token
                 lidarseg_token = lidarseg_table.insert_into_table(
@@ -567,18 +621,12 @@ class AnnotationFilesGenerator:
                 shutil.move(anno["lidarseg_anno_file"], new_lidarseg_anno_filename)
 
                 # Update the lidarseg record with the new filename
-                lidarseg_record = lidarseg_table.select_record_from_token(token=lidarseg_token)
-                lidarseg_record.filename = osp.join(
-                    lidarseg_relative_path, (lidarseg_token + EXTENSION_ENUM.BIN.value)
+                lidarseg_table.update_record_from_token(
+                    lidarseg_token,
+                    filename=osp.join(
+                        lidarseg_relative_path, (lidarseg_token + EXTENSION_ENUM.BIN.value)
+                    ),
                 )
-                lidarseg_table.set_record_to_table(
-                    record=lidarseg_record,
-                )
-
-        # Add a case for unpainted point cloud
-        self._category_table.add_category_to_record(
-            name="unpainted", index=0, description="unpainted points"
-        )
 
         lidarseg_table.save_json(anno_dir)
 

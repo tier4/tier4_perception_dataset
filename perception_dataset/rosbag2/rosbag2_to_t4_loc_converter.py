@@ -5,6 +5,16 @@ import shutil
 from typing import Dict, List
 
 import builtin_interfaces.msg
+from t4_devkit.schema.tables import (
+    CalibratedSensor,
+    EgoPose,
+    Log,
+    Map,
+    Sample,
+    SampleData,
+    Scene,
+    Sensor,
+)
 
 from perception_dataset.constants import (
     EXTENSION_ENUM,
@@ -17,14 +27,7 @@ from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
     Rosbag2ToT4Converter,
     _Rosbag2ToT4Converter,
 )
-from perception_dataset.t4_dataset.classes.calibrated_sensor import CalibratedSensorTable
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseTable
-from perception_dataset.t4_dataset.classes.log import LogTable
-from perception_dataset.t4_dataset.classes.map import MapTable
-from perception_dataset.t4_dataset.classes.sample import SampleTable
-from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord, SampleDataTable
-from perception_dataset.t4_dataset.classes.scene import SceneTable
-from perception_dataset.t4_dataset.classes.sensor import SensorTable
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.misc import get_sample_data_filename
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -104,19 +107,19 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
 
     def _init_tables(self):
         # vehicle
-        self._log_table = LogTable()
-        self._map_table = MapTable()
-        self._sensor_table = SensorTable(
-            channel_to_modality={
-                enum.value["channel"]: enum.value["modality"] for enum in self._sensor_enums
-            }
-        )
-        self._calibrated_sensor_table = CalibratedSensorTable()
+        self._log_table = TableHandler(Log)
+        self._map_table = TableHandler(Map)
+        self._sensor_table = TableHandler(Sensor)
+        for enum in self._sensor_enums:
+            self._sensor_table.insert_into_table(
+                channel=enum.value["channel"], modality=enum.value["modality"]
+            )
+        self._calibrated_sensor_table = TableHandler(CalibratedSensor)
         # extraction
-        self._scene_table = SceneTable()
-        self._sample_table = SampleTable()
-        self._sample_data_table = SampleDataTable()
-        self._ego_pose_table = EgoPoseTable()
+        self._scene_table = TableHandler(Scene)
+        self._sample_table = TableHandler(Sample)
+        self._sample_data_table = TableHandler(SampleData)
+        self._ego_pose_table = TableHandler(EgoPose)
 
     def convert(self):
         self._convert()
@@ -161,7 +164,7 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
         calibrated_sensor_token = self._generate_dummy_sensor(start_time_in_time)
         ego_pose_token = self._generate_ego_pose(start_time_in_time)
         sample_token = self._sample_table.insert_into_table(
-            timestamp=nusc_timestamp, scene_token=scene_token
+            timestamp=nusc_timestamp, scene_token=scene_token, next="", prev=""
         )
 
         fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
@@ -174,8 +177,12 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
             fileformat=fileformat,
             timestamp=nusc_timestamp,
             is_key_frame=True,
+            width=0,
+            height=0,
+            next="",
+            prev="",
         )
-        sample_data_record: SampleDataRecord = self._sample_data_table.select_record_from_token(
+        sample_data_record: SampleData = self._sample_data_table.get_record_from_token(
             sample_data_token
         )
         points_arr = rosbag2_utils.pointcloud_msg_to_numpy(None)
@@ -195,25 +202,23 @@ class _Rosbag2ToT4LocConverter(_Rosbag2ToT4Converter):
                 modality=modality,
             )
 
-            translation = {"x": 0.0, "y": 0.0, "z": 0.0}
-            rotation = {"w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0}
             frame_id = "base_link"
             transform_stamped = self._bag_reader.get_transform_stamped(
                 target_frame=self._calibrated_sensor_target_frame,
                 source_frame=frame_id,
                 stamp=start_timestamp,
             )
-            translation = {
-                "x": transform_stamped.transform.translation.x,
-                "y": transform_stamped.transform.translation.y,
-                "z": transform_stamped.transform.translation.z,
-            }
-            rotation = {
-                "w": transform_stamped.transform.rotation.w,
-                "x": transform_stamped.transform.rotation.x,
-                "y": transform_stamped.transform.rotation.y,
-                "z": transform_stamped.transform.rotation.z,
-            }
+            translation = (
+                transform_stamped.transform.translation.x,
+                transform_stamped.transform.translation.y,
+                transform_stamped.transform.translation.z,
+            )
+            rotation = (
+                transform_stamped.transform.rotation.w,
+                transform_stamped.transform.rotation.x,
+                transform_stamped.transform.rotation.y,
+                transform_stamped.transform.rotation.z,
+            )
 
             calibrated_sensor_token = self._calibrated_sensor_table.insert_into_table(
                 sensor_token=sensor_token,

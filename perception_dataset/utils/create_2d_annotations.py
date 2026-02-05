@@ -2,20 +2,18 @@ from typing import List
 
 import numpy as np
 from t4_devkit import Tier4
+from t4_devkit.schema.tables import Instance, ObjectAnn, SampleAnnotation, SampleData
 
-from perception_dataset.t4_dataset.classes.instance import InstanceTable
-from perception_dataset.t4_dataset.classes.object_ann import ObjectAnnRecord, ObjectAnnTable
-from perception_dataset.t4_dataset.classes.sample_annotation import SampleAnnotationTable
-from perception_dataset.t4_dataset.classes.sample_data import SampleDataTable
+from perception_dataset.t4_dataset.table_handler import TableHandler
 
 
 def create_2d_annotations(
     dataroot: str,
     camera_sensor_channels: List[str],
-    annotation_table: SampleAnnotationTable,
-    sample_data_table: SampleDataTable,
-    object_ann_table: ObjectAnnTable,
-    instance_table: InstanceTable,
+    annotation_table: TableHandler[SampleAnnotation],
+    sample_data_table: TableHandler[SampleData],
+    object_ann_table: TableHandler[ObjectAnn],
+    instance_table: TableHandler[Instance],
 ):
     t4_dataset = Tier4(data_root=dataroot, verbose=False)
     for sample in t4_dataset.sample:
@@ -40,16 +38,16 @@ def create_2d_annotations(
                 min_y = int(np.min(perspective_y))
                 max_y = int(np.max(perspective_y))
 
-                sample_annotation_record = annotation_table._token_to_record[box.token]
-                instance_token = sample_annotation_record._instance_token
-                attribute_tokens = sample_annotation_record._attribute_tokens
-                category_token = instance_table._token_to_record[instance_token]._category_token
-                imsize = [
-                    sample_data_table._token_to_record[camera_token].width,
-                    sample_data_table._token_to_record[camera_token].height,
-                ]
+                sample_annotation_record = annotation_table.get_record_from_token(box.token)
+                instance_token = sample_annotation_record.instance_token
+                attribute_tokens = sample_annotation_record.attribute_tokens
+                category_token = instance_table.get_record_from_token(
+                    instance_token
+                ).category_token
+                sample_data_record = sample_data_table.get_record_from_token(camera_token)
+                imsize = [sample_data_record.width, sample_data_record.height]
 
-                object_ann_record = ObjectAnnRecord(
+                object_ann_table.insert_into_table(
                     sample_data_token=camera_token,
                     instance_token=instance_token,
                     category_token=category_token,
@@ -57,4 +55,3 @@ def create_2d_annotations(
                     bbox=[min_x, min_y, max_x, max_y],
                     mask={"size": imsize},
                 )
-                object_ann_table._token_to_record[object_ann_record.token] = object_ann_record

@@ -4,11 +4,13 @@ import re
 import shutil
 from typing import Any, Dict, List
 
+# TODO(SamratThapa120) : replace with Tier4 from t4_devkit. Forgotten in previous refactoring PR.
 from nuimages import NuImages
+from t4_devkit.schema.tables import Attribute
 from tqdm import tqdm
 
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
-from perception_dataset.t4_dataset.classes.attribute import AttributeTable
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -35,10 +37,7 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         self._ignore_interpolate_label: bool = True
 
         # Initialize attribute table with empty values
-        self._attribute_table = AttributeTable(
-            name_to_description={},
-            default_value="",
-        )
+        self._attribute_table = TableHandler(Attribute)
 
     def convert(self):
         # Load Deepen annotation from JSON file
@@ -177,9 +176,14 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         attribute_names = [a["name"] for a in out_attribute]
         for attr_name in max_iou_anno["attribute_names"]:
             if attr_name not in attribute_names:
+                token = self._attribute_table.get_token_from_field(
+                    field_name="name", field_value=attr_name
+                )
+                if token is None:
+                    token = self._attribute_table.insert_into_table(name=attr_name, description="")
                 out_attribute.append(
                     {
-                        "token": self._attribute_table.get_token_from_name(name=attr_name),
+                        "token": token,
                         "name": attr_name,
                         "description": "",
                     }
