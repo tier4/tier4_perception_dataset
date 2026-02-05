@@ -20,7 +20,7 @@ conversion:
   make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
   input_base: ./path/to/non_annotated_t4s  # could be non_annotated_t4_format or t4_format_3d_annotated
   input_anno_base: /path/to/fastlabel_annotations_tlr
-  input_bag_base: 
+  input_bag_base:
   output_base: /path/to/comlops_full_tlr
   topic_list: ./config/topic_list_sample.yaml
   tlr_mode: true
