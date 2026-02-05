@@ -51,13 +51,13 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
         # Get list of t4_datasets from input directory
         t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
         logger.info(f"Found {len(t4_datasets)} datasets to process")
-        
+
         # Group annotation files by dataset
         anno_files_by_dataset = self._group_annotation_files_by_dataset(t4_datasets)
-        
+
         for index, t4dataset_name in enumerate(t4_datasets):
             logger.info(f"Processing {index + 1}/{len(t4_datasets)}: {t4dataset_name}")
-            
+
             # Check if annotation exists for this dataset
             if t4dataset_name not in anno_files_by_dataset:
                 logger.warning(f"{t4dataset_name} not in annotation jsons.")
@@ -95,19 +95,19 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
             # Load and format annotations for this dataset only
             anno_files = anno_files_by_dataset[t4dataset_name]
             logger.info(f"Loading {len(anno_files)} annotation files for {t4dataset_name}")
-            annotations = self._load_annotation_jsons_for_dataset(anno_files,t4dataset_name)
+            annotations = self._load_annotation_jsons_for_dataset(anno_files, t4dataset_name)
 
             if not annotations:
                 logger.warning(f"No annotations found for {t4dataset_name}. Skipping.")
                 continue
-            
+
             fl_annotations = self._format_fastlabel_3d_annotation(annotations, t4dataset_name)
 
             # Start updating annotations
             annotation_files_generator = AnnotationFilesGenerator(
                 description=self._description, label_coordinates="lidar"
             )
-            
+
             try:
 
                 annotation_files_generator.convert_one_scene(

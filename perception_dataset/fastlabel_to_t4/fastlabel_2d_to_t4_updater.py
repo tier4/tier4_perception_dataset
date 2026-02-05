@@ -40,13 +40,13 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
         # Get list of t4_datasets from input directory
         t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
         logger.info(f"Found {len(t4_datasets)} datasets to process")
-        
+
         # Group annotation files by dataset
         anno_files_by_dataset = self._group_annotation_files_by_dataset(t4_datasets)
 
         for t4dataset_name in t4_datasets:
             logger.info(f"Processing dataset: {t4dataset_name}")
-            
+
             # Check if annotation exists
             if t4dataset_name not in anno_files_by_dataset:
                 logger.warning(f"No annotation files found for {t4dataset_name}")
