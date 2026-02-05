@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os.path as osp
 from typing import Any, Dict, Generic, List, TypeVar
 
