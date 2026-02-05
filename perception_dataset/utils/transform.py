@@ -43,8 +43,8 @@ def compose_transform(trans1, rot1, trans2, rot2):
     trans: [x, y, z]
     """
     # Convert quaternions to Rotation objects (scipy expects [x, y, z, w])
-    r1 = Rotation.from_quat([rot1[1],rot1[2],rot1[3],rot1[0]])
-    r2 = Rotation.from_quat([rot2[1],rot2[2],rot2[3],rot2[0]])
+    r1 = Rotation.from_quat([rot1[1], rot1[2], rot1[3], rot1[0]])
+    r2 = Rotation.from_quat([rot2[1], rot2[2], rot2[3], rot2[0]])
 
     # Compose rotations
     r = r2 * r1

@@ -357,7 +357,7 @@ def main():
         input_bag_base = config_dict["conversion"]["input_bag_base"]
         topic_list_yaml_path = config_dict["conversion"]["topic_list"]
         tlr_mode = config_dict["conversion"].get("tlr_mode", False)
-        
+
         with open(topic_list_yaml_path) as f:
             topic_list_yaml = yaml.safe_load(f)
 
