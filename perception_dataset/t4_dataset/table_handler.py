@@ -5,10 +5,10 @@ import os.path as osp
 from typing import Any, Dict, Generic, List, TypeVar
 
 import attrs
-from t4_devkit.common.serialize import serialize_dataclass
+from t4_devkit.common.serialize import serialize_dataclasses,serialize_dataclass
 from t4_devkit.schema import SchemaBase, build_schema
 from t4_devkit.schema.tables.registry import SCHEMAS
-
+from t4_devkit.common.io import save_json   
 SchemaRecord = TypeVar("SchemaRecord", bound=SchemaBase)
 
 
@@ -116,7 +116,7 @@ class TableHandler(Generic[SchemaRecord]):
         updated_record = attrs.evolve(current_record, **kwargs)
         self._token_to_record[token] = updated_record
 
-    def get_token_from_field(self, field_name: str, field_value: Any) -> str:
+    def get_token_from_field(self, field_name: str, field_value: Any) -> str | None:
         """Find token by searching for a unique field value in the table.
 
         Args:
@@ -164,7 +164,7 @@ class TableHandler(Generic[SchemaRecord]):
         return token
 
     def to_data(self) -> List[Dict[str, Any]]:
-        return [serialize_dataclass(rec) for rec in self._token_to_record.values()]
+        return serialize_dataclasses(self.to_records())
 
     def to_records(self) -> List[SchemaRecord]:
         return list(self._token_to_record.values())
@@ -179,9 +179,8 @@ class TableHandler(Generic[SchemaRecord]):
             output_dir (str): path to directory
         """
         table_data = self.to_data()
-        with open(osp.join(output_dir, f"{self._schema_name}.json"), "w") as f:
-            json.dump(table_data, f, indent=4)
-
+        save_json(table_data,osp.join(output_dir, f"{self._schema_name}.json"))
+        
     @classmethod
     def from_json(cls, schema_type: SchemaRecord, filepath: str):
         table_handler = cls(schema_type)

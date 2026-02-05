@@ -9,7 +9,7 @@ import warnings
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
-from t4_devkit.schema.tables import EgoPose, Sample, SampleData
+from t4_devkit.schema import EgoPose, Sample, SampleData
 from tier4_perception_msgs.msg import TrafficLightArray, TrafficLightRoiArray
 import yaml
 
