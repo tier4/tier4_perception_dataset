@@ -46,8 +46,10 @@ def create_reader(
     return reader
 
 
-def create_writer(bag_dir: str) -> SequentialWriter:
-    storage_options = StorageOptions(uri=bag_dir, storage_id="sqlite3")
+def create_writer(bag_dir: str, storage_id: Optional[str] = None) -> SequentialWriter:
+    if storage_id is None:
+        storage_id = "sqlite3"  # default to sqlite3 for backward compatibility
+    storage_options = StorageOptions(uri=bag_dir, storage_id=storage_id)
     converter_options = ConverterOptions(
         input_serialization_format="cdr", output_serialization_format="cdr"
     )
