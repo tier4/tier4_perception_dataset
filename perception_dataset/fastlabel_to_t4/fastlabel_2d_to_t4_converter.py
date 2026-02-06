@@ -161,10 +161,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     annotations.extend(file_annotations)
                 else:
                     annotations.append(file_annotations)
-        filtered_annotations = []
-        for ann in annotations:
-            filtered_annotations.append(ann)
-        return filtered_annotations
+        return annotations
 
     def _process_annotation(self, annotation):
         filename: str = annotation["name"].split("/")[-1]
