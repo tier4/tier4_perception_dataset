@@ -66,7 +66,13 @@ class Rosbag2Converter:
         self._check_topic_count()
         self._topic_name_to_topic_type = get_topic_type_dict(self._input_bag_dir)
         # Detect the storage format from input bag
-        self._storage_id = infer_storage_id(self._input_bag_dir)
+        try:
+            self._storage_id = infer_storage_id(self._input_bag_dir)
+        except ValueError as exc:
+            raise ValueError(
+                f"Failed to infer storage id for input bag directory "
+                f"'{self._input_bag_dir}': {exc}"
+            ) from exc
 
     def _check_topic_count(self):
         topic_count: Dict[str, int] = get_topic_count(self._input_bag_dir)
