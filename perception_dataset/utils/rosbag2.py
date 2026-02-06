@@ -47,6 +47,24 @@ def create_reader(
 
 
 def create_writer(bag_dir: str, storage_id: Optional[str] = None) -> SequentialWriter:
+    """Create and open a rosbag2 SequentialWriter.
+
+    Parameters
+    ----------
+    bag_dir : str
+        Target directory URI where the bag will be written.
+    storage_id : Optional[str], optional
+        Identifier of the storage backend to use. This value is passed to
+        :class:`rosbag2_py.StorageOptions` as ``storage_id``. Common values
+        include ``"sqlite3"`` and ``"mcap"``, depending on which storage
+        plugins are available in the environment. If ``None``, the writer
+        defaults to ``"sqlite3"`` for backward compatibility.
+
+    Returns
+    -------
+    SequentialWriter
+        A writer instance opened with the specified storage and converter options.
+    """
     if storage_id is None:
         storage_id = "sqlite3"  # default to sqlite3 for backward compatibility
     storage_options = StorageOptions(uri=bag_dir, storage_id=storage_id)
