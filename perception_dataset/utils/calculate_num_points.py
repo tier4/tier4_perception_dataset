@@ -1,10 +1,8 @@
 import numpy as np
 from t4_devkit import Tier4
+from t4_devkit.schema.tables import SampleAnnotation
 
-from perception_dataset.t4_dataset.classes.sample_annotation import (
-    SampleAnnotationRecord,
-    SampleAnnotationTable,
-)
+from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils import box_np_ops
 from perception_dataset.utils.logger import configure_logger
 
@@ -12,7 +10,7 @@ logger = configure_logger(modname=__name__)
 
 
 def calculate_num_points(
-    dataroot: str, lidar_sensor_channel: str, annotation_table: SampleAnnotationTable
+    dataroot: str, lidar_sensor_channel: str, annotation_table: TableHandler[SampleAnnotation]
 ):
     """Calcluate number of points in each box and overwrite the annotation table"""
     t4_dataset = Tier4(data_root=dataroot, verbose=False)
@@ -49,45 +47,32 @@ def calculate_num_points(
 
         for ann_token, box, num in zip(ann_tokens, boxes, num_points):
             # Create new record with num_lidar_pts and overwrite the original one
-            record: SampleAnnotationRecord = annotation_table._token_to_record[ann_token]
-            new_record = SampleAnnotationRecord(
-                sample_token=record._sample_token,
-                instance_token=record._instance_token,
-                attribute_tokens=record._attribute_tokens,
-                visibility_token=record._visibility_token,
-                translation=record._translation,
-                velocity=record._velocity,
-                acceleration=record._acceleration,
-                size=record._size,
-                rotation=record._rotation,
-                num_lidar_pts=int(num),
-                num_radar_pts=record._num_radar_pts,
-            )
-            new_record._token = ann_token  # overwrite record token with old one
-            annotation_table._token_to_record[ann_token] = new_record
+            annotation_table.update_record_from_token(ann_token, num_lidar_pts=int(num))
 
     # connect next/prev tokens
     for instance in t4_dataset.instance:
         if instance.nbr_annotations == 0:
             continue
         try:
-            prev_sample_data: str = annotation_table._token_to_record[
+            prev_sample_data = annotation_table.get_record_from_token(
                 instance.first_annotation_token
-            ]
+            )
             annotation_data_list = [
-                v
-                for v in annotation_table._token_to_record.values()
-                if v._instance_token == instance.token
+                v for v in annotation_table.to_records() if v.instance_token == instance.token
             ]
             annotation_data_list[0].prev = ""
             for sample_data_i in range(1, len(annotation_data_list)):
-                cur_sample_data: str = annotation_data_list[sample_data_i]
-                if prev_sample_data._instance_token != cur_sample_data._instance_token:
-                    prev_sample_data.next_token = ""
-                    cur_sample_data.prev_token = ""
+                cur_sample_data = annotation_data_list[sample_data_i]
+                if prev_sample_data.instance_token != cur_sample_data.instance_token:
+                    annotation_table.update_record_from_token(prev_sample_data.token, next="")
+                    annotation_table.update_record_from_token(cur_sample_data.token, prev="")
                 else:
-                    prev_sample_data.next_token = cur_sample_data.token
-                    cur_sample_data.prev_token = prev_sample_data.token
-                prev_sample_data: str = cur_sample_data
+                    annotation_table.update_record_from_token(
+                        prev_sample_data.token, next=cur_sample_data.token
+                    )
+                    annotation_table.update_record_from_token(
+                        cur_sample_data.token, prev=prev_sample_data.token
+                    )
+                prev_sample_data = cur_sample_data
         except KeyError as e:
             logger.error(f"no key {e} in annotation table")
