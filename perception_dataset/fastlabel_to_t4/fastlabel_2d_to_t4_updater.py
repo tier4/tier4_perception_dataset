@@ -29,7 +29,6 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
             input_base,
             output_base,
             input_anno_base,
-            dataset_corresponding=None,
             overwrite_mode=overwrite_mode,
             description=description,
             input_bag_base=None,
@@ -38,13 +37,19 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
         self._make_t4_dataset_dir = make_t4_dataset_dir
 
     def convert(self) -> None:
+        # Get list of t4_datasets from input directory
         t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
-        anno_jsons_dict = self._load_annotation_jsons(t4_datasets, "_CAM")
-        fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
+        logger.info(f"Found {len(t4_datasets)} datasets to process")
+
+        # Group annotation files by dataset
+        anno_files_by_dataset = self._group_annotation_files_by_dataset(t4_datasets)
 
         for t4dataset_name in t4_datasets:
+            logger.info(f"Processing dataset: {t4dataset_name}")
+
             # Check if annotation exists
-            if t4dataset_name not in fl_annotations.keys():
+            if t4dataset_name not in anno_files_by_dataset:
+                logger.warning(f"No annotation files found for {t4dataset_name}")
                 continue
 
             # Check if input directory exists
@@ -77,6 +82,12 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
                 self._find_start_end_time(input_dir)
                 self._make_rosbag(str(input_bag_dir), str(output_dir))
 
+            # Load and format annotations for this dataset only
+            anno_files = anno_files_by_dataset[t4dataset_name]
+            logger.info(f"Loading {len(anno_files)} annotation files for {t4dataset_name}")
+            annotations = self._load_annotation_jsons_for_dataset(anno_files)
+            fl_annotations = self._format_fastlabel_annotation(annotations, t4dataset_name)
+
             # Start updating annotations
             annotation_files_updater = AnnotationFilesUpdater(
                 description=self._description, surface_categories=self._surface_categories
@@ -84,7 +95,7 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
             annotation_files_updater.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
-                scene_anno_dict=fl_annotations[t4dataset_name],
+                scene_anno_dict=fl_annotations,
                 dataset_name=t4dataset_name,
             )
             logger.info(f"Finished updating annotations for {t4dataset_name}")
