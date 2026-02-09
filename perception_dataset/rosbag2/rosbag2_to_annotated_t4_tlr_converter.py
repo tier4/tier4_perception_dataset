@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 from pycocotools import mask as cocomask
 from sensor_msgs.msg import CompressedImage
+from t4_devkit.schema import EgoPose, Sample, SampleData
 from tier4_perception_msgs.msg import TrafficLightArray, TrafficLightRoiArray
 import yaml
 
@@ -20,9 +21,6 @@ from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
     Rosbag2ToT4Converter,
     _Rosbag2ToT4Converter,
 )
-from perception_dataset.t4_dataset.classes.ego_pose import EgoPoseRecord
-from perception_dataset.t4_dataset.classes.sample import SampleRecord
-from perception_dataset.t4_dataset.classes.sample_data import SampleDataRecord
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -147,7 +145,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         This function add the method to the parents function to skip the frame if there is no traffic light label.
         """
         sample_data_token_list: List[str] = []
-        sample_records: List[SampleRecord] = self._sample_table.to_records()
+        sample_records: List[Sample] = self._sample_table.to_records()
 
         # Get calibrated sensor token
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
@@ -229,16 +227,16 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     sample_data_token_list.append(sample_data_token)
         else:  # camera only mode
 
-            def get_move_distance(trans1: Dict[str, float], trans2: Dict[str, float]) -> float:
-                dx: float = trans1["x"] - trans2["x"]
-                dy: float = trans1["y"] - trans2["y"]
-                dz: float = trans1["z"] - trans2["z"]
+            def get_move_distance(trans1: List[float], trans2: List[float]) -> float:
+                dx: float = trans1[0] - trans2[0]
+                dy: float = trans1[1] - trans2[1]
+                dz: float = trans1[2] - trans2[2]
                 return (dx * dx + dy * dy + dz * dz) ** 0.5
 
             frame_index: int = 0
             generated_frame_index: int = 0
 
-            last_translation: Dict[str, float] = {"x": 0.0, "y": 0.0, "z": 0.0}
+            last_translation: List[float] = [0.0, 0.0, 0.0]
             for image_msg in self._bag_reader.read_messages(
                 topics=[topic],
                 start_time=start_time_in_time,
@@ -260,9 +258,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                     except Exception as e:
                         print(e)
                         continue
-                    ego_pose: EgoPoseRecord = self._ego_pose_table.select_record_from_token(
-                        ego_pose_token
-                    )
+                    ego_pose: EgoPose = self._ego_pose_table.get_record_from_token(ego_pose_token)
                     translation: Dict[str, float] = ego_pose.translation
                     distance = get_move_distance(translation, last_translation)
                     if distance >= self._generate_frame_every_meter:
@@ -276,7 +272,10 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         if not self._is_traffic_light_label_available(nusc_timestamp):
                             continue
                         sample_token: str = self._sample_table.insert_into_table(
-                            timestamp=nusc_timestamp, scene_token=scene_token
+                            timestamp=nusc_timestamp,
+                            scene_token=scene_token,
+                            next="tmp_token",  # cannot be left empty, will be replaced downstream
+                            prev="tmp_token",  # cannot be left empty, will be replaced downstream
                         )
                         is_data_found = True
 
@@ -323,16 +322,14 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
 
         # generate mask
         mask: List[Dict[int, str]] = [{}]
-        first_sample_data: SampleDataRecord = sample_data_records[0]
+        first_sample_data: SampleData = sample_data_records[0]
         height = first_sample_data.height
         width = first_sample_data.width
         object_mask = np.zeros(shape=(height, width), dtype=np.uint8)
         object_mask = cocomask.encode(np.asfortranarray(object_mask))
         object_mask["counts"] = repr(base64.b64encode(object_mask["counts"]))[2:]
 
-        def get_sample_idx(
-            sample_records: List[SampleRecord], sample_data: SampleRecord
-        ) -> int | None:
+        def get_sample_idx(sample_records: List[Sample], sample_data: SampleData) -> int | None:
             """get the index of the sample in the sample_records under the following conditions:
             Image data exists and is key frame.
             """

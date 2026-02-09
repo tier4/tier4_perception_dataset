@@ -111,7 +111,6 @@ class TestAnnotationFilesGenerator:
                 anno_path = Path(anno_dir)
                 anno_path_dir = anno_path / "annotation"
                 anno_path_dir.mkdir(parents=True, exist_ok=True)
-
                 instance_for_test.convert_one_scene(
                     input_dir=dir_name,
                     output_dir=anno_dir,
