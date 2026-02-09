@@ -371,7 +371,7 @@ class DataInterpolator(AbstractConverter[None]):
         t4_dataset: Tier4,
         all_samples: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        all_scenes = [vars(scene) for scene in t4_dataset.scene]
+        all_scenes = serialize_dataclasses(t4_dataset.scene)
         all_scenes[0]["nbr_samples"] = len(all_samples)
         description = all_scenes[0]["description"]
         if len(description) > 0:
