@@ -134,7 +134,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
             logger.info(f"Loading {len(anno_files)} annotation files for {t4dataset_name}")
 
             annotations = self._load_annotation_jsons_for_dataset(anno_files)
-            fl_annotations = self._format_fastlabel_annotation(annotations)
+            fl_annotations = self._format_fastlabel_annotation(annotations, t4dataset_name)
 
             # Start converting annotations
             annotation_files_generator = AnnotationFilesGenerator(description=self._description)
