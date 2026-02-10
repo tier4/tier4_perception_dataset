@@ -14,6 +14,7 @@ from perception_dataset.utils.rosbag2 import (
     create_writer,
     get_topic_count,
     get_topic_type_dict,
+    infer_storage_id,
     reindex,
 )
 
@@ -64,6 +65,14 @@ class Rosbag2Converter:
         self._end_time_sec = end_time_sec
         self._check_topic_count()
         self._topic_name_to_topic_type = get_topic_type_dict(self._input_bag_dir)
+        # Detect the storage format from input bag
+        try:
+            self._storage_id = infer_storage_id(self._input_bag_dir)
+        except ValueError as exc:
+            raise ValueError(
+                f"Failed to infer storage id for input bag directory "
+                f"'{self._input_bag_dir}': {exc}"
+            ) from exc
 
     def _check_topic_count(self):
         topic_count: Dict[str, int] = get_topic_count(self._input_bag_dir)
@@ -85,7 +94,7 @@ class Rosbag2Converter:
                 )
 
     def convert(self):
-        writer = create_writer(self._output_bag_dir)
+        writer = create_writer(self._output_bag_dir, storage_id=self._storage_id)
         reader = create_reader(self._input_bag_dir)
         if len(self._topic_list) != 0:
             reader.set_filter(StorageFilter(topics=self._topic_list))
