@@ -3,7 +3,6 @@
 This repository provides tools for converting from various formats like `rosbags`, `deepen`, `fastlabel` to/from T4 dataset format. These tools facilitate the preparation and transformation of perception data for autonomous driving applications.
 The T4 dataset format is itself defined and maintained in [t4-devkit](https://github.com/tier4/t4-devkit).
 
-
 ## Table of Contents
 
 - [TIER IV Perception Dataset Conversion Tools](#tier-iv-perception-dataset-conversion-tools)
@@ -27,7 +26,7 @@ For detailed information about the T4 dataset format, please refer to the [T4 Da
 
 ## Usage of T4 format dataset
 
-In addition to the format definition, [t4-devkit](https://tier4.github.io/t4-devkit) also includes various features (visualization, io, sanity checks etc) for working with T4 datasets.  
+In addition to the format definition, [t4-devkit](https://tier4.github.io/t4-devkit) also includes various features (visualization, io, sanity checks etc) for working with T4 datasets.
 
 ## Usage of Conversion Tools
 

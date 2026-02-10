@@ -4,6 +4,7 @@
 These docs are deprecated. For official T4 format, refer to [t4-devkit docs](https://github.com/tier4/t4-devkit/blob/main/docs/schema/table.md)
 
 The t4-dataset format will be defined and handled in t4-devkit here onwards.
+
 </div>
 
 ---
