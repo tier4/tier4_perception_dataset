@@ -375,6 +375,40 @@ def main():
         converter.convert()
         logger.info(f"[END] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
 
+    elif task == "convert_fastlabel_2d_semantic_to_t4_tlr":
+        from perception_dataset.fastlabel_to_t4.convert_fastlabel_2d_semantic_to_t4_tlr import (
+            FastLabel2dSemanticToT4TlrConverter,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
+        input_semantic_anno_base = config_dict["conversion"]["input_semantic_anno_base"]
+        description = config_dict["description"]
+        input_bag_base = config_dict["conversion"]["input_bag_base"]
+        topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+
+        with open(topic_list_yaml_path) as f:
+            topic_list_yaml = yaml.safe_load(f)
+
+        converter = FastLabel2dSemanticToT4TlrConverter(
+            input_base=input_base,
+            output_base=output_base,
+            input_anno_base=input_anno_base,
+            input_semantic_anno_base=input_semantic_anno_base,
+            overwrite_mode=args.overwrite,
+            description=description,
+            input_bag_base=input_bag_base,
+            topic_list=topic_list_yaml,
+        )
+        logger.info(
+            f"[BEGIN] Converting Fastlabel bulb + semantic data ({input_base}) to T4 data ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[END] Converting Fastlabel bulb + semantic data ({input_base}) to T4 data ({output_base})"
+        )
+
     elif task == "update_t4_with_fastlabel":
         from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_updater import (
             FastLabel2dToT4Updater,

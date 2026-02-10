@@ -1,0 +1,36 @@
+task: convert_fastlabel_2d_semantic_to_t4_tlr
+description:
+  with_lidar: False
+  visibility:
+    full: "No occlusion of the object."
+    most: "Object is occluded, but by less than 50%."
+    partial: "The object is occluded by more than 50% (but not completely)."
+    none: "The object is 90-100% occluded and no points/pixels are visible in the label."
+  camera_index:
+    CAM_FRONT_NARROW: 0
+    CAM_FRONT_WIDE: 1
+    CAM_FRONT_RIGHT: 2
+    CAM_BACK_RIGHT: 3
+    CAM_BACK_NARROW: 4
+    CAM_BACK_WIDE: 5
+    CAM_BACK_LEFT: 6
+    CAM_FRONT_LEFT: 7
+
+conversion:
+  # input_anno_base:
+  #   FastLabel bulb bbox annotations from comlops (e.g. red/green/yellow bulb boxes)
+  #   in NAS /mnt/qnapdata/internal/comlops/fastlabel_annotations_tlr
+  input_anno_base: /path/to/fastlabel_annotations_tlr
+  # input_semantic_anno_base:
+  #   CoMlops FastLabel semantic camera annotations containing traffic-light segmentations.
+  #   Typical sources:
+  #     /mnt/qnapdata/internal/comlops/segmentation_annotation
+  #     /mnt/qnapdata/internal/comlops/fastlabel_annotations_segment
+  #   NOTE: /mnt/qnapdata/internal/comlops/semseg is image-mask output, not FastLabel JSON.
+  input_semantic_anno_base: /path/to/segmentation_annotation
+  #   t4dataset base 
+  #   in NAS /mnt/qnapdata/internal/comlops/non_annotated_t4s
+  input_base: /path/to/non_annotated_t4s
+  input_bag_base:
+  output_base: /path/to/comlops_full_tlr_semantic
+  topic_list: ./config/topic_list_sample.yaml
