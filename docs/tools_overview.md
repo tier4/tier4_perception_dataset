@@ -166,6 +166,93 @@ python -m perception_dataset.convert --config config/convert_fastlabel_2d_to_t4.
 # To overwrite T4-format data, use the --overwrite option
 ```
 
+### Conversion from CoMLOps FastLabel TLR bulbs + semantic traffic light polygons to T4 Format
+
+This step converts:
+
+- bulb bbox labels into `red_bulb` / `green_bulb` / `yellow_bulb` and direction-specific arrow classes
+  like `green_left_arrow_bulb`,
+- semantic traffic-light polygons into parent bbox labels.
+
+Notes:
+
+- bulb titles like `backside`/`head` are used for parent-class inference only (not exported as `*_bulb`).
+- generated labels use visibility level `none`.
+- arrow bulb direction is inferred from the FastLabel `orientation` attribute.
+
+Supported semantic traffic-light titles:
+
+- `traffic_light` (class inferred from bulbs in bbox)
+- `traffic_light_back`
+- `crosswalk_light_back`
+- `crosswalk_red`
+- `crosswalk_green`
+- `crosswalk_unknown`
+
+input: T4 format data + FastLabel bulb bbox annotations + FastLabel semantic camera annotations  
+output: T4 format data (2D annotated)
+
+```bash
+python -m perception_dataset.convert --config config/convert_fastlabel_2d_semantic_to_t4_tlr.yaml
+```
+
+Parent traffic-light class mapping:
+
+- `crosswalk_green`
+- `crosswalk_light_back`
+- `crosswalk_red`
+- `crosswalk_unknown`
+- `green`
+- `yellow`
+- `red`
+- `left,red`
+- `left,red,straight`
+- `red,right`
+- `red,right,straight`
+- `red,straight`
+- `red,up_left`
+- `red,up_right`
+- `traffic_light_back`
+- `unknown`
+
+Mapping rules for generic semantic `traffic_light` (from bulbs inside each bbox):
+
+- `green`: green non-arrow bulbs only
+- `yellow`: yellow non-arrow bulbs only
+- `red`: red non-arrow bulbs only
+- `left,red`: red + green-left arrow
+- `left,red,straight`: red + green-left arrow + green-straight arrow
+- `red,right`: red + green-right arrow
+- `red,right,straight`: red + green-right arrow + green-straight arrow
+- `red,straight`: red + green-straight arrow
+- `red,up_left`: red + green-up-left arrow
+- `red,up_right`: red + green-up-right arrow
+- `crosswalk_red`: pedestrian/cross bulbs with red only
+- `crosswalk_green`: pedestrian/cross bulbs with green only
+- `crosswalk_unknown`: pedestrian/cross bulbs with unsupported color combination
+- `traffic_light_back` / `crosswalk_light_back`: backside-only bulbs (crosswalk back requires crosswalk hint)
+
+Arrow orientation conversion:
+
+- `-90`/`minus_90` -> `left`
+- `90` -> `right`
+- `0`/empty/`n/a` -> `straight`
+- `-45`/`minus_45` -> `up_left`
+- `45` -> `up_right`
+
+Corner cases:
+
+- no bulb in semantic traffic-light bbox -> warning + `unknown`
+- unsupported bulb combination -> warning + `unknown`
+- mixed pedestrian/crosswalk and vehicular bulbs in one semantic bbox -> warning + `unknown`
+
+Failure handling:
+
+- if one dataset fails during annotation generation, it is skipped and conversion continues (some comlops t4dataset can be malformed).
+- skipped dataset details are appended to:
+  `<output_base>/convert_fastlabel_2d_semantic_to_t4_tlr_failures.jsonl`
+  (fields: timestamp, dataset_name, stage, error_type, error_message, traceback).
+
 ### Merge 2D T4 format data into 3D T4 format data
 
 This step merges 2D-id-linked T4 format dataset into originally 3D-labeled T4 format data.
