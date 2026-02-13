@@ -331,10 +331,15 @@ class FastLabel2dSemanticToT4TlrConverter(FastLabel2dToT4Converter):
         for bulb in bulbs:
             if bulb["title"] not in FRONT_BULB_LABELS:
                 continue
+            category_name = self._bulb_category_name(
+                bulb=bulb, dataset_name=dataset_name, camera=camera, file_id=file_id
+            )
             t4_labels.append(
                 {
-                    "category_name": f"{bulb['title']}_bulb",
-                    "instance_id": bulb["id"],
+                    "category_name": category_name,
+                    # Avoid instance/category mismatches if the same FastLabel id is reused with
+                    # different bulb types/orientations.
+                    "instance_id": f"{bulb['id']}:{category_name}",
                     "attribute_names": ["occlusion_state.none"],
                     "visibility_name": DEFAULT_VISIBILITY_LEVEL,
                     "two_d_box": bulb["bbox"],
@@ -571,6 +576,34 @@ class FastLabel2dSemanticToT4TlrConverter(FastLabel2dToT4Converter):
             f"(camera={camera}, frame={file_id}); mapped to unknown"
         )
         return "unknown"
+
+    def _bulb_category_name(
+        self,
+        bulb: Dict[str, Any],
+        dataset_name: str,
+        camera: str,
+        file_id: int,
+    ) -> str:
+        """Return output category name for a single bulb bbox.
+
+        - Non-arrow bulbs: `{color}_bulb`
+        - Arrow bulbs: `{color}_{direction}_arrow_bulb` (direction inferred from orientation)
+        - Unsupported arrow orientation: `{color}_arrow_unknown_bulb`
+        """
+        color = bulb["title"]
+        bulb_type = (bulb.get("type") or "").strip().lower()
+        if bulb_type != "arrow":
+            return f"{color}_bulb"
+
+        direction = self._orientation_to_direction(bulb.get("orientation") or "")
+        if direction is None:
+            logger.warning(
+                f"{dataset_name}: unsupported arrow orientation '{bulb.get('orientation')}' "
+                f"(camera={camera}, frame={file_id}); exported as {color}_arrow_unknown_bulb"
+            )
+            return f"{color}_arrow_unknown_bulb"
+
+        return f"{color}_{direction}_arrow_bulb"
 
     @staticmethod
     def _summarize_bulbs(bulbs: List[Dict[str, Any]]) -> List[str]:
