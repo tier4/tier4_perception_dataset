@@ -169,6 +169,7 @@ python -m perception_dataset.convert --config config/convert_fastlabel_2d_to_t4.
 ### Conversion from CoMLOps FastLabel TLR bulbs + semantic traffic light polygons to T4 Format
 
 This step converts:
+
 - bulb bbox labels into `red_bulb` / `green_bulb` / `yellow_bulb` and direction-specific arrow classes
   like `green_left_arrow_bulb`,
 - semantic traffic-light polygons into parent bbox labels.
