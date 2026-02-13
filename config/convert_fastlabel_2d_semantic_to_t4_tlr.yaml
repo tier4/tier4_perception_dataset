@@ -28,7 +28,7 @@ conversion:
   #     /mnt/qnapdata/internal/comlops/fastlabel_annotations_segment
   #   NOTE: /mnt/qnapdata/internal/comlops/semseg is image-mask output, not FastLabel JSON.
   input_semantic_anno_base: /path/to/segmentation_annotation
-  #   t4dataset base 
+  #   t4dataset base
   #   in NAS /mnt/qnapdata/internal/comlops/non_annotated_t4s
   input_base: /path/to/non_annotated_t4s
   input_bag_base:

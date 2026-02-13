@@ -174,11 +174,13 @@ This step converts:
 - semantic traffic-light polygons into parent bbox labels.
 
 Notes:
+
 - bulb titles like `backside`/`head` are used for parent-class inference only (not exported as `*_bulb`).
 - generated labels use visibility level `none`.
 - arrow bulb direction is inferred from the FastLabel `orientation` attribute.
 
 Supported semantic traffic-light titles:
+
 - `traffic_light` (class inferred from bulbs in bbox)
 - `traffic_light_back`
 - `crosswalk_light_back`
@@ -194,6 +196,7 @@ python -m perception_dataset.convert --config config/convert_fastlabel_2d_semant
 ```
 
 Parent traffic-light class mapping:
+
 - `crosswalk_green`
 - `crosswalk_light_back`
 - `crosswalk_red`
@@ -212,6 +215,7 @@ Parent traffic-light class mapping:
 - `unknown`
 
 Mapping rules for generic semantic `traffic_light` (from bulbs inside each bbox):
+
 - `green`: green non-arrow bulbs only
 - `yellow`: yellow non-arrow bulbs only
 - `red`: red non-arrow bulbs only
@@ -228,6 +232,7 @@ Mapping rules for generic semantic `traffic_light` (from bulbs inside each bbox)
 - `traffic_light_back` / `crosswalk_light_back`: backside-only bulbs (crosswalk back requires crosswalk hint)
 
 Arrow orientation conversion:
+
 - `-90`/`minus_90` -> `left`
 - `90` -> `right`
 - `0`/empty/`n/a` -> `straight`
@@ -235,11 +240,13 @@ Arrow orientation conversion:
 - `45` -> `up_right`
 
 Corner cases:
+
 - no bulb in semantic traffic-light bbox -> warning + `unknown`
 - unsupported bulb combination -> warning + `unknown`
 - mixed pedestrian/crosswalk and vehicular bulbs in one semantic bbox -> warning + `unknown`
 
 Failure handling:
+
 - if one dataset fails during annotation generation, it is skipped and conversion continues (some comlops t4dataset can be malformed).
 - skipped dataset details are appended to:
   `<output_base>/convert_fastlabel_2d_semantic_to_t4_tlr_failures.jsonl`

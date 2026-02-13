@@ -34,6 +34,7 @@ SUPPORTED_BULB_LABELS: Set[str] = FRONT_BULB_LABELS | BACK_BULB_LABELS
 CROSSWALK_BULB_TYPES: Set[str] = {"pedestrian", "cross"}
 DEFAULT_VISIBILITY_LEVEL = "none"
 
+
 class FastLabel2dSemanticToT4TlrConverter(FastLabel2dToT4Converter):
     """Convert FastLabel bulb bbox + semantic traffic_light polygons into T4 2D annotations.
 
