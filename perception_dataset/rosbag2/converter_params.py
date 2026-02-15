@@ -149,6 +149,7 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     # for Co-MLOps
     with_ins: bool = False  # whether to convert rosbag with INS topics
     with_vehicle_status: bool = False  # whether to convert rosbag with vehicle status
+    ins_topic_mapping: Optional[Dict[str, str]] = None  # custom topic mapping for INSHandler
 
     def __init__(self, **args):
         if "scene_description" in args and isinstance(args["scene_description"], list):
