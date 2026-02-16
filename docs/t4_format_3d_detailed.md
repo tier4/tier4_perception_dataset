@@ -1,3 +1,8 @@
+> [!CAUTION]  
+> These docs are deprecated. For official T4 format, refer to [t4-devkit docs](https://tier4.github.io/t4-devkit/latest/schema/table/). The T4 dataset format will be defined and handled in t4-devkit here onwards.
+
+---
+
 # T4 format 3D data
 
 **T4 format**, which is based on nuScenes and nuImages format, is the dataset format used in TIER IV.  
