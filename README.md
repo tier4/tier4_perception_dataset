@@ -22,7 +22,7 @@ The T4 dataset format is itself defined and maintained in [t4-devkit](https://gi
 The T4 dataset is designed to support autonomous driving research and development.  
 It can include various types of perception data such as images and lidar point clouds, radar point clouds, along with annotations for tasks like object detection, segmentation, and tracking.
 
-For detailed information about the T4 dataset format, please refer to the [T4 Dataset Format Documentation](https://github.com/tier4/t4-devkit/blob/main/docs/schema/table.md).
+For detailed information about the T4 dataset format, please refer to the [T4 Dataset Format Documentation](https://tier4.github.io/t4-devkit/latest/schema/table/).
 
 ## Usage of T4 format dataset
 
