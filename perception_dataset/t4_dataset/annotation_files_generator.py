@@ -25,7 +25,7 @@ from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.transform import compose_transform
-
+from perception_dataset.utils.misc import get_frame_index_from_filename
 
 class AnnotationFilesGenerator:
     def __init__(
@@ -148,7 +148,10 @@ class AnnotationFilesGenerator:
         """
         frame_index_to_sample_token: Dict[int, str] = {}
         for sample_data in t4_dataset.sample_data:
-            frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
+            frame_index = get_frame_index_from_filename(sample_data.filename)
+            if frame_index is None:
+                print(f"Failed to get frame index from filename: {sample_data.filename}. Skipping..")
+                continue
             frame_index_to_sample_token[frame_index] = sample_data.sample_token
 
         # FIXME: Avoid hard coding the number of cameras
@@ -173,7 +176,11 @@ class AnnotationFilesGenerator:
                     cam = sample_data.filename.split("/")[1]
                     cam_idx = self._camera2idx[cam]
 
-                    frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
+                    frame_index = get_frame_index_from_filename(sample_data.filename)
+                    if frame_index is None:
+                        print(f"Failed to get frame index from filename: {sample_data.filename}. Skipping..")
+                        continue
+                    
                     frame_index_to_sample_data_token[cam_idx].update(
                         {frame_index: sample_data.token}
                     )
@@ -550,7 +557,10 @@ class AnnotationFilesGenerator:
         frame_index_to_sample_data_token: Dict[int, str] = {}
         frame_index_to_sample_token: Dict[int, str] = {}
         for sample_data in t4_dataset.sample_data:
-            frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
+            frame_index = get_frame_index_from_filename(sample_data.filename)
+            if frame_index is None:
+                print(f"Failed to get frame index from filename: {sample_data.filename}. Skipping..")
+                continue
             frame_index_to_sample_token[frame_index] = sample_data.sample_token
             if lidar_sensor_channel in sample_data.filename:
                 frame_index_to_sample_data_token[frame_index] = sample_data.token

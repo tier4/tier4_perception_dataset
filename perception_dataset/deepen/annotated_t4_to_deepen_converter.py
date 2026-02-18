@@ -14,6 +14,7 @@ from perception_dataset.constants import EXTENSION_ENUM, LABEL_PATH_ENUM
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.transform import transform_matrix
+from perception_dataset.utils.misc import get_frame_index_from_filename
 
 logger = configure_logger(modname=__name__)
 
@@ -54,7 +55,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
         logger.info(f"Converting {input_dir} to {output_dir}")
         output_label: List = []
 
-        for frame_index, sample_record in enumerate(t4_dataset.sample):
+        for sample_record in t4_dataset.sample:
             sample_token = sample_record.token
             logger.info(f"sample_token: {sample_token}")
             for anno_token in sample_record.ann_3ds:
@@ -131,7 +132,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
                 print(f"{label_category_id}:{instance_index}")
 
         if osp.exists(osp.join(input_dir, "annotation", "object_ann.json")):
-            for frame_index, sample_record in enumerate(t4_dataset.sample):
+            for sample_record in t4_dataset.sample:
                 for cam, sensor_id in self._camera_position.items():
                     if cam not in sample_record.data:
                         continue
@@ -143,6 +144,11 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
                         if o.sample_data_token == sample_camera_token
                     ]
 
+                    image_frame_index = get_frame_index_from_filename(t4_dataset.get("sample_data", sample_camera_token).filename)
+                    if image_frame_index is None:
+                        print(f"Failed to get frame index from filename: {t4_dataset.get('sample_data', sample_camera_token).filename}. Skipping..")
+                        continue
+                    
                     for ann in object_anns:
                         current_label_dict: Dict = {}
                         category_token = ann.category_token
@@ -179,7 +185,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
                             current_label_dict["version"] = "null"
                             current_label_dict["label_set_id"] = "default"
                             current_label_dict["stage_id"] = "Labelling"
-                            current_label_dict["file_id"] = f"{frame_index}.pcd"
+                            current_label_dict["file_id"] = f"{image_frame_index}.pcd"
                             current_label_dict["label_category_id"] = label_category_id
                             current_label_dict["label_id"] = (
                                 f"{label_category_id}:{instance_index}"
