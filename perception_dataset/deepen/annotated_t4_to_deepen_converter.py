@@ -13,8 +13,8 @@ from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import EXTENSION_ENUM, LABEL_PATH_ENUM
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.transform import transform_matrix
 from perception_dataset.utils.misc import get_frame_index_from_filename
+from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
 
@@ -144,11 +144,15 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
                         if o.sample_data_token == sample_camera_token
                     ]
 
-                    image_frame_index = get_frame_index_from_filename(t4_dataset.get("sample_data", sample_camera_token).filename)
+                    image_frame_index = get_frame_index_from_filename(
+                        t4_dataset.get("sample_data", sample_camera_token).filename
+                    )
                     if image_frame_index is None:
-                        print(f"Failed to get frame index from filename: {t4_dataset.get('sample_data', sample_camera_token).filename}. Skipping..")
+                        print(
+                            f"Failed to get frame index from filename: {t4_dataset.get('sample_data', sample_camera_token).filename}. Skipping.."
+                        )
                         continue
-                    
+
                     for ann in object_anns:
                         current_label_dict: Dict = {}
                         category_token = ann.category_token

@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple, Union
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 
+
 def get_frame_index_from_filename(filename: str) -> Optional[int]:
     """Extract the frame index from a given filename in the sample_data.json file in t4 dataset.
 
@@ -16,10 +17,11 @@ def get_frame_index_from_filename(filename: str) -> Optional[int]:
         Optional[int]: The extracted <frame_index> as an integer if successful, or None if extraction fails.
     """
     try:
-        return int(filename.split("/")[-1].split('.')[0])
+        return int(filename.split("/")[-1].split(".")[0])
     except (IndexError, ValueError):
         return None
-    
+
+
 def unix_timestamp_to_nusc_timestamp(timestamp: float) -> int:
     return int(timestamp * 1e6)
 

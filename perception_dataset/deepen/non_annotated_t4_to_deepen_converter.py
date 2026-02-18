@@ -18,8 +18,8 @@ from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.json_format import ConfigData, ImageData
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.transform import transform_matrix
 from perception_dataset.utils.misc import get_frame_index_from_filename
+from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
 
@@ -124,7 +124,9 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
 
             lidar_frame_index = get_frame_index_from_filename(lidar_path)
             if lidar_frame_index is None:
-                logger.error(f"Failed to get frame index from lidar path: {lidar_path}. Skipping..")
+                logger.error(
+                    f"Failed to get frame index from lidar path: {lidar_path}. Skipping.."
+                )
                 return
             config_data = ConfigData(
                 frame_index=lidar_frame_index,
@@ -155,9 +157,11 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
 
             camera_frame_index = get_frame_index_from_filename(camera_path)
             if camera_frame_index is None:
-                logger.error(f"Failed to get frame index from camera path: {camera_path}. Skipping..")
+                logger.error(
+                    f"Failed to get frame index from camera path: {camera_path}. Skipping.."
+                )
                 return
-            
+
             image_data = ImageData(
                 frame_index=camera_frame_index,
                 channel=camera_channel,
