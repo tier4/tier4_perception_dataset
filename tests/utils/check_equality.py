@@ -87,7 +87,7 @@ def _compare_json_files(target_file: Path, source_file: Path) -> None:
     source_set = {json.dumps(x, sort_keys=True) for x in source_normalized}
     intersection = target_set & source_set
     assert len(intersection) == len(target_set) == len(source_set), (
-        f"Differences found in {target_file.name}: " f"Ssource and target elements are not same"
+        f"Differences found in {target_file.name}: " f"Source and target elements are not same"
     )
 
 
