@@ -136,7 +136,7 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         if frame_no is None:
             logger.warning(f"Could not extract frame number from filename: {filename}")
             return None
-        
+
         # find largest IoU annotation
         frame_annotations = [
             a
