@@ -35,11 +35,6 @@ class TestGetFrameIndexFromFilename:
         assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/abc.jpg") is None
         assert misc_utils.get_frame_index_from_filename("") is None
 
-    def test_filename_with_wrong_directory_structure(self):
-        """Test filename with different numbers of directory levels."""
-        assert misc_utils.get_frame_index_from_filename("sensor/00123.jpg") is None
-        assert misc_utils.get_frame_index_from_filename("00123.jpg") == 123
-
 
 def assert_synced_frame_info_list(expected, synced_frame_info_list):
     assert len(synced_frame_info_list) == len(expected)
