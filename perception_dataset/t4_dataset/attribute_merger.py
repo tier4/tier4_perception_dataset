@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-import re
 import shutil
 from typing import Any, Dict, List
 
@@ -132,7 +131,7 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         """
         filename = nuim.get("sample_data", object_ann["sample_data_token"])["filename"]
         camera_name = filename.split("/")[1]
-        
+
         frame_no = get_frame_index_from_filename(filename)
         if frame_no is None:
             logger.warning(f"Could not extract frame number from filename: {filename}")
