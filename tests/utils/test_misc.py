@@ -30,10 +30,14 @@ class TestGetFrameIndexFromFilename:
 
     def test_filename_with_non_numeric_frame_index(self):
         """Test filenames where the frame index is not numeric."""
-        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/frame_abc.jpg") is None
-        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/test123.jpg") is None
-        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/abc.jpg") is None
-        assert misc_utils.get_frame_index_from_filename("") is None
+        with pytest.raises(ValueError):
+            misc_utils.get_frame_index_from_filename("data/CAM_FRONT/frame_abc.jpg")
+        with pytest.raises(ValueError):
+            misc_utils.get_frame_index_from_filename("data/CAM_FRONT/test123.jpg")
+        with pytest.raises(ValueError):
+            misc_utils.get_frame_index_from_filename("data/CAM_FRONT/abc.jpg")
+        with pytest.raises(ValueError):
+            misc_utils.get_frame_index_from_filename("")
 
 
 def assert_synced_frame_info_list(expected, synced_frame_info_list):

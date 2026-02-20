@@ -176,9 +176,6 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
             dataset_name: str = Path(filename).stem
             for ann in ann_list:
                 file_id: int = get_frame_index_from_filename(ann["name"])
-                if file_id is None:
-                    logger.warning(f"Could not extract file id from filename: {ann['name']}")
-                    continue
 
                 if dataset_name not in fl_annotations:
                     fl_annotations[dataset_name] = defaultdict(list)

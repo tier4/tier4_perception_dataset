@@ -133,10 +133,6 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         camera_name = filename.split("/")[1]
 
         frame_no = get_frame_index_from_filename(filename)
-        if frame_no is None:
-            logger.warning(f"Could not extract frame number from filename: {filename}")
-            return None
-
         # find largest IoU annotation
         frame_annotations = [
             a

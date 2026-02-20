@@ -123,11 +123,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
             points: NDArray = pointcloud.points.T  # (-1, 4)
 
             lidar_frame_index = get_frame_index_from_filename(lidar_path)
-            if lidar_frame_index is None:
-                logger.error(
-                    f"Failed to get frame index from lidar path: {lidar_path}. Skipping.."
-                )
-                return
+
             config_data = ConfigData(
                 frame_index=lidar_frame_index,
                 unix_timestamp=data_dict["unix_timestamp"],
@@ -156,11 +152,6 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
             data_dict: Dict[str, Any] = self._get_data(t4_dataset, camera_token)
 
             camera_frame_index = get_frame_index_from_filename(camera_path)
-            if camera_frame_index is None:
-                logger.error(
-                    f"Failed to get frame index from camera path: {camera_path}. Skipping.."
-                )
-                return
 
             image_data = ImageData(
                 frame_index=camera_frame_index,

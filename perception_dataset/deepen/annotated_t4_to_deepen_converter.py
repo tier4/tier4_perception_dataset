@@ -147,11 +147,6 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
                     image_frame_index = get_frame_index_from_filename(
                         t4_dataset.get("sample_data", sample_camera_token).filename
                     )
-                    if image_frame_index is None:
-                        print(
-                            f"Failed to get frame index from filename: {t4_dataset.get('sample_data', sample_camera_token).filename}. Skipping.."
-                        )
-                        continue
 
                     for ann in object_anns:
                         current_label_dict: Dict = {}

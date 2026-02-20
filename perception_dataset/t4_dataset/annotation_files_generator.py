@@ -150,11 +150,6 @@ class AnnotationFilesGenerator:
         frame_index_to_sample_token: Dict[int, str] = {}
         for sample_data in t4_dataset.sample_data:
             frame_index = get_frame_index_from_filename(sample_data.filename)
-            if frame_index is None:
-                print(
-                    f"Failed to get frame index from filename: {sample_data.filename}. Skipping.."
-                )
-                continue
             frame_index_to_sample_token[frame_index] = sample_data.sample_token
 
         # FIXME: Avoid hard coding the number of cameras
@@ -180,12 +175,6 @@ class AnnotationFilesGenerator:
                     cam_idx = self._camera2idx[cam]
 
                     frame_index = get_frame_index_from_filename(sample_data.filename)
-                    if frame_index is None:
-                        print(
-                            f"Failed to get frame index from filename: {sample_data.filename}. Skipping.."
-                        )
-                        continue
-
                     frame_index_to_sample_data_token[cam_idx].update(
                         {frame_index: sample_data.token}
                     )
@@ -563,11 +552,6 @@ class AnnotationFilesGenerator:
         frame_index_to_sample_token: Dict[int, str] = {}
         for sample_data in t4_dataset.sample_data:
             frame_index = get_frame_index_from_filename(sample_data.filename)
-            if frame_index is None:
-                print(
-                    f"Failed to get frame index from filename: {sample_data.filename}. Skipping.."
-                )
-                continue
             frame_index_to_sample_token[frame_index] = sample_data.sample_token
             if lidar_sensor_channel in sample_data.filename:
                 frame_index_to_sample_data_token[frame_index] = sample_data.token
