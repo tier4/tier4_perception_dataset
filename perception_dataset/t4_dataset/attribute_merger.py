@@ -12,6 +12,7 @@ from tqdm import tqdm
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.misc import get_frame_index_from_filename
 
 logger = configure_logger(modname=__name__)
 
@@ -131,8 +132,12 @@ class T4dataset2DAttributeMerger(DeepenToT4Converter):
         """
         filename = nuim.get("sample_data", object_ann["sample_data_token"])["filename"]
         camera_name = filename.split("/")[1]
-        frame_no = int(re.findall(r"\d+", filename.split("/")[2])[0])
-
+        
+        frame_no = get_frame_index_from_filename(filename)
+        if frame_no is None:
+            logger.warning(f"Could not extract frame number from filename: {filename}")
+            return None
+        
         # find largest IoU annotation
         frame_annotations = [
             a

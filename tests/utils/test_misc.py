@@ -18,6 +18,29 @@ def test_get_sample_data_filename():
     pass
 
 
+# Tests for get_frame_index_from_filename
+class TestGetFrameIndexFromFilename:
+    """Test suite for get_frame_index_from_filename function."""
+
+    def test_valid_filename_with_typical_format(self):
+        """Test extraction from standard filename format: data/SENSOR/12345.jpg"""
+        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/00123.jpg") == 123
+        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/12345.png") == 12345
+        assert misc_utils.get_frame_index_from_filename("data/LIDAR_TOP/00001.bin") == 1
+
+    def test_filename_with_non_numeric_frame_index(self):
+        """Test filenames where the frame index is not numeric."""
+        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/frame_abc.jpg") is None
+        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/test123.jpg") is None
+        assert misc_utils.get_frame_index_from_filename("data/CAM_FRONT/abc.jpg") is None
+        assert misc_utils.get_frame_index_from_filename("") is None
+
+    def test_filename_with_wrong_directory_structure(self):
+        """Test filename with different numbers of directory levels."""
+        assert misc_utils.get_frame_index_from_filename("sensor/00123.jpg") is None
+        assert misc_utils.get_frame_index_from_filename("00123.jpg") == 123
+
+
 def assert_synced_frame_info_list(expected, synced_frame_info_list):
     assert len(synced_frame_info_list) == len(expected)
     for i in range(len(synced_frame_info_list)):

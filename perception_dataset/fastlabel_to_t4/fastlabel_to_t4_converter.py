@@ -15,6 +15,7 @@ from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.transform import rotation_to_quaternion
+from perception_dataset.utils.misc import get_frame_index_from_filename
 
 logger = configure_logger(modname=__name__)
 
@@ -174,9 +175,13 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
         for filename, ann_list in sorted(annotations.items()):
             dataset_name: str = Path(filename).stem
             for ann in ann_list:
-                filename: str = ann["name"].split("/")[-1]
-                file_id: int = int(filename.split(".")[0])
-
+                file_id: int = get_frame_index_from_filename(ann["name"])
+                if file_id is None:
+                    logger.warning(
+                        f"Could not extract file id from filename: {ann['name']}"
+                    )
+                    continue
+                
                 if dataset_name not in fl_annotations:
                     fl_annotations[dataset_name] = defaultdict(list)
 
