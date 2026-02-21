@@ -285,11 +285,9 @@ class AnnotationFilesGenerator:
         """
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
-            # in case of the first frame in annotation is not 0
-            min_frame_index: int = min(scene_anno_dict.keys())
 
             # for the case that the frame_index is not in the sample_token
-            if frame_index - min_frame_index not in frame_index_to_sample_token:
+            if frame_index not in frame_index_to_sample_token:
                 print(f"frame_index {frame_index} in annotation.json is not in sample_token")
                 continue
 
@@ -576,11 +574,9 @@ class AnnotationFilesGenerator:
 
         for frame_index in sorted(scene_anno_dict.keys()):
             anno_list: List[Dict[str, Any]] = scene_anno_dict[frame_index]
-            # in case of the first frame in annotation is not 0
-            min_frame_index: int = min(scene_anno_dict.keys())
 
             # for the case that the frame_index is not in the sample_token
-            if frame_index - min_frame_index not in frame_index_to_sample_token:
+            if frame_index not in frame_index_to_sample_token:
                 print(f"frame_index {frame_index} in annotation.json is not in sample_token")
                 continue
 
