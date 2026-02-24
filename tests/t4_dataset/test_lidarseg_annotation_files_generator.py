@@ -4,6 +4,7 @@ import tempfile
 from typing import Any, Dict, List
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from t4_devkit.schema import Sample, SampleData
 
@@ -11,36 +12,61 @@ from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
 
 
+def _create_dummy_pcd_bin(filepath: str, num_points: int) -> None:
+    """Create a dummy PCD bin file with float32 data of shape (5, num_points)."""
+    # Create point cloud data with 5 channels: x, y, z, intensity, ring
+    points = np.random.randn(5, num_points).astype(np.float32)
+    points.tofile(filepath)
+
+
+def _create_dummy_annotation_bin(filepath: str, num_points: int) -> None:
+    """Create a dummy annotation bin file with uint8 labels of shape (num_points,)."""
+    # Create random labels (0-10 as category indices)
+    labels = np.random.randint(0, 10, num_points, dtype=np.uint8)
+    labels.tofile(filepath)
+
+
 def _default_lidarseg(default_tmp_dir: str) -> Dict[int, List[Dict[str, Any]]]:
     """Create a default lidarseg annotation dictionary for testing."""
+    # Create data directory structure
+    data_dir = Path(default_tmp_dir) / "data" / "LIDAR_CONCAT"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
     default_lidarseg = {
         0: [
             {
                 "paint_categories": ["category1", "category2"],
-                "lidarseg_anno_file": f"{default_tmp_dir}/lidarseg_anno_file_0.pcd.bin",
+                "lidarseg_anno_file": f"{default_tmp_dir}/lidarseg_anno_file_0.bin",
                 "total_lidar_points": 100,
             },
         ],
         1: [
             {
                 "paint_categories": ["category1", "category2"],
-                "lidarseg_anno_file": f"{default_tmp_dir}/lidarseg_anno_file_1.pcd.bin",
+                "lidarseg_anno_file": f"{default_tmp_dir}/lidarseg_anno_file_1.bin",
                 "total_lidar_points": 200,
             }
         ],
         2: [
             {
                 "paint_categories": ["category1", "category2"],
-                "lidarseg_anno_file": f"{default_tmp_dir}/lidarseg_anno_file_2.pcd.bin",
+                "lidarseg_anno_file": f"{default_tmp_dir}/lidarseg_anno_file_2.bin",
                 "total_lidar_points": 300,
             }
         ],
     }
-    # Create duymmy lidarseg annotation files
-    for scene_anno in default_lidarseg.values():
+    
+    # Create dummy PCD and annotation files
+    for frame_idx, scene_anno in default_lidarseg.items():
         for anno in scene_anno:
-            with open(anno["lidarseg_anno_file"], "wb") as f:
-                f.write(b"0")
+            num_points = anno["total_lidar_points"]
+            
+            # Create dummy PCD point cloud file
+            pcd_filepath = data_dir / f"0000{frame_idx}.pcd.bin"
+            _create_dummy_pcd_bin(str(pcd_filepath), num_points)
+            
+            # Create dummy annotation file
+            _create_dummy_annotation_bin(anno["lidarseg_anno_file"], num_points)
 
     return default_lidarseg
 
@@ -75,7 +101,13 @@ class DummyTier4:
         ]
         self.sample = [Sample(timestamp=0, token="0", scene_token="0", next="", prev="")]
 
-
+    def get(self, table_type: str, token: str) -> Any:
+        if table_type == "sample_data":
+            return self.sample_data[int(token)]
+        elif table_type == "sample":
+            return self.sample[0]
+        else:
+            raise ValueError(f"Unsupported table type: {table_type}")
 # Note: test case1, case2 use the same scene_anno_dict
 class TestAnnotationFilesGenerator:
     @pytest.fixture(scope="function")
@@ -114,7 +146,7 @@ class TestAnnotationFilesGenerator:
                 instance_for_test.convert_one_scene(
                     input_dir=dir_name,
                     output_dir=anno_dir,
-                    scene_anno_dict=_default_lidarseg(default_tmp_dir=dir_name),
+                    scene_anno_dict=_default_lidarseg(default_tmp_dir=anno_dir),
                     dataset_name="dummy_dataset_name",
                 )
                 assert os.path.exists(os.path.join(anno_path_dir, "lidarseg.json"))

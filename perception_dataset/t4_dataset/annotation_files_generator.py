@@ -587,26 +587,27 @@ class AnnotationFilesGenerator:
             sample_data = t4_dataset.get("sample_data", sample_data_token)
 
             lidar_data_path = anno_path.parents[0] / sample_data.filename
-            lidar_metainfo_path = anno_path.parents[0] / sample_data.info_filename
 
-            # All tmp lidarseg folders before moving
+            # All tmp lidarseg folders before copying annotation files.
             for anno in anno_list:
-
                 # This step validates if the annotation can be loaded and is compatible with point cloud data and metainfo data.
-                lidar_segmeg_pointcloud = SegmentationPointCloud.from_file(
+                lidar_semseg_pointcloud = SegmentationPointCloud.from_file(
                     point_filepath=lidar_data_path,
                     label_filepath=anno["lidarseg_anno_file"],
-                    metainfo_filepath=lidar_metainfo_path,
                 )
-                assert (
-                    lidar_segmeg_pointcloud.labels.shape[0]
-                    == lidar_segmeg_pointcloud.points.shape[1]
-                ), "Number of points and labels must be the same in lidarseg annotation. Found {} labels and {} points. for {} and {}".format(
-                    lidar_segmeg_pointcloud.labels.shape[0],
-                    lidar_segmeg_pointcloud.points.shape[1],
-                    anno["lidarseg_anno_file"],
-                    lidar_data_path,
-                )
+                if (
+                    lidar_semseg_pointcloud.labels.shape[0]
+                    != lidar_semseg_pointcloud.points.shape[1]
+                ):
+                    raise ValueError(
+                        "Number of points and labels must be the same in lidarseg annotation. "
+                        "Found {} labels and {} points. for {} and {}".format(
+                            lidar_semseg_pointcloud.labels.shape[0],
+                            lidar_semseg_pointcloud.points.shape[1],
+                            anno["lidarseg_anno_file"],
+                            lidar_data_path,
+                        )
+                    )
 
                 # Category
                 for category_name in anno["paint_categories"]:
