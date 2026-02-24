@@ -10,6 +10,7 @@ import numpy as np
 from pycocotools import mask as cocomask
 from scipy.spatial.transform import Rotation
 from t4_devkit import Tier4
+from t4_devkit.dataclass.pointcloud import SegmentationPointCloud
 from t4_devkit.schema.tables import (
     Attribute,
     Category,
@@ -20,7 +21,7 @@ from t4_devkit.schema.tables import (
     SurfaceAnn,
     Visibility,
 )
-from t4_devkit.dataclass.pointcloud import SegmentationPointCloud
+
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
@@ -587,15 +588,25 @@ class AnnotationFilesGenerator:
 
             lidar_data_path = anno_path.parents[0] / sample_data.filename
             lidar_metainfo_path = anno_path.parents[0] / sample_data.info_filename
-            
+
             # All tmp lidarseg folders before moving
             for anno in anno_list:
-                
+
                 # This step validates if the annotation can be loaded and is compatible with point cloud data and metainfo data.
-                lidar_segmeg_pointcloud = SegmentationPointCloud.from_file(point_filepath=lidar_data_path,label_filepath=anno["lidarseg_anno_file"],metainfo_filepath=lidar_metainfo_path)
-                assert lidar_segmeg_pointcloud.labels.shape[0] == lidar_segmeg_pointcloud.points.shape[1], \
-                    "Number of points and labels must be the same in lidarseg annotation. Found {} points and {} labels. for {} and {}". \
-                    format(lidar_segmeg_pointcloud.labels.shape[0], lidar_segmeg_pointcloud.points.shape[1], anno["lidarseg_anno_file"], lidar_data_path)
+                lidar_segmeg_pointcloud = SegmentationPointCloud.from_file(
+                    point_filepath=lidar_data_path,
+                    label_filepath=anno["lidarseg_anno_file"],
+                    metainfo_filepath=lidar_metainfo_path,
+                )
+                assert (
+                    lidar_segmeg_pointcloud.labels.shape[0]
+                    == lidar_segmeg_pointcloud.points.shape[1]
+                ), "Number of points and labels must be the same in lidarseg annotation. Found {} points and {} labels. for {} and {}".format(
+                    lidar_segmeg_pointcloud.labels.shape[0],
+                    lidar_segmeg_pointcloud.points.shape[1],
+                    anno["lidarseg_anno_file"],
+                    lidar_data_path,
+                )
 
                 # Category
                 for category_name in anno["paint_categories"]:
