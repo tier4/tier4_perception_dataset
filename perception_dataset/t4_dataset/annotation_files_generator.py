@@ -601,7 +601,7 @@ class AnnotationFilesGenerator:
                 assert (
                     lidar_segmeg_pointcloud.labels.shape[0]
                     == lidar_segmeg_pointcloud.points.shape[1]
-                ), "Number of points and labels must be the same in lidarseg annotation. Found {} points and {} labels. for {} and {}".format(
+                ), "Number of points and labels must be the same in lidarseg annotation. Found {} labels and {} points. for {} and {}".format(
                     lidar_segmeg_pointcloud.labels.shape[0],
                     lidar_segmeg_pointcloud.points.shape[1],
                     anno["lidarseg_anno_file"],
