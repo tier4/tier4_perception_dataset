@@ -31,7 +31,7 @@ def _default_lidarseg(default_tmp_dir: str) -> Dict[int, List[Dict[str, Any]]]:
     # Create data directory structure
     data_dir = Path(default_tmp_dir) / "data" / "LIDAR_CONCAT"
     data_dir.mkdir(parents=True, exist_ok=True)
-    
+
     default_lidarseg = {
         0: [
             {
@@ -55,16 +55,16 @@ def _default_lidarseg(default_tmp_dir: str) -> Dict[int, List[Dict[str, Any]]]:
             }
         ],
     }
-    
+
     # Create dummy PCD and annotation files
     for frame_idx, scene_anno in default_lidarseg.items():
         for anno in scene_anno:
             num_points = anno["total_lidar_points"]
-            
+
             # Create dummy PCD point cloud file
             pcd_filepath = data_dir / f"0000{frame_idx}.pcd.bin"
             _create_dummy_pcd_bin(str(pcd_filepath), num_points)
-            
+
             # Create dummy annotation file
             _create_dummy_annotation_bin(anno["lidarseg_anno_file"], num_points)
 
@@ -108,6 +108,8 @@ class DummyTier4:
             return self.sample[0]
         else:
             raise ValueError(f"Unsupported table type: {table_type}")
+
+
 # Note: test case1, case2 use the same scene_anno_dict
 class TestAnnotationFilesGenerator:
     @pytest.fixture(scope="function")
