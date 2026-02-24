@@ -20,7 +20,7 @@ from t4_devkit.schema.tables import (
     SurfaceAnn,
     Visibility,
 )
-
+from t4_devkit.dataclass.pointcloud import SegmentationPointCloud
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
@@ -583,9 +583,20 @@ class AnnotationFilesGenerator:
             sample_data_token = frame_index_to_sample_data_token.get(frame_index, None)
             if sample_data_token is None:
                 raise ValueError(f"sample_data doesn't have {lidar_sensor_channel}!")
+            sample_data = t4_dataset.get("sample_data", sample_data_token)
 
+            lidar_data_path = anno_path.parents[0] / sample_data.filename
+            lidar_metainfo_path = anno_path.parents[0] / sample_data.info_filename
+            
             # All tmp lidarseg folders before moving
             for anno in anno_list:
+                
+                # This step validates if the annotation can be loaded and is compatible with point cloud data and metainfo data.
+                lidar_segmeg_pointcloud = SegmentationPointCloud.from_file(point_filepath=lidar_data_path,label_filepath=anno["lidarseg_anno_file"],metainfo_filepath=lidar_metainfo_path)
+                assert lidar_segmeg_pointcloud.labels.shape[0] == lidar_segmeg_pointcloud.points.shape[1], \
+                    "Number of points and labels must be the same in lidarseg annotation. Found {} points and {} labels. for {} and {}". \
+                    format(lidar_segmeg_pointcloud.labels.shape[0], lidar_segmeg_pointcloud.points.shape[1], anno["lidarseg_anno_file"], lidar_data_path)
+
                 # Category
                 for category_name in anno["paint_categories"]:
                     if not self._category_table.get_token_from_field(
@@ -614,7 +625,7 @@ class AnnotationFilesGenerator:
                 new_lidarseg_anno_filename = str(
                     lidarseg_anno_path / (lidarseg_token + EXTENSION_ENUM.BIN.value)
                 )
-                shutil.move(anno["lidarseg_anno_file"], new_lidarseg_anno_filename)
+                shutil.copy(anno["lidarseg_anno_file"], new_lidarseg_anno_filename)
 
                 # Update the lidarseg record with the new filename
                 lidarseg_table.update_record_from_token(
