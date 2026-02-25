@@ -1,8 +1,11 @@
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os.path as osp
 from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional, Union
+
+from tqdm import tqdm
 
 from perception_dataset.constants import LABEL_PATH_ENUM
 from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import (
@@ -14,8 +17,8 @@ from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import
 )
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.misc import get_frame_index_from_filename
 from perception_dataset.utils.transform import rotation_to_quaternion
+from perception_dataset.utils.misc import get_frame_index_from_filename
 
 logger = configure_logger(modname=__name__)
 
@@ -49,17 +52,20 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
         )
 
     def convert(self) -> None:
+        # Get list of t4_datasets from input directory
         t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
-        anno_jsons_dict = self._load_annotation_jsons(t4_datasets, ".pcd")
-        fl_annotations = self._format_fastlabel_3d_annotation(anno_jsons_dict)
+        logger.info(f"Found {len(t4_datasets)} datasets to process")
+
+        # Group annotation files by dataset
+        anno_files_by_dataset = self._group_annotation_files_by_dataset(t4_datasets)
 
         for index, t4dataset_name in enumerate(t4_datasets):
-            # Skip if the dataset is not in the annotation jsons
-            logger.info(f"Processing {index + 1}/{len(t4_datasets)}")
-            if t4dataset_name not in fl_annotations.keys():
+            logger.info(f"Processing {index + 1}/{len(t4_datasets)}: {t4dataset_name}")
+
+            # Check if annotation exists for this dataset
+            if t4dataset_name not in anno_files_by_dataset:
                 logger.warning(f"{t4dataset_name} not in annotation jsons.")
                 continue
-
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
@@ -90,26 +96,108 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                 self._find_start_end_time(input_dir)
                 self._make_rosbag(str(input_bag_dir), str(output_dir))
 
-            if t4dataset_name not in fl_annotations.keys():
-                logger.warning(f"No annotation for {t4dataset_name}")
+            # Load and format annotations for this dataset only
+            anno_files = anno_files_by_dataset[t4dataset_name]
+            logger.info(f"Loading {len(anno_files)} annotation files for {t4dataset_name}")
+            annotations = self._load_annotation_jsons_for_dataset(anno_files)
+
+            if not annotations:
+                logger.warning(f"No annotations found for {t4dataset_name}. Skipping.")
                 continue
+
+            fl_annotations = self._format_fastlabel_3d_annotation(annotations, t4dataset_name)
 
             # Start updating annotations
             annotation_files_generator = AnnotationFilesGenerator(
                 description=self._description, label_coordinates="lidar"
             )
-            annotation_files_generator.convert_one_scene(
-                input_dir=input_dir,
-                output_dir=output_dir,
-                scene_anno_dict=fl_annotations[t4dataset_name],
-                dataset_name=t4dataset_name,
+
+            try:
+
+                annotation_files_generator.convert_one_scene(
+                    input_dir=input_dir,
+                    output_dir=output_dir,
+                    scene_anno_dict=fl_annotations,
+                    dataset_name=t4dataset_name,
+                )
+
+                # fix non-keyframe (no-labeled frame) in t4 dataset
+                modifier = KeyFrameConsistencyResolver()
+                modifier.inspect_and_fix_t4_segment(Path(output_dir))
+            except Exception as e:
+                logger.error(f"Error processing {t4dataset_name}: {e}")
+                shutil.rmtree(output_dir, ignore_errors=True)
+                continue
+
+    def _process_3d_annotation(
+        self, annotation: Dict[str, Any]
+    ) -> tuple[int, List[Dict[str, Any]]]:
+        """Process a single 3D annotation.
+
+        Args:
+            annotation: Single annotation dictionary from FastLabel.
+
+        Returns:
+            Tuple of (file_id, list of label dictionaries).
+        """
+        file_id: int = get_frame_index_from_filename(annotation["name"])
+
+        labels = []
+        for a in annotation["annotations"]:
+            visibility: str = "Not available"
+            instance_id = a["id"]
+
+            if "attributes" not in a or a["attributes"] is None:
+                logger.error(f"No attributes in {a}")
+            attributes = []
+            for att in a["attributes"]:
+                if att["name"] == "status":
+                    continue
+                attributes.append(f"{att['name'].lower()}.{att['value']}")
+                if att["key"] == "occlusion_state":
+                    visibility = self._convert_occlusion_to_visibility(att["value"])
+            category = self._label_converter.convert_label(a["title"])
+            label_t4_dict: Dict[str, Any] = {
+                "category_name": category,
+                "instance_id": instance_id,
+                "attribute_names": attributes,
+                "visibility_name": visibility,
+            }
+            points = a["points"]
+            q = rotation_to_quaternion(a["points"][3:6])
+            label_t4_dict.update(
+                {
+                    "three_d_bbox": {
+                        "translation": {
+                            "x": points[0],
+                            "y": points[1],
+                            "z": points[2],
+                        },
+                        "velocity": None,
+                        "acceleration": None,
+                        "size": {
+                            "length": points[6],
+                            "width": points[7],
+                            "height": points[8],
+                        },
+                        "rotation": {
+                            "x": q[0],
+                            "y": q[1],
+                            "z": q[2],
+                            "w": q[3],
+                        },
+                    },
+                    "num_lidar_pts": 0,
+                    "num_radar_pts": 0,
+                }
             )
+            labels.append(label_t4_dict)
 
-            # fix non-keyframe (no-labeled frame) in t4 dataset
-            modifier = KeyFrameConsistencyResolver()
-            modifier.inspect_and_fix_t4_segment(Path(output_dir))
+        return file_id, labels
 
-    def _format_fastlabel_3d_annotation(self, annotations: Dict[str, List[Dict[str, Any]]]):
+    def _format_fastlabel_3d_annotation(
+        self, annotations: List[Dict[str, Any]], dataset_name: str
+    ) -> Dict[int, List[Dict[str, Any]]]:
         """
         e.g. of input_anno_file(fastlabel):
         [
@@ -170,64 +258,20 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
             ...
         ]
         """
-        fl_annotations: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
+        fl_annotations: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
-        for filename, ann_list in sorted(annotations.items()):
-            dataset_name: str = Path(filename).stem
-            for ann in ann_list:
-                file_id: int = get_frame_index_from_filename(ann["name"])
+        with ProcessPoolExecutor() as executor:
+            futures = []
+            for ann in annotations:
+                futures.append(executor.submit(self._process_3d_annotation, ann))
 
-                if dataset_name not in fl_annotations:
-                    fl_annotations[dataset_name] = defaultdict(list)
-
-                for a in ann["annotations"]:
-                    visibility: str = "Not available"
-                    instance_id = a["id"]
-
-                    if "attributes" not in a or a["attributes"] is None:
-                        logger.error(f"No attributes in {a}")
-                    attributes = []
-                    for att in a["attributes"]:
-                        if att["name"] == "status":
-                            continue
-                        attributes.append(f"{att['name'].lower()}.{att['value']}")
-                        if att["key"] == "occlusion_state":
-                            visibility = self._convert_occlusion_to_visibility(att["value"])
-                    category = self._label_converter.convert_label(a["title"])
-                    label_t4_dict: Dict[str, Any] = {
-                        "category_name": category,
-                        "instance_id": instance_id,
-                        "attribute_names": attributes,
-                        "visibility_name": visibility,
-                    }
-                    points = a["points"]
-                    q = rotation_to_quaternion(a["points"][3:6])
-                    label_t4_dict.update(
-                        {
-                            "three_d_bbox": {
-                                "translation": {
-                                    "x": points[0],
-                                    "y": points[1],
-                                    "z": points[2],
-                                },
-                                "velocity": None,
-                                "acceleration": None,
-                                "size": {
-                                    "length": points[6],
-                                    "width": points[7],
-                                    "height": points[8],
-                                },
-                                "rotation": {
-                                    "x": q[0],
-                                    "y": q[1],
-                                    "z": q[2],
-                                    "w": q[3],
-                                },
-                            },
-                            "num_lidar_pts": 0,
-                            "num_radar_pts": 0,
-                        }
-                    )
-                    fl_annotations[dataset_name][file_id].append(label_t4_dict)
+            for future in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc=f"Processing {dataset_name} 3D labels",
+            ):
+                file_id, labels = future.result()
+                for label_t4_dict in labels:
+                    fl_annotations[file_id].append(label_t4_dict)
 
         return fl_annotations
