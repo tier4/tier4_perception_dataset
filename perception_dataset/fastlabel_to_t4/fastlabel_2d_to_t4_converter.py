@@ -16,6 +16,7 @@ from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.misc import get_frame_index_from_filename
 
 logger = configure_logger(modname=__name__)
 
@@ -163,9 +164,8 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     annotations.append(file_annotations)
         return annotations
 
-    def _process_annotation(self, annotation):
-        filename: str = annotation["name"].split("/")[-1]
-        file_id: int = int(filename.split(".")[0])
+    def _process_annotation(self, dataset_name, annotation):
+        file_id: int = get_frame_index_from_filename(annotation["name"])
         frame_no: int = file_id + 1
         camera = annotation["name"].split("/")[-2]
 
