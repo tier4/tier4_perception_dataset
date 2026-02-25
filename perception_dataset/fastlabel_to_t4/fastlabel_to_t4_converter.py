@@ -17,8 +17,8 @@ from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import
 )
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.transform import rotation_to_quaternion
 from perception_dataset.utils.misc import get_frame_index_from_filename
+from perception_dataset.utils.transform import rotation_to_quaternion
 
 logger = configure_logger(modname=__name__)
 
