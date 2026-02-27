@@ -1,4 +1,4 @@
-task: update_t4_with_fastlabel
+task: update_t4_with_fastlabel_3d
 description:
   visibility:
     full: "No occlusion of the object."
@@ -18,6 +18,10 @@ description:
 
 conversion:
   make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
-  input_base: ./data/input_t4_format # could be non_annotated_t4_format or t4_format_3d_annotated
-  input_anno_base: ./data/fastlabel
-  output_base: ./data/output_t4_format # currently, this only includes the 2D annotations
+  input_base:   # could be non_annotated_t4_format or t4_format_3d_annotated
+  input_anno_base: 
+  output_base:  # currently, this only includes the 2D annotations
+  only_annotation_frame: false # If true, only frames with annotations are kept as key frames. If false, all frames are kept as key frames.
+
+  input_bag_base: null  #optional
+  topic_list: null  #necessary if input_bag_base is not null

@@ -24,6 +24,7 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
         overwrite_mode: bool,
         description: Dict[str, Dict[str, str]],
         make_t4_dataset_dir: bool = True,
+        only_annotation_frame: bool = False,
     ):
         super().__init__(
             input_base,
@@ -36,8 +37,15 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
             topic_list=None,
         )
         self._make_t4_dataset_dir = make_t4_dataset_dir
+        self._only_annotation_frame = only_annotation_frame
 
     def convert(self) -> None:
+        in_place_update = self._input_base.resolve() == self._output_base.resolve()
+        if in_place_update:
+            logger.warning(
+                "input_base and output_base are the same (in-place update). "
+                "Annotation files will be updated without deleting/copying scene data."
+            )
         t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
         anno_jsons_dict = self._load_annotation_jsons(t4_datasets, "_CAM")
         fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
@@ -61,15 +69,21 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
 
+            in_place = in_place_update and (input_dir == output_dir)
             if osp.exists(output_dir):
                 logger.warning(f"{output_dir} already exists.")
                 if self._overwrite_mode:
-                    shutil.rmtree(output_dir, ignore_errors=True)
+                    if in_place:
+                        # In-place update: do not delete input data
+                        pass
+                    else:
+                        shutil.rmtree(output_dir, ignore_errors=True)
                 else:
                     continue
 
-            # Copy input data to output directory
-            self._copy_data(input_dir, output_dir)
+            # Copy input data to output directory (no-op when in-place)
+            if not in_place:
+                self._copy_data(input_dir, output_dir)
             # Make rosbag
             if self._input_bag_base is not None and not osp.exists(
                 osp.join(output_dir, "input_bag")
@@ -86,5 +100,6 @@ class FastLabel2dToT4Updater(FastLabel2dToT4Converter):
                 output_dir=output_dir,
                 scene_anno_dict=fl_annotations[t4dataset_name],
                 dataset_name=t4dataset_name,
+                only_annotation_frame=self._only_annotation_frame,
             )
             logger.info(f"Finished updating annotations for {t4dataset_name}")

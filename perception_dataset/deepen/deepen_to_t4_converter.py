@@ -328,7 +328,7 @@ class DeepenToT4Converter(AbstractConverter[DeepenToT4ConverterOutput]):
                     anno_attributes["occlusion_state"]
                 )
             else:
-                visibility: str = "Not available"
+                visibility: str = "none"
             label_t4_dict: Dict[str, Any] = {
                 "category_name": anno_label_category_id,
                 "instance_id": anno_label_id,

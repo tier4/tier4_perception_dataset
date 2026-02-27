@@ -1,25 +1,26 @@
+from __future__ import annotations
+
 from collections import defaultdict
 import os.path as osp
 from pathlib import Path
 import shutil
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List
 
-from perception_dataset.constants import LABEL_PATH_ENUM
-from perception_dataset.fastlabel_to_t4.fastlabel_2d_to_t4_converter import (
-    FastLabel2dToT4Converter,
+from perception_dataset.fastlabel_to_t4.fastlabel_to_t4_converter import (
+    FastLabelToT4Converter,
 )
-from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
-from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
-    KeyFrameConsistencyResolver,
-)
-from perception_dataset.utils.label_converter import LabelConverter
+from perception_dataset.t4_dataset.annotation_files_updater import AnnotationFilesUpdater
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.transform import rotation_to_quaternion
 
 logger = configure_logger(modname=__name__)
 
 
-class FastLabelToT4Converter(FastLabel2dToT4Converter):
+class FastLabel3dToT4Updater(FastLabelToT4Converter):
+    """Updates existing T4 datasets with FastLabel 3D annotations (in-place or to another directory).
+    Reads existing annotation files, merges new 3D labels, and optionally runs keyframe consistency resolution.
+    """
+
     def __init__(
         self,
         input_base: str,
@@ -28,45 +29,50 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
         overwrite_mode: bool,
         description: Dict[str, Dict[str, str]],
         make_t4_dataset_dir: bool = True,
-        only_annotation_frame: bool = True,
-        input_bag_base: Optional[str] = None,
-        topic_list: Optional[Union[Dict[str, List[str]], List[str]]] = None,
+        only_annotation_frame: bool = False,
     ):
         super().__init__(
             input_base,
             output_base,
             input_anno_base,
-            None,
             overwrite_mode,
             description,
-            input_bag_base,
-            topic_list,
+            make_t4_dataset_dir=make_t4_dataset_dir,
+            only_annotation_frame=only_annotation_frame,
+            input_bag_base=None,
+            topic_list=None,
         )
         self._make_t4_dataset_dir = make_t4_dataset_dir
         self._only_annotation_frame = only_annotation_frame
-        self._label_converter = LabelConverter(
-            label_path=LABEL_PATH_ENUM.OBJECT_LABEL,
-            attribute_path=LABEL_PATH_ENUM.ATTRIBUTE,
-        )
 
     def convert(self) -> None:
+        in_place_update = self._input_base.resolve() == self._output_base.resolve()
+        if in_place_update:
+            logger.warning(
+                "input_base and output_base are the same (in-place update). "
+                "Annotation files will be updated without deleting/copying scene data."
+            )
         t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
         anno_jsons_dict = self._load_annotation_jsons(t4_datasets, ".pcd")
         fl_annotations = self._format_fastlabel_3d_annotation(anno_jsons_dict)
 
-        for index, t4dataset_name in enumerate(t4_datasets):
-            # Skip if the dataset is not in the annotation jsons
-            logger.info(f"Processing {index + 1}/{len(t4_datasets)}")
+        for t4dataset_name in t4_datasets:
+            # Check if annotation exists
             if t4dataset_name not in fl_annotations.keys():
-                logger.warning(f"{t4dataset_name} not in annotation jsons.")
                 continue
 
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
+            # Some datasets are stored as scene_dir/t4_dataset/{data,annotation}
+            # (depending on make_t4_dataset_dir setting used at generation time).
             input_annotation_dir = input_dir / "annotation"
             if not osp.exists(input_annotation_dir):
-                logger.warning(f"input_dir {input_dir} not exists.")
-                continue
+                alt_input_annotation_dir = input_dir / "t4_dataset" / "annotation"
+                if osp.exists(alt_input_annotation_dir):
+                    input_annotation_dir = alt_input_annotation_dir
+                else:
+                    logger.warning(f"input_annotation_dir not exists under {input_dir}.")
+                    continue
 
             # Check if output directory already exists
             output_dir = self._output_base / t4dataset_name
@@ -75,15 +81,20 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
 
+            in_place = in_place_update and (input_dir == output_dir)
             if osp.exists(output_dir):
                 logger.warning(f"{output_dir} already exists.")
                 if self._overwrite_mode:
-                    shutil.rmtree(output_dir, ignore_errors=True)
+                    if in_place:
+                        pass
+                    else:
+                        shutil.rmtree(output_dir, ignore_errors=True)
                 else:
                     continue
 
-            # Copy input data to output directory
-            self._copy_data(input_dir, output_dir)
+            # Copy input data to output directory (no-op when in-place)
+            if not in_place:
+                self._copy_data(input_dir, output_dir)
             # Make rosbag
             if self._input_bag_base is not None and not osp.exists(
                 osp.join(output_dir, "input_bag")
@@ -91,85 +102,25 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                 self._find_start_end_time(input_dir)
                 self._make_rosbag(str(input_bag_dir), str(output_dir))
 
-            if t4dataset_name not in fl_annotations.keys():
-                logger.warning(f"No annotation for {t4dataset_name}")
-                continue
-
             # Start updating annotations
-            annotation_files_generator = AnnotationFilesGenerator(
-                description=self._description, label_coordinates="lidar"
+            annotation_files_updater = AnnotationFilesUpdater(
+                description=self._description,
+                surface_categories=self._surface_categories,
+                label_coordinates="lidar",
             )
-            annotation_files_generator.convert_one_scene(
+            annotation_files_updater.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
                 scene_anno_dict=fl_annotations[t4dataset_name],
                 dataset_name=t4dataset_name,
+                only_annotation_frame=self._only_annotation_frame,
             )
-
-            # fix non-keyframe (no-labeled frame) in t4 dataset
-            modifier = KeyFrameConsistencyResolver()
-            modifier.inspect_and_fix_t4_segment(Path(output_dir), only_annotation_frame=self._only_annotation_frame)
+            logger.info(f"Finished updating annotations for {t4dataset_name}")
 
     def _format_fastlabel_3d_annotation(self, annotations: Dict[str, List[Dict[str, Any]]]):
         """
-        e.g. of input_anno_file(fastlabel):
-        [
-            {
-                "id": "675f15cb-f3c1-45df-b8e1-6daaa36402bd",
-                "name": "r7ZRDFWf_2024-08-21T15-13-16+0900_10/00011.pcd",
-                "status": "completed",
-                "externalStatus": "approved",
-                "url": "https://annotations.fastlabel.ai/workspaces/......",
-                "annotations": [
-                    {
-                        "id": "9feb60dc-6170-4c2c-95d7-165b7862d12a",
-                        "type": "cuboid",
-                        "title": "truck",
-                        "value": "truck",
-                        "color": "#D10069",
-                        "attributes": [
-                            {
-                                "type": "radio",
-                                "name": "status",
-                                "key": "status",
-                                "title": "approval",
-                                "value": "approval"
-                            },
-                            {
-                                "type": "radio",
-                                "name": "occlusion_state",
-                                "key": "occlusion_state",
-                                "title": "none",
-                                "value": "none"
-                            },
-                            {
-                                "type": "radio",
-                                "name": "vehicle_state",
-                                "key": "vehicle_state",
-                                "title": "driving",
-                                "value": "driving"
-                            }
-                        ],
-                        "points": [
-                            8.76,   // coordinate x
-                            3.87,   // coordinate y
-                            1.71,   // coordinate z
-                            0.00,   // rotation x
-                            0.00,   // rotation y
-                            -0.03,  // rotation z
-                            8.27,   // length x
-                            2.47,   // length y
-                            3.17    // length z
-                        ],
-                        "rotation": 0,
-                        "keypoints": [],
-                        "confidenceScore": -1
-                    },
-                    ....
-                ]
-            },
-            ...
-        ]
+        Update用(3D)は、FastLabel側の欠損/不正データで止まらないようにガードする。
+        points想定: [x, y, z, roll, pitch, yaw, length, width, height]
         """
         fl_annotations: Dict[str, Dict[int, List[Dict[str, Any]]]] = {}
 
@@ -190,6 +141,16 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                     fl_annotations[dataset_name] = defaultdict(list)
 
                 for a in ann["annotations"]:
+                    # FastLabelの同一jsonに2D系(Polygon等)が混在するケースがあるため、
+                    # 3D updateでは cuboid のみ対象にする（混在していたらデータ不整合としてエラーにする）。
+                    anno_type = a.get("type")
+                    if anno_type is not None and anno_type != "cuboid":
+                        raise ValueError(
+                            "Invalid annotation type for 3D update. "
+                            f"Expected type='cuboid' but got type={anno_type}. "
+                            f"dataset={dataset_name} file_id={file_id} ann_id={a.get('id')}"
+                        )
+
                     visibility: str = "none"
                     instance_id = a["id"]
 
@@ -209,8 +170,34 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                         "attribute_names": attributes,
                         "visibility_name": visibility,
                     }
-                    points = a["points"]
-                    q = rotation_to_quaternion(a["points"][3:6])
+
+                    points = a.get("points")
+                    if not isinstance(points, list):
+                        raise ValueError(
+                            "Invalid points for 3D cuboid. "
+                            f"Expected list but got {type(points)}. "
+                            f"dataset={dataset_name} file_id={file_id} instance_id={instance_id} type={anno_type} points={points}"
+                        )
+                    if len(points) < 9:
+                        # avoid logging huge polygons/segments
+                        points_preview = points
+                        if len(points) == 1 and isinstance(points[0], list):
+                            points_preview = ["<nested points omitted>"]
+                        raise ValueError(
+                            "Invalid points length for 3D cuboid. "
+                            "Expected at least 9 values: [x,y,z,roll,pitch,yaw,length,width,height]. "
+                            f"dataset={dataset_name} file_id={file_id} instance_id={instance_id} type={anno_type} points_len={len(points)} points={points_preview}"
+                        )
+
+                    rotation = points[3:6]
+                    if len(rotation) != 3 or any(r is None for r in rotation):
+                        raise ValueError(
+                            "Invalid rotation for 3D cuboid. "
+                            f"Expected 3 floats [roll,pitch,yaw] but got rotation={rotation}. "
+                            f"dataset={dataset_name} file_id={file_id} instance_id={instance_id} type={anno_type} points={points}"
+                        )
+                    q = rotation_to_quaternion(rotation)
+
                     label_t4_dict.update(
                         {
                             "three_d_bbox": {
@@ -240,3 +227,4 @@ class FastLabelToT4Converter(FastLabel2dToT4Converter):
                     fl_annotations[dataset_name][file_id].append(label_t4_dict)
 
         return fl_annotations
+

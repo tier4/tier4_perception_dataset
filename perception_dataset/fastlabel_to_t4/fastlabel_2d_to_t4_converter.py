@@ -14,6 +14,9 @@ from tqdm import tqdm
 from perception_dataset.constants import LABEL_PATH_ENUM
 from perception_dataset.deepen.deepen_to_t4_converter import DeepenToT4Converter
 from perception_dataset.t4_dataset.annotation_files_generator import AnnotationFilesGenerator
+from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
+    KeyFrameConsistencyResolver,
+)
 from perception_dataset.utils.label_converter import LabelConverter
 from perception_dataset.utils.logger import configure_logger
 
@@ -33,6 +36,8 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         description: Dict[str, Dict[str, str]],
         input_bag_base: Optional[str],
         topic_list: Union[Dict[str, List[str]], List[str]],
+        make_t4_dataset_dir: bool = False,
+        only_annotation_frame: bool = True,
     ):
         super().__init__(
             input_base,
@@ -48,6 +53,8 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         )
         self._input_base = Path(input_base)
         self._output_base = Path(output_base)
+        self._make_t4_dataset_dir: bool = make_t4_dataset_dir
+        self._only_annotation_frame: bool = only_annotation_frame
         self._t4dataset_name_to_merge: Dict[str, str] = dataset_corresponding
         self._camera2idx = description.get("camera_index")
         self._input_anno_files: List[Path] = []
@@ -59,11 +66,17 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         )
 
     def convert(self):
+        # If dataset_corresponding is None, get datasets from input_base directory
+        if self._t4dataset_name_to_merge is None:
+            t4_datasets = sorted([d.name for d in self._input_base.iterdir() if d.is_dir()])
+        else:
+            t4_datasets = list(self._t4dataset_name_to_merge.keys())
+
         # Load and format Fastlabel annotations
-        anno_jsons_dict = self._load_annotation_jsons()
+        anno_jsons_dict = self._load_annotation_jsons(t4_datasets, "_CAM")
         fl_annotations = self._format_fastlabel_annotation(anno_jsons_dict)
 
-        for t4dataset_name in self._t4dataset_name_to_merge.keys():
+        for t4dataset_name in t4_datasets:
             # Check if input directory exists
             input_dir = self._input_base / t4dataset_name
             input_annotation_dir = input_dir / "annotation"
@@ -73,12 +86,13 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
 
             # Check if output directory already exists
             output_dir = self._output_base / t4dataset_name
-            output_dir = output_dir / "t4_dataset"
+            if self._make_t4_dataset_dir:
+                output_dir = output_dir / "t4_dataset"
             if self._input_bag_base is not None:
                 input_bag_dir = Path(self._input_bag_base) / t4dataset_name
-            if osp.exists(output_dir):
+            is_dir_exist = osp.exists(output_dir)
+            if is_dir_exist:
                 logger.warning(f"{output_dir} already exists.")
-                is_dir_exist = True
             if self._overwrite_mode or not is_dir_exist:
                 # Remove existing output directory
                 shutil.rmtree(output_dir, ignore_errors=True)
@@ -91,16 +105,25 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     self._find_start_end_time(input_dir)
                     self._make_rosbag(str(input_bag_dir), str(output_dir))
             else:
-                raise ValueError("If you want to overwrite files, use --overwrite option.")
+                logger.error("If you want to overwrite files, use --overwrite option.")
+                raise SystemExit(1)
 
             # Start converting annotations
-            annotation_files_generator = AnnotationFilesGenerator(description=self._description)
+            annotation_files_generator = AnnotationFilesGenerator(
+                description=self._description,
+                surface_categories=self._surface_categories,
+            )
             annotation_files_generator.convert_one_scene(
                 input_dir=input_dir,
                 output_dir=output_dir,
                 scene_anno_dict=fl_annotations[t4dataset_name],
                 dataset_name=t4dataset_name,
+                only_annotation_frame=self._only_annotation_frame,
             )
+
+            # fix non-keyframe (no-labeled frame) in t4 dataset
+            modifier = KeyFrameConsistencyResolver()
+            modifier.inspect_and_fix_t4_segment(Path(output_dir), only_annotation_frame=self._only_annotation_frame)
 
     def _load_annotation_jsons(
         self, t4_datasets: Optional[List[str]] = None, delimiter: Optional[str] = None
@@ -141,20 +164,20 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
         labels = []
         for a in annotation["annotations"]:
             occlusion_state = "occlusion_state.none"
-            visibility = "Not available"
+            visibility = "none"
             instance_id = ""
-
-            for att in a["attributes"]:
-                if att["key"] == "id":
-                    instance_id = att["value"]
-                if "occlusion_state" in att["key"]:
-                    for v in att["value"]:
-                        if frame_no in range(v[0], v[1]):
-                            occlusion_state = "occlusion_state." + att["key"].split("_")[-1]
-                            visibility = self._convert_occlusion_to_visibility(
-                                att["key"].split("_")[-1]
-                            )
-                            break
+            if "attributes" in a.keys():
+                for att in a["attributes"]:
+                    if att["key"] == "id":
+                        instance_id = att["value"]
+                    if "occlusion_state" in att["key"]:
+                        for v in att["value"]:
+                            if frame_no in range(v[0], v[1]):
+                                occlusion_state = "occlusion_state." + att["key"].split("_")[-1]
+                                visibility = self._convert_occlusion_to_visibility(
+                                    att["key"].split("_")[-1]
+                                )
+                                break
 
             category_label = self._label_converter.convert_label(a["title"])
             label_t4_dict = {
@@ -172,9 +195,19 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     }
                 )
             elif a["type"] == "segmentation":
+                # Filter out polygons where outer points have 5 or fewer elements
+                filtered_points = [
+                    polygon for polygon in a["points"]
+                    if len(polygon[0]) > 5  # polygon[0] is outer points
+                ]
+                
+                # Skip this annotation if all polygons were filtered out
+                if not filtered_points:
+                    continue
+                
                 label_t4_dict.update(
                     {
-                        "two_d_segmentation": _rle_from_points(a["points"], width, height),
+                        "two_d_segmentation": _rle_from_points(filtered_points, width, height),
                         "sensor_id": self._camera2idx[camera],
                     }
                 )
@@ -182,7 +215,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
                     self._label_converter.is_object_label(category_label)
                     and category_label not in self._surface_categories
                 ):
-                    label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(a["points"][0][0])
+                    label_t4_dict["two_d_box"] = _convert_polygon_to_bbox(filtered_points[0][0])
             labels.append(label_t4_dict)
 
         return dataset_name, file_id, labels
@@ -255,8 +288,7 @@ class FastLabel2dToT4Converter(DeepenToT4Converter):
 
         with ProcessPoolExecutor() as executor:
             futures = []
-            for filename, ann_list in sorted(annotations.items()):
-                dataset_name: str = Path(filename).stem
+            for dataset_name, ann_list in sorted(annotations.items()):
                 for ann in ann_list:
                     futures.append(executor.submit(self._process_annotation, dataset_name, ann))
 

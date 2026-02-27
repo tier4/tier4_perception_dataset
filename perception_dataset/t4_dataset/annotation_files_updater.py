@@ -33,8 +33,9 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
         with_camera: bool = True,
         description: Dict[str, Dict[str, str]] = ...,
         surface_categories: List[str] = [],
+        label_coordinates: str = "map",
     ):
-        super().__init__(with_camera, description, surface_categories)
+        super().__init__(with_camera, description, surface_categories, label_coordinates)
         self.description = description
 
     def convert_one_scene(
@@ -43,6 +44,7 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
         output_dir: str,
         scene_anno_dict: dict[str, list[dict[str, Any]]],
         dataset_name: str,
+        only_annotation_frame: bool = False,
     ) -> None:
         anno_dir = osp.join(input_dir, "annotation")
         if not osp.exists(anno_dir):
@@ -56,12 +58,15 @@ class AnnotationFilesUpdater(AnnotationFilesGenerator):
             output_dir=output_dir,
             scene_anno_dict=scene_anno_dict,
             dataset_name=dataset_name,
+            only_annotation_frame=only_annotation_frame,
         )
 
         # Remove duplicated annotations
         DuplicatedAnnotationRemover().remove_duplicated_annotation(output_dir)
         # fix non-keyframe (no-labeled frame) in t4 dataset
-        KeyFrameConsistencyResolver().inspect_and_fix_t4_segment(Path(output_dir))
+        KeyFrameConsistencyResolver().inspect_and_fix_t4_segment(
+            Path(output_dir), only_annotation_frame=only_annotation_frame
+        )
 
     def _init_table_from_json(self, anno_dir: str) -> None:
         self._attribute_table = AttributeTable.from_json(

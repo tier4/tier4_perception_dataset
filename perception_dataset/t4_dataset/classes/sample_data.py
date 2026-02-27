@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
+from typing import Optional
 
 from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.t4_dataset.classes.abstract_class import AbstractRecord, AbstractTable
 
 
 class SampleDataRecord(AbstractRecord):
+    """Single sample_data entry. info_filename is optional (relative path to sensor meta, e.g. lidar component ranges); empty for legacy data."""
+
     def __init__(
         self,
-        sample_token: str,
+        sample_token: Optional[str],
         ego_pose_token: str,
         calibrated_sensor_token: str,
         filename: str,
@@ -25,7 +28,7 @@ class SampleDataRecord(AbstractRecord):
     ):
         super().__init__()
 
-        self.sample_token: str = sample_token
+        self.sample_token: Optional[str] = sample_token
         self.ego_pose_token: str = ego_pose_token
         self.calibrated_sensor_token: str = calibrated_sensor_token
         self.filename: str = filename
@@ -72,6 +75,7 @@ class SampleDataTable(AbstractTable[SampleDataRecord]):
 
     @classmethod
     def from_json(cls, filepath: str) -> SampleDataTable:
+        """Load sample_data.json. Supports legacy files without info_filename or is_valid (defaults: '', True)."""
         with open(filepath) as f:
             items = json.load(f)
 
@@ -89,7 +93,8 @@ class SampleDataTable(AbstractTable[SampleDataRecord]):
                 height=item["height"],
                 next_token=item["next"],
                 prev_token=item["prev"],
-                is_valid=item["is_valid"],
+                is_valid=item.get("is_valid", True),
+                info_filename=item.get("info_filename", ""),
             )
             record.token = item["token"]
             table.set_record_to_table(record)

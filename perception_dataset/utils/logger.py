@@ -1,10 +1,11 @@
 import datetime
 import logging
-from logging import FileHandler, StreamHandler, getLogger
+from logging import FileHandler, getLogger
 import os
 import uuid
 
 from pythonjsonlogger import jsonlogger
+from rich.logging import RichHandler
 
 from perception_dataset.configurations import Configurations
 
@@ -68,42 +69,59 @@ class SensitiveWordFilter(logging.Filter):
         return True
 
 
+# ロギング初期化済みフラグ
+_logging_initialized = False
+
+
 def configure_logger(
     log_file_path=Configurations.log_file_path,
     modname=__name__,
 ):
+    global _logging_initialized
+
+    # 既に初期化済みの場合は、指定されたモジュールのloggerを返すだけ
+    if _logging_initialized:
+        return logging.getLogger(modname)
+
+    # root loggerを使用して一度だけ初期化
+    root = logging.getLogger()
+    root.setLevel(Configurations.log_level)
+
+    # --- 既存ハンドラー除去 ---
+    root.handlers.clear()
+
+    # --- Filter追加 ---
+    root.addFilter(SensitiveWordFilter())
+
+    # --- Formatter ---
+    formatter = logging.Formatter(
+        "%(asctime)s - %(message)s"
+    )
+
+    # --- RichHandler (コンソール) ---
+    console_handler = RichHandler()
+    console_handler.setFormatter(formatter)
+    root.addHandler(console_handler)
+
+    # --- FileHandler (ファイル出力) ---
+    # ディレクトリがなければ作る
     log_directory = os.path.dirname(log_file_path)
     os.makedirs(log_directory, exist_ok=True)
 
-    logger = getLogger(modname)
-    logger.addFilter(SensitiveWordFilter())
-    logger.setLevel(Configurations.log_level)
+    file_handler = FileHandler(log_file_path)
+    file_handler.setLevel(Configurations.log_level)
+    # ファイル出力は常にJSONフォーマット
+    file_handler.setFormatter(CustomJsonFormatter())
+    root.addHandler(file_handler)
 
-    sh = StreamHandler()
-    sh.setLevel(Configurations.log_level)
+    # 初期化フラグを設定
+    _logging_initialized = True
 
-    if Configurations.log_format == "json":
-        formatter = CustomJsonFormatter()
-    elif Configurations.log_format == "text":
-        formatter = CustomTextFormatter()
-    else:
-        formatter = CustomJsonFormatter()
-    sh.setFormatter(formatter)
-    logger.addHandler(sh)
+    # 完了ログ（一度だけ）
+    root.info(f"Logging initialized. File logs at: {log_file_path}")
 
-    fh = FileHandler(log_file_path)
-    fh.setLevel(Configurations.log_level)
-
-    if Configurations.log_format == "json":
-        fh_formatter = CustomJsonFormatter()
-    elif Configurations.log_format == "text":
-        fh_formatter = CustomTextFormatter()
-    else:
-        fh_formatter = CustomJsonFormatter()
-    fh.setFormatter(fh_formatter)
-    logger.addHandler(fh)
-
-    return logger
+    # 指定されたモジュールのloggerを返す
+    return logging.getLogger(modname)
 
 
 def log_decorator(logger=configure_logger()):

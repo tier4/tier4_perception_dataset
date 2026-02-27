@@ -42,6 +42,9 @@ class LogTable(AbstractTable[LogRecord]):
         super().__init__()
 
     def _to_record(self, **kwargs) -> LogRecord:
+        # date_capturedとdata_capturedの両方に対応
+        if "date_captured" in kwargs and "data_captured" not in kwargs:
+            kwargs["data_captured"] = kwargs.pop("date_captured")
         return LogRecord(**kwargs)
 
     @classmethod
@@ -51,10 +54,12 @@ class LogTable(AbstractTable[LogRecord]):
 
         table = cls()
         for item in items:
+            # date_capturedとdata_capturedの両方に対応
+            captured = item.get("data_captured") or item.get("date_captured")
             record = LogRecord(
                 logfile=item["logfile"],
                 vehicle=item["vehicle"],
-                data_captured=item["data_captured"],
+                data_captured=captured,
                 location=item["location"],
             )
             record.token = item["token"]

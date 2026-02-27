@@ -353,22 +353,28 @@ def main():
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
         input_anno_base = config_dict["conversion"]["input_anno_base"]
-        dataset_corresponding = config_dict["conversion"]["dataset_corresponding"]
+        make_t4_dataset_dir = config_dict["conversion"].get("make_t4_dataset_dir", False)
+        only_annotation_frame = config_dict["conversion"].get("only_annotation_frame", True)
         description = config_dict["description"]
         input_bag_base = config_dict["conversion"]["input_bag_base"]
-        topic_list_yaml_path = config_dict["conversion"]["topic_list"]
-        with open(topic_list_yaml_path) as f:
-            topic_list_yaml = yaml.safe_load(f)
+        if input_bag_base is not None:
+            topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+            with open(topic_list_yaml_path) as f:
+                topic_list_yaml = yaml.safe_load(f)
+        else:
+            topic_list_yaml = None
 
         converter = FastLabel2dToT4Converter(
             input_base=input_base,
             output_base=output_base,
             input_anno_base=input_anno_base,
-            dataset_corresponding=dataset_corresponding,
+            dataset_corresponding=None,
             overwrite_mode=args.overwrite,
             description=description,
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
+            make_t4_dataset_dir=make_t4_dataset_dir,
+            only_annotation_frame=only_annotation_frame,
         )
         logger.info(f"[BEGIN] Converting Fastlabel data ({input_base}) to T4 data ({output_base})")
         converter.convert()
@@ -384,6 +390,7 @@ def main():
         input_anno_base = config_dict["conversion"]["input_anno_base"]
         description = config_dict["description"]
         make_t4_dataset_dir = config_dict["conversion"]["make_t4_dataset_dir"]
+        only_annotation_frame = config_dict["conversion"].get("only_annotation_frame", False)
 
         converter = FastLabel2dToT4Updater(
             input_base=input_base,
@@ -392,6 +399,7 @@ def main():
             overwrite_mode=args.overwrite,
             description=description,
             make_t4_dataset_dir=make_t4_dataset_dir,
+            only_annotation_frame=only_annotation_frame,
         )
         logger.info(
             f"[BEGIN] Updating T4 dataset ({input_base}) with FastLabel {input_anno_base} into T4 data ({output_base})"
@@ -399,6 +407,35 @@ def main():
         converter.convert()
         logger.info(
             f"[DONE] Updating T4 dataset ({input_base}) with FastLabel {input_anno_base} into T4 data ({output_base})"
+        )
+
+    elif task == "update_t4_with_fastlabel_3d":
+        from perception_dataset.fastlabel_to_t4.fastlabel_3d_to_t4_updater import (
+            FastLabel3dToT4Updater,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        input_anno_base = config_dict["conversion"]["input_anno_base"]
+        description = config_dict["description"]
+        make_t4_dataset_dir = config_dict["conversion"]["make_t4_dataset_dir"]
+        only_annotation_frame = config_dict["conversion"].get("only_annotation_frame", False)
+
+        converter = FastLabel3dToT4Updater(
+            input_base=input_base,
+            output_base=output_base,
+            input_anno_base=input_anno_base,
+            overwrite_mode=args.overwrite,
+            description=description,
+            make_t4_dataset_dir=make_t4_dataset_dir,
+            only_annotation_frame=only_annotation_frame,
+        )
+        logger.info(
+            f"[BEGIN] Updating T4 dataset ({input_base}) with FastLabel 3D {input_anno_base} into T4 data ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[DONE] Updating T4 dataset ({input_base}) with FastLabel 3D {input_anno_base} into T4 data ({output_base})"
         )
 
     elif task == "merge_2d_t4dataset_to_3d":
@@ -428,6 +465,7 @@ def main():
         input_anno_base = config_dict["conversion"]["input_anno_base"]
         output_base = config_dict["conversion"]["output_base"]
         description = config_dict["description"]
+        only_annotation_frame = config_dict["conversion"].get("only_annotation_frame", True)
         input_bag_base = config_dict["conversion"]["input_bag_base"]
         if input_bag_base is not None:
             topic_list_yaml_path = config_dict["conversion"]["topic_list"]
@@ -443,6 +481,7 @@ def main():
             overwrite_mode=args.overwrite,
             description=description,
             make_t4_dataset_dir=make_t4_dataset_dir,
+            only_annotation_frame=only_annotation_frame,
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
         )

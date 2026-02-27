@@ -1,4 +1,4 @@
-task: convert_fastlabel_2d_to_t4
+task: convert_fastlabel_to_t4
 description:
   visibility:
     full: "No occlusion of the object."
@@ -14,13 +14,12 @@ description:
     CAM_BACK_WIDE: 5
     CAM_BACK_LEFT: 6
     CAM_FRONT_LEFT: 7
-  surface_categories: ./config/label/surface.yaml
+
 conversion:
   make_t4_dataset_dir: false # If true, the output directory includes t4_dataset directory (such as "scene_dir"/t4_dataset/data|annotation). If false, "scene_dir"/data|annotation.
-  input_base: /mnt/NVME_RAID/test_data/org_autolabel # could be non_annotated_t4_format or t4_format_3d_annotated
-  # input_anno_base: /mnt/NVME_RAID/test_data/org_autolabel/6yb9g3aj_2025-10-22T15-10-01+0900_141/fastlabel
-  input_anno_base: /mnt/NVME_RAID/FastLabelAnnotationData/manual/panoptic-segmentation
-  output_base: /mnt/NVME_RAID/test_data/autolabel/manual2d/ # currently, this only includes the 2D annotations
+  input_base: 
+  input_anno_base: 
+  output_base: 
   only_annotation_frame: false # If true, only frames with annotations are kept as key frames. If false, all frames are kept as key frames.
   
   input_bag_base: null  #optional

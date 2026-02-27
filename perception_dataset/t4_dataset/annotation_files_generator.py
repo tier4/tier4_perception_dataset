@@ -1,5 +1,6 @@
 import base64
 from collections import defaultdict
+import json
 import os.path as osp
 from pathlib import Path
 import shutil
@@ -25,7 +26,10 @@ from perception_dataset.t4_dataset.classes.sample_annotation import (
 from perception_dataset.t4_dataset.classes.surface_ann import SurfaceAnnTable
 from perception_dataset.t4_dataset.classes.visibility import VisibilityTable
 from perception_dataset.utils.calculate_num_points import calculate_num_points
+from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.transform import compose_transform
+
+logger = configure_logger(modname=__name__)
 
 
 class AnnotationFilesGenerator:
@@ -80,8 +84,11 @@ class AnnotationFilesGenerator:
 
         if with_camera:
             self._camera2idx = description.get("camera_index")
+            # Create reverse mapping from sensor_id to camera channel name
+            self._idx2camera = {v: k for k, v in self._camera2idx.items()} if self._camera2idx else None
         else:
             self._camera2idx = None
+            self._idx2camera = None
         self._with_lidar = description.get("with_lidar", True)
         self._surface_categories: List[str] = surface_categories
 
@@ -100,19 +107,295 @@ class AnnotationFilesGenerator:
         output_dir: str,
         scene_anno_dict: Dict[int, List[Dict[str, Any]]],
         dataset_name: str,
+        only_annotation_frame: bool = False,
     ):
         anno_dir = osp.join(output_dir, "annotation")
         if not osp.exists(anno_dir):
             raise ValueError(f"Annotations files doesn't exist in {anno_dir}")
 
-        t4_dataset = Tier4(data_root=input_dir, verbose=False)
+        # Fix sample_data.json to handle entries with None sample_token
+        # Keep is_key_frame: false data even if sample_token is None to maintain token consistency
+        def fix_sample_data_json(json_path: str, location: str, keep_keyframe_false: bool = True, for_tier4_read: bool = False):
+            stripped_unknown_keys = False
+            if osp.exists(json_path):
+                with open(json_path, "r") as f:
+                    sample_data_list = json.load(f)
+                # For Tier4 compatibility when reading: strip keys t4_devkit SampleData doesn't accept (e.g. uncertainty)
+                if for_tier4_read:
+                    for sample_data in sample_data_list:
+                        if "uncertainty" in sample_data:
+                            sample_data.pop("uncertainty")
+                            stripped_unknown_keys = True
+                # For Tier4 compatibility when reading: convert None sample_token to empty string for is_key_frame: false data
+                # For output: keep None sample_token as null for is_key_frame: false data
+                # Remove entries with None sample_token only if they are not is_key_frame: false
+                # IMPORTANT: Do not modify is_key_frame: false entries that already have a sample_token value
+                # to preserve their original state, especially when order is incorrect
+                filtered_sample_data_list = []
+                removed_count = 0
+                modified_count = 0
+                for sample_data in sample_data_list:
+                    sample_token = sample_data.get("sample_token")
+                    is_key_frame = sample_data.get("is_key_frame", True)
+                    
+                    # Ensure is_key_frame is boolean (handle string "false" or "False")
+                    if isinstance(is_key_frame, str):
+                        is_key_frame = is_key_frame.lower() == "true"
+                    
+                    # Do not modify is_key_frame: false entries that already have a sample_token
+                    # This preserves their original state when order is incorrect
+                    if not is_key_frame and sample_token is not None:
+                        filtered_sample_data_list.append(sample_data)
+                        continue
+                    
+                    if sample_token is None:
+                        if keep_keyframe_false and not is_key_frame:
+                            # For Tier4 class reading, convert None to empty string temporarily
+                            # For output, keep None as null
+                            if for_tier4_read:
+                                sample_data["sample_token"] = ""
+                            else:
+                                sample_data["sample_token"] = None
+                            modified_count += 1
+                            filtered_sample_data_list.append(sample_data)
+                        else:
+                            # Remove entries with None sample_token that are not is_key_frame: false
+                            removed_count += 1
+                    else:
+                        filtered_sample_data_list.append(sample_data)
+                
+                if removed_count > 0:
+                    logger.info(
+                        f"Removed {removed_count} entries with None sample_token from {location} sample_data.json"
+                    )
+                if modified_count > 0:
+                    if for_tier4_read:
+                        logger.info(
+                            f"Temporarily converted {modified_count} is_key_frame: false entries with null sample_token to empty string for Tier4 reading in {location} sample_data.json"
+                        )
+                    else:
+                        logger.info(
+                            f"Kept {modified_count} is_key_frame: false entries with null sample_token in {location} sample_data.json"
+                        )
+                if len(filtered_sample_data_list) != len(sample_data_list) or modified_count > 0 or stripped_unknown_keys:
+                    with open(json_path, "w") as f:
+                        json.dump(filtered_sample_data_list, f, indent=4, ensure_ascii=False)
+
+        # Fix input_dir's sample_data.json temporarily for Tier4 to read (will restore later)
+        # Convert None sample_token to empty string temporarily for Tier4 class compatibility
+        # Save original content and restore it after Tier4 class reads the file
+        # Always do this temporary fix to allow Tier4 class to read the file, regardless of only_annotation_frame
+        input_anno_dir = osp.join(input_dir, "annotation")
+        input_sample_data_json_path = osp.join(input_anno_dir, "sample_data.json")
+        input_sample_data_original = None
+        input_sample_data_modified = False
+        if osp.exists(input_sample_data_json_path):
+            # Read original content as bytes to preserve exact format
+            with open(input_sample_data_json_path, "rb") as f:
+                input_sample_data_original = f.read()
+            # Temporarily fix for Tier4 to read - convert None to empty string for Tier4 class compatibility
+            # This ensures Tier4 can read the file (Tier4 class requires sample_token to be str, not None)
+            # We will restore the original file in the finally block
+            try:
+                fix_sample_data_json(input_sample_data_json_path, "input", keep_keyframe_false=True, for_tier4_read=True)
+                input_sample_data_modified = True
+            except Exception as e:
+                # If fixing fails, restore original immediately
+                if input_sample_data_original is not None:
+                    with open(input_sample_data_json_path, "wb") as f:
+                        f.write(input_sample_data_original)
+                raise
+
+        # Fix output_dir's sample_data.json
+        # Keep is_key_frame: false entries with null sample_token
+        # If only_annotation_frame is False, do not modify sample_data.json to preserve original state
+        # The output sample_data.json is already copied from input, so we keep it as-is when only_annotation_frame is False
+        if only_annotation_frame:
+            output_sample_data_json_path = osp.join(anno_dir, "sample_data.json")
+            fix_sample_data_json(output_sample_data_json_path, "output", keep_keyframe_false=True, for_tier4_read=False)
+
+        # Fix sample_annotation.json to remove entries with NaN translation values
+        def fix_sample_annotation_json(json_path: str, location: str):
+            if osp.exists(json_path):
+                with open(json_path, "r") as f:
+                    sample_annotation_list = json.load(f)
+                # Filter out entries with NaN translation values
+                filtered_sample_annotation_list = []
+                removed_count = 0
+                for ann in sample_annotation_list:
+                    translation = ann.get("translation")
+                    if translation is None:
+                        removed_count += 1
+                        continue
+                    if isinstance(translation, list) and len(translation) == 3:
+                        if any(
+                            not isinstance(val, (int, float)) or np.isnan(val) for val in translation
+                        ):
+                            removed_count += 1
+                            continue
+                    filtered_sample_annotation_list.append(ann)
+                if removed_count > 0:
+                    logger.warning(
+                        f"Removed {removed_count} entries with NaN translation values from {location} sample_annotation.json"
+                    )
+                    with open(json_path, "w") as f:
+                        json.dump(filtered_sample_annotation_list, f, indent=4)
+
+        output_sample_annotation_json_path = osp.join(anno_dir, "sample_annotation.json")
+        fix_sample_annotation_json(output_sample_annotation_json_path, "output")
+
+        # Fix log.json to convert date_captured to data_captured (temporarily)
+        def fix_log_json_temporarily(json_path: str):
+            """Temporarily fix log.json and return original content to restore later"""
+            if not osp.exists(json_path):
+                return None
+            with open(json_path, "r") as f:
+                original_content = f.read()
+                log_list = json.loads(original_content)
+            # Convert date_captured to data_captured
+            modified = False
+            for log_entry in log_list:
+                if "date_captured" in log_entry and "data_captured" not in log_entry:
+                    log_entry["data_captured"] = log_entry.pop("date_captured")
+                    modified = True
+            if modified:
+                with open(json_path, "w") as f:
+                    json.dump(log_list, f, indent=2)
+                return original_content
+            return None
+
+        # Don't modify input_dir's log.json to avoid modifying source files
+        # input_dir files are already copied to output_dir by _copy_data
+        input_log_json_path = osp.join(input_anno_dir, "log.json")
+        input_log_original = None  # Don't modify input files
+
+        output_log_json_path = osp.join(anno_dir, "log.json")
+        output_log_original = fix_log_json_temporarily(output_log_json_path)
+
+        # Fix object_ann.json to convert autolabel_metadata format from {"models": [...]} to [...]
+        # t4_devkit expects autolabel_metadata to be a list, not a dict with "models" key.
+        # Also normalize uncertainty to [0, 1] for t4_devkit (spec expects 0.0-1.0); original is restored in finally.
+        # Ensure each model has required fields (e.g. score) for t4_devkit AutolabelModel.
+        def _normalize_uncertainty_for_t4(models: list) -> None:
+            """Clamp each model's uncertainty to [0.0, 1.0] in-place (t4_devkit expects >= 0 and <= 1)."""
+            for model in models:
+                if "uncertainty" not in model or model["uncertainty"] is None:
+                    continue
+                try:
+                    u = float(model["uncertainty"])
+                    if u < 0.0:
+                        model["uncertainty"] = 0.0
+                    elif u > 1.0:
+                        model["uncertainty"] = 1.0
+                except (TypeError, ValueError):
+                    pass
+
+        def _ensure_autolabel_model_required_fields(models: list) -> None:
+            """Add required fields for t4_devkit AutolabelModel when missing (e.g. score)."""
+            for model in models:
+                if not isinstance(model, dict):
+                    continue
+                if "score" not in model or model["score"] is None:
+                    model["score"] = 0.0
+                if "name" not in model or model["name"] is None:
+                    model["name"] = ""
+
+        def fix_autolabel_metadata_for_t4(record: dict) -> bool:
+            """Apply autolabel_metadata format/range fixes for t4_devkit. Returns True if modified."""
+            autolabel_metadata = record.get("autolabel_metadata")
+            if autolabel_metadata is None:
+                return False
+            modified = False
+            if isinstance(autolabel_metadata, dict) and "models" in autolabel_metadata:
+                record["autolabel_metadata"] = autolabel_metadata["models"]
+                _normalize_uncertainty_for_t4(record["autolabel_metadata"])
+                _ensure_autolabel_model_required_fields(record["autolabel_metadata"])
+                modified = True
+            elif isinstance(autolabel_metadata, list):
+                _normalize_uncertainty_for_t4(autolabel_metadata)
+                _ensure_autolabel_model_required_fields(autolabel_metadata)
+                modified = True
+            return modified
+
+        def fix_object_ann_json(json_path: str):
+            """Fix autolabel_metadata format and normalize for t4_devkit."""
+            if not osp.exists(json_path):
+                return None
+            with open(json_path, "r") as f:
+                original_content = f.read()
+                object_ann_list = json.loads(original_content)
+            modified = False
+            if isinstance(object_ann_list, list):
+                for record in object_ann_list:
+                    if fix_autolabel_metadata_for_t4(record):
+                        modified = True
+            if modified:
+                with open(json_path, "w") as f:
+                    json.dump(object_ann_list, f, indent=4)
+                return original_content
+            return None
+
+        input_object_ann_json_path = osp.join(input_anno_dir, "object_ann.json")
+        input_object_ann_original = fix_object_ann_json(input_object_ann_json_path)
+
+        # Keys t4_devkit SurfaceAnn does not accept (strip before Tier4 reads, restore in finally)
+        _SURFACE_ANN_STRIP_KEYS_FOR_T4 = ("instance_token", "attribute_tokens")
+
+        def fix_surface_ann_json(json_path: str):
+            """Fix autolabel_metadata and strip unknown keys for t4_devkit SurfaceAnn."""
+            if not osp.exists(json_path):
+                return None
+            with open(json_path, "r") as f:
+                original_content = f.read()
+                surface_ann_list = json.loads(original_content)
+            modified = False
+            if isinstance(surface_ann_list, list):
+                for surface_ann in surface_ann_list:
+                    if not isinstance(surface_ann, dict):
+                        continue
+                    if fix_autolabel_metadata_for_t4(surface_ann):
+                        modified = True
+                    for key in _SURFACE_ANN_STRIP_KEYS_FOR_T4:
+                        if key in surface_ann:
+                            surface_ann.pop(key)
+                            modified = True
+            if modified:
+                with open(json_path, "w") as f:
+                    json.dump(surface_ann_list, f, indent=4)
+                return original_content
+            return None
+
+        input_surface_ann_json_path = osp.join(input_anno_dir, "surface_ann.json")
+        input_surface_ann_original = fix_surface_ann_json(input_surface_ann_json_path)
+
+        try:
+            t4_dataset = Tier4(data_root=input_dir, verbose=False)
+        finally:
+            # Restore original files - always restore to ensure original file is not modified
+            if input_sample_data_original is not None and input_sample_data_modified:
+                with open(input_sample_data_json_path, "wb") as f:
+                    f.write(input_sample_data_original)
+            if input_log_original is not None:
+                with open(input_log_json_path, "w") as f:
+                    f.write(input_log_original)
+            if output_log_original is not None:
+                with open(output_log_json_path, "w") as f:
+                    f.write(output_log_original)
+            if input_object_ann_original is not None:
+                with open(input_object_ann_json_path, "w") as f:
+                    f.write(input_object_ann_original)
+            if input_surface_ann_original is not None:
+                with open(input_surface_ann_json_path, "w") as f:
+                    f.write(input_surface_ann_original)
         try:
             if "LIDAR_TOP" in t4_dataset.sample[0].data:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_TOP.value["channel"]
             else:
                 lidar_sensor_channel = SENSOR_ENUM.LIDAR_CONCAT.value["channel"]
-        except KeyError as e:
+        except (KeyError, IndexError) as e:
             print(e)
+            # Default to LIDAR_CONCAT if detection fails
+            lidar_sensor_channel = SENSOR_ENUM.LIDAR_CONCAT.value["channel"]
 
         # TODO (KokSeang): Support lidarseg and other annotations at the same time
         if self._with_lidarseg:
@@ -124,7 +407,10 @@ class AnnotationFilesGenerator:
             )
         else:
             self._convert_scene_annotations(
-                scene_anno_dict=scene_anno_dict, dataset_name=dataset_name, t4_dataset=t4_dataset
+                scene_anno_dict=scene_anno_dict,
+                dataset_name=dataset_name,
+                t4_dataset=t4_dataset,
+                lidar_sensor_channel=lidar_sensor_channel,
             )
 
         self._attribute_table.save_json(anno_dir)
@@ -145,17 +431,34 @@ class AnnotationFilesGenerator:
         scene_anno_dict: Dict[int, List[Dict[str, Any]]],
         dataset_name: str,
         t4_dataset: Tier4,
+        lidar_sensor_channel: str,
     ) -> None:
         """
         Convert scene annotations to T4 dataset format.
         :param scene_anno_dict: Scene annotations.
         :param dataset_name: Dataset name.
         :param t4_dataset: Tier4 object.
+        :param lidar_sensor_channel: LiDAR sensor channel name (e.g., "LIDAR_TOP" or "LIDAR_CONCAT").
         """
+        # Use only LiDAR sample_data to create frame_index_to_sample_token mapping
+        # This ensures that segmentation annotations are correctly mapped to LiDAR frames
         frame_index_to_sample_token: Dict[int, str] = {}
         for sample_data in t4_dataset.sample_data:
-            frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
-            frame_index_to_sample_token[frame_index] = sample_data.sample_token
+            # Skip is_key_frame: false data as they have non-integer frame indices (e.g., '00000-01')
+            if not sample_data.is_key_frame:
+                continue
+            # Only use LiDAR sample_data to avoid frame synchronization issues
+            if lidar_sensor_channel in sample_data.filename:
+                frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
+                # Skip if sample_token is None (e.g., when KeyFrameConsistencyResolver has removed the sample)
+                if sample_data.sample_token is not None:
+                    frame_index_to_sample_token[frame_index] = sample_data.sample_token
+        
+        # Debug: print frame_index_to_sample_token for frames with annotations
+        if scene_anno_dict:
+            for frame_index in sorted(scene_anno_dict.keys()):
+                if frame_index not in frame_index_to_sample_token:
+                    print(f"WARNING: frame_index {frame_index} in annotations but not in frame_index_to_sample_token")
 
         # FIXME: Avoid hard coding the number of cameras
         num_cameras = 6 if self._camera2idx is None else len(self._camera2idx)
@@ -175,6 +478,9 @@ class AnnotationFilesGenerator:
             prev_wid_hgt: Tuple = (0, 0)
             # NOTE: num_cameras is always 6, because it is hard coded above.
             for _, sample_data in enumerate(t4_dataset.sample_data):
+                # Skip is_key_frame: false data as they have non-integer frame indices (e.g., '00000-01')
+                if not sample_data.is_key_frame:
+                    continue
                 if sample_data.fileformat == "png" or sample_data.fileformat == "jpg":
                     cam = sample_data.filename.split("/")[1]
                     cam_idx = self._camera2idx[cam]
@@ -295,7 +601,8 @@ class AnnotationFilesGenerator:
             min_frame_index: int = min(scene_anno_dict.keys())
 
             # for the case that the frame_index is not in the sample_token
-            if frame_index - min_frame_index not in frame_index_to_sample_token:
+            # Use frame_index directly since frame_index_to_sample_token uses frame_index as key
+            if frame_index not in frame_index_to_sample_token:
                 print(f"frame_index {frame_index} in annotation.json is not in sample_token")
                 continue
 
@@ -325,10 +632,61 @@ class AnnotationFilesGenerator:
 
                 # Sample Annotation
                 if "three_d_bbox" in anno.keys():
+                    # Skip if frame_index is not in frame_index_to_sample_token or sample_token is None
+                    if frame_index not in frame_index_to_sample_token:
+                        continue
                     sample_token: str = frame_index_to_sample_token[frame_index]
-                    anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(
-                        anno["three_d_bbox"], sample_token=sample_token, t4_dataset=t4_dataset
-                    )
+                    # Skip if sample_token is None
+                    if sample_token is None:
+                        continue
+                    # Validate three_d_bbox before processing
+                    three_d_bbox = anno["three_d_bbox"]
+                    if three_d_bbox is None:
+                        continue
+                    if "translation" not in three_d_bbox or three_d_bbox["translation"] is None:
+                        continue
+                    translation = three_d_bbox["translation"]
+                    if not isinstance(translation, dict) or not all(
+                        key in translation for key in ["x", "y", "z"]
+                    ):
+                        continue
+                    # Check for NaN values
+                    if any(
+                        not isinstance(translation[key], (int, float))
+                        or np.isnan(translation[key])
+                        for key in ["x", "y", "z"]
+                    ):
+                        continue
+                    # print(anno["three_d_bbox"])
+                    try:
+                        anno_three_d_bbox: Dict[str, float] = self._transform_cuboid(
+                            three_d_bbox, sample_token=sample_token, t4_dataset=t4_dataset
+                        )
+                        # Validate transformed values
+                        if anno_three_d_bbox is None:
+                            continue
+                        transformed_translation = anno_three_d_bbox.get("translation")
+                        if transformed_translation is None:
+                            continue
+                        if not isinstance(transformed_translation, dict) or not all(
+                            key in transformed_translation for key in ["x", "y", "z"]
+                        ):
+                            continue
+                        # Check for NaN values after transformation
+                        if any(
+                            not isinstance(transformed_translation[key], (int, float))
+                            or np.isnan(transformed_translation[key])
+                            for key in ["x", "y", "z"]
+                        ):
+                            logger.warning(
+                                f"Skipping annotation with NaN translation values for instance {instance_token}"
+                            )
+                            continue
+                    except (ValueError, KeyError, AttributeError) as e:
+                        logger.warning(
+                            f"Skipping annotation due to transformation error for instance {instance_token}: {e}"
+                        )
+                        continue
 
                     sample_annotation_token: str = self._sample_annotation_table.insert_into_table(
                         sample_token=sample_token,
@@ -353,15 +711,35 @@ class AnnotationFilesGenerator:
                     "category_name"
                 ] not in self._surface_categories:
                     sensor_id: int = int(anno["sensor_id"])
-                    if frame_index not in frame_index_to_sample_data_token[sensor_id]:
+                    # Get sample_token from frame_index (LiDAR-based)
+                    # Use frame_index directly (not frame_index - min_frame_index) since frame_index_to_sample_token uses frame_index as key
+                    sample_token: str = frame_index_to_sample_token.get(frame_index)
+                    if sample_token is None:
                         continue
+                    # Get camera channel name from sensor_id
+                    if self._idx2camera is None or sensor_id not in self._idx2camera:
+                        continue
+                    camera_channel = self._idx2camera[sensor_id]
+                    # Get sample record and find corresponding camera sample_data_token
+                    sample_record = t4_dataset.get("sample", sample_token)
+                    if camera_channel not in sample_record.data:
+                        continue
+                    camera_sample_data_token = sample_record.data[camera_channel]
+                    # Get camera sample_data record for mask dimensions
+                    camera_sample_data = t4_dataset.get("sample_data", camera_sample_data_token)
+                    # Create mask if needed
+                    if frame_index not in mask[sensor_id]:
+                        object_mask = np.zeros((camera_sample_data.height, camera_sample_data.width), dtype=np.uint8)
+                        object_mask = cocomask.encode(np.asfortranarray(object_mask))
+                        object_mask["counts"] = base64.b64encode(object_mask["counts"]).decode("ascii")
+                        mask[sensor_id][frame_index] = object_mask
                     anno_two_d_box: List[float] = (
                         self._clip_bbox(anno["two_d_box"], mask[sensor_id][frame_index])
                         if "two_d_box" in anno.keys()
                         else None
                     )
                     self._object_ann_table.insert_into_table(
-                        sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
+                        sample_data_token=camera_sample_data_token,
                         instance_token=instance_token,
                         category_token=category_token,
                         attribute_tokens=attribute_tokens,
@@ -380,12 +758,24 @@ class AnnotationFilesGenerator:
                     and anno["category_name"] in self._surface_categories
                 ):
                     sensor_id: int = int(anno["sensor_id"])
-                    if frame_index not in frame_index_to_sample_data_token[sensor_id]:
+                    # Get sample_token from frame_index (LiDAR-based)
+                    # Use frame_index directly (not frame_index - min_frame_index) since frame_index_to_sample_token uses frame_index as key
+                    sample_token: str = frame_index_to_sample_token.get(frame_index)
+                    if sample_token is None:
                         continue
+                    # Get camera channel name from sensor_id
+                    if self._idx2camera is None or sensor_id not in self._idx2camera:
+                        continue
+                    camera_channel = self._idx2camera[sensor_id]
+                    # Get sample record and find corresponding camera sample_data_token
+                    sample_record = t4_dataset.get("sample", sample_token)
+                    if camera_channel not in sample_record.data:
+                        continue
+                    camera_sample_data_token = sample_record.data[camera_channel]
                     self._surface_ann_table.insert_into_table(
                         category_token=category_token,
                         mask=anno["two_d_segmentation"],
-                        sample_data_token=frame_index_to_sample_data_token[sensor_id][frame_index],
+                        sample_data_token=camera_sample_data_token,
                         automatic_annotation=False,
                     )
 
@@ -399,50 +789,81 @@ class AnnotationFilesGenerator:
             return three_d_bbox
         elif self._label_coordinates == "lidar":
             assert (
-                "translation" in three_d_bbox.keys() or "rotation" in three_d_bbox.keys()
+                "translation" in three_d_bbox.keys() and "rotation" in three_d_bbox.keys()
             ), "translation and rotation must be in three_d_bbox"
             assert t4_dataset is not None, "t4_dataset must be set in _transform_cuboid"
+            
+            # Validate translation values
+            translation = three_d_bbox.get("translation")
+            if translation is None or not isinstance(translation, dict):
+                raise ValueError("translation must be a dictionary")
+            if not all(key in translation for key in ["x", "y", "z"]):
+                raise ValueError("translation must contain x, y, z keys")
+            if any(
+                not isinstance(translation[key], (int, float)) or np.isnan(translation[key])
+                for key in ["x", "y", "z"]
+            ):
+                raise ValueError("translation values must be valid numbers (not NaN)")
+            
+            # Validate rotation values
+            rotation = three_d_bbox.get("rotation")
+            if rotation is None or not isinstance(rotation, dict):
+                raise ValueError("rotation must be a dictionary")
+            if not all(key in rotation for key in ["x", "y", "z", "w"]):
+                raise ValueError("rotation must contain x, y, z, w keys")
+            if any(
+                not isinstance(rotation[key], (int, float)) or np.isnan(rotation[key])
+                for key in ["x", "y", "z", "w"]
+            ):
+                raise ValueError("rotation values must be valid numbers (not NaN)")
+            
             sample = t4_dataset.get("sample", sample_token)
             lidar_token: str = sample.data[SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
 
             sd_record = t4_dataset.get("sample_data", lidar_token)
             cs_record = t4_dataset.get("calibrated_sensor", sd_record.calibrated_sensor_token)
             ep_record = t4_dataset.get("ego_pose", sd_record.ego_pose_token)
-
+            # print(f"cs_record: {cs_record}")
+            # print(f"cs_record.rotation: {list(cs_record.rotation)}")
+            # print(f"ep_record.rotation: {list(ep_record.rotation)}")
             lidar_to_map_translation, lidar_to_map_rotation = compose_transform(
                 trans1=cs_record.translation,
-                rot1=cs_record.rotation,
+                rot1=list(cs_record.rotation),
                 trans2=ep_record.translation,
-                rot2=ep_record.rotation,
+                rot2=list(ep_record.rotation),
             )
             lidar_to_map_rotation_quaternion = Rotation.from_quat(
                 lidar_to_map_rotation[1:] + [lidar_to_map_rotation[0]]  # [x, y, z, w]
             )
 
             # Transform the lidar-based-cuboid to the map coordinate system
-            translation = list(three_d_bbox["translation"].values())
-            r = three_d_bbox["rotation"]
-            rotation = [r["x"], r["y"], r["z"], r["w"]]  # [x, y, z, w] format
-            bbox_rotation_quaternion = Rotation.from_quat(rotation)
+            translation_list = list(translation.values())
+            r = rotation
+            rotation_list = [r["x"], r["y"], r["z"], r["w"]]  # [x, y, z, w] format
+            bbox_rotation_quaternion = Rotation.from_quat(rotation_list)
 
             translation_map = (
-                lidar_to_map_rotation_quaternion.apply(translation) + lidar_to_map_translation
+                lidar_to_map_rotation_quaternion.apply(translation_list) + lidar_to_map_translation
             )
             rotation_map = (
                 lidar_to_map_rotation_quaternion * bbox_rotation_quaternion
             ).as_quat()  # [x, y, z, w] format
 
+            # Check for NaN values after transformation
+            if np.any(np.isnan(translation_map)) or np.any(np.isnan(rotation_map)):
+                raise ValueError("Transformation resulted in NaN values")
+
             # apply back to the three_d_bbox
             three_d_bbox["translation"] = {
-                "x": translation_map[0],
-                "y": translation_map[1],
-                "z": translation_map[2],
+                "x": float(translation_map[0]),
+                "y": float(translation_map[1]),
+                "z": float(translation_map[2]),
             }
             three_d_bbox["rotation"] = {
-                "x": rotation_map[0],
-                "y": rotation_map[1],
-                "z": rotation_map[2],
-                "w": rotation_map[3],
+                "x": float(rotation_map[0]),
+                "y": float(rotation_map[1]),
+                "z": float(rotation_map[2]),
+                "w": float(rotation_map[3]),
             }
             return three_d_bbox
 
@@ -513,6 +934,9 @@ class AnnotationFilesGenerator:
         frame_index_to_sample_data_token: Dict[int, str] = {}
         frame_index_to_sample_token: Dict[int, str] = {}
         for sample_data in t4_dataset.sample_data:
+            # Skip is_key_frame: false data as they have non-integer frame indices (e.g., '00000-01')
+            if not sample_data.is_key_frame:
+                continue
             frame_index = int((sample_data.filename.split("/")[2]).split(".")[0])
             frame_index_to_sample_token[frame_index] = sample_data.sample_token
             if lidar_sensor_channel in sample_data.filename:
@@ -534,7 +958,8 @@ class AnnotationFilesGenerator:
             min_frame_index: int = min(scene_anno_dict.keys())
 
             # for the case that the frame_index is not in the sample_token
-            if frame_index - min_frame_index not in frame_index_to_sample_token:
+            # Use frame_index directly since frame_index_to_sample_token uses frame_index as key
+            if frame_index not in frame_index_to_sample_token:
                 print(f"frame_index {frame_index} in annotation.json is not in sample_token")
                 continue
 
