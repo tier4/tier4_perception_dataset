@@ -1,7 +1,7 @@
 # TIER IV Perception Dataset Conversion Tools
 
-This repository provides tools for converting ROS2 bag files and TIER IV (T4) dataset files, as well as the design specifications for the T4 dataset format.  
-These tools facilitate the preparation and transformation of perception data for autonomous driving applications.
+This repository provides tools for converting from various formats like `rosbags`, `deepen`, `fastlabel` to/from T4 dataset format. These tools facilitate the preparation and transformation of perception data for autonomous driving applications.
+The T4 dataset format is itself defined and maintained in [t4-devkit](https://github.com/tier4/t4-devkit).
 
 ## Table of Contents
 
@@ -22,12 +22,11 @@ These tools facilitate the preparation and transformation of perception data for
 The T4 dataset is designed to support autonomous driving research and development.  
 It can include various types of perception data such as images and lidar point clouds, radar point clouds, along with annotations for tasks like object detection, segmentation, and tracking.
 
-For detailed information about the T4 dataset format, please refer to the [T4 Dataset Format Documentation](docs/t4_format_3d_detailed.md).
+For detailed information about the T4 dataset format, please refer to the [T4 Dataset Format Documentation](https://tier4.github.io/t4-devkit/latest/schema/table/).
 
 ## Usage of T4 format dataset
 
-t4-devkit is a development kit for working with the T4 dataset, providing additional utilities and tools.  
-Please see [t4-devkit](https://tier4.github.io/t4-devkit) about details.
+In addition to the format definition, [t4-devkit](https://tier4.github.io/t4-devkit) also includes various features (visualization, io, sanity checks etc) for working with T4 datasets.
 
 ## Usage of Conversion Tools
 
