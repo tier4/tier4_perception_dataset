@@ -15,22 +15,32 @@ description:
     CAM_BACK_WIDE: 5
     CAM_BACK_LEFT: 6
     CAM_FRONT_LEFT: 7
+    CAM_TRAFFIC_LIGHT_NEAR: 8
+    CAM_TRAFFIC_LIGHT_FAR: 9
 
 conversion:
   # input_anno_base:
-  #   FastLabel bulb bbox annotations from comlops (e.g. red/green/yellow bulb boxes)
-  #   in NAS /mnt/qnapdata/internal/comlops/fastlabel_annotations_tlr
-  input_anno_base: /path/to/fastlabel_annotations_tlr
+  #   One of:
+  #   1) FastLabel bulb bbox JSONs (legacy format), or
+  #   2) t4dataset root containing per-scene annotation tables:
+  #      <scene_uuid>/annotation/object_ann.json + category.json + sample_data.json
+  #   If using t4 annotation tables, bulbs and parent traffic_light boxes are extracted
+  #   from object_ann/category/sample_data directly.
+  input_anno_base: /media/jacoblambert/6c8aadd0-9332-4357-aea4-437b6aadef26/tlr/australia/
+  # input_anno_base: /path/to/annotations_or_t4dataset_root
   # input_semantic_anno_base:
-  #   CoMlops FastLabel semantic camera annotations containing traffic-light segmentations.
-  #   Typical sources:
-  #     /mnt/qnapdata/internal/comlops/segmentation_annotation
-  #     /mnt/qnapdata/internal/comlops/fastlabel_annotations_segment
-  #   NOTE: /mnt/qnapdata/internal/comlops/semseg is image-mask output, not FastLabel JSON.
-  input_semantic_anno_base: /path/to/segmentation_annotation
+  #   FastLabel semantic camera annotations with traffic_light segmentations.
+  #   Optional when input_anno_base already includes t4 object_ann traffic_light boxes.
+  #   Can be the same as input_anno_base.
+  input_semantic_anno_base: /media/jacoblambert/6c8aadd0-9332-4357-aea4-437b6aadef26/tlr/australia/
+  # input_semantic_anno_base: /path/to/segmentation_annotation_or_same_as_input_anno_base
+  #   Arrow direction tolerance in degrees for mapping (e.g. 90 +/- 10 => "right")
+  arrow_angle_tolerance_deg: 22.49
+  #   Optional dataset version subdirectory per scene UUID (e.g. <scene_uuid>/0/...).
+  output_dataset_version: "0"
   #   t4dataset base
   #   in NAS /mnt/qnapdata/internal/comlops/non_annotated_t4s
-  input_base: /path/to/non_annotated_t4s
+  input_base: /media/jacoblambert/6c8aadd0-9332-4357-aea4-437b6aadef26/tlr/australia/
   input_bag_base:
-  output_base: /path/to/comlops_full_tlr_semantic
+  output_base: /media/jacoblambert/6c8aadd0-9332-4357-aea4-437b6aadef26/tlr/db_tlr_au_v1/
   topic_list: ./config/topic_list_sample.yaml

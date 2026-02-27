@@ -387,6 +387,8 @@ def main():
         description = config_dict["description"]
         input_bag_base = config_dict["conversion"]["input_bag_base"]
         topic_list_yaml_path = config_dict["conversion"]["topic_list"]
+        arrow_angle_tolerance_deg = config_dict["conversion"].get("arrow_angle_tolerance_deg", 10.0)
+        output_dataset_version = config_dict["conversion"].get("output_dataset_version")
 
         with open(topic_list_yaml_path) as f:
             topic_list_yaml = yaml.safe_load(f)
@@ -400,6 +402,8 @@ def main():
             description=description,
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
+            arrow_angle_tolerance_deg=arrow_angle_tolerance_deg,
+            output_dataset_version=output_dataset_version,
         )
         logger.info(
             f"[BEGIN] Converting Fastlabel bulb + semantic data ({input_base}) to T4 data ({output_base})"
