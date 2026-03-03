@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Unit tests for TableHandler with optimized duplicate detection."""
-import time
 import unittest
 from unittest.mock import patch
 
@@ -260,46 +259,26 @@ class TestTableHandler(unittest.TestCase):
         )
         self.assertNotEqual(token, new_token)
 
-    def test_performance_improvement(self):
-        """Test that performance scales linearly with optimized implementation"""
-        sizes = [100, 500, 1000]
-        times = []
-
-        for size in sizes:
+    def test_duplicate_check_is_not_called_without_hash_collision(self):
+        """Duplicate equality check should be skipped when hashes do not collide."""
+        with patch.object(
+            TableHandler, "_is_duplicate_record", wraps=TableHandler._is_duplicate_record
+        ) as mock_is_duplicate:
             handler = TableHandler(Instance)
-            start_time = time.time()
-
-            for i in range(size):
+            for i in range(1000):
                 handler.insert_into_table(
                     instance_name=f"instance_{i}",
-                    category_token=f"cat_{i % 10}",  # Some variety in categories
+                    category_token=f"cat_{i % 10}",
                     nbr_annotations=0,
                     first_annotation_token="",
                     last_annotation_token="",
                 )
+            self.assertEqual(len(handler), 1000)
 
-            elapsed = time.time() - start_time
-            times.append(elapsed)
-
-            # Verify all records were inserted
-            self.assertEqual(len(handler), size)
-
-        # Check that time doesn't grow quadratically
-        # With O(n²), doubling size would ~4x the time
-        # With O(n), doubling size would ~2x the time
-        # Allow some margin for system variance
-        time_ratio_500_to_100 = times[1] / times[0]
-        time_ratio_1000_to_500 = times[2] / times[1]
-
-        # These ratios should be roughly similar if O(n)
-        # and much smaller than 4 (which would indicate O(n²))
-        self.assertLess(time_ratio_500_to_100, 10)  # Should be ~5 for O(n)
-        self.assertLess(time_ratio_1000_to_500, 4)  # Should be ~2 for O(n)
-
-        print("\nPerformance test results:")
-        print(f"100 records: {times[0]:.3f}s")
-        print(f"500 records: {times[1]:.3f}s (ratio: {time_ratio_500_to_100:.2f})")
-        print(f"1000 records: {times[2]:.3f}s (ratio: {time_ratio_1000_to_500:.2f})")
+        # No hash collision expected in this deterministic dataset.
+        # Therefore _is_duplicate_record should never be called.
+        # If this regresses to scan-based detection, this assertion fails.
+        self.assertEqual(mock_is_duplicate.call_count, 0)
 
     def test_stable_hash_across_runs(self):
         """Test that hash values are consistent across different instances"""
