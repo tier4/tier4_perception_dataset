@@ -44,7 +44,21 @@ class TableHandler(Generic[SchemaRecord]):
     def _to_record(self, **kwargs) -> SchemaRecord:
         return self._schema_type.new(kwargs, token_nbytes=self.TOKEN_NBYTES)
 
+    def _remove_token_from_hash_index(self, token: str, content_hash: str) -> None:
+        if content_hash not in self._content_hash_to_tokens:
+            return
+        token_list = self._content_hash_to_tokens[content_hash]
+        if token in token_list:
+            token_list.remove(token)
+        if not token_list:
+            del self._content_hash_to_tokens[content_hash]
+
     def set_record_to_table(self, record: SchemaRecord):
+        if record.token in self._token_to_record:
+            old_record = self._token_to_record[record.token]
+            old_content_hash = self._get_record_content_hash(old_record)
+            self._remove_token_from_hash_index(record.token, old_content_hash)
+
         self._token_to_record[record.token] = record
         # Update content hash mapping
         content_hash = self._get_record_content_hash(record)
@@ -149,12 +163,7 @@ class TableHandler(Generic[SchemaRecord]):
 
         # Remove old content hash mapping
         old_content_hash = self._get_record_content_hash(current_record)
-        if old_content_hash in self._content_hash_to_tokens:
-            token_list = self._content_hash_to_tokens[old_content_hash]
-            if token in token_list:
-                token_list.remove(token)
-            if not token_list:  # Remove empty list
-                del self._content_hash_to_tokens[old_content_hash]
+        self._remove_token_from_hash_index(token, old_content_hash)
 
         # Update the record using attrs.evolve
         updated_record = attrs.evolve(current_record, **kwargs)

@@ -4,6 +4,7 @@ import time
 import unittest
 from unittest.mock import patch
 
+import attrs
 from t4_devkit.schema import Category, Instance, SampleAnnotation
 
 from perception_dataset.t4_dataset.table_handler import TableHandler
@@ -214,6 +215,50 @@ class TestTableHandler(unittest.TestCase):
                 num_lidar_pts=200,  # New num_lidar_pts
                 num_radar_pts=0,
             )
+
+    def test_set_record_to_table_replaces_hash_index_for_same_token(self):
+        """Test hash index stays consistent when replacing an existing token via set_record_to_table."""
+        token = self.handler.insert_into_table(
+            sample_token="sample_1",
+            instance_token="instance_1",
+            attribute_tokens=[],
+            visibility_token="vis_1",
+            translation=(1.0, 2.0, 3.0),
+            velocity=(0.0, 0.0, 0.0),
+            acceleration=(0.0, 0.0, 0.0),
+            size=(1.0, 1.0, 1.0),
+            rotation=(0.0, 0.0, 0.0, 1.0),
+            prev="",
+            next="",
+            num_lidar_pts=100,
+            num_radar_pts=0,
+        )
+
+        # Replace record content while keeping the same token.
+        updated_record = attrs.evolve(
+            self.handler.get_record_from_token(token),
+            translation=(9.0, 8.0, 7.0),
+            num_lidar_pts=999,
+        )
+        self.handler.set_record_to_table(updated_record)
+
+        # Old content should no longer be considered duplicate.
+        new_token = self.handler.insert_into_table(
+            sample_token="sample_1",
+            instance_token="instance_1",
+            attribute_tokens=[],
+            visibility_token="vis_1",
+            translation=(1.0, 2.0, 3.0),
+            velocity=(0.0, 0.0, 0.0),
+            acceleration=(0.0, 0.0, 0.0),
+            size=(1.0, 1.0, 1.0),
+            rotation=(0.0, 0.0, 0.0, 1.0),
+            prev="",
+            next="",
+            num_lidar_pts=100,
+            num_radar_pts=0,
+        )
+        self.assertNotEqual(token, new_token)
 
     def test_performance_improvement(self):
         """Test that performance scales linearly with optimized implementation"""
