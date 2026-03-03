@@ -66,6 +66,8 @@ class TableHandler(Generic[SchemaRecord]):
             self._content_hash_to_tokens[content_hash] = []
         if record.token not in self._content_hash_to_tokens[content_hash]:
             self._content_hash_to_tokens[content_hash].append(record.token)
+        # Records may have changed field values; drop derived field cache.
+        self._field_to_token_cache.clear()
 
     def get_record_from_token(self, token: str) -> SchemaRecord:
         """Retrieve a record from the table by its token.
@@ -175,6 +177,8 @@ class TableHandler(Generic[SchemaRecord]):
             self._content_hash_to_tokens[new_content_hash] = []
         if token not in self._content_hash_to_tokens[new_content_hash]:
             self._content_hash_to_tokens[new_content_hash].append(token)
+        # Records may have changed field values; drop derived field cache.
+        self._field_to_token_cache.clear()
 
     def get_token_from_field(self, field_name: str, field_value: Any) -> str | None:
         """Find token by searching for a unique field value in the table.

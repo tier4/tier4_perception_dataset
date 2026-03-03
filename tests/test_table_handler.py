@@ -325,6 +325,19 @@ class TestTableHandler(unittest.TestCase):
         with self.assertRaises(ValueError):
             handler1.insert_into_table(name="car", description="A four-wheeled vehicle")
 
+    def test_field_cache_invalidated_on_update(self):
+        """Test get_token_from_field cache is invalidated after update."""
+        handler = TableHandler(Category)
+        token = handler.insert_into_table(name="car", description="desc")
+
+        # Populate cache for old field value.
+        self.assertEqual(handler.get_token_from_field("name", "car"), token)
+
+        # Update name and ensure stale cache doesn't return old token.
+        handler.update_record_from_token(token, name="truck")
+        self.assertIsNone(handler.get_token_from_field("name", "car"))
+        self.assertEqual(handler.get_token_from_field("name", "truck"), token)
+
 
 if __name__ == "__main__":
     unittest.main()
