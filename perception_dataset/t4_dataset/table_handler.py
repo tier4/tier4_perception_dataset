@@ -54,18 +54,22 @@ class TableHandler(Generic[SchemaRecord]):
             del self._content_hash_to_tokens[content_hash]
 
     def set_record_to_table(self, record: SchemaRecord):
+        old_content_hash = None
         if record.token in self._token_to_record:
             old_record = self._token_to_record[record.token]
             old_content_hash = self._get_record_content_hash(old_record)
+
+        new_content_hash = self._get_record_content_hash(record)
+
+        if old_content_hash is not None:
             self._remove_token_from_hash_index(record.token, old_content_hash)
 
         self._token_to_record[record.token] = record
         # Update content hash mapping
-        content_hash = self._get_record_content_hash(record)
-        if content_hash not in self._content_hash_to_tokens:
-            self._content_hash_to_tokens[content_hash] = []
-        if record.token not in self._content_hash_to_tokens[content_hash]:
-            self._content_hash_to_tokens[content_hash].append(record.token)
+        if new_content_hash not in self._content_hash_to_tokens:
+            self._content_hash_to_tokens[new_content_hash] = []
+        if record.token not in self._content_hash_to_tokens[new_content_hash]:
+            self._content_hash_to_tokens[new_content_hash].append(record.token)
         # Records may have changed field values; drop derived field cache.
         self._field_to_token_cache.clear()
 
@@ -160,19 +164,16 @@ class TableHandler(Generic[SchemaRecord]):
                 f"Available fields: {self._field_names}"
             )
 
-        # Get the current record
+        # Compute all potentially failing values before mutating indexes.
         current_record = self._token_to_record[token]
-
-        # Remove old content hash mapping
-        old_content_hash = self._get_record_content_hash(current_record)
-        self._remove_token_from_hash_index(token, old_content_hash)
-
-        # Update the record using attrs.evolve
         updated_record = attrs.evolve(current_record, **kwargs)
+        old_content_hash = self._get_record_content_hash(current_record)
+        new_content_hash = self._get_record_content_hash(updated_record)
+
+        # Commit index updates.
+        self._remove_token_from_hash_index(token, old_content_hash)
         self._token_to_record[token] = updated_record
 
-        # Add new content hash mapping
-        new_content_hash = self._get_record_content_hash(updated_record)
         if new_content_hash not in self._content_hash_to_tokens:
             self._content_hash_to_tokens[new_content_hash] = []
         if token not in self._content_hash_to_tokens[new_content_hash]:

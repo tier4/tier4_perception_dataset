@@ -338,6 +338,103 @@ class TestTableHandler(unittest.TestCase):
         self.assertIsNone(handler.get_token_from_field("name", "car"))
         self.assertEqual(handler.get_token_from_field("name", "truck"), token)
 
+    def test_set_record_to_table_exception_keeps_indexes_consistent(self):
+        """Failed set_record_to_table should not leave hash index in a broken state."""
+        token = self.handler.insert_into_table(
+            sample_token="sample_1",
+            instance_token="instance_1",
+            attribute_tokens=[],
+            visibility_token="vis_1",
+            translation=(1.0, 2.0, 3.0),
+            velocity=(0.0, 0.0, 0.0),
+            acceleration=(0.0, 0.0, 0.0),
+            size=(1.0, 1.0, 1.0),
+            rotation=(0.0, 0.0, 0.0, 1.0),
+            prev="",
+            next="",
+            num_lidar_pts=100,
+            num_radar_pts=0,
+        )
+        original = self.handler.get_record_from_token(token)
+        replacement = attrs.evolve(original, translation=(9.0, 8.0, 7.0))
+
+        old_hash = self.handler._get_record_content_hash(original)
+        with patch.object(
+            self.handler, "_get_record_content_hash", side_effect=[old_hash, RuntimeError("boom")]
+        ):
+            with self.assertRaises(RuntimeError):
+                self.handler.set_record_to_table(replacement)
+
+        # Old record remains valid and duplicate detection still works.
+        self.assertEqual(
+            tuple(self.handler.get_record_from_token(token).translation),
+            tuple(original.translation),
+        )
+        with self.assertRaises(ValueError):
+            self.handler.insert_into_table(
+                sample_token="sample_1",
+                instance_token="instance_1",
+                attribute_tokens=[],
+                visibility_token="vis_1",
+                translation=(1.0, 2.0, 3.0),
+                velocity=(0.0, 0.0, 0.0),
+                acceleration=(0.0, 0.0, 0.0),
+                size=(1.0, 1.0, 1.0),
+                rotation=(0.0, 0.0, 0.0, 1.0),
+                prev="",
+                next="",
+                num_lidar_pts=100,
+                num_radar_pts=0,
+            )
+
+    def test_update_record_exception_keeps_indexes_consistent(self):
+        """Failed update_record_from_token should not remove old hash mapping."""
+        token = self.handler.insert_into_table(
+            sample_token="sample_1",
+            instance_token="instance_1",
+            attribute_tokens=[],
+            visibility_token="vis_1",
+            translation=(1.0, 2.0, 3.0),
+            velocity=(0.0, 0.0, 0.0),
+            acceleration=(0.0, 0.0, 0.0),
+            size=(1.0, 1.0, 1.0),
+            rotation=(0.0, 0.0, 0.0, 1.0),
+            prev="",
+            next="",
+            num_lidar_pts=100,
+            num_radar_pts=0,
+        )
+        current = self.handler.get_record_from_token(token)
+        old_hash = self.handler._get_record_content_hash(current)
+
+        with patch.object(
+            self.handler, "_get_record_content_hash", side_effect=[old_hash, RuntimeError("boom")]
+        ):
+            with self.assertRaises(RuntimeError):
+                self.handler.update_record_from_token(token, translation=(4.0, 5.0, 6.0))
+
+        # Old record remains, and old duplicate is still recognized.
+        self.assertEqual(
+            tuple(self.handler.get_record_from_token(token).translation),
+            tuple(current.translation),
+        )
+        with self.assertRaises(ValueError):
+            self.handler.insert_into_table(
+                sample_token="sample_1",
+                instance_token="instance_1",
+                attribute_tokens=[],
+                visibility_token="vis_1",
+                translation=(1.0, 2.0, 3.0),
+                velocity=(0.0, 0.0, 0.0),
+                acceleration=(0.0, 0.0, 0.0),
+                size=(1.0, 1.0, 1.0),
+                rotation=(0.0, 0.0, 0.0, 1.0),
+                prev="",
+                next="",
+                num_lidar_pts=100,
+                num_radar_pts=0,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
