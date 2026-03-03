@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os.path as osp
 from typing import Any, Dict, Generic, List, TypeVar
 
@@ -28,6 +29,8 @@ class TableHandler(Generic[SchemaRecord]):
         self._token_to_record: Dict[str, SchemaRecord] = {}
         self._field_to_token_cache: Dict[str, Dict[Any, str]] = {}
         self._field_names: set[str] = {f.name for f in attrs.fields(schema_type)}
+        # Hash-based duplicate detection: maps content hash to token
+        self._content_hash_to_token: Dict[str, str] = {}
 
     @property
     def schema_name(self) -> str:
@@ -41,6 +44,9 @@ class TableHandler(Generic[SchemaRecord]):
 
     def set_record_to_table(self, record: SchemaRecord):
         self._token_to_record[record.token] = record
+        # Update content hash mapping
+        content_hash = self._get_record_content_hash(record)
+        self._content_hash_to_token[content_hash] = record.token
 
     def get_record_from_token(self, token: str) -> SchemaRecord:
         """Retrieve a record from the table by its token.
@@ -53,6 +59,23 @@ class TableHandler(Generic[SchemaRecord]):
         if token not in self._token_to_record:
             raise KeyError(f"Token {token} isn't in table {self._schema_type.__name__}.")
         return self._token_to_record[token]
+
+    def _get_record_content_hash(self, record: SchemaRecord) -> str:
+        """Generate a hash for record content excluding the token field.
+
+        Args:
+            record: Record to hash
+
+        Returns:
+            str: Hash string of the record content
+        """
+        record_dict = serialize_dataclass(record)
+        # Remove token field for content comparison
+        record_dict.pop("token", None)
+        # Create a stable JSON string for hashing
+        content_json = json.dumps(record_dict, sort_keys=True, separators=(",", ":"))
+        # Use Python's built-in hash for simplicity (could use hashlib for more robust hashing)
+        return str(hash(content_json))
 
     def _is_duplicate_record(self, record1: SchemaRecord, record2: SchemaRecord) -> bool:
         """Check if two records are equal excluding the token field.
@@ -77,13 +100,15 @@ class TableHandler(Generic[SchemaRecord]):
         # Create a temporary record to compare
         temp_record = self._to_record(**kwargs)
 
-        # Check if a record with the same field values (excluding token) already exists
-        for existing_token, existing_record in self._token_to_record.items():
-            if self._is_duplicate_record(temp_record, existing_record):
-                raise ValueError(
-                    f"Duplicate record found in table {self._schema_type.__name__}. "
-                    f"Existing token: {existing_token}"
-                )
+        # Use hash-based lookup for O(1) duplicate detection
+        content_hash = self._get_record_content_hash(temp_record)
+
+        if content_hash in self._content_hash_to_token:
+            existing_token = self._content_hash_to_token[content_hash]
+            raise ValueError(
+                f"Duplicate record found in table {self._schema_type.__name__}. "
+                f"Existing token: {existing_token}"
+            )
 
         # No duplicate found, add the new record
         self.set_record_to_table(temp_record)
@@ -111,10 +136,21 @@ class TableHandler(Generic[SchemaRecord]):
                 f"Available fields: {self._field_names}"
             )
 
-        # Get the current record and update it using attrs.evolve
+        # Get the current record
         current_record = self._token_to_record[token]
+
+        # Remove old content hash mapping
+        old_content_hash = self._get_record_content_hash(current_record)
+        if old_content_hash in self._content_hash_to_token:
+            del self._content_hash_to_token[old_content_hash]
+
+        # Update the record using attrs.evolve
         updated_record = attrs.evolve(current_record, **kwargs)
         self._token_to_record[token] = updated_record
+
+        # Add new content hash mapping
+        new_content_hash = self._get_record_content_hash(updated_record)
+        self._content_hash_to_token[new_content_hash] = token
 
     def get_token_from_field(self, field_name: str, field_value: Any) -> str | None:
         """Find token by searching for a unique field value in the table.
