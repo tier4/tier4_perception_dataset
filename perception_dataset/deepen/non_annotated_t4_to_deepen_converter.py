@@ -18,6 +18,7 @@ from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.json_format import ConfigData, ImageData
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.misc import get_frame_index_from_filename
 from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
@@ -96,21 +97,21 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
 
         with ProcessPoolExecutor(max_workers=self._workers_number) as executor:
             future_list = []
-            for frame_index, sample in enumerate(t4_dataset.sample):
-                if frame_index % int(10 / self._annotation_hz) != 0:
+            for sample_index, _ in enumerate(t4_dataset.sample):
+                if sample_index % int(10 / self._annotation_hz) != 0:
                     continue
                 future = executor.submit(
-                    self._convert_one_frame, input_dir, output_dir, frame_index
+                    self._convert_one_frame, input_dir, output_dir, sample_index
                 )
                 future_list.append(future)
             [x.result() for x in future_list]
         logger.info(f"Done Conversion: {input_dir} to {output_dir}")
 
-    def _convert_one_frame(self, input_dir: str, output_dir: str, frame_index: int):
-        if frame_index % 10 == 0:
-            logger.info(f"frame index: {frame_index}")
+    def _convert_one_frame(self, input_dir: str, output_dir: str, sample_index: int):
+        if sample_index % 10 == 0:
+            logger.info(f"frame index: {sample_index}")
         t4_dataset = Tier4(data_root=input_dir, verbose=False)
-        sample = t4_dataset.sample[frame_index]
+        sample = t4_dataset.sample[sample_index]
         camera_only_mode = SENSOR_ENUM.LIDAR_CONCAT.value["channel"] not in sample.data
         if not camera_only_mode:
             lidar_token: str = sample.data[SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
@@ -121,8 +122,10 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
             pointcloud.transform(data_dict["sensor2global_transform"])
             points: NDArray = pointcloud.points.T  # (-1, 4)
 
+            lidar_frame_index = get_frame_index_from_filename(lidar_path)
+
             config_data = ConfigData(
-                frame_index=frame_index,
+                frame_index=lidar_frame_index,
                 unix_timestamp=data_dict["unix_timestamp"],
                 points=points,
                 device_position=data_dict["sensor2global_translation"],
@@ -137,19 +140,21 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
             if camera_token is None:
                 if self._drop_camera_token_not_found:
                     logger.warning(
-                        f"Skipping.. Camera token not found for {camera_channel} in frame {frame_index}. Dropping this frame"
+                        f"Skipping.. Camera token not found for {camera_channel} in sample {sample_index}. Dropping this sample"
                     )
                     return
                 else:
                     logger.error(
-                        f"Camera token not found for {camera_channel} in frame {frame_index}. "
+                        f"Camera token not found for {camera_channel} in sample {sample_index}. "
                     )
                     continue
             camera_path, _, cam_intrinsic = t4_dataset.get_sample_data(camera_token)
             data_dict: Dict[str, Any] = self._get_data(t4_dataset, camera_token)
 
+            camera_frame_index = get_frame_index_from_filename(camera_path)
+
             image_data = ImageData(
-                frame_index=frame_index,
+                frame_index=camera_frame_index,
                 channel=camera_channel,
                 fileformat=data_dict["fileformat"],
                 unix_timestamp=data_dict["unix_timestamp"],
@@ -161,7 +166,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
             image_data.save(camera_path, output_dir)
             if camera_only_mode:
                 config_data = ConfigData(
-                    frame_index=frame_index,
+                    frame_index=camera_frame_index,
                     unix_timestamp=data_dict["unix_timestamp"],
                     points=None,
                     device_position=data_dict["sensor2global_translation"],
