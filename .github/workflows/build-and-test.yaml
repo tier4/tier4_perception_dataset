@@ -70,11 +70,13 @@ jobs:
         run: |
           tree tests/data
 
+      # jazzy can't build oxts_msgs because oxts_msg has codes which include <tf2_kdl/tf2_kdl>, and it is not supported in jazzy.
+      # test cases don't depend on oxts_msgs, so it is skipped as a workaround.
       - name: Build autoware perception messages
         uses: autowarefoundation/autoware-github-actions/colcon-build@v1
         with:
           rosdistro: ${{ matrix.rosdistro }}
-          target-packages: autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs oxts_msgs vehicle_msgs
+          target-packages: autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs ${{ matrix.rosdistro == 'humble' && 'oxts_msgs ' || '' }} vehicle_msgs
           build-depends-repos: build_depends.repos
 
       - name: Check python version
