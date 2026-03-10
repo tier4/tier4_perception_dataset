@@ -42,6 +42,7 @@ jobs:
       matrix:
         rosdistro:
           - humble
+          - jazzy
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
