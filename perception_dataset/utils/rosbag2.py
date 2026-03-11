@@ -1,15 +1,16 @@
 """some implementations are from https://github.com/tier4/ros2bag_extensions/blob/main/ros2bag_extensions/ros2bag_extensions/verb/__init__.py"""
 
 import os.path as osp
-import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import uuid
 
+import accelerated_image_processor.common as aip_common
 import builtin_interfaces.msg
 import cv2
-import numpy as np
-import yaml
+from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 from nptyping import NDArray
+import numpy as np
 from pypcd4 import PointCloud
 from radar_msgs.msg import RadarTrack, RadarTracks
 from rclpy.time import Time
@@ -21,6 +22,7 @@ from rosbag2_py import (
     StorageOptions,
 )
 from sensor_msgs.msg import CompressedImage, PointCloud2
+import yaml
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 
@@ -30,12 +32,8 @@ def get_options(
     storage_options: Optional[StorageOptions] = None,
     converter_options: Optional[ConverterOptions] = None,
 ) -> Tuple[StorageOptions, ConverterOptions]:
-    storage_options = (
-        storage_options if storage_options else get_default_storage_options(bag_dir)
-    )
-    converter_options = (
-        converter_options if converter_options else get_default_converter_options()
-    )
+    storage_options = storage_options if storage_options else get_default_storage_options(bag_dir)
+    converter_options = converter_options if converter_options else get_default_converter_options()
     return storage_options, converter_options
 
 
@@ -44,9 +42,7 @@ def create_reader(
     storage_options: Optional[StorageOptions] = None,
     converter_options: Optional[ConverterOptions] = None,
 ) -> SequentialReader:
-    storage_options, converter_options = get_options(
-        bag_dir, storage_options, converter_options
-    )
+    storage_options, converter_options = get_options(bag_dir, storage_options, converter_options)
     reader = SequentialReader()
     reader.open(storage_options, converter_options)
 
@@ -104,9 +100,7 @@ def get_topic_count(bag_dir: str) -> Dict[str, int]:
         bagfile_metadata = yaml.safe_load(f)["rosbag2_bagfile_information"]
     topic_name_to_topic_count: Dict[str, int] = {}
     for topic in bagfile_metadata["topics_with_message_count"]:
-        topic_name_to_topic_count[topic["topic_metadata"]["name"]] = topic[
-            "message_count"
-        ]
+        topic_name_to_topic_count[topic["topic_metadata"]["name"]] = topic["message_count"]
     return topic_name_to_topic_count
 
 
@@ -117,9 +111,7 @@ def get_default_converter_options() -> ConverterOptions:
     )
 
 
-def infer_storage_id(
-    bag_dir: str, storage_ids={".db3": "sqlite3", ".mcap": "mcap"}
-) -> str:
+def infer_storage_id(bag_dir: str, storage_ids={".db3": "sqlite3", ".mcap": "mcap"}) -> str:
     bag_dir_path = Path(bag_dir)
     data_file = next(p for p in bag_dir_path.glob("*") if p.suffix in storage_ids)
     if data_file.suffix not in storage_ids:
@@ -147,9 +139,7 @@ def _get_field(
     return np.full((num_points,), -1, dtype=np.float32)
 
 
-def pointcloud_msg_to_numpy(
-    pointcloud_msg: PointCloud2, num_lidar_feats: int = 5
-) -> NDArray:
+def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, num_lidar_feats: int = 5) -> NDArray:
     """Convert ROS PointCloud2 message to a float32 numpy array."""
     if num_lidar_feats not in (5, 7):
         raise ValueError(f"num_lidar_feats must be 5 or 7, got {num_lidar_feats}")
@@ -250,6 +240,48 @@ def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
         )
         image = cv2.imdecode(image_buf, cv2.IMREAD_ANYCOLOR)
     return image
+
+
+def ffmpeg_msg_to_image(ffmpeg_msg: FFMPEGPacket) -> aip_common.Image:
+    image = aip_common.Image()
+
+    image.frame_id = ffmpeg_msg.header.frame_id
+    image.timestamp = int(stamp_to_unix_timestamp(ffmpeg_msg.header.stamp))
+    image.width = ffmpeg_msg.width
+    image.height = ffmpeg_msg.height
+    image.format = ffmpeg_encoding_to_image_format(ffmpeg_msg.encoding)
+    image.pts = ffmpeg_msg.pts
+    image.flags = ffmpeg_msg.flags
+    image.is_bigendian = ffmpeg_msg.is_bigendian
+    image.data = ffmpeg_msg.data
+
+    return image
+
+
+def ffmpeg_encoding_to_image_format(encoding: str) -> aip_common.ImageFormat:
+    codec_candidates = _split_string_by_comma_and_semicolon(encoding)
+    for codec in codec_candidates:
+        if codec == "h264":
+            return aip_common.ImageFormat.H264
+        elif codec == "h265":
+            return aip_common.ImageFormat.H265
+        elif codec == "av1":
+            return aip_common.ImageFormat.AV1
+
+    raise ValueError(f"Unsupported encoding: {encoding}")
+
+
+def _split_string_by_comma_and_semicolon(input_string: str) -> List[str]:
+    def split_by_delimiter(str_list: List[str], delimiter: str) -> List[str]:
+        result: List[str] = []
+        for s in str_list:
+            result.extend(s.split(delimiter))
+        return result
+
+    input_list = [input_string]
+    comma_separated = split_by_delimiter(input_list, ",")
+    semicolon_separated = split_by_delimiter(comma_separated, ";")
+    return semicolon_separated
 
 
 def stamp_to_unix_timestamp(stamp: builtin_interfaces.msg.Time) -> float:
