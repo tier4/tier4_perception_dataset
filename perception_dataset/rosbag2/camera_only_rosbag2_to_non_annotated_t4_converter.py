@@ -12,9 +12,11 @@ import time
 
 from builtin_interfaces.msg import Time
 import cv2
+from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 import numpy as np
 from sensor_msgs.msg import CompressedImage, Image
 
+from accelerated_image_processor.decompression import DecompressionType, create_decompressor
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, T4_FORMAT_DIRECTORY_NAME
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
@@ -130,6 +132,9 @@ class _ConverterImpl:
             with_sensor_frame_conversion=False,  # Is /tf_static needed?
         )
 
+        # Video decompressor (only used if the input bag contains compressed video)
+        self._video_decompressor = create_decompressor(DecompressionType.VIDEO)
+
         # sensors
         self._camera_sensors: list[dict[str, str]] = params.camera_sensors
         self._sensor_enums: list[SENSOR_ENUM] = []
@@ -184,7 +189,7 @@ class _ConverterImpl:
         zipped_output_path: str | None = None
         zipped_input_path: str | None = None
         if not self._without_compress:
-            (zipped_output_path, zipped_input_path) = self._compress_directory()
+            zipped_output_path, zipped_input_path = self._compress_directory()
 
         return CameraOnlyRosbag2ToNonAnnotatedT4ConverterOutputItem(
             uncompressed_output_path=self._output_scene_dir,
@@ -353,6 +358,16 @@ class _ConverterImpl:
                     if image_msg.format == "jpeg"
                     else EXTENSION_ENUM.PNG.value[1:]
                 )
+            elif isinstance(image_msg, FFMPEGPacket):
+                compressed_image = rosbag2_utils.ffmpeg_msg_to_image(image_msg)
+                decompressed_image = self._video_decompressor.process(compressed_image)
+                if decompressed_image is None:
+                    logger.warn(f"Failed to decompress image for frame: {generated_frame_index}")
+                    image_arr = None
+                else:
+                    image_arr = np.array(decompressed_image.data, dtype=np.uint8)
+                    image_arr = image_arr.reshape((image_msg.height, image_msg.width, 3))
+                fileformat = EXTENSION_ENUM.PNG.value[1:]  # or bmp
             else:
                 image_arr = rosbag2_utils.image_msg_to_numpy(image_msg)
                 fileformat = EXTENSION_ENUM.PNG.value[1:]
@@ -397,7 +412,7 @@ class _ConverterImpl:
 
     def _generate_image_data(
         self,
-        image_arr: np.ndarray,
+        image_arr: np.ndarray | None,
         fileformat: str,
         image_unix_timestamp: float,
         sample_token: str,
@@ -410,7 +425,13 @@ class _ConverterImpl:
         )
 
         filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
-        height, width = image_arr.shape[:2]
+        if image_arr is None:
+            height, width = 0, 0
+            is_valid = False
+        else:
+            height, width = image_arr.shape[:2]
+            is_valid = True
+
         sample_data_token = self._sample_data_table.insert_into_table(
             sample_token=sample_token,
             ego_pose_token=ego_pose_token,
@@ -421,17 +442,19 @@ class _ConverterImpl:
             height=height,
             width=width,
             is_key_frame=True,
-            is_valid=True,
+            is_valid=is_valid,
         )
 
-        sample_data_record: SampleDataRecord = self._sample_data_table.select_record_from_token(
-            sample_data_token
-        )
-        # TODO(ktro2828): specify write parameters depending on fileformat
-        cv2.imwrite(
-            osp.join(self._output_scene_dir, sample_data_record.filename),
-            image_arr,
-        )
+        if image_arr is not None:
+            sample_data_record: SampleDataRecord = (
+                self._sample_data_table.select_record_from_token(sample_data_token)
+            )
+            # TODO(ktro2828): specify write parameters depending on fileformat
+            cv2.imwrite(
+                osp.join(self._output_scene_dir, sample_data_record.filename),
+                image_arr,
+            )
+
         return sample_data_token
 
     def _generate_dummy_ego_pose(self, stamp: Time) -> str:
