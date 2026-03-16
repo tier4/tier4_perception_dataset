@@ -412,7 +412,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         zipped_output_path: str | None = None
         zipped_input_path: str | None = None
         if not self._without_compress:
-            (zipped_output_path, zipped_input_path) = self._compress_directory()
+            zipped_output_path, zipped_input_path = self._compress_directory()
         return Rosbag2ToNonAnnotatedT4ConverterOutputItem(
             uncompressed_output_path=self._output_scene_dir,
             zipped_output_path=zipped_output_path,
