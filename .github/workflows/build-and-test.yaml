@@ -91,7 +91,7 @@ jobs:
 
       - name: Install python packages
         run: |
-          poetry install
+          poetry sync
 
       - name: Test with pytest
         run: |
