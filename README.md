@@ -59,7 +59,7 @@ Install python dependencies:
 
 ```bash
 pip3 install poetry
-poetry install
+poetry sync
 ```
 
 ### Test
