@@ -28,7 +28,7 @@ t4-devkit = {git = "https://github.com/tier4/t4-devkit.git", rev = "v0.6.0"}
 colorama = "^0.4.6"
 
 
-[poetry.group.dev.dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^7.1.1"
 pytest-asyncio = "^0.18.3"
 pytest-mock = "^3.7.0"
