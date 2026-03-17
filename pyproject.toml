@@ -1,11 +1,13 @@
-[tool.poetry]
+[project]
 name = "perception-dataset"
 version = "1.0.30"
 description = "TIER IV Perception dataset has modules to convert dataset from rosbag to t4_dataset"
 authors = [
-    "Yusuke Muramatsu <yusuke.muramatsu@tier4.jp>",
-    "Shunsuke Miura <shunsuke.miura@tier4.jp>",
+    { name = "Yusuke Muramatsu", email = "yusuke.muramatsu@tier4.jp" },
+    { name = "Shunsuke Miura", email = "shunsuke.miura@tier4.jp" },
 ]
+requires-python = ">=3.10,<3.13"
+dynamic = ["dependencies"]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
