@@ -1,6 +1,6 @@
 [project]
 name = "perception-dataset"
-version = "1.0.30"
+version = "1.0.31"
 description = "TIER IV Perception dataset has modules to convert dataset from rosbag to t4_dataset"
 authors = [
     { name = "Yusuke Muramatsu", email = "yusuke.muramatsu@tier4.jp" },
