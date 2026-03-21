@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Unit tests for TableHandler with optimized duplicate detection."""
+
 import unittest
 from unittest.mock import patch
 
