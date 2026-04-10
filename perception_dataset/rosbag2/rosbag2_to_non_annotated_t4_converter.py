@@ -61,6 +61,7 @@ from perception_dataset.rosbag2.converter_params import (
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.table_handler import TableHandler
+from perception_dataset.ros2.oxts_msgs.ins_handler import EgoState, INSHandler
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -249,7 +250,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._optional_ins_lookup_warning_logged = False
 
         if self._with_ins:
-            self._ins_handler = self._make_ins_handler(params)
+            self._ins_handler = INSHandler(params.input_bag_path, topic_mapping=params.ins_topic_mapping)
         else:
             self._ins_handler = self._make_optional_ins_handler(params)
 
@@ -262,24 +263,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         else:
             self._vehicle_status_handler = None
 
-    def _make_ins_handler(self, params: Rosbag2ConverterParams):
-        from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
-
-        if params.ins_topic_mapping is None:
-            return INSHandler(params.input_bag_path)
-        return INSHandler(
-            params.input_bag_path,
-            topic_mapping=params.ins_topic_mapping,
-        )
-
-    def _make_optional_ins_handler(self, params: Rosbag2ConverterParams):
-        from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
-
+    def _make_optional_ins_handler(self, params: Rosbag2ConverterParams) -> Optional[INSHandler]:
         topic_mapping = INSHandler.get_topic_mapping(params.ins_topic_mapping)
         missing_topics = [
             topic
             for topic in topic_mapping.values()
-            if self._bag_reader.get_topic_count(topic) == 0
+            if not self._bag_reader.get_topic_count(topic)
         ]
         if missing_topics:
             logger.info(
@@ -289,7 +278,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             return None
 
         try:
-            return self._make_ins_handler(params)
+            return INSHandler(params.input_bag_path, topic_mapping=params.ins_topic_mapping)
         except Exception as e:
             logger.warning(f"Skipping optional INS ego_pose fields: {e}")
             self._optional_ins_lookup_warning_logged = True
@@ -1231,7 +1220,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
     def _generate_ego_pose(self, stamp: builtin_interfaces.msg.Time) -> str:
         if self._with_ins:
             ego_state = self._ins_handler.get_ego_state(stamp=stamp)
-            ins_ego_pose_fields = self._get_ins_ego_pose_fields(stamp, ego_state=ego_state)
+            twist, acceleration, geocoordinate = self._get_ins_ego_pose_fields(
+                stamp, ego_state=ego_state
+            )
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
                 translation=(
@@ -1246,7 +1237,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     ego_state.rotation.z,
                 ),
                 timestamp=rosbag2_utils.stamp_to_nusc_timestamp(ego_state.header.stamp),
-                **ins_ego_pose_fields,
+                twist=twist,
+                acceleration=acceleration,
+                geocoordinate=geocoordinate,
             )
         else:
             transform_stamped = self._bag_reader.get_transform_stamped(
@@ -1254,7 +1247,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 source_frame=self._ego_pose_source_frame,
                 stamp=stamp,
             )
-            ins_ego_pose_fields = self._get_ins_ego_pose_fields(stamp)
+            twist, acceleration, geocoordinate = self._get_ins_ego_pose_fields(stamp)
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
                 translation=(
@@ -1269,7 +1262,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     transform_stamped.transform.rotation.z,
                 ),
                 timestamp=rosbag2_utils.stamp_to_nusc_timestamp(transform_stamped.header.stamp),
-                **ins_ego_pose_fields,
+                twist=twist,
+                acceleration=acceleration,
+                geocoordinate=geocoordinate,
             )
 
         return ego_pose_token
@@ -1277,10 +1272,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
     def _get_ins_ego_pose_fields(
         self,
         stamp: builtin_interfaces.msg.Time,
-        ego_state=None,
-    ) -> Dict[str, object]:
+        ego_state: Optional[EgoState] = None,
+    ) -> Tuple[
+        Optional[Tuple[float, ...]],
+        Optional[Tuple[float, ...]],
+        Optional[Tuple[float, float, float]],
+    ]:
         if self._ins_handler is None:
-            return {}
+            if self._with_ins:
+                raise RuntimeError("INS handler is not initialized while with_ins is enabled.")
+            return None, None, None
 
         try:
             if ego_state is None:
@@ -1288,14 +1289,23 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             geocoordinate = self._ins_handler.lookup_nav_sat_fixes(stamp)
         except Exception as e:
             if self._with_ins:
-                raise
+                raise RuntimeError(
+                    f"Failed to get ego pose fields from INS at stamp {stamp}."
+                ) from e
             if not self._optional_ins_lookup_warning_logged:
                 logger.warning(f"Skipping optional INS ego_pose fields: {e}")
                 self._optional_ins_lookup_warning_logged = True
-            return {}
+            return None, None, None
+        geocoordinate_tuple = None
+        if geocoordinate is not None:
+            geocoordinate_tuple = (
+                geocoordinate.latitude,
+                geocoordinate.longitude,
+                geocoordinate.altitude,
+            )
 
-        return {
-            "twist": (
+        return (
+            (
                 ego_state.twist.linear.x,
                 ego_state.twist.linear.y,
                 ego_state.twist.linear.z,
@@ -1303,21 +1313,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 ego_state.twist.angular.y,
                 ego_state.twist.angular.x,
             ),
-            "acceleration": (
+            (
                 ego_state.accel.x,
                 ego_state.accel.y,
                 ego_state.accel.z,
             ),
-            "geocoordinate": (
-                (
-                    geocoordinate.latitude,
-                    geocoordinate.longitude,
-                    geocoordinate.altitude,
-                )
-                if geocoordinate is not None
-                else None
-            ),
-        }
+            geocoordinate_tuple,
+        )
 
     def _generate_vehicle_state(self, stamp: builtin_interfaces.msg.Time) -> str:
         nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(stamp)
