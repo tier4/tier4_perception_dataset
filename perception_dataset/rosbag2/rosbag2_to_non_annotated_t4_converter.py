@@ -53,6 +53,7 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
+from perception_dataset.ros2.oxts_msgs.ins_handler import EgoState, INSHandler
 from perception_dataset.rosbag2.converter_params import (
     DataType,
     LidarSensor,
@@ -61,7 +62,6 @@ from perception_dataset.rosbag2.converter_params import (
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.table_handler import TableHandler
-from perception_dataset.ros2.oxts_msgs.ins_handler import EgoState, INSHandler
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -250,7 +250,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._optional_ins_lookup_warning_logged = False
 
         if self._with_ins:
-            self._ins_handler = INSHandler(params.input_bag_path, topic_mapping=params.ins_topic_mapping)
+            self._ins_handler = INSHandler(
+                params.input_bag_path, topic_mapping=params.ins_topic_mapping
+            )
         else:
             self._ins_handler = self._make_optional_ins_handler(params)
 
