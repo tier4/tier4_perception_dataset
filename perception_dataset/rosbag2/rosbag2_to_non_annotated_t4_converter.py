@@ -550,6 +550,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             camera_start_timestamp = misc_utils.nusc_timestamp_to_unix_timestamp(
                 first_sample_data_record.timestamp
             )
+            lidar_sample_data_token_list = sensor_channel_to_sample_data_token_list[
+                self._lidar_sensor["channel"]
+            ]
 
         for camera_sensor in self._camera_sensors:
             start = time.time()
@@ -560,6 +563,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 topic=camera_sensor["topic"],
                 delay_msec=float(camera_sensor["delay_msec"]),
                 scene_token=scene_token,
+                lidar_sample_data_token_list=(
+                    lidar_sample_data_token_list if self._sensor_mode == SensorMode.DEFAULT else []
+                ),
             )
 
             logger.info(
@@ -926,6 +932,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         topic: str,
         delay_msec: float,
         scene_token: str,
+        lidar_sample_data_token_list: List[str],
     ):
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
@@ -1006,6 +1013,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     else None
                 )
                 if image_index is None:  # Image dropped
+                    ego_pose_token = None
+                    if lidar_frame_index is not None:
+                        lidar_sample_data_token = lidar_sample_data_token_list[lidar_frame_index]
+                        lidar_sample_data = self._sample_data_table.get_record_from_token(
+                            lidar_sample_data_token
+                        )
+                        ego_pose_token = lidar_sample_data.ego_pose_token
                     sample_data_token = self._generate_image_data(
                         np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
                         dummy_image_timestamp,
@@ -1015,6 +1029,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         lidar_frame_index,
                         output_blank_image=True,
                         is_key_frame=False,
+                        ego_pose_token=ego_pose_token,
                     )
                     sample_data_token_list.append(sample_data_token)
                 elif lidar_frame_index is None and not self._accept_frame_drop:  # LiDAR dropped
@@ -1144,10 +1159,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         output_blank_image: bool = False,
         is_key_frame: bool = True,
         camera_info: Optional[CameraInfo] = None,
+        ego_pose_token: Optional[str] = None,
     ):
-        ego_pose_token = self._generate_ego_pose(
-            rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp)
-        )
+        if ego_pose_token is None:
+            ego_pose_token = self._generate_ego_pose(
+                rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp)
+            )
 
         fileformat = EXTENSION_ENUM.JPG.value[1:]  # Note: png for all images
         filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
