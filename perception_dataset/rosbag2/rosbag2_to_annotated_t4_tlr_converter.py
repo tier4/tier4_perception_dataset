@@ -140,6 +140,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         topic: str,
         delay_msec: float,
         scene_token: str,
+        lidar_sample_data_token_list: List[str],
     ):
         """Convert image topic to raw image data.
         This function add the method to the parents function to skip the frame if there is no traffic light label.
@@ -191,6 +192,13 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                 lidar_sample_token: str = sample_records[lidar_frame_index].token
 
                 if image_index is None:  # Image dropped
+                    ego_pose_token = None
+                    if lidar_frame_index is not None:
+                        lidar_sample_data_token = lidar_sample_data_token_list[lidar_frame_index]
+                        lidar_sample_data = self._sample_data_table.get_record_from_token(
+                            lidar_sample_data_token
+                        )
+                        ego_pose_token = lidar_sample_data.ego_pose_token
                     sample_data_token = self._generate_image_data(
                         np.zeros(shape=image_shape, dtype=np.uint8),  # dummy image
                         dummy_image_timestamp,
@@ -200,6 +208,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         lidar_frame_index,
                         output_blank_image=True,
                         is_key_frame=False,
+                        ego_pose_token=ego_pose_token,
                     )
                     sample_data_token_list.append(sample_data_token)
                 elif lidar_frame_index is None:  # LiDAR dropped
