@@ -113,7 +113,7 @@ Please refer to [the help page](https://help.deepen.ai/data-management/create-da
 #### Create dataset profile
 
 Set the categories for t4_dataset.
-Please refer to [the help page](https://help.deepen.ai/data-management/dataset-profiles#why-use-a-dataset-profile).
+Please refer to [the help page](https://help.deepen.ai/data-management/dataset-profiles).
 
 Add the items listed in Items in [category.json](t4_format_3d_detailed.md#categoryjson)
 Once you have created a profile, you can just import the profile next time.
