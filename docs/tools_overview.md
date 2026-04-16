@@ -64,7 +64,7 @@ python -m perception_dataset.convert --config config/convert_rosbag2_to_non_anno
 # if you want to overwrite t4-format data, use --overwrite option
 ```
 
-For traffic light dataset, you can use the following command:
+For traffic light recognition (TLR) dataset, you can use the following command:
 
 ```bash
 python -m perception_dataset.convert --config config/convert_rosbag2_to_non_annotated_t4_tlr_sample.yaml
