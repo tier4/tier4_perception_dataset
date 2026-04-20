@@ -587,6 +587,11 @@ class AnnotationFilesGenerator:
             sample_data = t4_dataset.get("sample_data", sample_data_token)
 
             lidar_data_path = anno_path.parents[0] / sample_data.filename
+            lidar_metainfo_path = (
+                anno_path.parents[0] / sample_data.info_filename
+                if sample_data.info_filename
+                else None
+            )
 
             # All tmp lidarseg folders before copying annotation files.
             for anno in anno_list:
@@ -594,6 +599,7 @@ class AnnotationFilesGenerator:
                 lidar_semseg_pointcloud = SegmentationPointCloud.from_file(
                     point_filepath=lidar_data_path,
                     label_filepath=anno["lidarseg_anno_file"],
+                    metainfo_filepath=lidar_metainfo_path,
                 )
                 if (
                     lidar_semseg_pointcloud.labels.shape[0]

@@ -83,7 +83,7 @@ def test_pointcloud_msg_to_numpy_with_extended_fields():
             ("intensity", PointField.UINT8),
             ("ring", PointField.UINT16),
             ("return_type", PointField.INT8),
-            ("timestamp", PointField.FLOAT32),
+            ("time_stamp", PointField.FLOAT32),
         ],
         [
             (1.0, 2.0, 3.0, 7, 10, 1, 0.01),
@@ -91,7 +91,7 @@ def test_pointcloud_msg_to_numpy_with_extended_fields():
         ],
     )
 
-    points = pointcloud_msg_to_numpy(msg)
+    points = pointcloud_msg_to_numpy(msg, num_lidar_feats=7)
 
     assert points.dtype == np.float32
     assert points.shape == (2, 7)
@@ -101,6 +101,37 @@ def test_pointcloud_msg_to_numpy_with_extended_fields():
             [
                 [1.0, 2.0, 3.0, 7.0, 10.0, 1.0, 0.01],
                 [4.0, 5.0, 6.0, 8.0, 11.0, 2.0, 0.02],
+            ],
+            dtype=np.float32,
+        ),
+    )
+
+
+def test_pointcloud_msg_to_numpy_with_extended_placeholders():
+    msg = _make_pointcloud2(
+        [
+            ("x", PointField.FLOAT32),
+            ("y", PointField.FLOAT32),
+            ("z", PointField.FLOAT32),
+            ("i", PointField.UINT8),
+            ("channel", PointField.UINT16),
+        ],
+        [
+            (1.0, 2.0, 3.0, 7, 10),
+            (4.0, 5.0, 6.0, 8, 11),
+        ],
+    )
+
+    points = pointcloud_msg_to_numpy(msg, num_lidar_feats=7)
+
+    assert points.dtype == np.float32
+    assert points.shape == (2, 7)
+    np.testing.assert_allclose(
+        points,
+        np.array(
+            [
+                [1.0, 2.0, 3.0, 7.0, 10.0, -1.0, -1.0],
+                [4.0, 5.0, 6.0, 8.0, 11.0, -1.0, -1.0],
             ],
             dtype=np.float32,
         ),

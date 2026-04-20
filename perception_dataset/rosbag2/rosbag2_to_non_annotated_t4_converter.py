@@ -219,6 +219,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for lidar info topic. Checks for keys are done in LidarSensor pydantic model.
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
+        self._num_lidar_feats: int = self._lidar_sensor["num_lidar_feats"]
         self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor[
             "lidar_sources_mapping"
         ]
@@ -729,7 +730,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(
+                pointcloud_msg, num_lidar_feats=self._num_lidar_feats
+            )
             if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
@@ -737,7 +740,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
             if self._lidar_info_topic and info_filename:
-                self._save_info_as_json(lidar_info_message, info_filename)
+                self._save_info_as_json(
+                    lidar_info_message,
+                    info_filename,
+                    num_pts_feats=points_arr.shape[1],
+                )
 
             sample_data_token_list.append(sample_data_token)
             prev_frame_unix_timestamp = unix_timestamp
@@ -781,22 +788,30 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return info_filename, lidar_info_message
 
-    def _save_info_as_json(self, lidar_info_msg: ConcatenatedPointCloudInfo, info_filepath: str):
+    def _save_info_as_json(
+        self,
+        lidar_info_msg: ConcatenatedPointCloudInfo,
+        info_filepath: str,
+        num_pts_feats: int,
+    ):
         """Save lidar_info message as .json file.
 
         Args:
             lidar_info_msg: The lidar_info message to convert
             info_filepath: File path for the info JSON file
+            num_pts_feats: Number of float32 fields in each lidar point.
         """
         # Convert lidar_info message to dictionary
-        lidar_info_dict = self._convert_lidar_info_msg_to_dict(lidar_info_msg)
+        lidar_info_dict = self._convert_lidar_info_msg_to_dict(lidar_info_msg, num_pts_feats)
 
         # Save to lidar_info directory
         lidar_info_path = osp.join(self._output_scene_dir, info_filepath)
         with open(lidar_info_path, "w") as f:
             json.dump(lidar_info_dict, f, indent=4)
 
-    def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo):
+    def _convert_lidar_info_msg_to_dict(
+        self, msg: ConcatenatedPointCloudInfo, num_pts_feats: int
+    ):
         """Convert lidar_info message to dictionary."""
         # Create reverse mapping from topic to channel
         topic_to_channel = {
@@ -835,6 +850,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 "sec": msg.header.stamp.sec,
                 "nanosec": msg.header.stamp.nanosec,
             },
+            "num_pts_feats": num_pts_feats,
             "sources": sources,
         }
 

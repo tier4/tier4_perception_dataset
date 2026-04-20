@@ -122,10 +122,13 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
-def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
+def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, num_lidar_feats: int = 5) -> NDArray:
     """Convert ROS PointCloud2 message to a float32 numpy array."""
+    if num_lidar_feats not in (5, 7):
+        raise ValueError(f"num_lidar_feats must be 5 or 7, got {num_lidar_feats}")
+
     if not isinstance(pointcloud_msg, PointCloud2):
-        return np.zeros((0, 5), dtype=np.float32)
+        return np.zeros((0, num_lidar_feats), dtype=np.float32)
 
     pointcloud = PointCloud.from_msg(pointcloud_msg)
     available_fields = pointcloud.fields
@@ -149,11 +152,9 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
         get_field(("ring", "channel")),
     ]
 
-    if ("return_type" in available_fields) and (
-        ("timestamp" in available_fields) or ("time_stamp" in available_fields)
-    ):
+    if num_lidar_feats == 7:
         columns.append(get_field(("return_type",)))
-        columns.append(get_field(("timestamp", "time_stamp")))
+        columns.append(get_field(("time_stamp", "timestamp")))
 
     points_arr = np.column_stack(columns).astype(np.float32, copy=False)
     return points_arr
