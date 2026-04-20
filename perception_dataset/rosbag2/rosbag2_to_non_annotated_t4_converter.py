@@ -809,9 +809,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         with open(lidar_info_path, "w") as f:
             json.dump(lidar_info_dict, f, indent=4)
 
-    def _convert_lidar_info_msg_to_dict(
-        self, msg: ConcatenatedPointCloudInfo, num_pts_feats: int
-    ):
+    def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo, num_pts_feats: int):
         """Convert lidar_info message to dictionary."""
         # Create reverse mapping from topic to channel
         topic_to_channel = {
