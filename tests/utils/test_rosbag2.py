@@ -5,7 +5,6 @@ from sensor_msgs.msg import PointCloud2, PointField
 
 from perception_dataset.utils.rosbag2 import pointcloud_msg_to_numpy
 
-
 POINT_FIELD_FORMATS = {
     PointField.INT8: ("b", 1),
     PointField.UINT8: ("B", 1),
