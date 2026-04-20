@@ -28,6 +28,7 @@ fastlabel = "^0.16.1"
 scikit-image = "^0.24.0"
 t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.6.0" }
 colorama = "^0.4.6"
+pypcd4 = "^1.4.3"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -18,8 +18,9 @@ from rosbag2_py import (
     SequentialWriter,
     StorageOptions,
 )
-from sensor_msgs.msg import CompressedImage, PointCloud2, PointField
+from sensor_msgs.msg import CompressedImage, PointCloud2
 import yaml
+from pypcd4 import PointCloud
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
 
@@ -121,77 +122,40 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
 
-def point_cloud2_to_array(msg: PointCloud2) -> Dict[str, NDArray]:
-    """
-    Convert a sensor_msgs/PointCloud2 message to a NumPy array. The fields
-    in the PointCloud2 message are mapped to the fields in the NumPy array
-    as follows:
-    * x, y, z -> xyz
-    * intensity -> intensity
-    * index -> lidar_index
-    * other fields are ignored
-    """
-    # Get the index of the "intensity" fields in the PointCloud2 message
-    field_names = [field.name for field in msg.fields]
-
-    def get_field_data(pc_data, msg, field_name, dtype_map):
-        if field_name in field_names:
-            field_idx = field_names.index(field_name)
-            offset = msg.fields[field_idx].offset
-            datatype = msg.fields[field_idx].datatype
-            dtype = dtype_map.get(datatype)
-            if dtype is None:
-                raise ValueError(f"Unsupported {field_name} datatype: {datatype}")
-            return pc_data[:, offset : offset + np.dtype(dtype).itemsize].view(dtype=dtype)
-        return None
-
-    # Mapping for PointField datatypes
-    dtype_map = {
-        PointField.UINT8: np.uint8,
-        PointField.UINT16: np.uint16,
-        PointField.FLOAT32: np.float32,
-    }
-
-    # Convert PointCloud2 data to NumPy
-    pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1, msg.point_step)
-    xyz = pc_data[:, :12].view(dtype=np.float32).reshape(-1, 3)
-
-    # Extract optional fields (intensity and index) and apply the same filter
-    intensity = get_field_data(pc_data, msg, "intensity", dtype_map)
-
-    # Build result dictionary
-    result = {"xyz": xyz}
-    if intensity is not None:
-        result["intensity"] = intensity
-
-    return result
-
-
 def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2) -> NDArray:
-    """Convert ROS PointCloud2 message to numpy array using ros2-numpy."""
-    NUM_DIMENSIONS = 5
-
+    """Convert ROS PointCloud2 message to a float32 numpy array."""
     if not isinstance(pointcloud_msg, PointCloud2):
-        return np.zeros((0, NUM_DIMENSIONS), dtype=np.float32)
+        return np.zeros((0, 5), dtype=np.float32)
 
-    # Convert the PointCloud2 message to a numpy structured array
-    points = point_cloud2_to_array(pointcloud_msg)
+    pointcloud = PointCloud.from_msg(pointcloud_msg)
+    available_fields = pointcloud.fields
+    num_points = pointcloud.metadata.points
 
-    # Extract the x, y, z coordinates and additional fields if available
-    points_arr = points["xyz"]
-    if "intensity" in points.keys():
-        intensity = points["intensity"].astype(np.float32)
-        points_arr = np.hstack((points_arr, intensity))
+    def get_field(field_names: Tuple[str, ...], required: bool = False) -> NDArray:
+        for field_name in field_names:
+            if field_name in available_fields:
+                return pointcloud.numpy((field_name,)).reshape(-1).astype(np.float32)
+        if required:
+            raise ValueError(
+                f"PointCloud2 must contain {field_names}. Available fields: {available_fields}"
+            )
+        return np.full((num_points,), -1, dtype=np.float32)
 
-    # Ensure the resulting array has exactly NUM_DIMENSIONS columns
-    if points_arr.shape[1] > NUM_DIMENSIONS:
-        points_arr = points_arr[:, :NUM_DIMENSIONS]
-    elif points_arr.shape[1] < NUM_DIMENSIONS:
-        padding = np.full(
-            (points_arr.shape[0], NUM_DIMENSIONS - points_arr.shape[1]), -1, dtype=np.float32
-        )
-        points_arr = np.hstack((points_arr, padding))
+    columns = [
+        get_field(("x",), required=True),
+        get_field(("y",), required=True),
+        get_field(("z",), required=True),
+        get_field(("intensity", "i")),
+        get_field(("ring", "channel")),
+    ]
 
+    if ("return_type" in available_fields) and (
+        ("timestamp" in available_fields) or ("time_stamp" in available_fields)
+    ):
+        columns.append(get_field(("return_type",)))
+        columns.append(get_field(("timestamp", "time_stamp")))
+
+    points_arr = np.column_stack(columns).astype(np.float32, copy=False)
     return points_arr
 
 
