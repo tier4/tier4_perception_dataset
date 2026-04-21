@@ -146,8 +146,9 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     generate_frame_every: int = 1  # pick frames out of every this number.
     generate_frame_every_meter: float = 5.0  # pick frames when ego vehicle moves certain meters
 
-    # for Co-MLOps
-    with_ins: bool = False  # whether to convert rosbag with INS topics
+    # INS
+    with_ins: bool = False  # whether to convert rosbag with INS topics for localization
+    ins_topic_mapping: Optional[Dict[str, str]] = None  # topic mappings for specific vehicles
     with_vehicle_status: bool = False  # whether to convert rosbag with vehicle status
 
     def __init__(self, **args):

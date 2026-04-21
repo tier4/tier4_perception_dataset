@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os.path as osp
 from typing import Any, Dict, Generic, List, TypeVar
 
@@ -28,6 +30,9 @@ class TableHandler(Generic[SchemaRecord]):
         self._token_to_record: Dict[str, SchemaRecord] = {}
         self._field_to_token_cache: Dict[str, Dict[Any, str]] = {}
         self._field_names: set[str] = {f.name for f in attrs.fields(schema_type)}
+        # Hash-based duplicate detection: maps content hash to list of tokens
+        # (list to handle potential hash collisions)
+        self._content_hash_to_tokens: Dict[str, List[str]] = {}
 
     @property
     def schema_name(self) -> str:
@@ -39,8 +44,34 @@ class TableHandler(Generic[SchemaRecord]):
     def _to_record(self, **kwargs) -> SchemaRecord:
         return self._schema_type.new(kwargs, token_nbytes=self.TOKEN_NBYTES)
 
+    def _remove_token_from_hash_index(self, token: str, content_hash: str) -> None:
+        if content_hash not in self._content_hash_to_tokens:
+            return
+        token_list = self._content_hash_to_tokens[content_hash]
+        if token in token_list:
+            token_list.remove(token)
+        if not token_list:
+            del self._content_hash_to_tokens[content_hash]
+
     def set_record_to_table(self, record: SchemaRecord):
+        old_content_hash = None
+        if record.token in self._token_to_record:
+            old_record = self._token_to_record[record.token]
+            old_content_hash = self._get_record_content_hash(old_record)
+
+        new_content_hash = self._get_record_content_hash(record)
+
+        if old_content_hash is not None:
+            self._remove_token_from_hash_index(record.token, old_content_hash)
+
         self._token_to_record[record.token] = record
+        # Update content hash mapping
+        if new_content_hash not in self._content_hash_to_tokens:
+            self._content_hash_to_tokens[new_content_hash] = []
+        if record.token not in self._content_hash_to_tokens[new_content_hash]:
+            self._content_hash_to_tokens[new_content_hash].append(record.token)
+        # Records may have changed field values; drop derived field cache.
+        self._field_to_token_cache.clear()
 
     def get_record_from_token(self, token: str) -> SchemaRecord:
         """Retrieve a record from the table by its token.
@@ -53,6 +84,23 @@ class TableHandler(Generic[SchemaRecord]):
         if token not in self._token_to_record:
             raise KeyError(f"Token {token} isn't in table {self._schema_type.__name__}.")
         return self._token_to_record[token]
+
+    def _get_record_content_hash(self, record: SchemaRecord) -> str:
+        """Generate a stable hash for record content excluding the token field.
+
+        Args:
+            record: Record to hash
+
+        Returns:
+            str: Hash string of the record content
+        """
+        record_dict = serialize_dataclass(record)
+        # Remove token field for content comparison
+        record_dict.pop("token", None)
+        # Create a stable JSON string for hashing
+        content_json = json.dumps(record_dict, sort_keys=True, separators=(",", ":"))
+        # Use SHA-256 for stable, consistent hashing across runs
+        return hashlib.sha256(content_json.encode("utf-8")).hexdigest()
 
     def _is_duplicate_record(self, record1: SchemaRecord, record2: SchemaRecord) -> bool:
         """Check if two records are equal excluding the token field.
@@ -77,13 +125,18 @@ class TableHandler(Generic[SchemaRecord]):
         # Create a temporary record to compare
         temp_record = self._to_record(**kwargs)
 
-        # Check if a record with the same field values (excluding token) already exists
-        for existing_token, existing_record in self._token_to_record.items():
-            if self._is_duplicate_record(temp_record, existing_record):
-                raise ValueError(
-                    f"Duplicate record found in table {self._schema_type.__name__}. "
-                    f"Existing token: {existing_token}"
-                )
+        # Use hash-based lookup for O(1) duplicate detection
+        content_hash = self._get_record_content_hash(temp_record)
+
+        if content_hash in self._content_hash_to_tokens:
+            # Hash collision check: verify actual duplicate
+            for existing_token in self._content_hash_to_tokens[content_hash]:
+                existing_record = self._token_to_record[existing_token]
+                if self._is_duplicate_record(temp_record, existing_record):
+                    raise ValueError(
+                        f"Duplicate record found in table {self._schema_type.__name__}. "
+                        f"Existing token: {existing_token}"
+                    )
 
         # No duplicate found, add the new record
         self.set_record_to_table(temp_record)
@@ -111,10 +164,22 @@ class TableHandler(Generic[SchemaRecord]):
                 f"Available fields: {self._field_names}"
             )
 
-        # Get the current record and update it using attrs.evolve
+        # Compute all potentially failing values before mutating indexes.
         current_record = self._token_to_record[token]
         updated_record = attrs.evolve(current_record, **kwargs)
+        old_content_hash = self._get_record_content_hash(current_record)
+        new_content_hash = self._get_record_content_hash(updated_record)
+
+        # Commit index updates.
+        self._remove_token_from_hash_index(token, old_content_hash)
         self._token_to_record[token] = updated_record
+
+        if new_content_hash not in self._content_hash_to_tokens:
+            self._content_hash_to_tokens[new_content_hash] = []
+        if token not in self._content_hash_to_tokens[new_content_hash]:
+            self._content_hash_to_tokens[new_content_hash].append(token)
+        # Records may have changed field values; drop derived field cache.
+        self._field_to_token_cache.clear()
 
     def get_token_from_field(self, field_name: str, field_value: Any) -> str | None:
         """Find token by searching for a unique field value in the table.

@@ -10,6 +10,12 @@ conversion:
   num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
   accept_frame_drop: False # If true, the conversion will continue even if the LiDAR frame is dropped.
   undistort_image: False # If true, the camera image will be undistorted.
+  # INS settings for adding geolocalization information
+  with_ins: false # whether to use INS messages as a ego state instead of `/tf`
+  ins_topic_mapping: # mappings for j6gen2 and jpntaxigen2
+    imu: /sensing/imu/tamagawa/imu_raw
+    nav_sat_fix: /sensing/gnss/septentrio/nav_sat_fix
+    odometry: /localization/kinematic_state
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
   max_camera_jitter_sec: 0.005
   lidar_latency_sec: 0.005

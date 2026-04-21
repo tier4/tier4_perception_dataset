@@ -8,6 +8,7 @@ import shutil
 from typing import Any, Dict, List, Optional, Union
 
 from t4_devkit import Tier4
+from t4_devkit.schema import VisibilityLevel
 import yaml
 
 from perception_dataset.abstract_converter import AbstractConverter
@@ -328,7 +329,7 @@ class DeepenToT4Converter(AbstractConverter[DeepenToT4ConverterOutput]):
                     anno_attributes["occlusion_state"]
                 )
             else:
-                visibility: str = "Not available"
+                visibility: str = VisibilityLevel.UNAVAILABLE.value
             label_t4_dict: Dict[str, Any] = {
                 "category_name": anno_label_category_id,
                 "instance_id": anno_label_id,
