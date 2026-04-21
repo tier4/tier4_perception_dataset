@@ -121,7 +121,10 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     storage_id = infer_storage_id(bag_dir)
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
-def _get_field(pointcloud: PointCloud, field_names: Tuple[str, ...], required: bool = False) -> NDArray:
+
+def _get_field(
+    pointcloud: PointCloud, field_names: Tuple[str, ...], required: bool = False
+) -> NDArray:
     available_fields = pointcloud.fields
     num_points = pointcloud.metadata.points
     for field_name in field_names:

@@ -6,14 +6,14 @@ from sensor_msgs.msg import PointCloud2, PointField
 from perception_dataset.utils.rosbag2 import pointcloud_msg_to_numpy
 
 POINT_FIELD_FORMATS = {
-    PointField.INT8: ("b", 1),      # signed char, 1 byte
-    PointField.UINT8: ("B", 1),     # unsigned char, 1 byte
-    PointField.INT16: ("h", 2),     # signed short, 2 bytes
-    PointField.UINT16: ("H", 2),    # unsigned short, 2 bytes
-    PointField.INT32: ("i", 4),     # signed int, 4 bytes
-    PointField.UINT32: ("I", 4),    # unsigned int, 4 bytes
-    PointField.FLOAT32: ("f", 4),   # float, 4 bytes
-    PointField.FLOAT64: ("d", 8),   # double, 8 bytes
+    PointField.INT8: ("b", 1),  # signed char, 1 byte
+    PointField.UINT8: ("B", 1),  # unsigned char, 1 byte
+    PointField.INT16: ("h", 2),  # signed short, 2 bytes
+    PointField.UINT16: ("H", 2),  # unsigned short, 2 bytes
+    PointField.INT32: ("i", 4),  # signed int, 4 bytes
+    PointField.UINT32: ("I", 4),  # unsigned int, 4 bytes
+    PointField.FLOAT32: ("f", 4),  # float, 4 bytes
+    PointField.FLOAT64: ("d", 8),  # double, 8 bytes
 }
 
 
