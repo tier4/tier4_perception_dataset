@@ -310,7 +310,6 @@ class INSHandler:
         "imu": "/ins/oxts/imu",
         "nav_sat_fix": "/ins/oxts/nav_sat_fix",
         "odometry": "/ins/oxts/odometry",
-        "velocity": "/ins/oxts/velocity",
     }
 
     def __init__(
