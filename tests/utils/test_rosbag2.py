@@ -6,21 +6,21 @@ from sensor_msgs.msg import PointCloud2, PointField
 from perception_dataset.utils.rosbag2 import pointcloud_msg_to_numpy
 
 POINT_FIELD_FORMATS = {
-    PointField.INT8: ("b", 1),
-    PointField.UINT8: ("B", 1),
-    PointField.INT16: ("h", 2),
-    PointField.UINT16: ("H", 2),
-    PointField.INT32: ("i", 4),
-    PointField.UINT32: ("I", 4),
-    PointField.FLOAT32: ("f", 4),
-    PointField.FLOAT64: ("d", 8),
+    PointField.INT8: ("b", 1),      # signed char, 1 byte
+    PointField.UINT8: ("B", 1),     # unsigned char, 1 byte
+    PointField.INT16: ("h", 2),     # signed short, 2 bytes
+    PointField.UINT16: ("H", 2),    # unsigned short, 2 bytes
+    PointField.INT32: ("i", 4),     # signed int, 4 bytes
+    PointField.UINT32: ("I", 4),    # unsigned int, 4 bytes
+    PointField.FLOAT32: ("f", 4),   # float, 4 bytes
+    PointField.FLOAT64: ("d", 8),   # double, 8 bytes
 }
 
 
 def _make_pointcloud2(field_defs, points):
     fields = []
     offset = 0
-    struct_format = "<"
+    struct_format = "<"  # for when msg.is_bigendian = False
     for name, datatype in field_defs:
         field_format, field_size = POINT_FIELD_FORMATS[datatype]
         fields.append(PointField(name=name, offset=offset, datatype=datatype, count=1))

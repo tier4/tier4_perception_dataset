@@ -121,6 +121,18 @@ def get_default_storage_options(bag_dir: str) -> StorageOptions:
     storage_id = infer_storage_id(bag_dir)
     return StorageOptions(uri=bag_dir, storage_id=storage_id)
 
+def _get_field(pointcloud: PointCloud, field_names: Tuple[str, ...], required: bool = False) -> NDArray:
+    available_fields = pointcloud.fields
+    num_points = pointcloud.metadata.points
+    for field_name in field_names:
+        if field_name in available_fields:
+            return pointcloud.numpy((field_name,)).reshape(-1).astype(np.float32)
+    if required:
+        raise ValueError(
+            f"PointCloud2 must contain {field_names}. Available fields: {available_fields}"
+        )
+    return np.full((num_points,), -1, dtype=np.float32)
+
 
 def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, num_lidar_feats: int = 5) -> NDArray:
     """Convert ROS PointCloud2 message to a float32 numpy array."""
@@ -131,30 +143,18 @@ def pointcloud_msg_to_numpy(pointcloud_msg: PointCloud2, num_lidar_feats: int = 
         return np.zeros((0, num_lidar_feats), dtype=np.float32)
 
     pointcloud = PointCloud.from_msg(pointcloud_msg)
-    available_fields = pointcloud.fields
-    num_points = pointcloud.metadata.points
-
-    def get_field(field_names: Tuple[str, ...], required: bool = False) -> NDArray:
-        for field_name in field_names:
-            if field_name in available_fields:
-                return pointcloud.numpy((field_name,)).reshape(-1).astype(np.float32)
-        if required:
-            raise ValueError(
-                f"PointCloud2 must contain {field_names}. Available fields: {available_fields}"
-            )
-        return np.full((num_points,), -1, dtype=np.float32)
 
     columns = [
-        get_field(("x",), required=True),
-        get_field(("y",), required=True),
-        get_field(("z",), required=True),
-        get_field(("intensity", "i")),
-        get_field(("ring", "channel")),
+        _get_field(pointcloud, ("x",), required=True),
+        _get_field(pointcloud, ("y",), required=True),
+        _get_field(pointcloud, ("z",), required=True),
+        _get_field(pointcloud, ("intensity", "i")),
+        _get_field(pointcloud, ("ring", "channel")),
     ]
 
     if num_lidar_feats == 7:
-        columns.append(get_field(("return_type",)))
-        columns.append(get_field(("time_stamp", "timestamp")))
+        columns.append(_get_field(pointcloud, ("return_type",)))
+        columns.append(_get_field(pointcloud, ("time_stamp", "timestamp")))
 
     points_arr = np.column_stack(columns).astype(np.float32, copy=False)
     return points_arr
