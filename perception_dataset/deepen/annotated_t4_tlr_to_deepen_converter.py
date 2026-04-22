@@ -9,6 +9,7 @@ from perception_dataset.constants import LABEL_PATH_ENUM
 from perception_dataset.deepen.annotated_t4_to_deepen_converter import AnnotatedT4ToDeepenConverter
 from perception_dataset.utils.label_converter import TrafficLightLabelConverter
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.misc import get_frame_index_from_filename
 
 logger = configure_logger(modname=__name__)
 
@@ -29,11 +30,15 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
         output_label: List = []
 
         if osp.exists(osp.join(input_dir, "annotation", "object_ann.json")):
-            for frame_index, sample_record in enumerate(t4_dataset.sample):
+            for sample_record in t4_dataset.sample:
                 for cam, sensor_id in self._camera_position.items():
                     if cam not in sample_record.data:
                         continue
                     sample_camera_token = sample_record.data[cam]
+                    image_frame_index = get_frame_index_from_filename(
+                        t4_dataset.get("sample_data", sample_camera_token).filename
+                    )
+
                     object_anns = [
                         object_ann
                         for object_ann in t4_dataset.object_ann
@@ -72,7 +77,7 @@ class AnnotatedT4TlrToDeepenConverter(AnnotatedT4ToDeepenConverter):
                             current_label_dict["version"] = "null"
                             current_label_dict["label_set_id"] = "default"
                             current_label_dict["stage_id"] = "Labelling"
-                            current_label_dict["file_id"] = f"{frame_index:05}.jpg"
+                            current_label_dict["file_id"] = f"{image_frame_index:05}.jpg"
                             current_label_dict["label_category_id"] = label_category_id
                             current_label_dict["label_id"] = (
                                 f"{label_category_id}:{traffic_light_id}"

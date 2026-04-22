@@ -4,6 +4,20 @@ from typing import List, Optional, Tuple, Union
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 
 
+def get_frame_index_from_filename(filename: str) -> int:
+    """Extract the frame index from a given filename in the sample_data.json file in t4 dataset.
+
+    The function assumes that the filename follows the format:
+    path/to/file/<frame_index>.<extension1>.<extension2>... where <frame_index> is an integer representing the frame index.
+
+    Args:
+        filename (str): The full path to the file from which to extract the frame index.
+    Returns:
+        int: The extracted <frame_index> as an integer.
+    """
+    return int(filename.split("/")[-1].split(".")[0])
+
+
 def unix_timestamp_to_nusc_timestamp(timestamp: float) -> int:
     return int(timestamp * 1e6)
 
