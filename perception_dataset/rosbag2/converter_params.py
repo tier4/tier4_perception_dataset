@@ -43,6 +43,7 @@ class LidarSourceMapping(BaseModel):
 class LidarSensor(BaseModelWithDictAccess):
     topic: Optional[str] = None  # e.g., "/lidar_points"
     channel: Optional[str] = None  # e.g., "LIDAR_TOP"
+    num_lidar_feats: int = 5  # Number of float32 fields written per lidar point.
     lidar_info_topic: Optional[str] = None  # topic for lidar info, e.g., "/lidar_info"
     lidar_info_channel: Optional[str] = None  # channel for lidar info, e.g., "LIDAR_INFO"
     accept_no_info: Optional[bool] = (
@@ -72,6 +73,12 @@ class LidarSensor(BaseModelWithDictAccess):
             )
 
         return self
+
+    @field_validator("num_lidar_feats")
+    def check_num_lidar_feats(cls, v):
+        if v not in (5, 7):
+            raise ValueError(f"num_lidar_feats must be 5 or 7, got {v}")
+        return v
 
 
 def _check_check_lidar_info_field(
@@ -146,8 +153,9 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     generate_frame_every: int = 1  # pick frames out of every this number.
     generate_frame_every_meter: float = 5.0  # pick frames when ego vehicle moves certain meters
 
-    # for Co-MLOps
-    with_ins: bool = False  # whether to convert rosbag with INS topics
+    # INS
+    with_ins: bool = False  # whether to convert rosbag with INS topics for localization
+    ins_topic_mapping: Optional[Dict[str, str]] = None  # topic mappings for specific vehicles
     with_vehicle_status: bool = False  # whether to convert rosbag with vehicle status
 
     def __init__(self, **args):

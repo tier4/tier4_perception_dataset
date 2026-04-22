@@ -53,6 +53,7 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
+from perception_dataset.ros2.oxts_msgs.ins_handler import EgoState, INSHandler
 from perception_dataset.rosbag2.converter_params import (
     DataType,
     LidarSensor,
@@ -219,6 +220,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for lidar info topic. Checks for keys are done in LidarSensor pydantic model.
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
+        self._num_lidar_feats: int = self._lidar_sensor["num_lidar_feats"]
         self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor[
             "lidar_sources_mapping"
         ]
@@ -246,13 +248,14 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         # for Co-MLOps
         self._with_ins = params.with_ins
         self._with_vehicle_status = params.with_vehicle_status
+        self._optional_ins_lookup_warning_logged = False
 
         if self._with_ins:
-            from perception_dataset.ros2.oxts_msgs.ins_handler import INSHandler
-
-            self._ins_handler = INSHandler(params.input_bag_path)
+            self._ins_handler = INSHandler(
+                params.input_bag_path, topic_mapping=params.ins_topic_mapping
+            )
         else:
-            self._ins_handler = None
+            self._ins_handler = self._make_optional_ins_handler(params)
 
         if self._with_vehicle_status:
             from perception_dataset.ros2.vehicle_msgs.vehicle_status_handler import (
@@ -262,6 +265,27 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             self._vehicle_status_handler = VehicleStatusHandler(params.input_bag_path)
         else:
             self._vehicle_status_handler = None
+
+    def _make_optional_ins_handler(self, params: Rosbag2ConverterParams) -> Optional[INSHandler]:
+        topic_mapping = INSHandler.get_topic_mapping(params.ins_topic_mapping)
+        missing_topics = [
+            topic
+            for topic in topic_mapping.values()
+            if not self._bag_reader.get_topic_count(topic)
+        ]
+        if missing_topics:
+            logger.info(
+                "Skipping optional INS ego_pose fields because topics are not found: "
+                f"{missing_topics}"
+            )
+            return None
+
+        try:
+            return INSHandler(params.input_bag_path, topic_mapping=params.ins_topic_mapping)
+        except Exception as e:
+            logger.warning(f"Skipping optional INS ego_pose fields: {e}")
+            self._optional_ins_lookup_warning_logged = True
+            return None
 
     def _calc_actual_num_load_frames(self):
         # calculate minimum number of available frames in the rosbag
@@ -729,7 +753,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
-            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(pointcloud_msg)
+            points_arr = rosbag2_utils.pointcloud_msg_to_numpy(
+                pointcloud_msg, num_lidar_feats=self._num_lidar_feats
+            )
             if len(points_arr) == 0:
                 warnings.warn(
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
@@ -737,7 +763,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
             if self._lidar_info_topic and info_filename:
-                self._save_info_as_json(lidar_info_message, info_filename)
+                self._save_info_as_json(
+                    lidar_info_message,
+                    info_filename,
+                    num_pts_feats=points_arr.shape[1],
+                )
 
             sample_data_token_list.append(sample_data_token)
             prev_frame_unix_timestamp = unix_timestamp
@@ -781,22 +811,28 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
         return info_filename, lidar_info_message
 
-    def _save_info_as_json(self, lidar_info_msg: ConcatenatedPointCloudInfo, info_filepath: str):
+    def _save_info_as_json(
+        self,
+        lidar_info_msg: ConcatenatedPointCloudInfo,
+        info_filepath: str,
+        num_pts_feats: int,
+    ):
         """Save lidar_info message as .json file.
 
         Args:
             lidar_info_msg: The lidar_info message to convert
             info_filepath: File path for the info JSON file
+            num_pts_feats: Number of float32 fields in each lidar point.
         """
         # Convert lidar_info message to dictionary
-        lidar_info_dict = self._convert_lidar_info_msg_to_dict(lidar_info_msg)
+        lidar_info_dict = self._convert_lidar_info_msg_to_dict(lidar_info_msg, num_pts_feats)
 
         # Save to lidar_info directory
         lidar_info_path = osp.join(self._output_scene_dir, info_filepath)
         with open(lidar_info_path, "w") as f:
             json.dump(lidar_info_dict, f, indent=4)
 
-    def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo):
+    def _convert_lidar_info_msg_to_dict(self, msg: ConcatenatedPointCloudInfo, num_pts_feats: int):
         """Convert lidar_info message to dictionary."""
         # Create reverse mapping from topic to channel
         topic_to_channel = {
@@ -835,6 +871,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 "sec": msg.header.stamp.sec,
                 "nanosec": msg.header.stamp.nanosec,
             },
+            "num_pts_feats": num_pts_feats,
             "sources": sources,
         }
 
@@ -1199,7 +1236,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
     def _generate_ego_pose(self, stamp: builtin_interfaces.msg.Time) -> str:
         if self._with_ins:
             ego_state = self._ins_handler.get_ego_state(stamp=stamp)
-            geocoordinate = self._ins_handler.lookup_nav_sat_fixes(stamp)
+            twist, acceleration, geocoordinate = self._get_ins_ego_pose_fields(
+                stamp, ego_state=ego_state
+            )
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
                 translation=(
@@ -1214,28 +1253,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     ego_state.rotation.z,
                 ),
                 timestamp=rosbag2_utils.stamp_to_nusc_timestamp(ego_state.header.stamp),
-                twist=(
-                    ego_state.twist.linear.x,
-                    ego_state.twist.linear.y,
-                    ego_state.twist.linear.z,
-                    ego_state.twist.angular.z,
-                    ego_state.twist.angular.y,
-                    ego_state.twist.angular.x,
-                ),
-                acceleration=(
-                    ego_state.accel.x,
-                    ego_state.accel.y,
-                    ego_state.accel.z,
-                ),
-                geocoordinate=(
-                    (
-                        geocoordinate.latitude,
-                        geocoordinate.longitude,
-                        geocoordinate.altitude,
-                    )
-                    if geocoordinate is not None
-                    else None
-                ),
+                twist=twist,
+                acceleration=acceleration,
+                geocoordinate=geocoordinate,
             )
         else:
             transform_stamped = self._bag_reader.get_transform_stamped(
@@ -1243,6 +1263,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 source_frame=self._ego_pose_source_frame,
                 stamp=stamp,
             )
+            twist, acceleration, geocoordinate = self._get_ins_ego_pose_fields(stamp)
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
                 translation=(
@@ -1257,9 +1278,64 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     transform_stamped.transform.rotation.z,
                 ),
                 timestamp=rosbag2_utils.stamp_to_nusc_timestamp(transform_stamped.header.stamp),
+                twist=twist,
+                acceleration=acceleration,
+                geocoordinate=geocoordinate,
             )
 
         return ego_pose_token
+
+    def _get_ins_ego_pose_fields(
+        self,
+        stamp: builtin_interfaces.msg.Time,
+        ego_state: Optional[EgoState] = None,
+    ) -> Tuple[
+        Optional[Tuple[float, ...]],
+        Optional[Tuple[float, ...]],
+        Optional[Tuple[float, float, float]],
+    ]:
+        if self._ins_handler is None:
+            if self._with_ins:
+                raise RuntimeError("INS handler is not initialized while with_ins is enabled.")
+            return None, None, None
+
+        try:
+            if ego_state is None:
+                ego_state = self._ins_handler.get_ego_state(stamp=stamp)
+            geocoordinate = self._ins_handler.lookup_nav_sat_fixes(stamp)
+        except Exception as e:
+            if self._with_ins:
+                raise RuntimeError(
+                    f"Failed to get ego pose fields from INS at stamp {stamp}."
+                ) from e
+            if not self._optional_ins_lookup_warning_logged:
+                logger.warning(f"Skipping optional INS ego_pose fields: {e}")
+                self._optional_ins_lookup_warning_logged = True
+            return None, None, None
+        geocoordinate_tuple = None
+        if geocoordinate is not None:
+            geocoordinate_tuple = (
+                geocoordinate.latitude,
+                geocoordinate.longitude,
+                geocoordinate.altitude,
+            )
+
+        return (
+            (
+                ego_state.twist.linear.x,
+                ego_state.twist.linear.y,
+                ego_state.twist.linear.z,
+                ego_state.twist.angular.z,
+                ego_state.twist.angular.y,
+                ego_state.twist.angular.x,
+            ),
+            (
+                ego_state.accel.x,
+                ego_state.accel.y,
+                ego_state.accel.z,
+            ),
+            geocoordinate_tuple,
+        )
 
     def _generate_vehicle_state(self, stamp: builtin_interfaces.msg.Time) -> str:
         nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(stamp)

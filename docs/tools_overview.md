@@ -64,7 +64,7 @@ python -m perception_dataset.convert --config config/convert_rosbag2_to_non_anno
 # if you want to overwrite t4-format data, use --overwrite option
 ```
 
-For traffic light dataset, you can use the following command:
+For traffic light recognition (TLR) dataset, you can use the following command:
 
 ```bash
 python -m perception_dataset.convert --config config/convert_rosbag2_to_non_annotated_t4_tlr_sample.yaml
@@ -108,12 +108,12 @@ python -m perception_dataset.convert --config config/convert_non_annotated_t4_tl
 
 Login to deepen, create a dataset, and upload the file `deepen_format/${DATSET_NAME}.zip`
 
-Please refer to [the help page](https://help.deepen.ai/deepen-ai-enterprise/data-management/project-setup-and-data-import)
+Please refer to [the help page](https://help.deepen.ai/data-management/create-dataset)
 
 #### Create dataset profile
 
 Set the categories for t4_dataset.
-Please refer to [the help page](https://help.deepen.ai/deepen-ai-enterprise/data-management/adding-categories-and-attributes).
+Please refer to [the help page](https://help.deepen.ai/data-management/dataset-profiles).
 
 Add the items listed in Items in [category.json](t4_format_3d_detailed.md#categoryjson)
 Once you have created a profile, you can just import the profile next time.
@@ -121,14 +121,26 @@ Once you have created a profile, you can just import the profile next time.
 ### Annotate with Deepen
 
 Annotate with deepen.
-Please refer to [the help page](https://help.deepen.ai/deepen-ai-enterprise/data-management/adding-categories-and-attributes) for operating instructions.
+Please refer to [the help page](https://help.deepen.ai/annotate) for operating instructions.
 
 When the work is finished, click `Mark dataset as done` in Datasets / Dataset Details page.
 
 ### Download Deepen annotations
 
-`DEEPEN_CLIENT_ID` is the `xxx` part of the URL `https://tools.deepen.ai/workspace/xxx/datasets` after logging in to Deepen.
-`DEEPEN_ACCESS_TOKEN` can be obtained from [Deepen Tools](https://tools.deepen.ai/workspace/xxx/developer/tokens/developers).
+Set these environment variables before using the Deepen tools:
+
+- `DEEPEN_CLIENT_ID`
+  Get this from the Deepen URL after logging in. In the URL below, the `xxx` part is your client ID:
+  `https://tools.deepen.ai/workspace/xxx/datasets`
+
+- `DEEPEN_ACCESS_TOKEN`
+  Open the Developer Tokens page in Deepen and create or copy a token:
+
+```text
+# replace xxx with your DEEPEN_CLIENT_ID
+https://tools.deepen.ai/workspace/xxx/developer/tokens/developers
+```
+
 `label_type` must be either `labels` or `paint3d`, where `labels` represents bounding boxes, and `paint3d` means lidar semantic segmentation annotations.
 
 ```bash
