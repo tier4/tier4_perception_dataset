@@ -22,7 +22,7 @@ jobs:
 
       - name: Download test data
         run: |
-          gh release download t4-sample-0-2026-01-30 -D tests/data/t4_sample_0
+          gh release download t4-sample-0-2026-04-22 -D tests/data/t4_sample_0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -73,7 +73,7 @@ jobs:
         uses: autowarefoundation/autoware-github-actions/colcon-build@v1
         with:
           rosdistro: ${{ matrix.rosdistro }}
-          target-packages: autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs oxts_msgs vehicle_msgs
+          target-packages: autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs vehicle_msgs
           build-depends-repos: build_depends.repos
 
       - name: Check python version

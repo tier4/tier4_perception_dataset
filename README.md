@@ -48,7 +48,7 @@ source /opt/ros/${ROS_DISTRO}/setup.sh
 sudo apt install -y ros-${ROS_DISTRO}-sensor-msgs-py ros-${ROS_DISTRO}-rosbag2-storage-mcap ros-${ROS_DISTRO}-radar-msgs
 
 mkdir src -p && vcs import src < build_depends.repos
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-up-to autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs autoware_sensing_msgs oxts_msgs vehicle_msgs
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --packages-up-to autoware_auto_perception_msgs autoware_perception_msgs tier4_perception_msgs autoware_sensing_msgs vehicle_msgs
 source ./install/setup.bash
 ```
 
@@ -69,11 +69,11 @@ poetry sync
 - [GitHub CLI](https://github.com/cli/cli#installation)
 
 ```shell
-gh release download t4-sample-0-2026-01-30 -D tests/data/t4_sample_0
+gh release download t4-sample-0-2026-04-22 -D tests/data/t4_sample_0
 unzip 'tests/data/t4_sample_0/*.zip' -d tests/data/t4_sample_0/
 ```
 
-or manually download zipped data from [the release page](https://github.com/tier4/tier4_perception_dataset/releases/tag/t4-sample-0-2026-01-30) to a `test/data` directory
+or manually download zipped data from [the release page](https://github.com/tier4/tier4_perception_dataset/releases/tag/t4-sample-0-2026-04-22) to a `test/data` directory
 
 #### Run tests
 
