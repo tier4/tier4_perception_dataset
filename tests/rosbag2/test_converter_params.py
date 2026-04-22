@@ -39,6 +39,7 @@ class TestLidarSensor:
         LidarSensor(
             topic="task",
             channel="input_base",
+            num_lidar_feats=7,
         )
 
     def test_validation_pass_all_defined(self):
@@ -74,3 +75,14 @@ class TestLidarSensor:
             e.value.errors()[0]["msg"]
             == "Value error, If any of lidar_info_topic, lidar_info_channel, accept_no_info, or lidar_sources_mapping is defined, all must be defined. Defined: ['lidar_info_topic']. Undefined: ['lidar_info_channel', 'accept_no_info', 'lidar_sources_mapping']"
         )
+
+    def test_validation_error_num_lidar_feats(self):
+        with pytest.raises(ValidationError) as e:
+            LidarSensor(
+                topic="task",
+                channel="input_base",
+                num_lidar_feats=6,
+            )
+
+        assert len(e.value.errors()) == 1
+        assert e.value.errors()[0]["type"] == "value_error"

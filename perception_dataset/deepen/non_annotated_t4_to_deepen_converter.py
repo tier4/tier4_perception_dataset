@@ -116,9 +116,17 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
         if not camera_only_mode:
             lidar_token: str = sample.data[SENSOR_ENUM.LIDAR_CONCAT.value["channel"]]
             lidar_path: str = t4_dataset.get_sample_data(lidar_token)[0]
+            lidar_sample_data: SampleData = t4_dataset.get("sample_data", lidar_token)
+            metainfo_path = (
+                osp.join(input_dir, lidar_sample_data.info_filename)
+                if lidar_sample_data.info_filename
+                else None
+            )
             data_dict: Dict[str, Any] = self._get_data(t4_dataset, lidar_token)
 
-            pointcloud: LidarPointCloud = LidarPointCloud.from_file(lidar_path)
+            pointcloud: LidarPointCloud = LidarPointCloud.from_file(
+                lidar_path, metainfo_filepath=metainfo_path
+            )
             pointcloud.transform(data_dict["sensor2global_transform"])
             points: NDArray = pointcloud.points.T  # (-1, 4)
 

@@ -1,6 +1,140 @@
+import struct
+
+import numpy as np
+from sensor_msgs.msg import PointCloud2, PointField
+
+from perception_dataset.utils.rosbag2 import pointcloud_msg_to_numpy
+
+POINT_FIELD_FORMATS = {
+    PointField.INT8: ("b", 1),  # signed char, 1 byte
+    PointField.UINT8: ("B", 1),  # unsigned char, 1 byte
+    PointField.INT16: ("h", 2),  # signed short, 2 bytes
+    PointField.UINT16: ("H", 2),  # unsigned short, 2 bytes
+    PointField.INT32: ("i", 4),  # signed int, 4 bytes
+    PointField.UINT32: ("I", 4),  # unsigned int, 4 bytes
+    PointField.FLOAT32: ("f", 4),  # float, 4 bytes
+    PointField.FLOAT64: ("d", 8),  # double, 8 bytes
+}
+
+
+def _make_pointcloud2(field_defs, points):
+    fields = []
+    offset = 0
+    struct_format = "<"  # for when msg.is_bigendian = False
+    for name, datatype in field_defs:
+        field_format, field_size = POINT_FIELD_FORMATS[datatype]
+        fields.append(PointField(name=name, offset=offset, datatype=datatype, count=1))
+        struct_format += field_format
+        offset += field_size
+
+    point_step = offset
+    data = b"".join(struct.pack(struct_format, *point) for point in points)
+
+    msg = PointCloud2()
+    msg.height = 1
+    msg.width = len(points)
+    msg.fields = fields
+    msg.is_bigendian = False
+    msg.point_step = point_step
+    msg.row_step = point_step * len(points)
+    msg.data = data
+    msg.is_dense = True
+    return msg
+
+
 def test_pointcloud_msg_to_numpy():
-    # TODO(yukke42): impl test_pointcloud_msg_to_numpy
-    pass
+    msg = _make_pointcloud2(
+        [
+            ("x", PointField.FLOAT32),
+            ("y", PointField.FLOAT32),
+            ("z", PointField.FLOAT32),
+            ("i", PointField.UINT8),
+            ("channel", PointField.UINT16),
+        ],
+        [
+            (1.0, 2.0, 3.0, 7, 10),
+            (4.0, 5.0, 6.0, 8, 11),
+        ],
+    )
+
+    points = pointcloud_msg_to_numpy(msg)
+
+    assert points.dtype == np.float32
+    assert points.shape == (2, 5)
+    np.testing.assert_allclose(
+        points,
+        np.array(
+            [
+                [1.0, 2.0, 3.0, 7.0, 10.0],
+                [4.0, 5.0, 6.0, 8.0, 11.0],
+            ],
+            dtype=np.float32,
+        ),
+    )
+
+
+def test_pointcloud_msg_to_numpy_with_extended_fields():
+    msg = _make_pointcloud2(
+        [
+            ("x", PointField.FLOAT32),
+            ("y", PointField.FLOAT32),
+            ("z", PointField.FLOAT32),
+            ("intensity", PointField.UINT8),
+            ("ring", PointField.UINT16),
+            ("return_type", PointField.INT8),
+            ("time_stamp", PointField.FLOAT32),
+        ],
+        [
+            (1.0, 2.0, 3.0, 7, 10, 1, 0.01),
+            (4.0, 5.0, 6.0, 8, 11, 2, 0.02),
+        ],
+    )
+
+    points = pointcloud_msg_to_numpy(msg, num_lidar_feats=7)
+
+    assert points.dtype == np.float32
+    assert points.shape == (2, 7)
+    np.testing.assert_allclose(
+        points,
+        np.array(
+            [
+                [1.0, 2.0, 3.0, 7.0, 10.0, 1.0, 0.01],
+                [4.0, 5.0, 6.0, 8.0, 11.0, 2.0, 0.02],
+            ],
+            dtype=np.float32,
+        ),
+    )
+
+
+def test_pointcloud_msg_to_numpy_with_extended_placeholders():
+    msg = _make_pointcloud2(
+        [
+            ("x", PointField.FLOAT32),
+            ("y", PointField.FLOAT32),
+            ("z", PointField.FLOAT32),
+            ("i", PointField.UINT8),
+            ("channel", PointField.UINT16),
+        ],
+        [
+            (1.0, 2.0, 3.0, 7, 10),
+            (4.0, 5.0, 6.0, 8, 11),
+        ],
+    )
+
+    points = pointcloud_msg_to_numpy(msg, num_lidar_feats=7)
+
+    assert points.dtype == np.float32
+    assert points.shape == (2, 7)
+    np.testing.assert_allclose(
+        points,
+        np.array(
+            [
+                [1.0, 2.0, 3.0, 7.0, 10.0, -1.0, -1.0],
+                [4.0, 5.0, 6.0, 8.0, 11.0, -1.0, -1.0],
+            ],
+            dtype=np.float32,
+        ),
+    )
 
 
 def test_compressed_msg_to_numpy():

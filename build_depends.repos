@@ -19,10 +19,6 @@ repositories:
     version: tier4/main
 
   # for Co-MLOps features
-  oxts_ros2_driver:
-    type: git
-    url: https://github.com/tier4/oxts_ros2_driver.git
-    version: feat/data_recording_system
   pacmod3_msgs:
     type: git
     url: https://github.com/astuff/pacmod3_msgs.git
