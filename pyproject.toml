@@ -1,6 +1,6 @@
 [project]
 name = "perception-dataset"
-version = "1.0.31"
+version = "1.0.32"
 description = "TIER IV Perception dataset has modules to convert dataset from rosbag to t4_dataset"
 authors = [
     { name = "Yusuke Muramatsu", email = "yusuke.muramatsu@tier4.jp" },
@@ -26,9 +26,10 @@ requests = "^2.28.2"
 matplotlib = "3.9.2"
 fastlabel = "^0.16.1"
 scikit-image = "^0.24.0"
-t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.6.0" }
+t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.7.0" }
 colorama = "^0.4.6"
 pypcd4 = "^1.4.3"
+httpx = "^0.28.1"
 
 
 [tool.poetry.group.dev.dependencies]
