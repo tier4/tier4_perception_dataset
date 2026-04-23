@@ -1,5 +1,8 @@
+import os.path as osp
+
 import numpy as np
 from t4_devkit import Tier4
+from t4_devkit.dataclass import LidarPointCloud
 from t4_devkit.schema.tables import SampleAnnotation
 
 from perception_dataset.t4_dataset.table_handler import TableHandler
@@ -28,9 +31,15 @@ def calculate_num_points(
         lidar_path, boxes, _ = t4_dataset.get_sample_data(
             lidar_token, selected_ann_tokens=ann_tokens
         )
+        lidar_sample_data = t4_dataset.get("sample_data", lidar_token)
+        metainfo_path = (
+            osp.join(t4_dataset.data_root, lidar_sample_data.info_filename)
+            if lidar_sample_data.info_filename
+            else None
+        )
 
-        points = np.fromfile(lidar_path, dtype=np.float32)
-        points = points.reshape(-1, 5)
+        pointcloud = LidarPointCloud.from_file(lidar_path, metainfo_filepath=metainfo_path)
+        points = pointcloud.points.T
 
         # taken from awml_det3d/dataset_converter/t4dataset_converter.py
         locs = np.array([b.position for b in boxes]).reshape(-1, 3)
