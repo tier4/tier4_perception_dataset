@@ -68,6 +68,15 @@ import perception_dataset.utils.rosbag2 as rosbag2_utils
 
 logger = configure_logger(modname=__name__)
 
+CONFIG_EXCLUDED_ATTRIBUTES = {
+    "_input_bag",
+    "_bag_reader",
+    "_ins_handler",
+    "_vehicle_status_handler",
+    "_lidar_info_messages",
+    "_get_file_index",
+}
+
 
 class SensorMode(enum.Enum):
     DEFAULT = "default"
@@ -464,8 +473,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 and not o.endswith("_table")
                 and not o.endswith("_dir")
                 and not o.endswith("_base")
-                and o != "_input_bag"
-                and o != "_bag_reader",
+                and o not in CONFIG_EXCLUDED_ATTRIBUTES,
                 self.__dict__,
             )
         }
