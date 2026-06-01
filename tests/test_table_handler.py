@@ -423,14 +423,14 @@ class TestTableHandlerReuseIfDuplicate(unittest.TestCase):
 
     @staticmethod
     def _ego_pose_kwargs(**overrides):
-        kwargs = dict(
-            translation=(1.0, 2.0, 3.0),
-            rotation=(0.0, 0.0, 0.0, 1.0),
-            timestamp=1_000_000,
-            twist=None,
-            acceleration=None,
-            geocoordinate=None,
-        )
+        kwargs = {
+            "translation": (1.0, 2.0, 3.0),
+            "rotation": (0.0, 0.0, 0.0, 1.0),
+            "timestamp": 1_000_000,
+            "twist": None,
+            "acceleration": None,
+            "geocoordinate": None,
+        }
         kwargs.update(overrides)
         return kwargs
 
