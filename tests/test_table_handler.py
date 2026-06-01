@@ -436,12 +436,8 @@ class TestTableHandlerReuseIfDuplicate(unittest.TestCase):
 
     def test_reuse_returns_existing_token(self):
         """Identical content with reuse_if_duplicate=True reuses the first token."""
-        token1 = self.handler.insert_into_table(
-            reuse_if_duplicate=True, **self._ego_pose_kwargs()
-        )
-        token2 = self.handler.insert_into_table(
-            reuse_if_duplicate=True, **self._ego_pose_kwargs()
-        )
+        token1 = self.handler.insert_into_table(reuse_if_duplicate=True, **self._ego_pose_kwargs())
+        token2 = self.handler.insert_into_table(reuse_if_duplicate=True, **self._ego_pose_kwargs())
 
         self.assertEqual(token1, token2)
         self.assertEqual(len(self.handler), 1)

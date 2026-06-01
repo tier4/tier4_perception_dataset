@@ -133,7 +133,7 @@ class TableHandler(Generic[SchemaRecord]):
             for existing_token in self._content_hash_to_tokens[content_hash]:
                 existing_record = self._token_to_record[existing_token]
                 if self._is_duplicate_record(temp_record, existing_record):
-                    # Some tables (EgoPose, VehicleState) legitimately produce identical records 
+                    # Some tables (EgoPose, VehicleState) legitimately produce identical records
                     # when two frames have the same microsecond timestamp and state, so we re-use them.
                     if reuse_if_duplicate:
                         return existing_token
