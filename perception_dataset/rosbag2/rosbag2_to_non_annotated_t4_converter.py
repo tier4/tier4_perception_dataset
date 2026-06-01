@@ -1249,6 +1249,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             )
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
+                reuse_if_duplicate=True,
                 translation=(
                     ego_state.translation.x,
                     ego_state.translation.y,
@@ -1274,6 +1275,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             twist, acceleration, geocoordinate = self._get_ins_ego_pose_fields(stamp)
 
             ego_pose_token = self._ego_pose_table.insert_into_table(
+                reuse_if_duplicate=True,
                 translation=(
                     transform_stamped.transform.translation.x,
                     transform_stamped.transform.translation.y,
@@ -1390,6 +1392,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         )
 
         vehicle_state_token = self._vehicle_state_table.insert_into_table(
+            reuse_if_duplicate=True,
             timestamp=nusc_timestamp,
             accel_pedal=actuation_msg.status.accel_status,
             brake_pedal=actuation_msg.status.brake_status,
