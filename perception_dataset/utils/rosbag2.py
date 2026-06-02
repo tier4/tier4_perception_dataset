@@ -7,8 +7,8 @@ import uuid
 
 import builtin_interfaces.msg
 import cv2
-from nptyping import NDArray
 import numpy as np
+from numpy.typing import NDArray
 from pypcd4 import PointCloud
 from radar_msgs.msg import RadarTrack, RadarTracks
 from rclpy.time import Time

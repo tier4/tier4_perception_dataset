@@ -5,8 +5,8 @@ from pathlib import Path
 import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
-from nptyping import NDArray
 import numpy as np
+from numpy.typing import NDArray
 from pycocotools import mask as cocomask
 from scipy.spatial.transform import Rotation
 from t4_devkit import Tier4

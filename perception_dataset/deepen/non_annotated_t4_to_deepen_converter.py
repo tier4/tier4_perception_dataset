@@ -7,8 +7,8 @@ import shutil
 import time
 from typing import Any, Dict
 
-from nptyping import NDArray
 import numpy as np
+from numpy.typing import NDArray
 from pyquaternion import Quaternion
 from t4_devkit import Tier4
 from t4_devkit.dataclass import LidarPointCloud
