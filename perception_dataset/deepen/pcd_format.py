@@ -5,8 +5,8 @@ import os
 import os.path as osp
 from typing import Any, Dict, List
 
-from nptyping import NDArray
 import numpy as np
+from numpy.typing import NDArray
 
 from perception_dataset.constants import EXTENSION_ENUM, SENSOR_ENUM, SENSOR_MODALITY_ENUM
 
