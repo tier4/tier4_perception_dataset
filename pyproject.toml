@@ -30,6 +30,8 @@ t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.7.0" }
 colorama = "^0.4.6"
 pypcd4 = "^1.4.3"
 httpx = "^0.28.1"
+kognic-auth = ">=3.10.0,<4"
+kognic-io = "^2.13.1"
 
 
 [tool.poetry.group.dev.dependencies]
