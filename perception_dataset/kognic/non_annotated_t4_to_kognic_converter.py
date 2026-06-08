@@ -3,14 +3,13 @@ import glob
 import json
 import os
 import os.path as osp
+from pathlib import Path
 import shutil
 import time
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import kognic.io.model as KognicModel
 import numpy as np
-
 from scipy.spatial.transform import Rotation
 
 from perception_dataset.abstract_converter import AbstractConverter
@@ -76,9 +75,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
             return [(input_base, output_base / input_base.name)]
 
         pairs: List[Tuple[Path, Path]] = []
-        for item in sorted(
-            Path(path) for path in glob.glob(osp.join(self._input_base, "*"))
-        ):
+        for item in sorted(Path(path) for path in glob.glob(osp.join(self._input_base, "*"))):
             if not item.is_dir() or item.name == "extracted_data":
                 continue
 
@@ -202,17 +199,14 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
         return [
             sensor["channel"]
             for sensor in self._sensors
-            if sensor.get("modality") == "lidar"
-            and sensor.get("channel") != _LIDAR_CONCAT_CHANNEL
+            if sensor.get("modality") == "lidar" and sensor.get("channel") != _LIDAR_CONCAT_CHANNEL
         ]
 
     # ------------------------------------------------------------------
     # Calibration
     # ------------------------------------------------------------------
 
-    def _extract_calibration(
-        self, seq_path: Path
-    ) -> Dict[str, KognicModel.BaseCalibration]:
+    def _extract_calibration(self, seq_path: Path) -> Dict[str, KognicModel.BaseCalibration]:
         calibration: Dict[str, KognicModel.BaseCalibration] = {}
 
         for camera_channel in self._camera_channels:
@@ -263,9 +257,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
                 continue
             calibration[lidar_channel] = KognicModel.LidarCalibration(
                 position=KognicModel.Position(x=0.0, y=0.0, z=0.0),
-                rotation_quaternion=KognicModel.RotationQuaternion(
-                    w=1.0, x=0.0, y=0.0, z=0.0
-                ),
+                rotation_quaternion=KognicModel.RotationQuaternion(w=1.0, x=0.0, y=0.0, z=0.0),
             )
 
         return calibration
@@ -400,9 +392,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
 
             info_path = seq_path / info_filename
             if not info_path.exists():
-                raise FileNotFoundError(
-                    f"Required LIDAR_CONCAT_INFO file is missing: {info_path}"
-                )
+                raise FileNotFoundError(f"Required LIDAR_CONCAT_INFO file is missing: {info_path}")
 
             with open(info_path) as f:
                 info = json.load(f)
