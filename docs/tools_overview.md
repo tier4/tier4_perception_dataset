@@ -85,6 +85,27 @@ Execute the conversion command again with `--overwrite` option.
 
 ![confirm_non_annotated_format](./confirm_non_annotated_format.png)
 
+## Kognic
+
+References:
+- [Official help page](https://docs.kognic.com/)
+- [Kognic supported file formats](https://docs.kognic.com/api-guide/supported-file-formats)
+- [Kognic calibration overview](https://docs.kognic.com/api-guide/calibrations-overview)
+
+
+### Non-annotated T4 format to Deepen format
+
+Converts T4 format data to Deepen format.
+
+input: Non-annotated T4 format data  
+output: deepen-format data
+
+
+```bash
+python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml
+``` 
+
+
 ## Deepen
 
 ### Non-annotated T4 format to Deepen format

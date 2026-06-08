@@ -62,6 +62,36 @@ def main():
         logger.info(
             f"[END] Converting Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
         )
+    elif task == "convert_non_annotated_t4_to_kognic":
+        from perception_dataset.kognic.non_annotated_t4_to_kognic_converter import (
+            NonAnnotatedT4ToKognicConverter,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        camera_sensors = config_dict["conversion"]["camera_sensors"]
+        annotation_hz = config_dict["conversion"]["annotation_hz"]
+        workers_number = config_dict["conversion"]["workers_number"]
+        drop_camera_token_not_found = config_dict["conversion"]["drop_camera_token_not_found"]
+
+        converter = NonAnnotatedT4ToKognicConverter(
+            input_base=input_base,
+            output_base=output_base,
+            camera_sensors=camera_sensors,
+            annotation_hz=annotation_hz,
+            workers_number=workers_number,
+            drop_camera_token_not_found=drop_camera_token_not_found,
+        )
+
+        logger.info(
+            f"[BEGIN] Converting T4 dataset ({input_base}) "
+            f"to Kognic staging format ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[Done] Converting T4 dataset ({input_base}) to Kognic staging format ({output_base})"
+        )
+
     elif task == "convert_non_annotated_t4_to_deepen":
         from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
             NonAnnotatedT4ToDeepenConverter,
