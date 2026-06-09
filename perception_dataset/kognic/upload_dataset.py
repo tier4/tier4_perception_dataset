@@ -1,16 +1,17 @@
 import argparse
+from dataclasses import dataclass
 import hashlib
 import json
 import os.path as osp
-import uuid
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Tuple
 
-import kognic.io.model as KognicModel
-import numpy as np
-import yaml
+# FOR DEBUGGING
+import time
+from typing import Dict, Generator, List, Optional, Tuple
+import uuid
+
 from kognic.io.client import KognicIOClient
+import kognic.io.model as KognicModel
 from kognic.io.model.ego.imu_data import IMUData
 from kognic.io.model.scene.feature_flags import FeatureFlags
 from kognic.io.model.scene.lidars_and_cameras_sequence.frame import (
@@ -18,11 +19,10 @@ from kognic.io.model.scene.lidars_and_cameras_sequence.frame import (
 )
 from kognic.io.model.scene.metadata.metadata import FrameMetaData, MetaData
 from kognic.io.model.scene.resources.image import ImageMetadata
+import numpy as np
+import yaml
 
 from perception_dataset.utils.logger import configure_logger
-
-#FOR DEBUGGING
-import time
 
 logger = configure_logger(modname=__name__)
 
@@ -84,7 +84,9 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     organization_id = conversion_config.get("organization_id") or conversion_config.get(
         "client_organization_id"
     )
-    workspace_id = conversion_config.get("workspace_id") or conversion_config.get("write_workspace_id")
+    workspace_id = conversion_config.get("workspace_id") or conversion_config.get(
+        "write_workspace_id"
+    )
 
     if not organization_id:
         raise ValueError("conversion.organization_id is required for Kognic upload")
@@ -145,7 +147,9 @@ class KognicDatasetUploader:
             logger.info(f"Reusing cached calibration {calibration_id} for {external_id}")
             return calibration_id
         calibration = self._load_calibration(sequence_path)
-        cal_response = self.kognic_io_client.calibration.create_calibration(sensor_calibration=calibration)
+        cal_response = self.kognic_io_client.calibration.create_calibration(
+            sensor_calibration=calibration
+        )
         calibration_id = cal_response.id
         self._calibration_cache[content_hash] = calibration_id
         logger.info(f"Calibration uploaded for {external_id}: {calibration_id}")
@@ -158,7 +162,9 @@ class KognicDatasetUploader:
         logger.info(f"Uploading calibration for {external_id}")
         calibration_id = self._get_or_upload_calibration(sequence_path, external_id)
         end_time = time.time()
-        logger.info(f"Time taken to upload calibration for {external_id}: {end_time - start_time} seconds")
+        logger.info(
+            f"Time taken to upload calibration for {external_id}: {end_time - start_time} seconds"
+        )
 
         logger.info(f"Loading ego poses for {external_id}")
         ego_poses = self._load_ego_poses(sequence_path)
@@ -166,7 +172,9 @@ class KognicDatasetUploader:
         logger.info(f"Building frames and IMU data for {external_id}")
         frames = self._build_frames(sequence_path, ego_poses)
 
-        logger.info(f"Building IMU data for {external_id} (this may take a while if there are many frames)")    
+        logger.info(
+            f"Building IMU data for {external_id} (this may take a while if there are many frames)"
+        )
         imu_data = self._build_imu_data(sequence_path, ego_poses)
 
         logger.info(
@@ -212,7 +220,9 @@ class KognicDatasetUploader:
             },
         )
 
-    def _load_ego_poses(self, sequence_path: Path) -> Optional[Dict[str, KognicModel.EgoVehiclePose]]:
+    def _load_ego_poses(
+        self, sequence_path: Path
+    ) -> Optional[Dict[str, KognicModel.EgoVehiclePose]]:
         poses_file = sequence_path / "ego_poses.json"
         if not poses_file.exists():
             return None
@@ -225,7 +235,9 @@ class KognicDatasetUploader:
             for frame_id, pose_data in poses_data.items()
         }
 
-    def _collect_sensor_files(self, sequence_path: Path, root_name: str, suffix: str) -> Dict[str, List[Path]]:
+    def _collect_sensor_files(
+        self, sequence_path: Path, root_name: str, suffix: str
+    ) -> Dict[str, List[Path]]:
         root = sequence_path / root_name
         if not root.exists():
             return {}
@@ -237,7 +249,9 @@ class KognicDatasetUploader:
                 sensor_files[sensor_dir.name] = files
         return sensor_files
 
-    def iterate_frames(self, sequence_path: Path) -> Generator[Tuple[str, int, Dict[str, Path]], None, None]:
+    def iterate_frames(
+        self, sequence_path: Path
+    ) -> Generator[Tuple[str, int, Dict[str, Path]], None, None]:
         lidar_files = self._collect_sensor_files(sequence_path, "lidar", ".csv")
         camera_files = self._collect_sensor_files(sequence_path, "cameras", ".jpg")
 
