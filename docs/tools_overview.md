@@ -93,12 +93,12 @@ References:
 - [Kognic supported file formats](https://docs.kognic.com/api-guide/supported-file-formats)
 - [Kognic calibration overview](https://docs.kognic.com/api-guide/calibrations-overview)
 
-### Non-annotated T4 format to Deepen format
+### Non-annotated T4 format to Kognic format
 
-Converts T4 format data to Deepen format.
+Converts T4 format data to the local Kognic staging format used by the Kognic uploader.
 
 input: Non-annotated T4 format data  
-output: deepen-format data
+output: Kognic staging format data
 
 ```bash
 python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml
