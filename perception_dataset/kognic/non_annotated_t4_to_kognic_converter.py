@@ -261,9 +261,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
     def _build_sample_level_frame_records(self) -> List[Dict[str, dict]]:
         frame_records: List[Dict[str, dict]] = []
         for sample in self._samples:
-            sample_by_channel = self._sample_data_by_sample_and_channel.get(
-                sample["token"], {}
-            )
+            sample_by_channel = self._sample_data_by_sample_and_channel.get(sample["token"], {})
             frame_record = {
                 channel: sample_data
                 for channel, sample_data in sample_by_channel.items()
@@ -309,9 +307,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
                 logger.warning(f"Camera {camera_channel} not found in {seq_path}; skipping")
                 continue
             if not self._has_existing_channel_file(seq_path, camera_channel):
-                logger.warning(
-                    f"Camera {camera_channel} has no files in {seq_path}; skipping"
-                )
+                logger.warning(f"Camera {camera_channel} has no files in {seq_path}; skipping")
                 continue
 
             calib = self._calib_by_sensor_token[sensor_token]
@@ -447,9 +443,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
             sample_data = frame_record.get(camera_channel)
             if sample_data is None:
                 if self._drop_camera_token_not_found:
-                    logger.warning(
-                        f"Camera {camera_channel} missing for selected frame; skipping"
-                    )
+                    logger.warning(f"Camera {camera_channel} missing for selected frame; skipping")
                 continue
 
             timestamp_ns = int(sample_data["timestamp"]) * 1000
@@ -484,9 +478,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
 
             if lidar_channel == _LIDAR_CONCAT_CHANNEL:
                 timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
-                points = np.fromfile(bin_path, dtype=np.float32).reshape(
-                    -1, _NUM_POINT_FEATURES
-                )
+                points = np.fromfile(bin_path, dtype=np.float32).reshape(-1, _NUM_POINT_FEATURES)
                 csv_path = lidar_dir / f"{timestamp_ns}.csv"
                 _save_pointcloud_csv(csv_path, timestamp_ns, points)
                 count += 1
