@@ -1,8 +1,8 @@
 """Point-cloud helpers for the T4 → Kognic conversion pipeline."""
 
 import json
-import shutil
 from pathlib import Path
+import shutil
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -55,9 +55,7 @@ def extract_pointclouds(
 
         bin_path = seq_path / concat_sample_data["filename"]
         if not bin_path.exists():
-            raise FileNotFoundError(
-                f"Required LIDAR_CONCAT point cloud is missing: {bin_path}"
-            )
+            raise FileNotFoundError(f"Required LIDAR_CONCAT point cloud is missing: {bin_path}")
 
         if lidar_channel == _LIDAR_CONCAT_CHANNEL:
             timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
