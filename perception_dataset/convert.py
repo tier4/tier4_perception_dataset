@@ -90,6 +90,28 @@ def main():
             f"[Done] Converting T4 dataset ({input_base}) to Kognic staging format ({output_base})"
         )
 
+    elif task == "convert_kognic_to_non_annotated_t4":
+        from perception_dataset.kognic.kognic_to_t4_converter import KognicToT4Converter
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        scene_name = config_dict["conversion"].get("scene_name", "")
+
+        converter = KognicToT4Converter(
+            input_base=input_base,
+            output_base=output_base,
+            scene_name=scene_name,
+        )
+
+        logger.info(
+            f"[BEGIN] Converting Kognic staging format ({input_base}) "
+            f"to T4 dataset ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[Done] Converting Kognic staging format ({input_base}) to T4 dataset ({output_base})"
+        )
+
     elif task == "convert_non_annotated_t4_to_deepen":
         from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
             NonAnnotatedT4ToDeepenConverter,

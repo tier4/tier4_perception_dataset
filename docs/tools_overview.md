@@ -104,6 +104,21 @@ output: Kognic staging format data
 python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml
 ```
 
+See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a detailed explanation of the staging format and the upload pipeline.
+
+### Kognic format to T4 non-annotated format
+
+Converts a local Kognic staging directory back into a T4 non-annotated dataset. When the staging folder contains multiple per-source LiDAR streams, the converter merges them into a single `LIDAR_CONCAT` `.pcd.bin` file and writes a matching `LIDAR_CONCAT_INFO` sidecar per frame.
+
+input: Kognic staging format data  
+output: T4 non-annotated format data
+
+```bash
+python -m perception_dataset.convert --config config/convert_kognic_to_non_annotated_t4_sample.yaml
+```
+
+See [kognic_to_t4.md](kognic_to_t4.md) for a detailed explanation.
+
 ### Upload Kognic staging format to Kognic
 
 Uploads the local Kognic staging format to the Kognic platform.

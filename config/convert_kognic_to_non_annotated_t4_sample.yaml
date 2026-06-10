@@ -1,0 +1,5 @@
+task: convert_kognic_to_non_annotated_t4
+conversion:
+  input_base: ./data/kognic_format
+  output_base: ./data/non_annotated_t4_format
+  scene_name: ""  # optional override; defaults to the input directory name
