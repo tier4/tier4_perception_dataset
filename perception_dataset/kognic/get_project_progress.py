@@ -4,12 +4,12 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
+import time
 from typing import Dict, List, Optional
 
 from kognic.io.client import KognicIOClient
 import yaml
 
-import time
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -139,7 +139,9 @@ class KognicProjectProgress:
 
         input_entries = []
         for inp in inputs:
-            entry = self._build_input_entry(inp, scenes_by_uuid, annotation_types, delivered_by_scene)
+            entry = self._build_input_entry(
+                inp, scenes_by_uuid, annotation_types, delivered_by_scene
+            )
             if self.config.include_annotation_stats:
                 entry["annotations"] = stats_by_scene.get(inp.scene_uuid, [])
             logger.info(self._format_input_entry(entry))
@@ -315,9 +317,9 @@ def main():
     with open(args.config) as f:
         config_dict = yaml.safe_load(f)
 
-    assert config_dict["task"] == "get_kognic_project_progress", (
-        f"Expected task 'get_kognic_project_progress', got '{config_dict['task']}'"
-    )
+    assert (
+        config_dict["task"] == "get_kognic_project_progress"
+    ), f"Expected task 'get_kognic_project_progress', got '{config_dict['task']}'"
 
     progress_config = _load_progress_config(config_dict)
     KognicProjectProgress(progress_config).report()
