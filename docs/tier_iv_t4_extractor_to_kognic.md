@@ -1,6 +1,6 @@
-# Tier IV T4 Extractor to Kognic
+# T4 to Kognic
 
-This document explains how [tier_iv_t4_extractor.py](../tier_4_code/tier_iv_t4_extractor.py) reads a Tier IV T4 sequence and reshapes it into the extracted data layout consumed by [tier_iv_t4_uploader.py](../tier_4_code/tier_iv_t4_uploader.py) for Kognic upload.
+This document explains how [non_annotated_t4_to_kognic_converter.py](../perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py) reads a Tier IV T4 sequence and reshapes it into the staging layout consumed by [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) for Kognic upload.
 
 References:
 
@@ -22,13 +22,13 @@ extracted_data/<sequence_name>/
 
 An uploader then reads this folder, creates a Kognic sensor calibration, builds a `LidarsAndCamerasSequence`, attaches per-frame images and point clouds, and uploads the scene.
 
-The package converter [non_annotated_t4_to_kognic_converter.py](../perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py) mirrors this same staging layout while preserving the `perception_dataset` converter interface. Unlike the standalone extractor, it uses `conversion.annotation_hz` to choose either sample-level 1 Hz output or sensor-frame-level 10 Hz output when the T4 `sample_data.json` contains those higher-frequency frames.
+The package converter [non_annotated_t4_to_kognic_converter.py](../perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py) mirrors this same staging layout while preserving the `perception_dataset` converter interface. It always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found).
 
-The package uploader [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) preserves the same config-driven shape as the Deepen uploader, but uploads expanded Kognic staging directories instead of zip files. It does not take a frequency TSV: every staged frame is uploaded with `metadata.annotate = True`.
+The package uploader [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) uploads expanded Kognic staging directories instead of zip files. Annotation frequency is controlled at upload time via `conversion.target_hz`: frames at that interval are marked `annotate=True`, and the remaining frames are uploaded as context with `annotate=False`. When `target_hz` is omitted, every frame is marked `annotate=True`.
 
 ## Kognic Staging Files
 
-The local "Kognic format" produced here is a staging layout for Kognic IO, not an exported annotation format. Each file is either uploaded directly as scene data or converted into a Kognic model object by [tier_iv_t4_uploader.py](../tier_4_code/tier_iv_t4_uploader.py) or the package uploader [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py).
+The local "Kognic format" produced here is a staging layout for Kognic IO, not an exported annotation format. Each file is either uploaded directly as scene data or converted into a Kognic model object by [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py).
 
 ```text
 extracted_data/<sequence_name>/
@@ -49,9 +49,9 @@ extracted_data/<sequence_name>/
 | `ego_poses.json`                           | Extractor  | Frame-indexed ego vehicle poses relative to frame 0. Keys are frame indices as strings, values contain position and rotation quaternion.                                                                                                                                               | The uploader attaches each pose to the matching `LidarsAndCamerasSequenceFrame` as `ego_vehicle_pose`. If enabled, it also upsamples these poses into IMU-like samples.                                                                                                  |
 | `cameras/<camera_name>/<timestamp_ns>.jpg` | Extractor  | A copied camera image named by its nanosecond timestamp.                                                                                                                                                                                                                               | The uploader creates a Kognic `Image` resource for each matching file and sets `shutter_time_start_ns` and `shutter_time_end_ns` from the filename. Kognic supports common image formats including `png`, `jpg`, `jpeg`, `webp`, and `avif`; this extractor writes JPGs. |
 | `lidar/<lidar_name>/<timestamp_ns>.csv`    | Extractor  | A point cloud CSV with the columns `ts_gps,x,y,z,intensity`. With `LIDAR_CONCAT_INFO`, this is a per-source LiDAR slice. Without `LIDAR_CONCAT_INFO`, the package converter can export the whole fused `LIDAR_CONCAT` cloud as one stream. The points remain in `base_link`.           | The uploader creates a Kognic `PointCloud` resource for each matching CSV. Kognic converts CSV point clouds internally; the documented CSV format requires exact column names and a timestamp field. Optional RGB columns are omitted here.                              |
-| `frames_debug.json`                        | Uploader   | A local forensic dump of the scene object that the uploader constructed, including frame IDs, timestamps, metadata, images, and point clouds. The standalone Tier IV uploader writes it automatically. The package uploader writes it only when `conversion.write_debug_frames: true`. | Not uploaded as scene data. It is useful for checking what would be or was sent to Kognic, especially in `dryrun` mode.                                                                                                                                                  |
+| `frames_debug.json`                        | Uploader   | A local forensic dump of the scene object that the uploader constructed, including frame IDs, timestamps, metadata, images, and point clouds. It's only written when `conversion.write_debug_frames: true`. | Not uploaded as scene data. It is useful for checking what would be or was sent to Kognic, especially in `dryrun` mode.                                                                                                                                                  |
 
-The uploader also creates Kognic-side objects that are not saved as standalone extractor files:
+The uploader also creates Kognic-side objects that are not saved as files:
 
 | Kognic object                   | Built from                                                                  | Purpose                                                                                                                                                                                                                                                                          |
 | ------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,7 +61,7 @@ The uploader also creates Kognic-side objects that are not saved as standalone e
 | `PointCloud`                    | `lidar/<sensor>/<timestamp_ns>.csv`                                         | Points Kognic to the CSV file for a LiDAR stream in a frame.                                                                                                                                                                                                                     |
 | `Image`                         | `cameras/<sensor>/<timestamp_ns>.jpg`                                       | Points Kognic to the camera image file for a frame and carries shutter timing metadata.                                                                                                                                                                                          |
 | `IMUData`                       | Interpolated from `ego_poses.json` when configured                          | Optional dense pose stream used when IMU data is requested.                                                                                                                                                                                                                      |
-| Scene/frame metadata            | Uploader config and, for the standalone Tier IV uploader, the frequency TSV | Stores traceability fields such as source filename, dataset ID, and per-frame `annotate` flags. The standalone Tier IV uploader also stores frequency metadata and can mark only selected frames for annotation. The package uploader marks every staged frame `annotate: true`. |
+| Scene/frame metadata            | Uploader config | Stores traceability fields such as source filename, dataset ID, and per-frame `annotate` flags. Frames at the `target_hz` interval are marked `annotate: true`; all others are `annotate: false`. When `target_hz` is omitted every frame is `annotate: true`. |
 
 ### File Shapes
 
@@ -157,7 +157,7 @@ ts_gps,x,y,z,intensity
 
 ```mermaid
 flowchart LR
-  Config["tier_4_code/config.yaml"]
+  Config["convert_non_annotated_t4_to_kognic_sample.yaml"]
   T4["T4 sequence root<br/>annotation/ + data/"]
   Discover["Discover sequence paths"]
   Lookups["Build token/channel lookup maps"]
@@ -165,8 +165,8 @@ flowchart LR
   Ego["Write ego_poses.json"]
   Images["Copy camera JPGs"]
   Lidar["Split LIDAR_CONCAT<br/>into per-lidar CSVs<br/>or export fused LIDAR_CONCAT"]
-  Extracted["extracted_data/sequence_name/"]
-  Upload["tier_iv_t4_uploader.py"]
+  Extracted["kognic_format/sequence_name/"]
+  Upload["upload_dataset.py"]
   Kognic["Kognic<br/>LidarsAndCamerasSequence"]
 
   Config --> Discover
@@ -199,7 +199,7 @@ The extractor expects each sequence root to contain both `annotation/` and `data
 | `data/LIDAR_CONCAT/*.pcd.bin`   | Concatenated point cloud arrays. T4 stores points as float32 `(N, 5)`: `x, y, z, intensity, ring_idx`, with `x/y/z` already in `base_link`. |
 | `data/LIDAR_CONCAT_INFO/*.json` | Gives per-source LiDAR point ranges inside each concatenated cloud.                                                                         |
 
-Sensors are selected from `extraction_config.sensors` in [config.yaml](../tier_4_code/config.yaml). If `extraction_config.sequence_names` is set, only matching sequence folder names are processed.
+Camera sensors are configured in `conversion.camera_sensors` in `convert_non_annotated_t4_to_kognic_sample.yaml`.
 
 ## Sequence Discovery
 
@@ -358,7 +358,7 @@ The uploader passes these poses into each `LidarsAndCamerasSequenceFrame` as `eg
 
 T4 `annotation/ego_pose.json` can contain more poses than the extractor writes to `ego_poses.json`. In the sample dataset, the raw T4 ego poses and `LIDAR_CONCAT` sample-data records are roughly 10 Hz, while `sample.json` frames are roughly 1 Hz.
 
-That frequency is not hardcoded in [tier_iv_t4_extractor.py](../tier_4_code/tier_iv_t4_extractor.py). The extractor does not define "10 Hz" or resample the raw T4 ego-pose stream. It simply:
+That frequency is not hardcoded in the converter. It does not define "10 Hz" or resample the raw T4 ego-pose stream. It simply:
 
 1. Loads `sample.json` and sorts it by timestamp.
 2. Builds a lookup of `sample_token -> channel -> sample_data`.
@@ -400,20 +400,11 @@ extractor ego_poses.json, selected frame poses:
   "2" -> next selected sample frame pose
 ```
 
-The in-between ego poses such as `65f2...` are still valid vehicle poses at intermediate sensor timestamps. The standalone extractor does not include them because it writes one ego pose per selected `sample.json` output frame. The package converter includes them when `annotation_hz: 10`, because it selects frames from the 10 Hz `sample_data.json` sensor stream instead of only from `sample.json`.
+The in-between ego poses such as `65f2...` are still valid vehicle poses at intermediate sensor timestamps. The package converter always includes all of them because it selects frames from the full `sample_data.json` sensor stream. To choose not to include them in the annotation, please set the `target_hz` setting at upload time to be `1 hz`.
 
-The uploader has a separate `frequency` setting (`10hz` or `1hz`) for annotation metadata. That setting controls which uploaded frames are marked for annotation. For the package converter, the conversion-time `annotation_hz` setting controls how many frames are written to the Kognic staging folder.
+### Package Converter Output
 
-### Package Converter Frequency
-
-`perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py` uses `annotation_hz` when building output frames:
-
-| `annotation_hz` | Frame source                                                                                      | Example output on the sample dataset                    |
-| --------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `1`             | `sample.json` records, using the retained `sample_token -> channel -> sample_data` lookup entry   | 57 frames: `LIDAR_CONCAT/00000`, `00010`, ..., `00554`  |
-| `10`            | Every `LIDAR_CONCAT` `sample_data.json` record, with camera files matched by frame filename index | 555 frames: `LIDAR_CONCAT/00000`, `00001`, ..., `00554` |
-
-Intermediate values are selected from the high-frequency `sample_data.json` stream by step size. For example, `annotation_hz: 5` keeps every second high-frequency frame.
+`perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py` always writes all available frames. On the sample dataset this produces 555 frames (`LIDAR_CONCAT/00000` through `00554`), falling back to 57 `sample.json`-level frames only if no high-frequency anchor channel is found.
 
 ### Package Uploader
 
@@ -507,7 +498,7 @@ The uploader anchors frames on the first available LiDAR stream, preferring the 
 | Missing camera for a sample | The frame is skipped for that camera only                                              |
 | Existing destination file   | Not overwritten                                                                        |
 
-The standalone Tier IV uploader later looks for camera files matching the anchor LiDAR timestamp, so exact timestamp alignment matters there. The package uploader pairs cameras by frame order and stores each image's own filename timestamp as shutter metadata.
+The uploader pairs cameras by frame order and stores each image's own filename timestamp as shutter metadata.
 
 ## LiDAR Extraction
 
@@ -579,7 +570,7 @@ flowchart TD
   Poses["ego_poses.json"]
   Lidar["lidar/sensor_name/timestamp_ns.csv"]
   Camera["cameras/sensor_name/timestamp_ns.jpg"]
-  Uploader["tier_iv_t4_uploader.py<br/>or perception_dataset/kognic/upload_dataset.py"]
+  Uploader["perception_dataset/kognic/upload_dataset.py"]
   SensorCal["Kognic SensorCalibration"]
   Frame["LidarsAndCamerasSequenceFrame"]
   Scene["Kognic LidarsAndCamerasSequence"]
@@ -594,9 +585,7 @@ flowchart TD
   Uploader --> Frame
 ```
 
-The standalone uploader anchors frame iteration on the first configured LiDAR directory (`LIDAR_FRONT_UPPER` in [tier_iv_t4_uploader.py](../tier_4_code/tier_iv_t4_uploader.py)). For each anchor timestamp, it attaches any matching per-LiDAR CSVs and per-camera JPGs.
-
-The package uploader anchors on the first available LiDAR stream in the staging folder, preferring the normal Tier IV LiDAR order and falling back to `LIDAR_CONCAT` if the converter exported a concat-only stream. It attaches other LiDAR and camera files by frame order, so camera filenames do not need to equal the LiDAR timestamp.
+The uploader anchors on the first available LiDAR stream in the staging folder, preferring the normal Tier IV LiDAR order and falling back to `LIDAR_CONCAT` if the converter exported a concat-only stream. Other LiDAR and camera files are attached by frame order, so camera filenames do not need to equal the LiDAR timestamp.
 
 Frame timestamps:
 
@@ -615,15 +604,15 @@ Frame timestamps:
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | No T4 sequence roots found                                       | Raises `FileNotFoundError`.                                                                                                                                                                     |
 | Configured sensor missing from `sensor.json`                     | Logs a warning and skips that sensor.                                                                                                                                                           |
-| LiDAR extraction requested but `data/LIDAR_CONCAT_INFO/` missing | `tier_iv_t4_extractor.py` raises `FileNotFoundError`. The package converter falls back to exporting fused `LIDAR_CONCAT` as one stream.                                                         |
+| LiDAR extraction requested but `data/LIDAR_CONCAT_INFO/` missing | Falls back to exporting fused `LIDAR_CONCAT` as one stream.                                                                                                                                    |
 | `sample_data.info_filename` missing for `LIDAR_CONCAT`           | Raises `FileNotFoundError` in split mode. Not needed in concat-only fallback mode.                                                                                                              |
 | `LIDAR_CONCAT_INFO` source entry missing for a configured LiDAR  | Skips that LiDAR for that frame.                                                                                                                                                                |
 | Source point-cloud file missing                                  | Raises `FileNotFoundError`.                                                                                                                                                                     |
-| Camera image folder has no JPGs when calibration is built        | `tier_iv_t4_extractor.py` raises `FileNotFoundError` while reading image dimensions. The package converter skips configured camera channels that have no files, allowing LiDAR-only conversion. |
+| Camera image folder has no JPGs when calibration is built        | Skips configured camera channels that have no files, allowing LiDAR-only conversion.                                                                                                           |
 
 ## Quick Mental Model
 
-The extractor performs a structural conversion:
+The converter performs a structural conversion:
 
 ```text
 T4 nuScenes-like tables + data files
