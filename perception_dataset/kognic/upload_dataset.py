@@ -300,7 +300,11 @@ class KognicDatasetUploader:
             if reference_timestamp is None:
                 reference_timestamp = timestamp_ns
 
-            if min_interval_ns == 0 or last_annotated_ts is None or (timestamp_ns - last_annotated_ts) >= min_interval_ns:
+            if (
+                min_interval_ns == 0
+                or last_annotated_ts is None
+                or (timestamp_ns - last_annotated_ts) >= min_interval_ns
+            ):
                 annotate = True
                 last_annotated_ts = timestamp_ns
             else:
