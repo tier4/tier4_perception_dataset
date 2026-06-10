@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 import attrs
-from t4_devkit.schema import Category, Instance, SampleAnnotation
+from t4_devkit.schema import Category, EgoPose, Instance, SampleAnnotation
 
 from perception_dataset.t4_dataset.table_handler import TableHandler
 
@@ -413,6 +413,98 @@ class TestTableHandler(unittest.TestCase):
                 num_lidar_pts=100,
                 num_radar_pts=0,
             )
+
+
+class TestTableHandlerReuseIfDuplicate(unittest.TestCase):
+    """Test the opt-in reuse_if_duplicate behavior (used by EgoPose / VehicleState)."""
+
+    def setUp(self):
+        self.handler = TableHandler(EgoPose)
+
+    @staticmethod
+    def _ego_pose_kwargs(**overrides):
+        kwargs = {
+            "translation": (1.0, 2.0, 3.0),
+            "rotation": (0.0, 0.0, 0.0, 1.0),
+            "timestamp": 1_000_000,
+            "twist": None,
+            "acceleration": None,
+            "geocoordinate": None,
+        }
+        kwargs.update(overrides)
+        return kwargs
+
+    def test_reuse_returns_existing_token(self):
+        """Identical content with reuse_if_duplicate=True reuses the first token."""
+        token1 = self.handler.insert_into_table(reuse_if_duplicate=True, **self._ego_pose_kwargs())
+        token2 = self.handler.insert_into_table(reuse_if_duplicate=True, **self._ego_pose_kwargs())
+
+        self.assertEqual(token1, token2)
+        self.assertEqual(len(self.handler), 1)
+
+    def test_default_still_raises_on_duplicate(self):
+        """The default (reuse_if_duplicate=False) keeps the strict duplicate-error invariant."""
+        self.handler.insert_into_table(**self._ego_pose_kwargs())
+
+        with self.assertRaises(ValueError) as context:
+            self.handler.insert_into_table(**self._ego_pose_kwargs())
+
+        self.assertIn("Duplicate record found", str(context.exception))
+        self.assertEqual(len(self.handler), 1)
+
+    def test_reuse_does_not_over_collapse_distinct_content(self):
+        """Records differing only by timestamp are distinct, even with reuse enabled."""
+        token1 = self.handler.insert_into_table(
+            reuse_if_duplicate=True, **self._ego_pose_kwargs(timestamp=1_000_000)
+        )
+        token2 = self.handler.insert_into_table(
+            reuse_if_duplicate=True, **self._ego_pose_kwargs(timestamp=1_000_001)
+        )
+
+        self.assertNotEqual(token1, token2)
+        self.assertEqual(len(self.handler), 2)
+
+    def test_reuse_path_does_not_corrupt_hash_index(self):
+        """A reuse hit must not mutate the hash index or break later strict inserts."""
+        token_a = self.handler.insert_into_table(
+            reuse_if_duplicate=True, **self._ego_pose_kwargs(timestamp=1_000_000)
+        )
+        # Reuse A (no new record added).
+        self.assertEqual(
+            self.handler.insert_into_table(
+                reuse_if_duplicate=True, **self._ego_pose_kwargs(timestamp=1_000_000)
+            ),
+            token_a,
+        )
+
+        # Distinct record B inserts under the default strict mode.
+        token_b = self.handler.insert_into_table(**self._ego_pose_kwargs(timestamp=2_000_000))
+        self.assertNotEqual(token_a, token_b)
+        self.assertEqual(len(self.handler), 2)
+
+        # An exact duplicate of B under strict mode still raises.
+        with self.assertRaises(ValueError):
+            self.handler.insert_into_table(**self._ego_pose_kwargs(timestamp=2_000_000))
+
+    def test_reuse_honors_equality_gate_under_hash_collision(self):
+        """With a forced hash collision, content-distinct records still insert as new tokens."""
+        with patch.object(self.handler, "_get_record_content_hash", return_value="same_hash"):
+            token1 = self.handler.insert_into_table(
+                reuse_if_duplicate=True, **self._ego_pose_kwargs(timestamp=1_000_000)
+            )
+            # Same hash but different content -> must NOT be reused.
+            token2 = self.handler.insert_into_table(
+                reuse_if_duplicate=True, **self._ego_pose_kwargs(timestamp=1_000_001)
+            )
+            self.assertNotEqual(token1, token2)
+            self.assertEqual(len(self.handler), 2)
+
+            # Same hash AND identical content -> reused.
+            token3 = self.handler.insert_into_table(
+                reuse_if_duplicate=True, **self._ego_pose_kwargs(timestamp=1_000_000)
+            )
+            self.assertEqual(token1, token3)
+            self.assertEqual(len(self.handler), 2)
 
 
 if __name__ == "__main__":

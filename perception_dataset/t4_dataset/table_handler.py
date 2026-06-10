@@ -121,7 +121,24 @@ class TableHandler(Generic[SchemaRecord]):
 
         return dict1 == dict2
 
-    def insert_into_table(self, **kwargs) -> str:
+    def insert_into_table(self, *, reuse_if_duplicate: bool = False, **kwargs) -> str:
+        """Insert a new record into the table and return its token.
+
+        Args:
+            reuse_if_duplicate (bool): If True and a record with identical content
+                already exists, return the existing token instead of raising.
+                Defaults to False (strict duplicate detection).
+            **kwargs: Field names and values of the record to insert. The token is
+                generated automatically.
+
+        Returns:
+            str: Token of the newly inserted record, or of the existing duplicate
+                record when ``reuse_if_duplicate=True``.
+
+        Raises:
+            ValueError: If a record with identical content already exists and
+                ``reuse_if_duplicate`` is False.
+        """
         # Create a temporary record to compare
         temp_record = self._to_record(**kwargs)
 
@@ -133,6 +150,10 @@ class TableHandler(Generic[SchemaRecord]):
             for existing_token in self._content_hash_to_tokens[content_hash]:
                 existing_record = self._token_to_record[existing_token]
                 if self._is_duplicate_record(temp_record, existing_record):
+                    # Some tables (EgoPose, VehicleState) legitimately produce identical records
+                    # when two frames have the same microsecond timestamp and state, so we re-use them.
+                    if reuse_if_duplicate:
+                        return existing_token
                     raise ValueError(
                         f"Duplicate record found in table {self._schema_type.__name__}. "
                         f"Existing token: {existing_token}"
