@@ -86,11 +86,16 @@ class KognicAnnotationDownloader:
 
         logger.info(f"Found {len(annotations)} annotation(s)")
 
-        (self.config.output_base / self.config.project_external_id).mkdir(parents=True, exist_ok=True)
-
+        (self.config.output_base / self.config.project_external_id).mkdir(
+            parents=True, exist_ok=True
+        )
 
         for annotation in annotations:
-            out_path = self.config.output_base / self.config.project_external_id / f"{annotation.scene_uuid}.json"
+            out_path = (
+                self.config.output_base
+                / self.config.project_external_id
+                / f"{annotation.scene_uuid}.json"
+            )
             with open(out_path, "w") as f:
                 json.dump(annotation.content, f, indent=2)
             logger.info(f"  Saved {out_path}")
@@ -110,9 +115,9 @@ def main():
     with open(args.config) as f:
         config_dict = yaml.safe_load(f)
 
-    assert config_dict["task"] == "download_kognic_annotation", (
-        f"Expected task 'download_kognic_annotation', got '{config_dict['task']}'"
-    )
+    assert (
+        config_dict["task"] == "download_kognic_annotation"
+    ), f"Expected task 'download_kognic_annotation', got '{config_dict['task']}'"
 
     download_config = _load_download_config(config_dict)
     downloader = KognicAnnotationDownloader(download_config)
