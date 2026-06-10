@@ -38,13 +38,11 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
         input_base: str,
         output_base: str,
         camera_sensors: list,
-        annotation_hz: int = 10,
         workers_number: int = 32,
         drop_camera_token_not_found: bool = False,
     ):
         super().__init__(input_base, output_base)
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
-        self._annotation_hz = annotation_hz
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
 
@@ -128,9 +126,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
         self._has_lidar_concat_info = (seq_path / "data" / "LIDAR_CONCAT_INFO").is_dir()
         self._lidar_channels = self._discover_lidar_channels()
         self._frame_records = self._build_frame_records()
-        logger.info(
-            f"Selected {len(self._frame_records)} frames for annotation_hz={self._annotation_hz}"
-        )
+        logger.info(f"Selected {len(self._frame_records)} frames")
 
         if not self._has_lidar_concat_info and _LIDAR_CONCAT_CHANNEL in self._lidar_channels:
             logger.warning(
@@ -240,24 +236,19 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
         )
 
     def _build_frame_records(self) -> List[Dict[str, dict]]:
-        """Build selected output frames according to the requested annotation_hz.
+        """Build output frames from all available sensor frames.
 
-        ``sample.json`` is usually 1 Hz, while ``sample_data.json`` may contain
-        10 Hz sensor frames. Keep 1 Hz behavior sample-driven to match the
-        existing extractor output, and use sample_data-driven selection for
-        higher requested frequencies.
+        Uses the full high-frequency stream from ``sample_data.json`` when available,
+        falling back to ``sample.json`` if no anchor channel is found.
+        Annotation frequency is controlled at upload time via ``target_hz``.
         """
-        if self._annotation_hz <= 1:
-            return self._build_sample_level_frame_records()
-
         anchor_channel = self._select_high_frequency_anchor_channel()
         if anchor_channel is None:
             return self._build_sample_level_frame_records()
 
-        step = max(1, int(round(10 / self._annotation_hz)))
         anchor_records = self._sample_data_by_channel.get(anchor_channel, [])
         frame_records: List[Dict[str, dict]] = []
-        for anchor_record in anchor_records[::step]:
+        for anchor_record in anchor_records:
             frame_id = Path(anchor_record["filename"]).stem.split(".")[0]
             frame_record: Dict[str, dict] = {}
 
