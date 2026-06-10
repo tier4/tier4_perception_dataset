@@ -1,0 +1,8 @@
+task: get_kognic_project_progress
+conversion:
+  organization_id: 114
+  workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
+  project_external_id: semantic_segmentation_poc_tier_iv
+  report_path: ./reports.json       # where the progress report JSON is written
+  # batch: <batch_external_id>      # optional — omit to report all batches in the project
+  include_annotation_stats: true   # true → also fetch annotation contents per input (shape counts + category counts, e.g. points per class for semseg; slower)
