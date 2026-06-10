@@ -1,7 +1,7 @@
 """Calibration helpers for the T4 → Kognic conversion pipeline."""
 
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import kognic.io.model as KognicModel
 
