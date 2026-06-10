@@ -177,8 +177,9 @@ class KognicDatasetUploader:
         )
         imu_data = self._build_imu_data(sequence_path, ego_poses)
 
+        annotated = sum(1 for f in frames if f.metadata.annotate)
         logger.info(
-            f"{external_id}: {len(frames)} frames, all annotate=True, "
+            f"{external_id}: {len(frames)} frames ({annotated} annotate=True), "
             f"{len(imu_data)} IMU samples"
         )
 
@@ -271,15 +272,8 @@ class KognicDatasetUploader:
             )
             anchor_files = camera_files[anchor_sensors[0]]
 
-        min_interval_ns = int(1e9 / self.config.target_hz) if self.config.target_hz else 0
-        last_yielded_ts: Optional[int] = None
-
         for frame_idx, anchor_file in enumerate(anchor_files):
             timestamp_ns = int(anchor_file.stem)
-
-            if last_yielded_ts is not None and (timestamp_ns - last_yielded_ts) < min_interval_ns:
-                continue
-
             sensor_files: Dict[str, Path] = {}
 
             for lidar_name, files in lidar_files.items():
@@ -290,7 +284,6 @@ class KognicDatasetUploader:
                 if frame_idx < len(files):
                     sensor_files[camera_name] = files[frame_idx]
 
-            last_yielded_ts = timestamp_ns
             yield str(frame_idx), timestamp_ns, sensor_files
 
     def _build_frames(
@@ -300,10 +293,18 @@ class KognicDatasetUploader:
     ) -> List[LidarsAndCamerasSequenceFrame]:
         frames = []
         reference_timestamp = None
+        min_interval_ns = int(1e9 / self.config.target_hz) if self.config.target_hz else 0
+        last_annotated_ts: Optional[int] = None
 
         for frame_id, timestamp_ns, sensor_files in self.iterate_frames(sequence_path):
             if reference_timestamp is None:
                 reference_timestamp = timestamp_ns
+
+            if min_interval_ns == 0 or last_annotated_ts is None or (timestamp_ns - last_annotated_ts) >= min_interval_ns:
+                annotate = True
+                last_annotated_ts = timestamp_ns
+            else:
+                annotate = False
 
             relative_timestamp = int((timestamp_ns - reference_timestamp) / 1e6)
             point_clouds = [
@@ -332,7 +333,7 @@ class KognicDatasetUploader:
                     ego_vehicle_pose=ego_poses.get(frame_id) if ego_poses else None,
                     point_clouds=point_clouds,
                     images=images,
-                    metadata=FrameMetaData(annotate=True),
+                    metadata=FrameMetaData(annotate=annotate),
                 )
             )
 
