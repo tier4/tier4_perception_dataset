@@ -57,7 +57,7 @@ task: convert_kognic_to_non_annotated_t4
 conversion:
   input_base: ./data/kognic_format
   output_base: ./data/non_annotated_t4_format
-  scene_name: ""  # optional override; defaults to the input directory name
+  scene_name: "" # optional override; defaults to the input directory name
 ```
 
 `input_base` may be either a single Kognic sequence directory (containing `calibration.json`) or a parent directory that holds multiple sequence subdirectories. Each subdirectory that contains `calibration.json` and `ego_poses.json` is treated as one sequence.
@@ -94,14 +94,14 @@ flowchart LR
 
 ### Cameras
 
-| T4 field                   | Kognic source                                                               |
-| -------------------------- | --------------------------------------------------------------------------- |
-| `sensor.channel`           | Sensor name key in `calibration.json`                                       |
-| `sensor.modality`          | `"camera"`                                                                  |
-| `calibrated_sensor.translation` | `position.x/y/z`                                                       |
-| `calibrated_sensor.rotation`    | `rotation_quaternion.w/x/y/z`                                          |
-| `calibrated_sensor.camera_intrinsic` | `[[fx, 0, cx], [0, fy, cy], [0, 0, 1]]` from `camera_matrix`     |
-| `calibrated_sensor.camera_distortion` | `[k1, k2, p1, p2, k3]` from `distortion_coefficients`           |
+| T4 field                              | Kognic source                                                |
+| ------------------------------------- | ------------------------------------------------------------ |
+| `sensor.channel`                      | Sensor name key in `calibration.json`                        |
+| `sensor.modality`                     | `"camera"`                                                   |
+| `calibrated_sensor.translation`       | `position.x/y/z`                                             |
+| `calibrated_sensor.rotation`          | `rotation_quaternion.w/x/y/z`                                |
+| `calibrated_sensor.camera_intrinsic`  | `[[fx, 0, cx], [0, fy, cy], [0, 0, 1]]` from `camera_matrix` |
+| `calibrated_sensor.camera_distortion` | `[k1, k2, p1, p2, k3]` from `distortion_coefficients`        |
 
 ### LiDARs
 
@@ -181,13 +181,13 @@ The `sensor_token` values correspond to the `sensor.json` entries created for ea
 
 Both paths write float32 arrays with `LIDAR_CONCAT_NUM_POINT_FEATURES = 5` columns:
 
-| Column index | Meaning                   |
-| ------------ | ------------------------- |
-| 0            | x (metres, base\_link)    |
-| 1            | y (metres, base\_link)    |
-| 2            | z (metres, base\_link)    |
-| 3            | intensity                 |
-| 4            | ring\_idx (always 0 here) |
+| Column index | Meaning                  |
+| ------------ | ------------------------ |
+| 0            | x (metres, base_link)    |
+| 1            | y (metres, base_link)    |
+| 2            | z (metres, base_link)    |
+| 3            | intensity                |
+| 4            | ring_idx (always 0 here) |
 
 The `ring_idx` column is present to match the T4 binary layout but carries no meaningful value in this converter.
 
@@ -214,21 +214,21 @@ The following annotation tables are created but left empty (no annotations are p
 
 ## Timestamps
 
-| Value                     | Unit        | Conversion                           |
-| ------------------------- | ----------- | ------------------------------------ |
-| Kognic CSV filename        | nanoseconds | `// 1000` → T4 microseconds          |
-| `EgoPose.timestamp`       | microseconds | From LiDAR CSV filename              |
-| `Sample.timestamp`        | microseconds | Same as `EgoPose.timestamp`          |
-| `SampleData.timestamp`    | microseconds | From image/lidar filename            |
+| Value                  | Unit         | Conversion                  |
+| ---------------------- | ------------ | --------------------------- |
+| Kognic CSV filename    | nanoseconds  | `// 1000` → T4 microseconds |
+| `EgoPose.timestamp`    | microseconds | From LiDAR CSV filename     |
+| `Sample.timestamp`     | microseconds | Same as `EgoPose.timestamp` |
+| `SampleData.timestamp` | microseconds | From image/lidar filename   |
 
 If no LiDAR CSV is found for a frame, the frame timestamp falls back to `frame_index × 100_000 µs`.
 
 ## Failure Modes and Assumptions
 
-| Case                                             | Behavior                                                           |
-| ------------------------------------------------ | ------------------------------------------------------------------ |
-| Input directory has no `calibration.json`        | Sequence is skipped.                                               |
-| LiDAR CSV missing for a frame                    | No `SampleData` is inserted for that lidar channel in that frame.  |
-| Camera image missing for a frame                 | No `SampleData` is inserted for that camera in that frame.         |
-| LiDAR CSV has zero rows                          | An empty `.pcd.bin` is written; `LIDAR_CONCAT_INFO` records `length=0`. |
+| Case                                             | Behavior                                                                                                      |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Input directory has no `calibration.json`        | Sequence is skipped.                                                                                          |
+| LiDAR CSV missing for a frame                    | No `SampleData` is inserted for that lidar channel in that frame.                                             |
+| Camera image missing for a frame                 | No `SampleData` is inserted for that camera in that frame.                                                    |
+| LiDAR CSV has zero rows                          | An empty `.pcd.bin` is written; `LIDAR_CONCAT_INFO` records `length=0`.                                       |
 | Frame count differs across lidar/camera channels | Shorter channels produce fewer `SampleData` records; chain is wired correctly for each channel independently. |

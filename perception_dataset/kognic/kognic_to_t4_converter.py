@@ -1,9 +1,9 @@
 """Kognic staging format → T4 non-annotated dataset converter."""
 
 import json
+from pathlib import Path
 import shutil
 import time
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -104,7 +104,9 @@ class KognicToT4Converter(AbstractConverter[None]):
         with open(seq_path / "ego_poses.json") as f:
             ego_poses_raw: Dict[str, dict] = json.load(f)
 
-        lidar_channels = sorted(ch for ch, cal in calibration.items() if "camera_matrix" not in cal)
+        lidar_channels = sorted(
+            ch for ch, cal in calibration.items() if "camera_matrix" not in cal
+        )
         camera_channels = sorted(ch for ch, cal in calibration.items() if "camera_matrix" in cal)
         multi_lidar = len(lidar_channels) > 1
 
@@ -140,7 +142,9 @@ class KognicToT4Converter(AbstractConverter[None]):
         for channel, cal in calibration.items():
             is_camera = "camera_matrix" in cal
             modality = (
-                SENSOR_MODALITY_ENUM.CAMERA.value if is_camera else SENSOR_MODALITY_ENUM.LIDAR.value
+                SENSOR_MODALITY_ENUM.CAMERA.value
+                if is_camera
+                else SENSOR_MODALITY_ENUM.LIDAR.value
             )
             sensor_token = self._sensor_table.insert_into_table(channel=channel, modality=modality)
             channel_to_sensor_token[channel] = sensor_token
@@ -193,7 +197,11 @@ class KognicToT4Converter(AbstractConverter[None]):
             channel_to_cal_token[LIDAR_CONCAT_CHANNEL] = concat_cal_token
 
         # ---- create data subdirectories ----
-        output_lidar_channel = LIDAR_CONCAT_CHANNEL if multi_lidar else (lidar_channels[0] if lidar_channels else None)
+        output_lidar_channel = (
+            LIDAR_CONCAT_CHANNEL
+            if multi_lidar
+            else (lidar_channels[0] if lidar_channels else None)
+        )
         for channel in camera_channels:
             (data_dir / channel).mkdir(parents=True, exist_ok=True)
         if output_lidar_channel:
@@ -379,7 +387,11 @@ class KognicToT4Converter(AbstractConverter[None]):
             )
             idx_cursor += length
 
-        merged = np.concatenate(all_points, axis=0) if all_points else np.empty((0, LIDAR_CONCAT_NUM_POINT_FEATURES), dtype=np.float32)
+        merged = (
+            np.concatenate(all_points, axis=0)
+            if all_points
+            else np.empty((0, LIDAR_CONCAT_NUM_POINT_FEATURES), dtype=np.float32)
+        )
         bin_path = data_dir / LIDAR_CONCAT_CHANNEL / f"{frame_idx:06d}.pcd.bin"
         _write_pcd_bin(bin_path, merged)
 
@@ -404,7 +416,9 @@ def _indexed_file(directory: Path, index: int, pattern: str) -> Optional[Path]:
     return files[index] if 0 <= index < len(files) else None
 
 
-def _frame_timestamp_ns(seq_path: Path, lidar_channels: List[str], frame_index: int) -> Optional[int]:
+def _frame_timestamp_ns(
+    seq_path: Path, lidar_channels: List[str], frame_index: int
+) -> Optional[int]:
     """Read the nanosecond timestamp from the lidar CSV filename for a given frame index."""
     for channel in lidar_channels:
         csv_path = _indexed_file(seq_path / "lidar" / channel, frame_index, "*.csv")
