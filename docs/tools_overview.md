@@ -104,6 +104,22 @@ output: Kognic staging format data
 python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml
 ```
 
+### Upload Kognic staging format to Kognic
+
+Uploads the local Kognic staging format to the Kognic platform.
+
+input: Kognic staging format data  
+output: Kognic scene (uploaded)
+
+Requires a [credentials file](https://developers.kognic.com/docs/getting-started/quickstart/#generating-credentials). Set the path via the environment variable before running:
+
+```bash
+export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
+python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
+```
+
+See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md#package-uploader) for all config parameters.
+
 ## Deepen
 
 ### Non-annotated T4 format to Deepen format
