@@ -7,6 +7,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.calibration import extract_calibration
 from perception_dataset.kognic.ego_pose import extract_ego_poses
 from perception_dataset.kognic.pointcloud import (
@@ -16,8 +17,6 @@ from perception_dataset.kognic.pointcloud import (
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
-
-_LIDAR_CONCAT_CHANNEL = "LIDAR_CONCAT"
 
 
 class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
@@ -128,7 +127,7 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
         self._frame_records = self._build_frame_records()
         logger.info(f"Selected {len(self._frame_records)} frames")
 
-        if not self._has_lidar_concat_info and _LIDAR_CONCAT_CHANNEL in self._lidar_channels:
+        if not self._has_lidar_concat_info and LIDAR_CONCAT_CHANNEL in self._lidar_channels:
             logger.warning(
                 "LIDAR_CONCAT_INFO is missing. Exporting fused LIDAR_CONCAT "
                 "as a single Kognic LiDAR stream instead of per-source LiDARs."
@@ -219,14 +218,14 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
 
     def _discover_lidar_channels(self) -> List[str]:
         if not self._has_lidar_concat_info:
-            if _LIDAR_CONCAT_CHANNEL in self._channel_to_token:
-                return [_LIDAR_CONCAT_CHANNEL]
+            if LIDAR_CONCAT_CHANNEL in self._channel_to_token:
+                return [LIDAR_CONCAT_CHANNEL]
             return []
 
         return [
             sensor["channel"]
             for sensor in self._sensors
-            if sensor.get("modality") == "lidar" and sensor.get("channel") != _LIDAR_CONCAT_CHANNEL
+            if sensor.get("modality") == "lidar" and sensor.get("channel") != LIDAR_CONCAT_CHANNEL
         ]
 
     def _has_existing_channel_file(self, seq_path: Path, channel: str) -> bool:
@@ -278,8 +277,8 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
         return frame_records
 
     def _select_high_frequency_anchor_channel(self) -> Optional[str]:
-        if self._sample_data_by_channel.get(_LIDAR_CONCAT_CHANNEL):
-            return _LIDAR_CONCAT_CHANNEL
+        if self._sample_data_by_channel.get(LIDAR_CONCAT_CHANNEL):
+            return LIDAR_CONCAT_CHANNEL
 
         for camera_channel in self._camera_channels:
             if self._sample_data_by_channel.get(camera_channel):
@@ -288,11 +287,11 @@ class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
         return None
 
     def _channels_for_frame_records(self) -> List[str]:
-        return [_LIDAR_CONCAT_CHANNEL, *self._camera_channels]
+        return [LIDAR_CONCAT_CHANNEL, *self._camera_channels]
 
     def _get_reference_sample_data(self, frame_record: Dict[str, dict]) -> Optional[dict]:
-        if _LIDAR_CONCAT_CHANNEL in frame_record:
-            return frame_record[_LIDAR_CONCAT_CHANNEL]
+        if LIDAR_CONCAT_CHANNEL in frame_record:
+            return frame_record[LIDAR_CONCAT_CHANNEL]
 
         for camera_channel in self._camera_channels:
             if camera_channel in frame_record:

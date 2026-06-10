@@ -6,12 +6,10 @@ import kognic.io.model as KognicModel
 import numpy as np
 from scipy.spatial.transform import Rotation
 
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
-
-# Channel name used to select the reference sample_data for each frame.
-_LIDAR_CONCAT_CHANNEL = "LIDAR_CONCAT"
 
 
 def extract_ego_poses(
@@ -83,8 +81,8 @@ def _get_reference_sample_data(
 
     Preference order: LIDAR_CONCAT → first camera with data → any channel.
     """
-    if _LIDAR_CONCAT_CHANNEL in frame_record:
-        return frame_record[_LIDAR_CONCAT_CHANNEL]
+    if LIDAR_CONCAT_CHANNEL in frame_record:
+        return frame_record[LIDAR_CONCAT_CHANNEL]
 
     for camera_channel in camera_channels:
         if camera_channel in frame_record:

@@ -7,14 +7,14 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+from perception_dataset.constants import (
+    LIDAR_CONCAT_BYTES_PER_POINT,
+    LIDAR_CONCAT_CHANNEL,
+    LIDAR_CONCAT_NUM_POINT_FEATURES,
+)
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
-
-# Binary format constants for LIDAR_CONCAT .bin files.
-_LIDAR_CONCAT_CHANNEL = "LIDAR_CONCAT"
-_NUM_POINT_FEATURES = 5  # x, y, z, intensity, auxiliary/ring_idx
-_BYTES_PER_POINT = _NUM_POINT_FEATURES * 4  # float32
 
 
 def extract_pointclouds(
@@ -49,7 +49,7 @@ def extract_pointclouds(
 
     count = 0
     for frame_record in frame_records:
-        concat_sample_data = frame_record.get(_LIDAR_CONCAT_CHANNEL)
+        concat_sample_data = frame_record.get(LIDAR_CONCAT_CHANNEL)
         if concat_sample_data is None:
             continue
 
@@ -57,9 +57,9 @@ def extract_pointclouds(
         if not bin_path.exists():
             raise FileNotFoundError(f"Required LIDAR_CONCAT point cloud is missing: {bin_path}")
 
-        if lidar_channel == _LIDAR_CONCAT_CHANNEL:
+        if lidar_channel == LIDAR_CONCAT_CHANNEL:
             timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
-            points = np.fromfile(bin_path, dtype=np.float32).reshape(-1, _NUM_POINT_FEATURES)
+            points = np.fromfile(bin_path, dtype=np.float32).reshape(-1, LIDAR_CONCAT_NUM_POINT_FEATURES)
             csv_path = lidar_dir / f"{timestamp_ns}.csv"
             save_pointcloud_csv(csv_path, timestamp_ns, points)
             count += 1
@@ -92,14 +92,14 @@ def extract_pointclouds(
             continue
 
         with open(bin_path, "rb") as f:
-            f.seek(idx_begin * _BYTES_PER_POINT)
-            raw = f.read(length * _BYTES_PER_POINT)
+            f.seek(idx_begin * LIDAR_CONCAT_BYTES_PER_POINT)
+            raw = f.read(length * LIDAR_CONCAT_BYTES_PER_POINT)
 
         timestamp_ns = stamp_to_ns(source.get("stamp"))
         if timestamp_ns is None:
             timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
 
-        points = np.frombuffer(raw, dtype=np.float32).reshape(-1, _NUM_POINT_FEATURES)
+        points = np.frombuffer(raw, dtype=np.float32).reshape(-1, LIDAR_CONCAT_NUM_POINT_FEATURES)
         csv_path = lidar_dir / f"{timestamp_ns}.csv"
         save_pointcloud_csv(csv_path, timestamp_ns, points)
         count += 1

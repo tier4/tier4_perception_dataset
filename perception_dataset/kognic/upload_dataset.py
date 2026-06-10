@@ -22,32 +22,15 @@ from kognic.io.model.scene.resources.image import ImageMetadata
 import numpy as np
 import yaml
 
+from perception_dataset.constants import (
+    IMU_EXTRAPOLATE_S,
+    IMU_TARGET_HZ,
+    PREFERRED_CAMERA_SENSORS,
+    PREFERRED_LIDAR_SENSORS,
+)
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
-
-IMU_TARGET_HZ = 200
-IMU_EXTRAPOLATE_S = 0.15
-
-PREFERRED_CAMERA_SENSORS = [
-    "CAM_FRONT",
-    "CAM_FRONT_LEFT",
-    "CAM_FRONT_RIGHT",
-    "CAM_BACK",
-    "CAM_BACK_LEFT",
-    "CAM_BACK_RIGHT",
-]
-PREFERRED_LIDAR_SENSORS = [
-    "LIDAR_FRONT_UPPER",
-    "LIDAR_FRONT_LOWER",
-    "LIDAR_REAR_UPPER",
-    "LIDAR_REAR_LOWER",
-    "LIDAR_LEFT_UPPER",
-    "LIDAR_LEFT_LOWER",
-    "LIDAR_RIGHT_UPPER",
-    "LIDAR_RIGHT_LOWER",
-    "LIDAR_CONCAT",
-]
 
 SceneUUID = str
 

@@ -191,3 +191,41 @@ def constant(f):
         return f()
 
     return property(fget, fset)
+
+
+# ---------------------------------------------------------------------------
+# LiDAR / point-cloud constants
+# ---------------------------------------------------------------------------
+
+LIDAR_CONCAT_CHANNEL: str = SENSOR_ENUM.LIDAR_CONCAT.value["channel"]
+
+# Binary layout of LIDAR_CONCAT .bin files: x, y, z, intensity, ring_idx (float32 each).
+LIDAR_CONCAT_NUM_POINT_FEATURES: int = 5
+LIDAR_CONCAT_BYTES_PER_POINT: int = LIDAR_CONCAT_NUM_POINT_FEATURES * 4
+
+# ---------------------------------------------------------------------------
+# Kognic upload defaults
+# ---------------------------------------------------------------------------
+
+IMU_TARGET_HZ: int = 200
+IMU_EXTRAPOLATE_S: float = 0.15
+
+PREFERRED_CAMERA_SENSORS: List[str] = [
+    "CAM_FRONT",
+    "CAM_FRONT_LEFT",
+    "CAM_FRONT_RIGHT",
+    "CAM_BACK",
+    "CAM_BACK_LEFT",
+    "CAM_BACK_RIGHT",
+]
+PREFERRED_LIDAR_SENSORS: List[str] = [
+    "LIDAR_FRONT_UPPER",
+    "LIDAR_FRONT_LOWER",
+    "LIDAR_REAR_UPPER",
+    "LIDAR_REAR_LOWER",
+    "LIDAR_LEFT_UPPER",
+    "LIDAR_LEFT_LOWER",
+    "LIDAR_RIGHT_UPPER",
+    "LIDAR_RIGHT_LOWER",
+    "LIDAR_CONCAT",
+]
