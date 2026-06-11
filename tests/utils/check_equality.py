@@ -165,6 +165,37 @@ def diff_check_data(target_dir: Path, source_dir: Path) -> None:
             assert source_content == target_content, f"File contents differ: {relative_path}"
 
 
+def _normalize_rosbag_metadata(metadata: dict) -> dict:
+    """
+    Normalize rosbag2 metadata.yaml content so bags written by different ROS distros
+    can be compared. The metadata format version differs between distros (e.g. Humble
+    writes version 5, Jazzy writes version 9), so distro-dependent fields are dropped:
+    - top-level: version, ros_distro, custom_data
+    - per topic: offered_qos_profiles (YAML string vs structured list),
+      type_description_hash
+    The semantic content (timing, message counts, topic names/types, file layout)
+    is kept and compared.
+    """
+    info = dict(metadata["rosbag2_bagfile_information"])
+    for key in ("version", "ros_distro", "custom_data"):
+        info.pop(key, None)
+
+    normalized_topics = []
+    for topic in info.get("topics_with_message_count", []):
+        topic_metadata = {
+            key: value
+            for key, value in topic["topic_metadata"].items()
+            if key not in ("offered_qos_profiles", "type_description_hash")
+        }
+        normalized_topics.append(
+            {"topic_metadata": topic_metadata, "message_count": topic["message_count"]}
+        )
+    info["topics_with_message_count"] = sorted(
+        normalized_topics, key=lambda t: t["topic_metadata"]["name"]
+    )
+    return info
+
+
 def diff_check_rosbag(source_input_bag_path: Path, target_input_bag_path: Path) -> None:
     """Compare ROS bag directories between source and target."""
     # Verify exactly one .db3 file exists in source
@@ -188,12 +219,14 @@ def diff_check_rosbag(source_input_bag_path: Path, target_input_bag_path: Path) 
         source_metadata_yaml_path.is_file()
     ), f"Source metadata not found: {source_metadata_yaml_path}"
 
-    target_metadata = _load_yaml_file(target_metadata_yaml_path)
-    source_metadata = _load_yaml_file(source_metadata_yaml_path)
+    target_metadata = _normalize_rosbag_metadata(_load_yaml_file(target_metadata_yaml_path))
+    source_metadata = _normalize_rosbag_metadata(_load_yaml_file(source_metadata_yaml_path))
 
     # Python's == operator works well for comparing dicts with standard data types
     assert target_metadata == source_metadata, (
-        f"Differences found in {METADATA_YAML_FILENAME}: " f"Metadata files are not equal"
+        f"Differences found in {METADATA_YAML_FILENAME}:\n"
+        f"target: {json.dumps(target_metadata, indent=2, sort_keys=True)}\n"
+        f"source: {json.dumps(source_metadata, indent=2, sort_keys=True)}"
     )
 
 

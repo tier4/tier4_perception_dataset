@@ -60,7 +60,8 @@ Install python dependencies:
 ```bash
 # install uv: https://docs.astral.sh/uv/getting-started/installation/
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uv sync
+# use the system interpreter so compiled ROS modules (e.g. rclpy) import correctly
+uv sync --python "$(which python3)"
 ```
 
 ### Test

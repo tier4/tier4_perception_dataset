@@ -223,7 +223,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
         sensor2global_rotation = np.array(list(Quaternion(matrix=sensor2global_transform[:3, :3])))
 
         ret_dict = {
-            "fileformat": sd_record.fileformat,
+            "fileformat": sd_record.fileformat.value,
             "unix_timestamp": self._timestamp_to_sec(sd_record.timestamp),
             "sensor2global_transform": sensor2global_transform,
             "sensor2global_translation": sensor2global_translation,
