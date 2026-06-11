@@ -25,7 +25,6 @@ from t4_devkit.schema.tables import (
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import (
-    LIDAR_CONCAT_BYTES_PER_POINT,
     LIDAR_CONCAT_CHANNEL,
     LIDAR_CONCAT_NUM_POINT_FEATURES,
     SENSOR_MODALITY_ENUM,

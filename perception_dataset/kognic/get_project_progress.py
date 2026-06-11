@@ -14,7 +14,8 @@ from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
 
-_SCENES_PER_REQUEST = 100
+# The size to fetch scene UUIDs in chunks to keep each request body small.
+_SCENE_UUIDS_CHUNK_SIZE = 100
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,6 @@ def _count_shapes(openlabel_content: Dict) -> Counter:
             for data_type, entries in obj.get("object_data", {}).items():
                 if isinstance(entries, list):
                     counts[data_type] += len(entries)
-
     return counts
 
 
@@ -87,7 +87,6 @@ def _count_segmentation_points(openlabel_content: Dict) -> Counter:
                 for count, class_id in _RLE_TOKEN.findall(entry.get("val", "")):
                     class_name = class_names.get(class_id, f"class_{class_id}")
                     counts[class_name] += int(count)
-
     return counts
 
 
@@ -128,6 +127,7 @@ class KognicProjectProgress:
             batch=self.config.batch,
         )
         scenes_by_uuid = self._fetch_scenes([inp.scene_uuid for inp in inputs])
+        frames_by_scene = self._fetch_frame_counts(list(scenes_by_uuid.keys()))
         delivered_by_scene, stats_by_scene = self._fetch_delivered_annotations(annotation_types)
 
         logger.info(
@@ -144,7 +144,6 @@ class KognicProjectProgress:
             )
             if self.config.include_annotation_stats:
                 entry["annotations"] = stats_by_scene.get(inp.scene_uuid, [])
-            logger.info(self._format_input_entry(entry))
             input_entries.append(entry)
 
         n_completed = sum(1 for e in input_entries if e["annotation_progress"] == "completed")
@@ -155,6 +154,9 @@ class KognicProjectProgress:
             "annotation_types": annotation_types,
             "batches": batches,
             "total_inputs": len(inputs),
+            "total_frames_to_annotate": sum(
+                n for n in frames_by_scene.values() if n is not None
+            ),
             "annotation_completed": n_completed,
             "inputs": input_entries,
         }
@@ -178,11 +180,42 @@ class KognicProjectProgress:
 
     def _fetch_scenes(self, scene_uuids: List[str]) -> Dict:
         scenes = {}
-        for i in range(0, len(scene_uuids), _SCENES_PER_REQUEST):
-            chunk = scene_uuids[i : i + _SCENES_PER_REQUEST]
+        for i in range(0, len(scene_uuids), _SCENE_UUIDS_CHUNK_SIZE):
+            chunk = scene_uuids[i : i + _SCENE_UUIDS_CHUNK_SIZE]
             for scene in self.kognic_io_client.scene.get_scenes_by_uuids(chunk):
                 scenes[scene.uuid] = scene
         return scenes
+
+    def _fetch_frame_counts(self, scene_uuids: List[str]) -> Dict[str, Optional[int]]:
+        """Fetch the number of frames to annotate (metadata annotate=True) per scene.
+
+        Uses the raw scene endpoint because SceneSummary drops per-frame metadata,
+        where the uploader stores the annotate flag. Scenes without per-frame
+        metadata fall back to the total frame count (single-frame scenes count as 1).
+        Returns scene_uuid -> frame count (None if the scene could not be fetched).
+        """
+        frames: Dict[str, Optional[int]] = {}
+        for i, scene_uuid in enumerate(scene_uuids, start=1):
+            try:
+                scene_json = self.kognic_io_client.scene._client.get(f"v2/scenes/{scene_uuid}")
+                frames[scene_uuid] = self._count_frames_to_annotate(scene_json)
+            except Exception as e:
+                logger.warning(f"Failed to fetch scene summary for {scene_uuid}: {e}")
+                frames[scene_uuid] = None
+            if i % 10 == 0:
+                logger.info(f"  ...{i}/{len(scene_uuids)} scene summaries fetched")
+        return frames
+
+    @staticmethod
+    def _count_frames_to_annotate(scene_json: Dict) -> int:
+        frame_entries = scene_json.get("frames")
+        if isinstance(frame_entries, list) and frame_entries:
+            flagged = [frame.get("metadata", {}).get("annotate") for frame in frame_entries]
+            if any(value is not None for value in flagged):
+                return sum(1 for value in flagged if value)
+            return len(frame_entries)
+        relative_times = scene_json.get("frameRelativeTimes")
+        return len(relative_times) if relative_times else 1
 
     def _fetch_delivered_annotations(self, annotation_types: List[str]) -> tuple:
         """Fetch delivered annotations once per annotation type.
@@ -270,39 +303,15 @@ class KognicProjectProgress:
 
         return entry
 
-    @staticmethod
-    def _format_input_entry(entry: Dict) -> str:
-        """Render one input's full report as a single multi-line log message."""
-        lines = [
-            f"{entry['external_id']} | annotation={entry['annotation_progress']} "
-            f"| type={entry.get('scene_type', 'unknown')} | created={entry.get('created', 'unknown')}"
-        ]
-        if entry["delivered_annotation_types"]:
-            lines.append(f"  delivered_annotation_types: {entry['delivered_annotation_types']}")
-        if entry.get("error_message"):
-            lines.append(f"  error: {entry['error_message']}")
-        for annotation in entry.get("annotations", []):
-            lines.append(
-                f"  annotation type={annotation['annotation_type']} created={annotation['created']}"
-            )
-            lines.append(f"    shapes: {annotation['total_annotations']}")
-            for data_type, count in annotation["shapes"].items():
-                lines.append(f"      {data_type}: {count}")
-            if "points_per_class" in annotation:
-                lines.append(f"    segmentation points: {annotation['total_points']}")
-                for cls, count in annotation["points_per_class"].items():
-                    lines.append(f"      {cls}: {count}")
-        return "\n".join(lines)
-
     def _save_report(self, report: Dict) -> None:
         self.config.report_path.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config.report_path, "w") as f:
             json.dump(report, f, indent=2)
         logger.info(
             f"Report saved to {self.config.report_path} "
-            f"({report['annotation_completed']}/{report['total_inputs']} inputs completed)"
+            f"({report['annotation_completed']}/{report['total_inputs']} inputs completed, "
+            f"{report['total_frames_to_annotate']} frames to annotate)"
         )
-
 
 def main():
     time_start = time.time()
