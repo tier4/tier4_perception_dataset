@@ -6,13 +6,13 @@ This document provides a brief overview of the scripts used in the tier4_percept
 
 ## Common
 
-The commands below are assumed to be run in the poetry shell, as built in [README.md](../README.md)  
-To start a poetry shell, execute the following:
+The commands below are assumed to be run in the uv virtualenv, as built in [README.md](../README.md)  
+To activate the virtualenv, execute the following:
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.bash
 source ${ROS_WORKSPACE_WITH_CUSTOM_MESSAGES}/install/setup.bash
-poetry shell
+source .venv/bin/activate
 ```
 
 ## rosbag2 pre-process
