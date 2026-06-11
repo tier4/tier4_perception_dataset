@@ -80,21 +80,21 @@ jobs:
         run: |
           python -V
 
-      - name: Install poetry
+      - name: Install uv
         run: |
-          curl -sSL https://install.python-poetry.org | python3 - --version 2.3.2
+          curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Check poetry version
+      - name: Check uv version
         run: |
-          poetry --version
+          uv --version
 
       - name: Install python packages
         run: |
-          poetry sync
+          uv sync
 
       - name: Test with pytest
         run: |
           . /opt/ros/$ROS_DISTRO/setup.sh
           . ./install/setup.sh
-          poetry run pytest tests -v
+          uv run pytest tests -v
