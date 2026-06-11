@@ -1,6 +1,6 @@
 # T4 to Kognic
 
-This document explains how [non_annotated_t4_to_kognic_converter.py](../perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py) reads a Tier IV T4 sequence and reshapes it into the staging layout consumed by [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) for Kognic upload.
+This document explains how [t4_to_kognic_converter.py](../perception_dataset/kognic/t4_to_kognic_converter.py) reads a Tier IV T4 sequence and reshapes it into the staging layout consumed by [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) for Kognic upload.
 
 References:
 
@@ -22,7 +22,7 @@ extracted_data/<sequence_name>/
 
 An uploader then reads this folder, creates a Kognic sensor calibration, builds a `LidarsAndCamerasSequence`, attaches per-frame images and point clouds, and uploads the scene.
 
-The package converter [non_annotated_t4_to_kognic_converter.py](../perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py) mirrors this same staging layout while preserving the `perception_dataset` converter interface. It always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found).
+The package converter [t4_to_kognic_converter.py](../perception_dataset/kognic/t4_to_kognic_converter.py) mirrors this same staging layout while preserving the `perception_dataset` converter interface. It always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found).
 
 The package uploader [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) uploads expanded Kognic staging directories instead of zip files. Annotation frequency is controlled at upload time via `conversion.target_hz`: frames at that interval are marked `annotate=True`, and the remaining frames are uploaded as context with `annotate=False`. When `target_hz` is omitted, every frame is marked `annotate=True`.
 
@@ -157,7 +157,7 @@ ts_gps,x,y,z,intensity
 
 ```mermaid
 flowchart LR
-  Config["convert_non_annotated_t4_to_kognic_sample.yaml"]
+  Config["convert_t4_to_kognic_sample.yaml"]
   T4["T4 sequence root<br/>annotation/ + data/"]
   Discover["Discover sequence paths"]
   Lookups["Build token/channel lookup maps"]
@@ -199,7 +199,7 @@ The extractor expects each sequence root to contain both `annotation/` and `data
 | `data/LIDAR_CONCAT/*.pcd.bin`   | Concatenated point cloud arrays. T4 stores points as float32 `(N, 5)`: `x, y, z, intensity, ring_idx`, with `x/y/z` already in `base_link`. |
 | `data/LIDAR_CONCAT_INFO/*.json` | Gives per-source LiDAR point ranges inside each concatenated cloud.                                                                         |
 
-Camera sensors are configured in `conversion.camera_sensors` in `convert_non_annotated_t4_to_kognic_sample.yaml`.
+Camera sensors are configured in `conversion.camera_sensors` in `convert_t4_to_kognic_sample.yaml`.
 
 ## Sequence Discovery
 
@@ -404,7 +404,7 @@ The in-between ego poses such as `65f2...` are still valid vehicle poses at inte
 
 ### Package Converter Output
 
-`perception_dataset/kognic/non_annotated_t4_to_kognic_converter.py` always writes all available frames. On the sample dataset this produces 555 frames (`LIDAR_CONCAT/00000` through `00554`), falling back to 57 `sample.json`-level frames only if no high-frequency anchor channel is found.
+`perception_dataset/kognic/t4_to_kognic_converter.py` always writes all available frames. On the sample dataset this produces 555 frames (`LIDAR_CONCAT/00000` through `00554`), falling back to 57 `sample.json`-level frames only if no high-frequency anchor channel is found.
 
 ### Package Uploader
 

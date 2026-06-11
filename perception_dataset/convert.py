@@ -62,10 +62,9 @@ def main():
         logger.info(
             f"[END] Converting Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
         )
-    elif task == "convert_non_annotated_t4_to_kognic":
-        from perception_dataset.kognic.non_annotated_t4_to_kognic_converter import (
-            NonAnnotatedT4ToKognicConverter,
-        )
+    # the kognic converter works on annotated and non-annotated T4 datasets alike.
+    elif task in ("convert_t4_to_kognic"):
+        from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
 
         input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
@@ -73,7 +72,7 @@ def main():
         workers_number = config_dict["conversion"]["workers_number"]
         drop_camera_token_not_found = config_dict["conversion"]["drop_camera_token_not_found"]
 
-        converter = NonAnnotatedT4ToKognicConverter(
+        converter = T4ToKognicConverter(
             input_base=input_base,
             output_base=output_base,
             camera_sensors=camera_sensors,

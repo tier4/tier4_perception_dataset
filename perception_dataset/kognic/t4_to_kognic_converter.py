@@ -19,8 +19,11 @@ from perception_dataset.utils.logger import configure_logger
 logger = configure_logger(modname=__name__)
 
 
-class NonAnnotatedT4ToKognicConverter(AbstractConverter[None]):
-    """Convert non-annotated T4 data to the Kognic IO staging layout.
+class T4ToKognicConverter(AbstractConverter[None]):
+    """Convert T4 data (annotated or non-annotated) to the Kognic IO staging layout.
+
+    Only sensor data, calibration, and ego poses are exported; annotation tables,
+    if present, are ignored.
 
     This intentionally mirrors ``tier_4_code/tier_iv_t4_extractor.py`` while
     preserving the perception_dataset converter contract:

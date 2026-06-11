@@ -93,15 +93,16 @@ References:
 - [Kognic supported file formats](https://docs.kognic.com/api-guide/supported-file-formats)
 - [Kognic calibration overview](https://docs.kognic.com/api-guide/calibrations-overview)
 
-### Non-annotated T4 format to Kognic format
+### T4 format to Kognic format
 
-Converts T4 format data to the local Kognic staging format used by the Kognic uploader.
+Converts T4 format data (annotated or non-annotated; annotation tables are ignored)
+to the local Kognic staging format used by the Kognic uploader.
 
-input: Non-annotated T4 format data  
+input: T4 format data  
 output: Kognic staging format data
 
 ```bash
-python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml
+python -m perception_dataset.convert --config config/convert_t4_to_kognic_sample.yaml
 ```
 
 See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a detailed explanation of the staging format and the upload pipeline.
