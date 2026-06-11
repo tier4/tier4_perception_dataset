@@ -154,9 +154,7 @@ class KognicProjectProgress:
             "annotation_types": annotation_types,
             "batches": batches,
             "total_inputs": len(inputs),
-            "total_frames_to_annotate": sum(
-                n for n in frames_by_scene.values() if n is not None
-            ),
+            "total_frames_to_annotate": sum(n for n in frames_by_scene.values() if n is not None),
             "annotation_completed": n_completed,
             "inputs": input_entries,
         }
@@ -312,6 +310,7 @@ class KognicProjectProgress:
             f"({report['annotation_completed']}/{report['total_inputs']} inputs completed, "
             f"{report['total_frames_to_annotate']} frames to annotate)"
         )
+
 
 def main():
     time_start = time.time()
