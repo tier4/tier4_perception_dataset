@@ -5,7 +5,7 @@ conversion:
   workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
   project_external_id: test_upload_data
   # batch: <batch_external_id>  # optional, defaults to the latest open batch
-  target_hz: 10
+  target_hz: 1
   dryrun: false
   motion_compensate: false
   include_imu_data: true

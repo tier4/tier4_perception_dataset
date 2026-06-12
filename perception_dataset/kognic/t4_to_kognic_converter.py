@@ -191,7 +191,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._samples = sorted(samples, key=lambda s: s["timestamp"])
 
         self._sample_data_by_sample: Dict[str, list] = {}
-        self._sample_data_by_sample_and_channel: Dict[str, Dict[str, dict]] = {}
         self._sample_data_by_channel: Dict[str, list] = {}
         self._sample_data_by_channel_and_frame_id: Dict[str, Dict[str, dict]] = {}
         sample_data = self._load_annotation(seq_path, "sample_data.json")
@@ -203,9 +202,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             channel = self._token_to_channel.get(calib["sensor_token"])
             if not channel:
                 continue
-            self._sample_data_by_sample_and_channel.setdefault(sd["sample_token"], {})[
-                channel
-            ] = sd
             self._sample_data_by_channel.setdefault(channel, []).append(sd)
             frame_id = Path(sd["filename"]).stem.split(".")[0]
             self._sample_data_by_channel_and_frame_id.setdefault(channel, {})[frame_id] = sd
@@ -238,16 +234,13 @@ class T4ToKognicConverter(AbstractConverter[None]):
         )
 
     def _build_frame_records(self) -> List[Dict[str, dict]]:
-        """Build output frames from all available sensor frames.
+        """Build one output frame per record of the high-frequency anchor stream.
 
-        Uses the full high-frequency stream from ``sample_data.json`` when available,
-        falling back to ``sample.json`` if no anchor channel is found.
-        Annotation frequency is controlled at upload time via ``target_hz``.
+        Every ``sample_data.json`` record of the anchor channel is exported —
+        key frames and intermediate sweeps alike. Annotation frequency is
+        controlled at upload time via ``target_hz``.
         """
-        anchor_channel = self._select_high_frequency_anchor_channel()
-        if anchor_channel is None:
-            return self._build_sample_level_frame_records()
-
+        anchor_channel = self._select_anchor_channel()
         anchor_records = self._sample_data_by_channel.get(anchor_channel, [])
         frame_records: List[Dict[str, dict]] = []
         for anchor_record in anchor_records:
@@ -266,20 +259,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
 
         return frame_records
 
-    def _build_sample_level_frame_records(self) -> List[Dict[str, dict]]:
-        frame_records: List[Dict[str, dict]] = []
-        for sample in self._samples:
-            sample_by_channel = self._sample_data_by_sample_and_channel.get(sample["token"], {})
-            frame_record = {
-                channel: sample_data
-                for channel, sample_data in sample_by_channel.items()
-                if channel in self._channels_for_frame_records()
-            }
-            if frame_record:
-                frame_records.append(frame_record)
-        return frame_records
-
-    def _select_high_frequency_anchor_channel(self) -> Optional[str]:
+    def _select_anchor_channel(self) -> str:
         if self._sample_data_by_channel.get(LIDAR_CONCAT_CHANNEL):
             return LIDAR_CONCAT_CHANNEL
 
@@ -287,7 +267,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
             if self._sample_data_by_channel.get(camera_channel):
                 return camera_channel
 
-        return None
+        raise ValueError(
+            f"No anchor channel with sample_data found "
+            f"({LIDAR_CONCAT_CHANNEL} or any of {self._camera_channels})"
+        )
 
     def _channels_for_frame_records(self) -> List[str]:
         return [LIDAR_CONCAT_CHANNEL, *self._camera_channels]

@@ -62,8 +62,9 @@ def main():
         logger.info(
             f"[END] Converting Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
         )
-    # the kognic converter works on annotated and non-annotated T4 datasets alike.
-    elif task in ("convert_t4_to_kognic"):
+    # both tasks share the same sensor-data conversion; the annotated task
+    # additionally exports the annotations as an OpenLABEL pre_annotation.json.
+    elif task in ("convert_non_annotated_t4_to_kognic", "convert_annotated_t4_to_kognic"):
         from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
 
         input_base = config_dict["conversion"]["input_base"]
@@ -88,6 +89,30 @@ def main():
         logger.info(
             f"[Done] Converting T4 dataset ({input_base}) to Kognic staging format ({output_base})"
         )
+
+        # if annotated conversion is needed, convert T4 annotations to OpenLABEL pre-annotations
+        if task == "convert_annotated_t4_to_kognic":
+            from perception_dataset.kognic.t4_to_openlabel import T4ToOpenLabelConverter
+            pre_annotation_converter = T4ToOpenLabelConverter(
+                input_base=input_base,
+                output_base=output_base,
+                lidar_stream=config_dict["conversion"].get("lidar_stream", ""),
+                category_map=config_dict["conversion"].get("category_map"),
+                include_attributes=config_dict["conversion"].get("include_attributes", False),
+                frame_match_tolerance_ms=config_dict["conversion"].get(
+                    "frame_match_tolerance_ms", 50.0
+                ),
+            )
+
+            logger.info(
+                f"[BEGIN] Converting T4 annotations ({input_base}) "
+                f"to OpenLABEL pre-annotations ({output_base})"
+            )
+            pre_annotation_converter.convert()
+            logger.info(
+                f"[Done] Converting T4 annotations ({input_base}) "
+                f"to OpenLABEL pre-annotations ({output_base})"
+            )
 
     elif task == "convert_kognic_to_non_annotated_t4":
         from perception_dataset.kognic.kognic_to_t4_converter import KognicToT4Converter

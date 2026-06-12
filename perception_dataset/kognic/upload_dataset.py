@@ -17,6 +17,8 @@ from kognic.io.model.scene.lidars_and_cameras_sequence.frame import (
 )
 from kognic.io.model.scene.metadata.metadata import FrameMetaData, MetaData
 from kognic.io.model.scene.resources.image import ImageMetadata
+from kognic.io.model.scene.scene_entry import SceneStatus
+from kognic.openlabel.models.models import OpenLabelAnnotation
 import numpy as np
 import yaml
 
@@ -45,6 +47,8 @@ class KognicUploadConfig:
     motion_compensate: bool = False
     include_imu_data: bool = True
     write_debug_frames: bool = False
+    scene_creation_timeout_s: int = 1800
+    scene_creation_poll_interval_s: int = 10
 
 
 def _sort_key(path: Path) -> Tuple[int, str]:
@@ -85,6 +89,10 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         motion_compensate=conversion_config.get("motion_compensate", False),
         include_imu_data=conversion_config.get("include_imu_data", True),
         write_debug_frames=conversion_config.get("write_debug_frames", False),
+        scene_creation_timeout_s=conversion_config.get("scene_creation_timeout_s", 1800),
+        scene_creation_poll_interval_s=conversion_config.get(
+            "scene_creation_poll_interval_s", 10
+        ),
     )
 
 
@@ -180,15 +188,115 @@ class KognicDatasetUploader:
             self._write_debug_frames(sequence_path, external_id, frames)
 
         feature_flags = FeatureFlags() if not self.config.motion_compensate else None
-        logger.info(f"Uploading {external_id} to Kognic (dryrun={self.config.dryrun})")
+
+        pre_annotation = self._load_pre_annotation(sequence_path)
+        if pre_annotation is None:
+            # No pre-annotation, so we can create the scene and input in one step without waiting.
+            logger.info(f"Uploading {external_id} to Kognic (dryrun={self.config.dryrun})")
+            response = self.kognic_io_client.lidars_and_cameras_sequence.create(
+                scene,
+                project=self.config.project_external_id,
+                batch=self.config.batch,
+                dryrun=self.config.dryrun,
+                feature_flags=feature_flags,
+            )
+            return "dryrun" if response is None else response.scene_uuid
+
+        # Pre-annotation flow (https://docs.kognic.com/api-guide/pre-annotations):
+        # The scene must reach Created status before the pre-annotation can be attached, so:
+        # 1) create the scene to validate files and metadata and upload resources, and wait for the scene creation status turn to be created
+        # 2) upload the pre-annotation with reference to the created scene (the pre-annotation will be attached to the scene since it has the same external_id), 
+        # 3) Then create the input from the scene (attach the scene to a project and batch) so that the pre-annotation is visible to labelers.
+        logger.info(
+            f"Uploading {external_id} as scene without input (dryrun={self.config.dryrun})"
+        )
         response = self.kognic_io_client.lidars_and_cameras_sequence.create(
             scene,
-            project=self.config.project_external_id,
-            batch=self.config.batch,
             dryrun=self.config.dryrun,
             feature_flags=feature_flags,
         )
-        return "dryrun" if response is None else response.scene_uuid
+        if response is None:
+            logger.info(
+                f"{external_id}: dryrun OK; pre-annotation validated locally, "
+                "pre-annotation upload and input creation skipped"
+            )
+            return "dryrun"
+
+        scene_uuid = response.scene_uuid
+        self._wait_for_scene_created(scene_uuid, external_id)
+
+        logger.info(f"Uploading pre-annotation for {external_id} (scene {scene_uuid})")
+        self.kognic_io_client.pre_annotation.create(
+            scene_uuid=scene_uuid,
+            pre_annotation=pre_annotation,
+            external_id=f"{external_id}-pre-annotation",
+            dryrun=False,
+        )
+
+        if self.config.project_external_id:
+            logger.info(
+                f"Creating input from scene {scene_uuid} in project "
+                f"{self.config.project_external_id}"
+            )
+            self.kognic_io_client.lidars_and_cameras_sequence.create_from_scene(
+                scene_uuid=scene_uuid,
+                project=self.config.project_external_id,
+                batch=self.config.batch,
+            )
+        else:
+            logger.warning(
+                f"{external_id}: no project_external_id configured; scene and "
+                "pre-annotation uploaded but no input created. Create one later with "
+                "client.lidars_and_cameras_sequence.create_from_scene()."
+            )
+
+        return scene_uuid
+
+    def _load_pre_annotation(self, sequence_path: Path) -> Optional[OpenLabelAnnotation]:
+        """Load and validate <sequence>/pre_annotation.json if present."""
+        pre_annotation_path = sequence_path / "pre_annotation.json"
+        if not pre_annotation_path.exists():
+            return None
+
+        with open(pre_annotation_path) as f:
+            pre_annotation = OpenLabelAnnotation.model_validate(json.load(f))
+
+        frames = pre_annotation.openlabel.frames or {}
+        objects = pre_annotation.openlabel.objects or {}
+        logger.info(
+            f"Found {pre_annotation_path}: {len(objects)} objects over {len(frames)} frames"
+        )
+        return pre_annotation
+
+    def _wait_for_scene_created(self, scene_uuid: str, external_id: str) -> None:
+        """Poll until the scene finished server-side processing."""
+        deadline = time.time() + self.config.scene_creation_timeout_s
+
+        while True:
+            scenes = self.kognic_io_client.scene.get_scenes_by_uuids(scene_uuids=[scene_uuid])
+            status = scenes[0].status if scenes else None
+
+            if status == SceneStatus.Created:
+                logger.info(f"{external_id}: scene {scene_uuid} created")
+                return
+            if status in (SceneStatus.Failed,) or (
+                status is not None and str(status).startswith("invalidated")
+            ):
+                raise RuntimeError(
+                    f"{external_id}: scene {scene_uuid} ended in status {status}: "
+                    f"{scenes[0].error_message}"
+                )
+            if time.time() >= deadline:
+                raise TimeoutError(
+                    f"{external_id}: scene {scene_uuid} not created within "
+                    f"{self.config.scene_creation_timeout_s}s (last status: {status})"
+                )
+
+            logger.info(
+                f"{external_id}: scene {scene_uuid} status={status}; waiting "
+                f"{self.config.scene_creation_poll_interval_s}s"
+            )
+            time.sleep(self.config.scene_creation_poll_interval_s)
 
     def _load_calibration(self, sequence_path: Path) -> KognicModel.SensorCalibration:
         with open(sequence_path / "calibration.json") as f:
