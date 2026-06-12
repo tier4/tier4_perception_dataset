@@ -6,13 +6,13 @@ This document provides a brief overview of the scripts used in the tier4_percept
 
 ## Common
 
-The commands below are assumed to be run in the poetry shell, as built in [README.md](../README.md)  
-To start a poetry shell, execute the following:
+The commands below are assumed to be run in the uv virtualenv, as built in [README.md](../README.md)  
+To activate the virtualenv, execute the following:
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.bash
 source ${ROS_WORKSPACE_WITH_CUSTOM_MESSAGES}/install/setup.bash
-poetry shell
+source .venv/bin/activate
 ```
 
 ## rosbag2 pre-process
@@ -84,6 +84,57 @@ If the number of files is different, set the `smallest number` of files to the `
 Execute the conversion command again with `--overwrite` option.
 
 ![confirm_non_annotated_format](./confirm_non_annotated_format.png)
+
+## Kognic
+
+References:
+
+- [Official help page](https://docs.kognic.com/)
+- [Kognic supported file formats](https://docs.kognic.com/api-guide/supported-file-formats)
+- [Kognic calibration overview](https://docs.kognic.com/api-guide/calibrations-overview)
+
+### T4 format to Kognic format
+
+Converts T4 format data (annotated or non-annotated; annotation tables are ignored)
+to the local Kognic staging format used by the Kognic uploader.
+
+input: T4 format data  
+output: Kognic staging format data
+
+```bash
+python -m perception_dataset.convert --config config/convert_t4_to_kognic_sample.yaml
+```
+
+See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a detailed explanation of the staging format and the upload pipeline.
+
+### Kognic format to T4 non-annotated format
+
+Converts a local Kognic staging directory back into a T4 non-annotated dataset. When the staging folder contains multiple per-source LiDAR streams, the converter merges them into a single `LIDAR_CONCAT` `.pcd.bin` file and writes a matching `LIDAR_CONCAT_INFO` sidecar per frame.
+
+input: Kognic staging format data  
+output: T4 non-annotated format data
+
+```bash
+python -m perception_dataset.convert --config config/convert_kognic_to_non_annotated_t4_sample.yaml
+```
+
+See [kognic_to_t4.md](kognic_to_t4.md) for a detailed explanation.
+
+### Upload Kognic staging format to Kognic
+
+Uploads the local Kognic staging format to the Kognic platform.
+
+input: Kognic staging format data  
+output: Kognic scene (uploaded)
+
+Requires a [credentials file](https://developers.kognic.com/docs/getting-started/quickstart/#generating-credentials). Set the path via the environment variable before running:
+
+```bash
+export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
+python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
+```
+
+See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md#package-uploader) for all config parameters.
 
 ## Deepen
 

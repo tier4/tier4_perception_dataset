@@ -1,0 +1,9 @@
+task: download_kognic_annotation
+conversion:
+  output_base: ./data/kognic_annotations  # where annotation JSONs will be written (<scene_uuid>.json per scene)
+  organization_id: 114
+  workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
+  project_external_id: test_upload_data
+  annotation_type: lidar-cuboid            # annotation type to download (e.g. lidar-cuboid, camera-tag)
+  # batch: <batch_external_id>             # optional — omit to download all batches in the project
+  iso_rotated_cuboids: false               # true → cuboids in ISO8855 frame; false → Kognic internal frame
