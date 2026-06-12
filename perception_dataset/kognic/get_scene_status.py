@@ -1,12 +1,15 @@
 # Copyright 2024 Tier IV, Inc.
-# This is a sample script to report annotation progress for specific scenes in a Kognic project, given by dataset filename/path (the basename is the scene external_id).
-# The Dataset directory name is the equivalent to the scene external_id, so the basename of each given path is matched against the scene external_id
-# (or scene uuid). Delivered annotations are fetched per scene.
+"""
+This is a sample script to report annotation progress for specific scenes in a Kognic project, given by dataset filename/path (the basename is the scene external_id). 
+The Dataset directory name is the equivalent to the scene external_id, so the basename of each given path is matched against the scene external_id 
+(or scene uuid). Delivered annotations are fetched per scene.
 
-# example usage:
-## uv run python perception_dataset/kognic/get_scene_status.py --organization-id 114 --workspace-id efa90d1e-99bc-4064-98bb-5bfc8758157d
-# --project-external-id semantic_segmentation_poc_tier_iv --filenames DB_semaseg_kognic_x2_dev_cfa23601-97c4-4d47-a37e-edfc7e080d8c_2025-07-04_14-39-52_14-40-52
-# or add --include-annotation-stats to also fetch annotation contents per input (shape counts + category counts; slower)
+Example usage:
+uv run python perception_dataset/kognic/get_scene_status.py --organization-id 114 --workspace-id efa90d1e-99bc-4064-98bb-5bfc8758157d \
+--project-external-id semantic_segmentation_poc_tier_iv --filenames DB_semaseg_kognic_x2_dev_cfa23601-97c4-4d47-a37e-edfc7e080d8c_2025-07-04_14-39-52_14-40-52
+
+Add --include-annotation-stats to also fetch annotation contents per input (shape counts + category counts; slower)
+"""
 
 import argparse
 from dataclasses import dataclass
