@@ -8,13 +8,57 @@ from typing import Dict, List, Optional
 import numpy as np
 
 from perception_dataset.constants import (
-    LIDAR_CONCAT_BYTES_PER_POINT,
     LIDAR_CONCAT_CHANNEL,
     LIDAR_CONCAT_NUM_POINT_FEATURES,
 )
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
+
+# Upper bound for a plausible |x|, |y| or |z| in the sensor frame; used to
+# reject wrong stride guesses (misaligned reshapes leak time offsets etc.
+# into the coordinate columns).
+_MAX_REASONABLE_COORDINATE_M = 10_000.0
+
+
+def point_stride_from_info(bin_path: Path, total_points: int) -> int:
+    """Floats per point record, derived from the LIDAR_CONCAT_INFO totals.
+
+    T4 datasets ship LIDAR_CONCAT ``.pcd.bin`` files with varying per-point
+    layouts (e.g. x,y,z,intensity,ring or x,y,z,intensity,ring,lidar_id,
+    time_offset), so the stride must be derived per file rather than assumed.
+    """
+    n_floats = bin_path.stat().st_size // 4
+    stride, remainder = divmod(n_floats, total_points)
+    if remainder != 0 or stride < 4:
+        raise ValueError(
+            f"{bin_path}: {n_floats} floats is not an integer multiple (>=4) of the "
+            f"{total_points} points declared in LIDAR_CONCAT_INFO"
+        )
+    return stride
+
+
+def detect_point_stride(floats: np.ndarray, bin_path: Path) -> int:
+    """Guess the floats-per-point stride when no LIDAR_CONCAT_INFO is available.
+
+    Tries ``LIDAR_CONCAT_NUM_POINT_FEATURES`` first, then other strides,
+    accepting the first one that yields finite, plausibly-sized coordinates.
+    """
+    candidates = [LIDAR_CONCAT_NUM_POINT_FEATURES] + [
+        stride for stride in range(4, 17) if stride != LIDAR_CONCAT_NUM_POINT_FEATURES
+    ]
+    for stride in candidates:
+        if len(floats) == 0 or len(floats) % stride != 0:
+            continue
+        xyz = floats.reshape(-1, stride)[:, :3]
+        if np.isfinite(xyz).all() and np.abs(xyz).max() < _MAX_REASONABLE_COORDINATE_M:
+            if stride != LIDAR_CONCAT_NUM_POINT_FEATURES:
+                logger.warning(
+                    f"{bin_path}: detected {stride} floats per point "
+                    f"(expected {LIDAR_CONCAT_NUM_POINT_FEATURES})"
+                )
+            return stride
+    raise ValueError(f"{bin_path}: could not determine the point stride")
 
 
 def extract_pointclouds(
@@ -59,9 +103,8 @@ def extract_pointclouds(
 
         if lidar_channel == LIDAR_CONCAT_CHANNEL:
             timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
-            points = np.fromfile(bin_path, dtype=np.float32).reshape(
-                -1, LIDAR_CONCAT_NUM_POINT_FEATURES
-            )
+            floats = np.fromfile(bin_path, dtype=np.float32)
+            points = floats.reshape(-1, detect_point_stride(floats, bin_path))
             csv_path = lidar_dir / f"{timestamp_ns}.csv"
             save_pointcloud_csv(csv_path, timestamp_ns, points)
             count += 1
@@ -93,15 +136,19 @@ def extract_pointclouds(
         if length == 0:
             continue
 
+        total_points = sum(int(src["length"]) for src in info["sources"])
+        stride = point_stride_from_info(bin_path, total_points)
+        bytes_per_point = stride * 4
+
         with open(bin_path, "rb") as f:
-            f.seek(idx_begin * LIDAR_CONCAT_BYTES_PER_POINT)
-            raw = f.read(length * LIDAR_CONCAT_BYTES_PER_POINT)
+            f.seek(idx_begin * bytes_per_point)
+            raw = f.read(length * bytes_per_point)
 
         timestamp_ns = stamp_to_ns(source.get("stamp"))
         if timestamp_ns is None:
             timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
 
-        points = np.frombuffer(raw, dtype=np.float32).reshape(-1, LIDAR_CONCAT_NUM_POINT_FEATURES)
+        points = np.frombuffer(raw, dtype=np.float32).reshape(-1, stride)
         csv_path = lidar_dir / f"{timestamp_ns}.csv"
         save_pointcloud_csv(csv_path, timestamp_ns, points)
         count += 1
