@@ -93,6 +93,7 @@ def main():
         # if annotated conversion is needed, convert T4 annotations to OpenLABEL pre-annotations
         if task == "convert_annotated_t4_to_kognic":
             from perception_dataset.kognic.t4_to_openlabel import T4ToOpenLabelConverter
+
             pre_annotation_converter = T4ToOpenLabelConverter(
                 input_base=input_base,
                 output_base=output_base,

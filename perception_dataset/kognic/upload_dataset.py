@@ -90,9 +90,7 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         include_imu_data=conversion_config.get("include_imu_data", True),
         write_debug_frames=conversion_config.get("write_debug_frames", False),
         scene_creation_timeout_s=conversion_config.get("scene_creation_timeout_s", 1800),
-        scene_creation_poll_interval_s=conversion_config.get(
-            "scene_creation_poll_interval_s", 10
-        ),
+        scene_creation_poll_interval_s=conversion_config.get("scene_creation_poll_interval_s", 10),
     )
 
 
@@ -205,7 +203,7 @@ class KognicDatasetUploader:
         # Pre-annotation flow (https://docs.kognic.com/api-guide/pre-annotations):
         # The scene must reach Created status before the pre-annotation can be attached, so:
         # 1) create the scene to validate files and metadata and upload resources, and wait for the scene creation status turn to be created
-        # 2) upload the pre-annotation with reference to the created scene (the pre-annotation will be attached to the scene since it has the same external_id), 
+        # 2) upload the pre-annotation with reference to the created scene (the pre-annotation will be attached to the scene since it has the same external_id),
         # 3) Then create the input from the scene (attach the scene to a project and batch) so that the pre-annotation is visible to labelers.
         logger.info(
             f"Uploading {external_id} as scene without input (dryrun={self.config.dryrun})"
