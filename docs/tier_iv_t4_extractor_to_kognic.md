@@ -404,7 +404,7 @@ The in-between ego poses such as `65f2...` are still valid vehicle poses at inte
 
 ### Package Converter Output
 
-`perception_dataset/kognic/t4_to_kognic_converter.py` always writes all available frames. On the sample dataset this produces 555 frames (`LIDAR_CONCAT/00000` through `00554`), falling back to 57 `sample.json`-level frames only if no high-frequency anchor channel is found.
+`perception_dataset/kognic/t4_to_kognic_converter.py` always writes all available frames from the high-frequency anchor stream (`LIDAR_CONCAT`, or the first camera with data when no lidar is present). There is no sample-level (key-frame-only) export mode; annotation frequency is decided at upload time via `target_hz`.
 
 ### Package Uploader
 
