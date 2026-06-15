@@ -43,6 +43,7 @@ class KognicUploadConfig:
     project_external_id: Optional[str] = None
     batch: Optional[str] = None
     target_hz: Optional[int] = None
+    annotation_interval_tolerance_s: Optional[float] = None
     dryrun: bool = False
     motion_compensate: bool = False
     include_imu_data: bool = True
@@ -85,6 +86,9 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         project_external_id=conversion_config.get("project_external_id"),
         batch=conversion_config.get("batch"),
         target_hz=conversion_config.get("target_hz"),
+        annotation_interval_tolerance_s=conversion_config.get(
+            "annotation_interval_tolerance_s"
+        ),
         dryrun=conversion_config.get("dryrun", False),
         motion_compensate=conversion_config.get("motion_compensate", False),
         include_imu_data=conversion_config.get("include_imu_data", True),
@@ -383,14 +387,32 @@ class KognicDatasetUploader:
         min_interval_ns = int(1e9 / self.config.target_hz) if self.config.target_hz else 0
         last_annotated_ts: Optional[int] = None
 
-        for frame_id, timestamp_ns, sensor_files in self.iterate_frames(sequence_path):
+        frame_records = list(self.iterate_frames(sequence_path))
+
+        # T4 source frames are not spaced at exactly 1/source_hz: a small
+        # per-frame drift (e.g. ~0.09997s instead of 0.1s) accumulates, so the
+        # frame at a nominal 1.0s boundary can actually land at ~0.99999s.
+        # Allow a tolerance when deciding whether to annotate, taken from
+        # annotation_interval_tolerance_s. If not set, use half of the median frame interval as tolerance.
+        if min_interval_ns:
+            if self.config.annotation_interval_tolerance_s is not None:
+                tolerance_ns = int(self.config.annotation_interval_tolerance_s * 1e9)
+            else:
+                timestamps = [ts for _, ts, _ in frame_records]
+                deltas = sorted(
+                    b - a for a, b in zip(timestamps, timestamps[1:]) if b > a
+                )
+                if deltas:
+                    tolerance_ns = deltas[len(deltas) // 2] // 2
+
+        for frame_id, timestamp_ns, sensor_files in frame_records:
             if reference_timestamp is None:
                 reference_timestamp = timestamp_ns
 
             if (
                 min_interval_ns == 0
                 or last_annotated_ts is None
-                or (timestamp_ns - last_annotated_ts) >= min_interval_ns
+                or (timestamp_ns - last_annotated_ts) >= (min_interval_ns - tolerance_ns)
             ):
                 annotate = True
                 last_annotated_ts = timestamp_ns
