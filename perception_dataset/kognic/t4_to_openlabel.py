@@ -118,8 +118,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         return sorted(
             path
             for path in root.rglob("*")
-            if T4ToKognicConverter._is_sequence_root(path)
-            and "extracted_data" not in path.parts
+            if T4ToKognicConverter._is_sequence_root(path) and "extracted_data" not in path.parts
         )
 
     # ------------------------------------------------------------------
@@ -290,8 +289,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             (
                 record
                 for record in tables["sample_data"]
-                if channel_by_calib.get(record["calibrated_sensor_token"])
-                == LIDAR_CONCAT_CHANNEL
+                if channel_by_calib.get(record["calibrated_sensor_token"]) == LIDAR_CONCAT_CHANNEL
             ),
             key=lambda record: record["timestamp"],
         )

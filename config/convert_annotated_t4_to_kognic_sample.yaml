@@ -20,7 +20,7 @@ conversion:
   category_map: {}
   # If true, T4 attributes (e.g. vehicle_state.driving) are exported as text
   # attributes on each cuboid. They must be allowed by the Kognic task
-  # definition. It is set true by default. 
+  # definition. It is set true by default.
   include_attributes: true
   # Used only when staging frame count differs from LIDAR_CONCAT records and
   # frames must be matched by nearest timestamp instead of position.
