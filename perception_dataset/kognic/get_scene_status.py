@@ -1,7 +1,7 @@
 # Copyright 2024 Tier IV, Inc.
 """
-This is a sample script to report annotation progress for specific scenes in a Kognic project, given by dataset filename/path (the basename is the scene external_id). 
-The Dataset directory name is the equivalent to the scene external_id, so the basename of each given path is matched against the scene external_id 
+This is a sample script to report annotation progress for specific scenes in a Kognic project, given by dataset filename/path (the basename is the scene external_id).
+The Dataset directory name is the equivalent to the scene external_id, so the basename of each given path is matched against the scene external_id
 (or scene uuid). Delivered annotations are fetched per scene.
 
 Example usage:

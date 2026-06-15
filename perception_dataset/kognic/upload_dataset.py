@@ -86,9 +86,7 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         project_external_id=conversion_config.get("project_external_id"),
         batch=conversion_config.get("batch"),
         target_hz=conversion_config.get("target_hz"),
-        annotation_interval_tolerance_s=conversion_config.get(
-            "annotation_interval_tolerance_s"
-        ),
+        annotation_interval_tolerance_s=conversion_config.get("annotation_interval_tolerance_s"),
         dryrun=conversion_config.get("dryrun", False),
         motion_compensate=conversion_config.get("motion_compensate", False),
         include_imu_data=conversion_config.get("include_imu_data", True),
@@ -399,9 +397,7 @@ class KognicDatasetUploader:
                 tolerance_ns = int(self.config.annotation_interval_tolerance_s * 1e9)
             else:
                 timestamps = [ts for _, ts, _ in frame_records]
-                deltas = sorted(
-                    b - a for a, b in zip(timestamps, timestamps[1:]) if b > a
-                )
+                deltas = sorted(b - a for a, b in zip(timestamps, timestamps[1:]) if b > a)
                 if deltas:
                     tolerance_ns = deltas[len(deltas) // 2] // 2
 
