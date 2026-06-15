@@ -406,6 +406,50 @@ The in-between ego poses such as `65f2...` are still valid vehicle poses at inte
 
 `perception_dataset/kognic/t4_to_kognic_converter.py` always writes all available frames from the high-frequency anchor stream (`LIDAR_CONCAT`, or the first camera with data when no lidar is present). There is no sample-level (key-frame-only) export mode; annotation frequency is decided at upload time via `target_hz`.
 
+#### Config Parameters
+
+The converter is driven by a `conversion` block (`config/convert_non_annotated_t4_to_kognic_sample.yaml` and `config/convert_annotated_t4_to_kognic_sample.yaml`). Both tasks run the sensor-data stage (`T4ToKognicConverter`). `convert_annotated_t4_to_kognic` then runs a second stage (`T4ToOpenLabelConverter`) that exports `pre_annotation.json`, which adds the parameters in the second table below.
+
+```yaml
+task: convert_annotated_t4_to_kognic   # or: convert_non_annotated_t4_to_kognic
+conversion:
+  input_base: ./data/annotated_t4_format
+  output_base: ./data/kognic_format_duplicate
+  workers_number: 12
+  drop_camera_token_not_found: false
+  camera_sensors:
+    - channel: CAM_FRONT
+    - channel: CAM_FRONT_RIGHT
+    - channel: CAM_BACK_RIGHT
+    - channel: CAM_BACK
+    - channel: CAM_BACK_LEFT
+    - channel: CAM_FRONT_LEFT
+  # --- convert_annotated_t4_to_kognic only: OpenLABEL pre-annotation export ---
+  lidar_stream: ""
+  category_map: {}
+  include_attributes: true
+  frame_match_tolerance_ms: 50
+```
+
+**Sensor-data stage** (both tasks). These keys are read by direct indexing in `convert.py`, so all are required in the config even though the converter class itself has fallbacks.
+
+| Parameter                     | Required | Default                       | Description                                                                                                                                                                                                                                                                          |
+| ----------------------------- | -------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `input_base`                  | Yes      | —                             | Path to the T4 dataset. May be a single sequence root (a folder with `annotation/` + `data/` and the required tables) or a parent directory whose children are searched recursively for sequence roots. See [Sequence Discovery](#sequence-discovery).                                 |
+| `output_base`                 | Yes      | —                             | Directory where each scene's staging folder `<output_base>/<scene>/` is written (`calibration.json`, `ego_poses.json`, `cameras/`, `lidar/`).                                                                                                                                         |
+| `camera_sensors`              | Yes      | —                             | List of `{channel: <name>}` entries naming the T4 camera channels to copy (e.g. `CAM_FRONT`). Channels absent from the dataset, or present but with no image files, are skipped with a warning, allowing LiDAR-only conversion.                                                        |
+| `workers_number`              | Yes      | `32` (code); sample uses `12` | Size of the thread pool used to copy camera images in parallel. Larger values speed up the I/O-bound copy step on fast storage.                                                                                                                                                       |
+| `drop_camera_token_not_found` | Yes      | `false`                       | Controls handling of a selected frame that has no `sample_data` for a camera. `false` keeps the frame (that camera is simply absent for it); `true` logs and skips that camera for the frame. The frame's LiDAR and other cameras are exported either way.                             |
+
+**Pre-annotation stage** (`convert_annotated_t4_to_kognic` only). These keys are read with defaults, so all are optional.
+
+| Parameter                  | Required | Default                            | Description                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | -------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lidar_stream`             | No       | `""`                               | Kognic stream name the cuboids are tied to via the geometry's `stream` marker. Empty means use the anchor LiDAR stream (the first staged LiDAR in `PREFERRED_LIDAR_SENSORS` order), matching how the uploader anchors frames.                                                                                                                                                                              |
+| `category_map`             | No       | `{}`                               | Mapping from T4 category names to Kognic task-definition class names, e.g. `{car: PassengerCar}`. Categories not in the map pass through unchanged. The resulting class name must exist in the Kognic task definition.                                                                                                                                                                                     |
+| `include_attributes`       | No       | `false` (code); sample uses `true` | When `true`, each annotation's T4 attributes (e.g. `vehicle_state.driving`) are exported as **object-level** text properties (under `object_data.text`, not on the cuboid geometry — Kognic rejects source-specific properties on 3D geometry). The property names must be defined for that class in the Kognic task definition or the pre-annotation upload is rejected. The `stream` marker is always written on the geometry regardless of this flag. |
+| `frame_match_tolerance_ms` | No       | `50.0`                             | Tolerance in milliseconds used **only** when the staged frame count differs from the `LIDAR_CONCAT` record count, forcing annotations to be matched to staging frames by nearest timestamp instead of by position. Records with no frame within the tolerance are dropped. When the counts match, the mapping is positional and this value is unused.                                                       |
+
 ### Package Uploader
 
 `perception_dataset/kognic/upload_dataset.py` uploads the staging folders produced by the package converter. It follows the same script shape as [perception_dataset/deepen/upload_dataset.py](../perception_dataset/deepen/upload_dataset.py):

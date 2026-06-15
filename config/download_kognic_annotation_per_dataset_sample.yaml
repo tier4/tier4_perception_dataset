@@ -1,0 +1,8 @@
+task: download_kognic_annotation
+conversion:
+  output_base: ./data/kognic_annotations  # where annotation JSONs will be written (<scene_uuid>.json per scene)
+  organization_id: 114
+  workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
+  project_external_id: test_upload_data
+  scene_external_id: 7508c959-8727-478b-898e-1e11ba7d5d7a
+  iso_rotated_cuboids: false               # true → cuboids in ISO8855 frame; false → Kognic internal frame

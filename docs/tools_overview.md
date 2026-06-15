@@ -152,6 +152,38 @@ All staged frames are uploaded. Annotation frequency is controlled by `conversio
 
 See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md#package-uploader) for all config parameters and [Annotation Interval Selection](tier_iv_t4_extractor_to_kognic.md#annotation-interval-selection) for the interval/tolerance details.
 
+### Download annotations from Kognic
+
+Downloads completed annotations (OpenLABEL JSON) from the Kognic platform to local disk.
+
+input: Kognic project/scene (remote)  
+output: annotation JSON files under `output_base/<project_external_id>/`
+
+Requires a [credentials file](https://developers.kognic.com/docs/getting-started/quickstart/#generating-credentials). Set the path via the environment variable before running:
+
+```bash
+export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
+python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_sample.yaml
+```
+
+The download mode is auto-detected from the config:
+
+- **Project-wide** (default): set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene.
+- **Single scene**: set `scene_external_id` to download all annotations for that one scene. The external id is resolved to its scene UUID via the project's inputs, then `annotation_type`/`batch` are ignored. Files are written as `<scene_external_id>.json` (suffixed with the request id when a scene has multiple annotations).
+
+Config parameters (`conversion`):
+
+| key | required | description |
+| --- | --- | --- |
+| `output_base` | yes | directory where annotation JSONs are written |
+| `organization_id` | yes | Kognic client organization id (alias: `client_organization_id`) |
+| `workspace_id` | yes | Kognic workspace id (alias: `write_workspace_id`) |
+| `project_external_id` | yes | project to download from |
+| `annotation_type` | yes, unless `scene_external_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`) |
+| `batch` | no | restrict project-wide download to one batch (omit for all batches) |
+| `scene_external_id` | no | download a single scene by external id instead of the whole project |
+| `iso_rotated_cuboids` | no | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame |
+
 ## Deepen
 
 ### Non-annotated T4 format to Deepen format
