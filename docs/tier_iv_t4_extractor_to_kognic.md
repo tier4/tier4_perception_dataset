@@ -24,7 +24,7 @@ An uploader then reads this folder, creates a Kognic sensor calibration, builds 
 
 The package converter [t4_to_kognic_converter.py](../perception_dataset/kognic/t4_to_kognic_converter.py) mirrors this same staging layout while preserving the `perception_dataset` converter interface. It always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found).
 
-The package uploader [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) uploads expanded Kognic staging directories instead of zip files. Annotation frequency is controlled at upload time via `conversion.target_hz`: frames at that interval are marked `annotate=True`, and the remaining frames are uploaded as context with `annotate=False`. When `target_hz` is omitted, every frame is marked `annotate=True`.
+The package uploader [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) uploads expanded Kognic staging directories instead of zip files. Annotation frequency is controlled at upload time via `conversion.target_hz`: frames at that interval are marked `annotate=True`, and the remaining frames are uploaded as context with `annotate=False`. When `target_hz` is omitted, every frame is marked `annotate=True`. Because T4 frames are not spaced at exactly `1 / target_hz`, the interval check applies a small tolerance so boundary frames are not skipped — see [Annotation Interval Selection](#annotation-interval-selection).
 
 ## Kognic Staging Files
 
@@ -439,6 +439,7 @@ conversion:
   project_external_id: my_project
   # batch: my_batch_id        # optional
   # target_hz: 1              # optional
+  # annotation_interval_tolerance_s: 0.05   # optional; leniency (+/-) when matching target_hz
   dryrun: false
   motion_compensate: false
   include_imu_data: true
@@ -452,7 +453,8 @@ conversion:
 | `workspace_id`        | Yes      | —       | The Kognic workspace UUID to write scenes into (also accepted as `write_workspace_id`).                                                                                                                                                                                                                                             |
 | `project_external_id` | No       | `None`  | External ID of an existing Kognic project to attach the uploaded scenes to. If omitted, scenes are created without a project. The project must already exist and have an open batch.                                                                                                                                                |
 | `batch`               | No       | `None`  | External ID of the batch within the project to add scenes to. If omitted, Kognic uses the latest open batch of the project. Ignored when `project_external_id` is not set.                                                                                                                                                          |
-| `target_hz`           | No       | `None`  | Controls which frames are marked `annotate=True`. All staged frames are uploaded regardless, but only frames at least `1 / target_hz` seconds apart are flagged for annotation; the rest are uploaded as context with `annotate=False`. Omit to mark every frame `annotate=True`.                                                   |
+| `target_hz`           | No       | `None`  | Controls which frames are marked `annotate=True`. All staged frames are uploaded regardless, but only frames at least `1 / target_hz` seconds apart are flagged for annotation; the rest are uploaded as context with `annotate=False`. Omit to mark every frame `annotate=True`. See [Annotation Interval Selection](#annotation-interval-selection) for how the interval check tolerates timestamp drift.                                                   |
+| `annotation_interval_tolerance_s` | No | `None`  | Leniency in seconds (`+/-`) applied when checking whether a frame has reached the `target_hz` interval. T4 frames are rarely spaced at exactly `1 / target_hz` (e.g. `0.09997s` instead of `0.1s`), so without leniency a frame near a nominal boundary (e.g. the `1.0s` frame landing at `0.99999s`) is skipped and the cadence drifts. The tolerance only relaxes the comparison; the original timestamp is still used as the reference for the next interval. When omitted, it defaults to half the typical (median) source frame interval. Set to `0` to disable leniency. Ignored when `target_hz` is unset. |
 | `dryrun`              | No       | `false` | When `true`, validates the scene structure against the Kognic API but does not create a scene or upload sensor files. The calibration **is** uploaded for real even in dryrun mode. The returned scene UUID is recorded as `"dryrun"` in `dataset_id.json`.                                                                         |
 | `motion_compensate`   | No       | `false` | When `false`, the uploader sends `FeatureFlags()` to Kognic which disables motion compensation on the server side. When `true`, no feature flags are sent and Kognic applies its default motion compensation during annotation. Requires accurate IMU or ego-pose data.                                                             |
 | `include_imu_data`    | No       | `true`  | When `true`, the uploader generates a 200 Hz stream of IMU-like samples by interpolating between the ego poses in `ego_poses.json` and attaches it to the scene. Requires `ego_poses.json` to contain at least two entries. When `false` or when `ego_poses.json` is absent or has fewer than two entries, no IMU data is attached. |
@@ -485,6 +487,33 @@ The uploader uploads all staged frames. When `target_hz` is set, only frames at 
 When `target_hz` is omitted, every frame is marked `annotate: true`.
 
 The uploader anchors frames on the first available LiDAR stream, preferring the normal Tier IV LiDAR order (`LIDAR_FRONT_UPPER`, `LIDAR_FRONT_LOWER`, ...) and falling back to `LIDAR_CONCAT` when the converter exported a fused concat-only cloud. Other LiDAR streams and camera streams are attached by frame order, not by requiring identical filenames. Each camera still keeps its own shutter timestamp from its image filename.
+
+#### Annotation Interval Selection
+
+When `target_hz` is set, the uploader walks the frames in timestamp order and flags a frame for annotation whenever enough time has elapsed since the last flagged frame:
+
+```text
+annotate frame if (timestamp_ns - last_annotated_ts) >= (min_interval_ns - tolerance_ns)
+min_interval_ns = 1e9 / target_hz
+```
+
+The tolerance exists because **T4 frames are rarely spaced at exactly `1 / source_hz`**. In practice each step is slightly short of the nominal interval (for example `0.09997s` instead of `0.1s`). That tiny per-frame deficit accumulates, so a frame at a nominal boundary lands just below the target interval:
+
+| Frame | Nominal time | Actual elapsed since reference | Strict `>= 1.0s`? |
+| ----- | ------------ | ------------------------------ | ----------------- |
+| idx 9  | 0.9s | 0.899995s | skip (correct)    |
+| idx 10 | 1.0s | 0.999994s | **skipped** — only ~6 µs short |
+| idx 11 | 1.1s | 1.099991s | annotated         |
+
+With a strict `>= min_interval_ns` check, the `1.0s` frame is dropped and the next annotated frame is `1.1s`. The error then compounds, so at `target_hz: 1` the annotated frames drift to `0.0, 1.1, 2.1, 3.2, 4.3, ...` instead of `0, 1, 2, 3, ...`. This is exactly the "the `1.0s` frame is missing on Kognic" symptom.
+
+`annotation_interval_tolerance_s` adds leniency (`+/-`) so a frame that reaches *almost* the target interval still counts. Important details:
+
+- The tolerance is applied **only to the comparison**. The frame's original, unmodified timestamp is still stored as `last_annotated_ts` (and as the frame's `unix_timestamp`), so leniency never accumulates or shifts the reference clock — each interval is measured from the true previous timestamp.
+- When the option is omitted, the tolerance defaults to **half the median source frame interval**, computed from the actual staged timestamps. This is large enough to absorb realistic drift yet smaller than a full source step, so it never pulls in an extra neighbouring frame.
+- Set it to `0` to restore the old strict behaviour, or to an explicit value (e.g. `0.05`) to override the auto-derived default.
+
+With the default tolerance, `target_hz: 1` correctly selects frames at `0.0, 1.0, 2.0, 3.0, ...` and `target_hz: 10` keeps every ~10 Hz frame.
 
 ## Image Extraction
 

@@ -148,7 +148,9 @@ export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
 python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
 ```
 
-See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md#package-uploader) for all config parameters.
+All staged frames are uploaded. Annotation frequency is controlled by `conversion.target_hz`: frames at that interval are marked `annotate=True` and the rest are uploaded as context with `annotate=False` (omit `target_hz` to annotate every frame). Because T4 frames are not spaced at exactly `1 / target_hz` (e.g. `0.09997s` instead of `0.1s`), the interval check applies a small leniency so boundary frames such as the `1.0s` frame are not skipped. The leniency defaults to half the typical source frame interval and can be overridden with `conversion.annotation_interval_tolerance_s` (set to `0` to disable).
+
+See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md#package-uploader) for all config parameters and [Annotation Interval Selection](tier_iv_t4_extractor_to_kognic.md#annotation-interval-selection) for the interval/tolerance details.
 
 ## Deepen
 
