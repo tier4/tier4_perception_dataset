@@ -21,6 +21,13 @@ logger = configure_logger(modname=__name__)
 # Kognic cuboids face +y at yaw 0 while T4/nuScenes boxes face +x.
 ROTATION_T4_TO_KOGNIC = Rotation.from_euler("z", -90, degrees=True)
 
+# TODO: T4 attribute property names that Kognic exposes under a different name. The
+# value (e.g. ``with_rider``/``without_rider``) is preserved as-is.
+# It should be revisited and standarized in the future. 
+_T4_ATTRIBUTE_NAME_TO_KOGNIC = {
+    "two_wheel_vehicle_state": "rider_state",
+}
+
 
 class T4ToOpenLabelConverter(AbstractConverter[None]):
     """Convert T4 3D box annotations to a Kognic OpenLABEL pre-annotation.
@@ -408,4 +415,5 @@ def _attribute_to_text(attribute_name: str) -> openlabel.Text:
     name, _, value = attribute_name.rpartition(".")
     if not name:
         return openlabel.Text(name=attribute_name, val="true")
+    name = _T4_ATTRIBUTE_NAME_TO_KOGNIC.get(name, name)
     return openlabel.Text(name=name, val=value)
