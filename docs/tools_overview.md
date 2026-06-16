@@ -175,16 +175,16 @@ The download mode is auto-detected from the config:
 
 Config parameters (`conversion`):
 
-| key | required | description |
-| --- | --- | --- |
-| `output_base` | yes | directory where annotation JSONs are written |
-| `organization_id` | yes | Kognic client organization id (alias: `client_organization_id`) |
-| `workspace_id` | yes | Kognic workspace id (alias: `write_workspace_id`) |
-| `project_external_id` | yes | project to download from |
-| `annotation_type` | yes, unless `scene_external_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`) |
-| `batch` | no | restrict project-wide download to one batch (omit for all batches) |
-| `scene_external_id` | no | download a single scene by external id instead of the whole project |
-| `iso_rotated_cuboids` | no | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame |
+| key                   | required                               | description                                                                  |
+| --------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `output_base`         | yes                                    | directory where annotation JSONs are written                                 |
+| `organization_id`     | yes                                    | Kognic client organization id (alias: `client_organization_id`)              |
+| `workspace_id`        | yes                                    | Kognic workspace id (alias: `write_workspace_id`)                            |
+| `project_external_id` | yes                                    | project to download from                                                     |
+| `annotation_type`     | yes, unless `scene_external_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`)              |
+| `batch`               | no                                     | restrict project-wide download to one batch (omit for all batches)           |
+| `scene_external_id`   | no                                     | download a single scene by external id instead of the whole project          |
+| `iso_rotated_cuboids` | no                                     | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame |
 
 ## Deepen
 

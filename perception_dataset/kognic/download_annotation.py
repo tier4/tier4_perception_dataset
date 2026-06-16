@@ -2,11 +2,11 @@ import argparse
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import time
 from typing import Dict, Optional
 
 from kognic.io.client import KognicIOClient
 import yaml
-import time
 
 from perception_dataset.utils.logger import configure_logger
 
@@ -115,18 +115,14 @@ class KognicAnnotationDownloader:
         multiple = len(annotations) > 1
         for annotation in annotations:
             stem = (
-                f"{scene_external_id}_{annotation.request_uid}"
-                if multiple
-                else scene_external_id
+                f"{scene_external_id}_{annotation.request_uid}" if multiple else scene_external_id
             )
             out_path = out_dir / f"{stem}.json"
             with open(out_path, "w") as f:
                 json.dump(annotation.content, f, indent=2)
             logger.info(f"  Saved {out_path}")
 
-        logger.info(
-            f"Done. {len(annotations)} annotation(s) written to {self.config.output_base}"
-        )
+        logger.info(f"Done. {len(annotations)} annotation(s) written to {self.config.output_base}")
 
     def download(self) -> None:
         if self.config.scene_external_id:
@@ -140,7 +136,7 @@ class KognicAnnotationDownloader:
                 f"No scene external ID specified, downloading all annotations for project "
                 f"{self.config.project_external_id} with annotation type "
                 f"{self.config.annotation_type} and batch {self.config.batch or '(all)'}"
-                )
+            )
             self.download_all()
 
     def download_all(self) -> None:
@@ -210,7 +206,6 @@ def main():
     downloader.download()
     time_end = time.time()
     logger.info(f"Finished download in {time_end - time_start:.1f} seconds")
-
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ logger = configure_logger(modname=__name__)
 ROTATION_T4_TO_KOGNIC = Rotation.from_euler("z", -90, degrees=True)
 
 # TODO: the visbility mapping is a best effort based on the occlusion_state values in T4 dataset and kognic format.
-# It should be revisited and standarized in the future. 
+# It should be revisited and standarized in the future.
 _OCCLUSION_TO_VISIBILITY = {
     "none": "full",
     "light": "most",
@@ -64,7 +64,7 @@ _OCCLUSION_TO_VISIBILITY = {
 # TODO: Kognic property names that T4 stores under a different attribute name. The
 # value (e.g. ``with_rider``/``without_rider``) is preserved as-is. Inverse of
 # ``_T4_ATTRIBUTE_NAME_TO_KOGNIC`` in ``t4_to_openlabel.py``.
-# It should be revisited and standarized in the future. 
+# It should be revisited and standarized in the future.
 _KOGNIC_ATTRIBUTE_NAME_TO_T4 = {
     "rider_state": "two_wheel_vehicle_state",
 }
@@ -108,7 +108,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         for scene_dir in scenes:
             openlabel_path = self._match_openlabel(scene_dir, openlabels)
             if openlabel_path is None:
-                logger.warning(f"No matching OpenLABEL annotation for scene {scene_dir.name}; skipping")
+                logger.warning(
+                    f"No matching OpenLABEL annotation for scene {scene_dir.name}; skipping"
+                )
                 continue
 
             self._convert_one_scene(scene_dir, openlabel_path)
@@ -227,7 +229,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                     continue
 
                 obj = objects.get(object_uuid, {})
-                category_name = self._category_map.get(obj.get("type", ""), obj.get("type", "unknown"))
+                category_name = self._category_map.get(
+                    obj.get("type", ""), obj.get("type", "unknown")
+                )
                 instance_token = self._get_or_create_instance(
                     tables, instance_tokens, object_uuid, category_name
                 )
@@ -310,14 +314,10 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         channel_by_calib = {
             c["token"]: token_to_channel.get(c["sensor_token"]) for c in calibrated_sensor
         }
-        channels = {
-            channel_by_calib.get(r["calibrated_sensor_token"]) for r in sample_data
-        }
+        channels = {channel_by_calib.get(r["calibrated_sensor_token"]) for r in sample_data}
         if LIDAR_CONCAT_CHANNEL in channels:
             return LIDAR_CONCAT_CHANNEL
-        lidar_channels = sorted(
-            s["channel"] for s in sensor if s.get("modality") == "lidar"
-        )
+        lidar_channels = sorted(s["channel"] for s in sensor if s.get("modality") == "lidar")
         return lidar_channels[0] if lidar_channels else LIDAR_CONCAT_CHANNEL
 
     # ------------------------------------------------------------------
@@ -435,7 +435,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             (t["val"] for t in object_data.get("text", []) if t["name"] == "occlusion_state"),
             None,
         )
-        level = _OCCLUSION_TO_VISIBILITY.get(occlusion, "unavailable") if occlusion else "unavailable"
+        level = (
+            _OCCLUSION_TO_VISIBILITY.get(occlusion, "unavailable") if occlusion else "unavailable"
+        )
         return tables["visibility"].insert_into_table(
             reuse_if_duplicate=True, level=level, description=""
         )
@@ -512,9 +514,7 @@ class _SampleIndex:
     by_timestamp_us: Dict[int, Tuple[str, Optional[dict]]]
     by_order: List[Tuple[str, Optional[dict]]]
 
-    def match(
-        self, frame: dict, frame_key: str, lidar_channel: str
-    ) -> Optional[Tuple[str, dict]]:
+    def match(self, frame: dict, frame_key: str, lidar_channel: str) -> Optional[Tuple[str, dict]]:
         candidate = self._by_uri_timestamp(frame, lidar_channel) or self._by_external_id(frame)
         if candidate is None or candidate[1] is None:
             return None
