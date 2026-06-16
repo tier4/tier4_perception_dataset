@@ -121,18 +121,20 @@ the scene so labelers see the boxes pre-loaded.
 
 See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a detailed explanation of the staging format and the upload pipeline.
 
-### Kognic format to T4 non-annotated format
+### Kognic annotations to T4 annotation tables
 
-Converts a local Kognic staging directory back into a T4 non-annotated dataset. When the staging folder contains multiple per-source LiDAR streams, the converter merges them into a single `LIDAR_CONCAT` `.pcd.bin` file and writes a matching `LIDAR_CONCAT_INFO` sidecar per frame.
+Merges the OpenLABEL annotations downloaded from Kognic (see [Download annotations from Kognic](#download-annotations-from-kognic)) into an existing **non-annotated** T4 dataset, populating the otherwise-empty `instance`, `category`, `attribute`, `visibility` and `sample_annotation` tables. It is the inverse of the T4→OpenLABEL pre-annotation converter: cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes.
 
-input: Kognic staging format data  
-output: T4 non-annotated format data
+input: non-annotated T4 dataset + downloaded OpenLABEL JSON
+output: annotated T4 dataset
 
 ```bash
-python -m perception_dataset.convert --config config/convert_kognic_to_non_annotated_t4_sample.yaml
+python -m perception_dataset.convert --config config/convert_kognic_annotation_to_t4_sample.yaml
 ```
 
-See [kognic_to_t4.md](kognic_to_t4.md) for a detailed explanation.
+OpenLABEL frames are matched to T4 samples by LiDAR timestamp (with the frame `external_id` as a fallback), so annotation requests that cover only a subsampled set of scene frames are handled correctly. Set `output_base` equal to `input_base` to enrich the dataset in place. `iso_rotated_cuboids` must match the value used when downloading. Class properties (e.g. `vehicle_state`, `occlusion_state`) are imported as T4 attributes when `include_attributes` is `true`; `occlusion_state` additionally drives the `visibility` level.
+
+> Note: `num_lidar_pts`/`num_radar_pts` are set to `0` (point counts are not recomputed), and box velocity/acceleration are left unset.
 
 ### Upload Kognic staging format to Kognic
 
