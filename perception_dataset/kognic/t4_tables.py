@@ -17,9 +17,7 @@ def channel_by_calibrated_sensor(
 ) -> Dict[str, Optional[str]]:
     """Map each ``calibrated_sensor`` token to its sensor channel name."""
     token_to_channel = {s["token"]: s["channel"] for s in sensor}
-    return {
-        c["token"]: token_to_channel.get(c["sensor_token"]) for c in calibrated_sensor
-    }
+    return {c["token"]: token_to_channel.get(c["sensor_token"]) for c in calibrated_sensor}
 
 
 def records_for_channel(

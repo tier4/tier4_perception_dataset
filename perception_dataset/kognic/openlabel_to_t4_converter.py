@@ -115,7 +115,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         for scene_dir in scenes:
             openlabel_path = self._match_openlabel(scene_dir, openlabels)
             if openlabel_path is None:
-                logger.warning(f"No matching OpenLABEL annotation for scene {scene_dir.name}; skipping")
+                logger.warning(
+                    f"No matching OpenLABEL annotation for scene {scene_dir.name}; skipping"
+                )
                 continue
 
             self._convert_one_scene(scene_dir, openlabel_path)
@@ -238,7 +240,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                     continue
 
                 obj = objects.get(object_uuid, {})
-                category_name = self._category_map.get(obj.get("type", ""), obj.get("type", "unknown"))
+                category_name = self._category_map.get(
+                    obj.get("type", ""), obj.get("type", "unknown")
+                )
                 instance_token = self._get_or_create_instance(
                     tables, instance_tokens, object_uuid, category_name
                 )
@@ -462,9 +466,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             name="background", description="unlabelled / background points", index=0
         )
         for index in sorted(ontology):
-            category_table.insert_into_table(
-                name=ontology[index], description="", index=index
-            )
+            category_table.insert_into_table(name=ontology[index], description="", index=index)
 
         lidarseg_table = TableHandler(LidarSeg)
         anno_dir = scene_dir / "annotation"
@@ -614,9 +616,7 @@ class _SampleIndex:
     def __post_init__(self):
         self._sorted_us: List[int] = sorted(self.by_timestamp_us)
 
-    def match(
-        self, frame: dict, frame_key: str, lidar_channel: str
-    ) -> Optional[Tuple[str, dict]]:
+    def match(self, frame: dict, frame_key: str, lidar_channel: str) -> Optional[Tuple[str, dict]]:
         # The lidar uri timestamp is the ground truth: when present it is
         # authoritative, so a frame whose capture time has no nearby sample is
         # genuinely unmatched (e.g. annotation and point clouds from different
