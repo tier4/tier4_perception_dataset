@@ -123,7 +123,7 @@ See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a
 
 ### Kognic annotations to T4 annotation tables
 
-Merges the OpenLABEL annotations downloaded from Kognic (see [Download annotations from Kognic](#download-annotations-from-kognic)) into an existing **non-annotated** T4 dataset, populating the otherwise-empty `instance`, `category`, `attribute`, `visibility` and `sample_annotation` tables. It is the inverse of the T4→OpenLABEL pre-annotation converter: cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes.
+Merges the OpenLABEL annotations downloaded from Kognic (see [Download annotations from Kognic](#download-annotations-from-kognic)) into an existing **non-annotated** T4 dataset. [openlabel_to_t4_converter.py](../perception_dataset/kognic/openlabel_to_t4_converter.py) auto-detects the annotation type per scene and handles both 3D cuboids and point-cloud segmentation.
 
 input: non-annotated T4 dataset + downloaded OpenLABEL JSON
 output: annotated T4 dataset
@@ -132,9 +132,23 @@ output: annotated T4 dataset
 python -m perception_dataset.convert --config config/convert_kognic_annotation_to_t4_sample.yaml
 ```
 
-OpenLABEL frames are matched to T4 samples by LiDAR timestamp (with the frame `external_id` as a fallback), so annotation requests that cover only a subsampled set of scene frames are handled correctly. Set `output_base` equal to `input_base` to enrich the dataset in place. `iso_rotated_cuboids` must match the value used when downloading. Class properties (e.g. `vehicle_state`, `occlusion_state`) are imported as T4 attributes when `include_attributes` is `true`; `occlusion_state` additionally drives the `visibility` level.
+OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp. When a usable timestamp is present it is authoritative (matched to the nearest sample within a 1 ms tolerance), so a frame whose capture time has no corresponding sample is reported as unmatched rather than mis-paired; the frame `external_id` is used as a positional fallback only when no timestamp is available. Annotation requests that cover only a subsampled set of scene frames are therefore handled correctly. Set `output_base` equal to `input_base` to enrich the dataset in place.
+
+#### 3D cuboids (object detection)
+
+Populates the otherwise-empty `instance`, `category`, `attribute`, `visibility` and `sample_annotation` tables. This is the inverse of the T4→OpenLABEL pre-annotation converter: cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes. `iso_rotated_cuboids` must match the value used when downloading. Class properties (e.g. `vehicle_state`, `occlusion_state`) are imported as T4 attributes when `include_attributes` is `true`; `occlusion_state` additionally drives the `visibility` level.
 
 > Note: `num_lidar_pts`/`num_radar_pts` are set to `0` (point counts are not recomputed), and box velocity/acceleration are left unset.
+
+#### Point-cloud segmentation (`3DPointCloudSegmentation` / `semseg`)
+
+When the OpenLABEL carries per-point segmentation (object type `3DPointCloudSegmentation`, or metadata `annotation_type: semseg`), the converter writes T4 lidarseg instead of boxes:
+
+- `lidarseg.json` — one record per matched frame, linking a LiDAR `sample_data` token to its label file.
+- `lidarseg/<version>/<token>.bin` — a `uint8` array of per-point class indices, one label per point in the corresponding `LIDAR_CONCAT` `.pcd.bin`, in the same order. Stale `.bin` files are cleared on each run.
+- `category.json` — the OpenLABEL ontology classes, each with its ontology id as the T4 `index` (the value stored in the `.bin`). Index `0` is reserved for the `background` class (unlabelled points).
+
+The labels are decoded from Kognic's run-length encoding (`#<count>V<class_id>` repeated). Kognic encodes labels sequentially from point 0 and omits a trailing run of unlabelled points, so when the RLE is shorter than the point cloud the missing trailing points are treated as `background` (class `0`) and appended at the end; this padding is logged as a warning per frame. A frame is skipped only when it has **more** labels than points (a genuine annotation/point-cloud mismatch — e.g. the annotation and point clouds come from different recordings) or when its LiDAR point cloud cannot be read.
 
 ### Upload Kognic staging format to Kognic
 
