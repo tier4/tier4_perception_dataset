@@ -36,7 +36,8 @@ KOGNIC_ATTRIBUTE_NAME_TO_T4 = {
 
 def attribute_to_text(attribute_name: str) -> openlabel.Text:
     """Split a T4 attribute like ``vehicle_state.driving`` into an OpenLABEL
-    ``text`` property, remapping the group name to its Kognic spelling."""
+    ``text`` property, remapping the group name to its Kognic spelling.
+    """
     name, _, value = attribute_name.rpartition(".")
     if not name:
         return openlabel.Text(name=attribute_name, val="true")
