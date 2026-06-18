@@ -8,26 +8,20 @@ import uuid
 
 from kognic.openlabel.models import models as openlabel
 import numpy as np
-from scipy.spatial.transform import Rotation
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, PREFERRED_LIDAR_SENSORS
+from perception_dataset.kognic.openlabel_attributes import attribute_to_text
+from perception_dataset.kognic.openlabel_geometry import t4_box_to_cuboid_val
+from perception_dataset.kognic.t4_tables import (
+    channel_by_calibrated_sensor,
+    records_for_channel,
+)
 from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
 from perception_dataset.kognic.upload_dataset import _sensor_sort_key, _sort_key
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
-
-# Kognic cuboids face +y at yaw 0 while T4/nuScenes boxes face +x.
-ROTATION_T4_TO_KOGNIC = Rotation.from_euler("z", -90, degrees=True)
-
-# TODO: T4 attribute property names that Kognic exposes under a different name. The
-# value (e.g. ``with_rider``/``without_rider``) is preserved as-is.
-# It should be revisited and standarized in the future.
-_T4_ATTRIBUTE_NAME_TO_KOGNIC = {
-    "two_wheel_vehicle_state": "rider_state",
-}
-
 
 class T4ToOpenLabelConverter(AbstractConverter[None]):
     """Convert T4 3D box annotations to a Kognic OpenLABEL pre-annotation.
@@ -219,7 +213,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                 class_properties = []
                 if self._include_attributes:
                     class_properties = [
-                        _attribute_to_text(attributes[token])
+                        attribute_to_text(attributes[token])
                         for token in annotation.get("attribute_tokens", [])
                         if token in attributes
                     ]
@@ -229,7 +223,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                         cuboid=[
                             openlabel.Cuboid(
                                 name=f"cuboid-{object_uuid[:8]}",
-                                val=_cuboid_val(annotation, ego_pose),
+                                val=t4_box_to_cuboid_val(annotation, ego_pose),
                                 attributes=openlabel.Attributes(
                                     text=[openlabel.Text(name="stream", val=stream_name)]
                                 ),
@@ -287,18 +281,11 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
     @staticmethod
     def _collect_concat_records(tables: dict) -> List[dict]:
-        token_to_channel = {s["token"]: s["channel"] for s in tables["sensor"]}
-        channel_by_calib = {
-            c["token"]: token_to_channel.get(c["sensor_token"])
-            for c in tables["calibrated_sensor"]
-        }
-        return sorted(
-            (
-                record
-                for record in tables["sample_data"]
-                if channel_by_calib.get(record["calibrated_sensor_token"]) == LIDAR_CONCAT_CHANNEL
-            ),
-            key=lambda record: record["timestamp"],
+        channel_by_calib = channel_by_calibrated_sensor(
+            tables["sensor"], tables["calibrated_sensor"]
+        )
+        return records_for_channel(
+            tables["sample_data"], channel_by_calib, LIDAR_CONCAT_CHANNEL
         )
 
     @staticmethod
@@ -366,36 +353,6 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 # ---------------------------------------------------------------------------
 
 
-def _cuboid_val(annotation: dict, ego_pose: dict) -> List[float]:
-    """Build the 10-float Kognic cuboid from a global-frame T4 box."""
-    rotation_ego = Rotation.from_quat(_quat_wxyz_to_xyzw(ego_pose["rotation"]))
-    position = rotation_ego.inv().apply(
-        np.asarray(annotation["translation"], dtype=np.float64)
-        - np.asarray(ego_pose["translation"], dtype=np.float64)
-    )
-
-    rotation_box = Rotation.from_quat(_quat_wxyz_to_xyzw(annotation["rotation"]))
-    qx, qy, qz, qw = (rotation_ego.inv() * rotation_box * ROTATION_T4_TO_KOGNIC).as_quat()
-
-    width, length, height = (float(v) for v in annotation["size"])
-    return [
-        float(position[0]),
-        float(position[1]),
-        float(position[2]),
-        float(qx),
-        float(qy),
-        float(qz),
-        float(qw),
-        width,
-        length,
-        height,
-    ]
-
-
-def _quat_wxyz_to_xyzw(quat: list) -> List[float]:
-    return [float(quat[1]), float(quat[2]), float(quat[3]), float(quat[0])]
-
-
 def _token_to_uuid(token: str) -> str:
     try:
         return str(uuid.UUID(hex=token))
@@ -408,12 +365,3 @@ def _object_name(instance: dict, object_uuid: str) -> str:
     if instance_name:
         return instance_name.split("::")[-1]
     return object_uuid
-
-
-def _attribute_to_text(attribute_name: str) -> openlabel.Text:
-    """Split a T4 attribute like ``vehicle_state.driving`` into name/value."""
-    name, _, value = attribute_name.rpartition(".")
-    if not name:
-        return openlabel.Text(name=attribute_name, val="true")
-    name = _T4_ATTRIBUTE_NAME_TO_KOGNIC.get(name, name)
-    return openlabel.Text(name=name, val=value)
