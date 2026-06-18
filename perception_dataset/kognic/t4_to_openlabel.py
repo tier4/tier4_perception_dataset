@@ -23,6 +23,7 @@ from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
 
+
 class T4ToOpenLabelConverter(AbstractConverter[None]):
     """Convert T4 3D box annotations to a Kognic OpenLABEL pre-annotation.
 
@@ -284,9 +285,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         channel_by_calib = channel_by_calibrated_sensor(
             tables["sensor"], tables["calibrated_sensor"]
         )
-        return records_for_channel(
-            tables["sample_data"], channel_by_calib, LIDAR_CONCAT_CHANNEL
-        )
+        return records_for_channel(tables["sample_data"], channel_by_calib, LIDAR_CONCAT_CHANNEL)
 
     @staticmethod
     def _load_staging_frames(staging_dir: Path) -> Tuple[List[int], List[int], str]:
