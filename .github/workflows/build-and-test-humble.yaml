@@ -94,7 +94,7 @@ jobs:
           # use the ROS distro's system interpreter so compiled ROS modules (rclpy) import
           export UV_PYTHON="$(which python3)"
           echo "UV_PYTHON=${UV_PYTHON}" >> "$GITHUB_ENV"
-          uv sync
+          uv sync --locked
 
       - name: Test with pytest
         run: |
