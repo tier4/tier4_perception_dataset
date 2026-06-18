@@ -87,11 +87,24 @@ Execute the conversion command again with `--overwrite` option.
 
 ## Kognic
 
+The Kognic tools form a round-trip annotation pipeline: T4 sensor data is reshaped into a local Kognic staging format and uploaded to the Kognic platform, then the completed annotations are downloaded and merged back into T4 format. The five stages are:
+
+| Stage | Step                                                        | Command                                                                                                     |
+| ----- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1     | Non-annotated T4 → Kognic staging format                    | `convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml`                                    |
+| 2     | Annotated T4 → staging format + OpenLABEL pre-annotation    | `convert --config config/convert_annotated_t4_to_kognic_sample.yaml`                                        |
+| 3     | Upload staging format → Kognic                              | `python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml`      |
+| 4     | Download annotations from Kognic (per project or per scene) | `python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_*.yaml` |
+| 5     | Kognic annotations → T4 annotation tables                   | `convert --config config/convert_kognic_annotation_to_t4_sample.yaml`                                       |
+
+See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a full, stage-by-stage explanation of the staging format, the coordinate conventions, and every config parameter.
+
 References:
 
 - [Official help page](https://docs.kognic.com/)
 - [Kognic supported file formats](https://docs.kognic.com/api-guide/supported-file-formats)
 - [Kognic calibration overview](https://docs.kognic.com/api-guide/calibrations-overview)
+- [Kognic pre-annotations](https://docs.kognic.com/api-guide/pre-annotations)
 
 ### T4 format to Kognic format
 
@@ -119,36 +132,7 @@ When `pre_annotation.json` is present, the uploader (next section) uploads the
 scene without an input, attaches the pre-annotation, and creates the input from
 the scene so labelers see the boxes pre-loaded.
 
-See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a detailed explanation of the staging format and the upload pipeline.
-
-### Kognic annotations to T4 annotation tables
-
-Merges the OpenLABEL annotations downloaded from Kognic (see [Download annotations from Kognic](#download-annotations-from-kognic)) into an existing **non-annotated** T4 dataset. [openlabel_to_t4_converter.py](../perception_dataset/kognic/openlabel_to_t4_converter.py) auto-detects the annotation type per scene and handles both 3D cuboids and point-cloud segmentation.
-
-input: non-annotated T4 dataset + downloaded OpenLABEL JSON
-output: annotated T4 dataset
-
-```bash
-python -m perception_dataset.convert --config config/convert_kognic_annotation_to_t4_sample.yaml
-```
-
-OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp. When a usable timestamp is present it is authoritative (matched to the nearest sample within a 1 ms tolerance), so a frame whose capture time has no corresponding sample is reported as unmatched rather than mis-paired; the frame `external_id` is used as a positional fallback only when no timestamp is available. Annotation requests that cover only a subsampled set of scene frames are therefore handled correctly. Set `output_base` equal to `input_base` to enrich the dataset in place.
-
-#### 3D cuboids (object detection)
-
-Populates the otherwise-empty `instance`, `category`, `attribute`, `visibility` and `sample_annotation` tables. This is the inverse of the T4→OpenLABEL pre-annotation converter: cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes. `iso_rotated_cuboids` must match the value used when downloading. Class properties (e.g. `vehicle_state`, `occlusion_state`) are imported as T4 attributes when `include_attributes` is `true`; `occlusion_state` additionally drives the `visibility` level.
-
-> Note: `num_lidar_pts`/`num_radar_pts` are set to `0` (point counts are not recomputed), and box velocity/acceleration are left unset.
-
-#### Point-cloud segmentation (`3DPointCloudSegmentation` / `semseg`)
-
-When the OpenLABEL carries per-point segmentation (object type `3DPointCloudSegmentation`, or metadata `annotation_type: semseg`), the converter writes T4 lidarseg instead of boxes:
-
-- `lidarseg.json` — one record per matched frame, linking a LiDAR `sample_data` token to its label file.
-- `lidarseg/<version>/<token>.bin` — a `uint8` array of per-point class indices, one label per point in the corresponding `LIDAR_CONCAT` `.pcd.bin`, in the same order. Stale `.bin` files are cleared on each run.
-- `category.json` — the OpenLABEL ontology classes, each with its ontology id as the T4 `index` (the value stored in the `.bin`). Index `0` is reserved for the `background` class (unlabelled points).
-
-The labels are decoded from Kognic's run-length encoding (`#<count>V<class_id>` repeated). Kognic encodes labels sequentially from point 0 and omits a trailing run of unlabelled points, so when the RLE is shorter than the point cloud the missing trailing points are treated as `background` (class `0`) and appended at the end; this padding is logged as a warning per frame. A frame is skipped only when it has **more** labels than points (a genuine annotation/point-cloud mismatch — e.g. the annotation and point clouds come from different recordings) or when its LiDAR point cloud cannot be read.
+See [Stage 1](tier_iv_t4_extractor_to_kognic.md#stage-1--t4-sensor-data--kognic-staging-format) and [Stage 2](tier_iv_t4_extractor_to_kognic.md#stage-2--t4-annotations--openlabel-pre-annotation) for the staging format and the pre-annotation export in detail.
 
 ### Upload Kognic staging format to Kognic
 
@@ -166,7 +150,7 @@ python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic
 
 All staged frames are uploaded. Annotation frequency is controlled by `conversion.target_hz`: frames at that interval are marked `annotate=True` and the rest are uploaded as context with `annotate=False` (omit `target_hz` to annotate every frame). Because T4 frames are not spaced at exactly `1 / target_hz` (e.g. `0.09997s` instead of `0.1s`), the interval check applies a small leniency so boundary frames such as the `1.0s` frame are not skipped. The leniency defaults to half the typical source frame interval and can be overridden with `conversion.annotation_interval_tolerance_s` (set to `0` to disable).
 
-See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md#package-uploader) for all config parameters and [Annotation Interval Selection](tier_iv_t4_extractor_to_kognic.md#annotation-interval-selection) for the interval/tolerance details.
+See [Stage 3](tier_iv_t4_extractor_to_kognic.md#stage-3--upload-staging-format-to-kognic) for all config parameters and [Annotation Interval Selection](tier_iv_t4_extractor_to_kognic.md#annotation-interval-selection) for the interval/tolerance details.
 
 ### Download annotations from Kognic
 
@@ -179,13 +163,18 @@ Requires a [credentials file](https://developers.kognic.com/docs/getting-started
 
 ```bash
 export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
-python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_sample.yaml
+# whole project:
+python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_whole_project.yaml
+# single scene:
+python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_per_dataset_sample.yaml
 ```
 
 The download mode is auto-detected from the config:
 
-- **Project-wide** (default): set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene.
-- **Single scene**: set `scene_external_id` to download all annotations for that one scene. The external id is resolved to its scene UUID via the project's inputs, then `annotation_type`/`batch` are ignored. Files are written as `<scene_external_id>.json` (suffixed with the request id when a scene has multiple annotations).
+- **Project-wide** (`download_kognic_annotation_whole_project.yaml`): set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene.
+- **Single scene** (`download_kognic_annotation_per_dataset_sample.yaml`): set `scene_external_id` to download all annotations for that one scene. The external id is resolved to its scene UUID via the project's inputs, then `annotation_type`/`batch` are ignored. Files are written as `<scene_external_id>.json` (suffixed with the request id when a scene has multiple annotations).
+
+Both write to `output_base/<project_external_id>/`.
 
 Config parameters (`conversion`):
 
@@ -199,6 +188,24 @@ Config parameters (`conversion`):
 | `batch`               | no                                     | restrict project-wide download to one batch (omit for all batches)           |
 | `scene_external_id`   | no                                     | download a single scene by external id instead of the whole project          |
 | `iso_rotated_cuboids` | no                                     | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame |
+
+### Kognic annotations to T4 annotation tables
+
+Merges the OpenLABEL annotations downloaded from Kognic (see [Download annotations from Kognic](#download-annotations-from-kognic)) into an existing **non-annotated** T4 dataset. [openlabel_to_t4_converter.py](../perception_dataset/kognic/openlabel_to_t4_converter.py) auto-detects the annotation type per scene and handles both 3D cuboids and point-cloud segmentation.
+
+input: non-annotated T4 dataset + downloaded OpenLABEL JSON
+output: annotated T4 dataset
+
+```bash
+python -m perception_dataset.convert --config config/convert_kognic_annotation_to_t4_sample.yaml
+```
+
+The converter handles two annotation types:
+
+- **3D cuboids (object detection)** — populates the otherwise-empty `instance`, `category`, `attribute`, `visibility` and `sample_annotation` tables.
+- **Point-cloud segmentation (`3DPointCloudSegmentation` / `semseg`)** — writes `lidarseg.json`, `lidarseg/<version>/<token>.bin` (per-point labels for the corresponding `LIDAR_CONCAT` `.pcd.bin`), and `category.json`.
+
+See [Stage 5](tier_iv_t4_extractor_to_kognic.md#stage-5--kognic-annotations--t4-annotation-tables) for the frame-matching logic, coordinate convention, RLE decoding, and config parameters.
 
 ## Deepen
 
