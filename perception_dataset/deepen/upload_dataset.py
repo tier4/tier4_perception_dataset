@@ -168,7 +168,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="config/upload_dataset.yaml",
+        default="config/upload_deepen_dataset_sample.yaml",
     )
     args = parser.parse_args()
 
