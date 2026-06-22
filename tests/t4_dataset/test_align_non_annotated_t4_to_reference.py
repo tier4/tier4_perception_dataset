@@ -1,21 +1,24 @@
 import json
-import shutil
 from pathlib import Path
+import shutil
 
-import yaml
+import pytest
 from t4_devkit import Tier4
+import yaml
 
 from perception_dataset import convert
 from perception_dataset.t4_dataset.align_non_annotated_t4_to_reference import (
     AlignNonAnnotatedT4ToReferenceConverter,
-    match_reference_samples_by_timestamp,
 )
 from tests.constants import TEST_DATA_ROOT_DIR
 
-
 TEST_DATASET_ROOT = TEST_DATA_ROOT_DIR / "t4_sample_0"
-NON_ANNOTATED_T4 = TEST_DATASET_ROOT / "non_annotated_dataset" / "sample_bag"
-ANNOTATED_T4 = TEST_DATASET_ROOT / "annotated_t4" / "sample_bag" / "t4_dataset"
+# Bases follow the same IO layout as the other T4 tasks: a parent directory
+# containing one scene sub-directory each.
+NON_ANNOTATED_BASE = TEST_DATASET_ROOT / "non_annotated_dataset"
+ANNOTATED_BASE = TEST_DATASET_ROOT / "annotated_t4"
+SCENE_NAME = "sample_bag"
+ANNOTATED_T4 = ANNOTATED_BASE / SCENE_NAME / "t4_dataset"
 
 
 def load_annotation_table(dataset_dir: Path, table_name: str) -> list[dict]:
@@ -33,22 +36,22 @@ def assert_sample_lidar_keyframes_match(dataset_dir: Path) -> None:
 
 
 def test_align_non_annotated_t4_to_reference(tmp_path):
-    output_dir = tmp_path / "aligned"
+    output_base = tmp_path / "aligned"
 
     reports = AlignNonAnnotatedT4ToReferenceConverter(
-        input_base=str(NON_ANNOTATED_T4),
-        reference_base=str(ANNOTATED_T4),
-        output_base=str(output_dir),
+        input_base=str(NON_ANNOTATED_BASE),
+        reference_base=str(ANNOTATED_BASE),
+        output_base=str(output_base),
+        max_abs_diff_ms=1.0,
         copy_data=True,
-        overwrite_mode=True,
     ).convert()
 
+    output_dir = output_base / SCENE_NAME
     assert len(reports) == 1
     assert reports[0]["max_abs_timestamp_diff_us"] == 0
+    assert reports[0]["frame_drop_ratio"] == 0
     assert len(reports[0]["alignment_results"]) == reports[0]["num_keyframes"]
     assert len(reports[0]["timestamp_diffs_us"]) == reports[0]["num_keyframes"]
-    assert "first_20_timestamp_diffs_us" not in reports[0]
-    assert "first_20_key_candidate_indices" not in reports[0]
 
     reference_samples = load_annotation_table(ANNOTATED_T4, "sample")
     output_samples = load_annotation_table(output_dir, "sample")
@@ -72,8 +75,8 @@ def test_align_non_annotated_t4_to_reference(tmp_path):
     assert saved_report["unmatched_reference_results"] == []
 
 
-def test_match_reference_samples_by_timestamp_rejects_adjacent_10hz_frame():
-    matches, unmatched = match_reference_samples_by_timestamp(
+def test_match_samples_by_timestamp_rejects_adjacent_10hz_frame():
+    matches, unmatched = AlignNonAnnotatedT4ToReferenceConverter._match_samples_by_timestamp(
         candidate_samples=[
             {"timestamp": 1_100_000},
             {"timestamp": 2_000_000},
@@ -82,8 +85,6 @@ def test_match_reference_samples_by_timestamp_rejects_adjacent_10hz_frame():
             {"timestamp": 1_000_000},
             {"timestamp": 2_000_000},
         ],
-        candidate_start=0,
-        reference_start=0,
         max_abs_diff_ms=1.0,
     )
 
@@ -99,20 +100,60 @@ def test_match_reference_samples_by_timestamp_rejects_adjacent_10hz_frame():
     ]
 
 
-def test_align_non_annotated_t4_to_reference_preserves_lidar_info(tmp_path):
-    input_dir = tmp_path / "candidate_with_lidar_info"
-    output_dir = tmp_path / "aligned"
-    shutil.copytree(NON_ANNOTATED_T4, input_dir)
+def test_align_rejects_when_no_frames_matched(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        AlignNonAnnotatedT4ToReferenceConverter,
+        "_match_samples_by_timestamp",
+        staticmethod(lambda candidate_samples, reference_samples, *, max_abs_diff_ms: ([], [{}])),
+    )
+    converter = AlignNonAnnotatedT4ToReferenceConverter(
+        input_base=str(NON_ANNOTATED_BASE),
+        reference_base=str(ANNOTATED_BASE),
+        output_base=str(tmp_path / "aligned"),
+        max_abs_diff_ms=1.0,
+    )
+    with pytest.raises(RuntimeError, match="no matched keyframes"):
+        converter.convert()
 
-    sample_data_path = input_dir / "annotation" / "sample_data.json"
-    sample_data = load_annotation_table(input_dir, "sample_data")
+
+def test_align_rejects_when_frame_drop_exceeds_ratio(tmp_path, monkeypatch):
+    # One frame matched, everything else dropped -> drop ratio well above 10%.
+    monkeypatch.setattr(
+        AlignNonAnnotatedT4ToReferenceConverter,
+        "_match_samples_by_timestamp",
+        staticmethod(
+            lambda candidate_samples, reference_samples, *, max_abs_diff_ms: (
+                [(0, 0, 0)],
+                [{} for _ in range(len(reference_samples))],
+            )
+        ),
+    )
+    converter = AlignNonAnnotatedT4ToReferenceConverter(
+        input_base=str(NON_ANNOTATED_BASE),
+        reference_base=str(ANNOTATED_BASE),
+        output_base=str(tmp_path / "aligned"),
+        max_abs_diff_ms=1.0,
+        max_frame_drop_ratio=0.1,
+    )
+    with pytest.raises(RuntimeError, match="exceeding the allowed"):
+        converter.convert()
+
+
+def test_align_non_annotated_t4_to_reference_preserves_lidar_info(tmp_path):
+    input_base = tmp_path / "candidate_with_lidar_info"
+    scene_dir = input_base / SCENE_NAME
+    output_base = tmp_path / "aligned"
+    shutil.copytree(NON_ANNOTATED_BASE / SCENE_NAME, scene_dir)
+
+    sample_data_path = scene_dir / "annotation" / "sample_data.json"
+    sample_data = load_annotation_table(scene_dir, "sample_data")
     for row in sample_data:
         if "/LIDAR_CONCAT/" not in row["filename"]:
             continue
         info_filename = row["filename"].replace("LIDAR_CONCAT", "LIDAR_CONCAT_INFO")
         info_filename = info_filename.replace(".pcd.bin", ".json")
         row["info_filename"] = info_filename
-        info_path = input_dir / info_filename
+        info_path = scene_dir / info_filename
         info_path.parent.mkdir(parents=True, exist_ok=True)
         with info_path.open("w") as f:
             json.dump({"source": row["filename"]}, f)
@@ -120,13 +161,14 @@ def test_align_non_annotated_t4_to_reference_preserves_lidar_info(tmp_path):
         json.dump(sample_data, f, indent=2)
 
     AlignNonAnnotatedT4ToReferenceConverter(
-        input_base=str(input_dir),
-        reference_base=str(ANNOTATED_T4),
-        output_base=str(output_dir),
+        input_base=str(input_base),
+        reference_base=str(ANNOTATED_BASE),
+        output_base=str(output_base),
+        max_abs_diff_ms=1.0,
         copy_data=True,
-        overwrite_mode=True,
     ).convert()
 
+    output_dir = output_base / SCENE_NAME
     output_sample_data = load_annotation_table(output_dir, "sample_data")
     lidar_info_rows = [row for row in output_sample_data if row.get("info_filename")]
 
@@ -136,49 +178,33 @@ def test_align_non_annotated_t4_to_reference_preserves_lidar_info(tmp_path):
 
 
 def test_align_non_annotated_t4_to_reference_can_skip_report(tmp_path):
-    output_dir = tmp_path / "aligned"
+    output_base = tmp_path / "aligned"
 
     reports = AlignNonAnnotatedT4ToReferenceConverter(
-        input_base=str(NON_ANNOTATED_T4),
-        reference_base=str(ANNOTATED_T4),
-        output_base=str(output_dir),
+        input_base=str(NON_ANNOTATED_BASE),
+        reference_base=str(ANNOTATED_BASE),
+        output_base=str(output_base),
+        max_abs_diff_ms=1.0,
         copy_data=True,
         write_alignment_report=False,
-        overwrite_mode=True,
     ).convert()
 
     assert reports[0]["alignment_results"]
-    assert not (output_dir / "alignment_report.json").exists()
-
-
-def test_align_non_annotated_t4_to_reference_parent_directories(tmp_path):
-    output_base = tmp_path / "aligned_parent"
-
-    reports = AlignNonAnnotatedT4ToReferenceConverter(
-        input_base=str(TEST_DATASET_ROOT / "non_annotated_dataset"),
-        reference_base=str(TEST_DATASET_ROOT / "annotated_t4"),
-        output_base=str(output_base),
-        copy_data=True,
-        overwrite_mode=True,
-    ).convert()
-
-    output_dir = output_base / "sample_bag"
-    assert len(reports) == 1
-    assert output_dir.exists()
-    assert_sample_lidar_keyframes_match(output_dir)
+    assert not (output_base / SCENE_NAME / "alignment_report.json").exists()
 
 
 def test_align_non_annotated_t4_to_reference_convert_task(tmp_path, monkeypatch):
     config_path = tmp_path / "align_non_annotated_t4_to_reference.yaml"
-    output_dir = tmp_path / "aligned_from_config"
+    output_base = tmp_path / "aligned_from_config"
     with config_path.open("w") as f:
         yaml.safe_dump(
             {
                 "task": "align_non_annotated_t4_to_reference",
                 "conversion": {
-                    "input_base": str(NON_ANNOTATED_T4),
-                    "reference_base": str(ANNOTATED_T4),
-                    "output_base": str(output_dir),
+                    "input_base": str(NON_ANNOTATED_BASE),
+                    "reference_base": str(ANNOTATED_BASE),
+                    "output_base": str(output_base),
+                    "max_abs_diff_ms": 1.0,
                     "copy_data": True,
                     "write_alignment_report": False,
                 },
@@ -186,12 +212,10 @@ def test_align_non_annotated_t4_to_reference_convert_task(tmp_path, monkeypatch)
             f,
         )
 
-    monkeypatch.setattr(
-        "sys.argv",
-        ["convert", "--config", str(config_path), "--overwrite"],
-    )
+    monkeypatch.setattr("sys.argv", ["convert", "--config", str(config_path)])
 
     convert.main()
 
+    output_dir = output_base / SCENE_NAME
     assert_sample_lidar_keyframes_match(output_dir)
     assert not (output_dir / "alignment_report.json").exists()

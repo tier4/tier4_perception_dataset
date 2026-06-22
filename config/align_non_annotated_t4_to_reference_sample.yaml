@@ -1,11 +1,24 @@
 task: align_non_annotated_t4_to_reference
 conversion:
+  # Directory of non-annotated T4 dataset(s) to align (the "candidate"). Like the
+  # other T4 tasks, this is the parent directory containing one sub-directory per
+  # scene, each holding annotation/ and data/ (or a t4_dataset/ sub-directory).
   input_base: ./data/non_annotated_t4_format
+  # Directory of annotated T4 dataset(s) supplying the keyframe cadence and the
+  # annotations to transfer (the "reference"). Same layout as input_base. Scenes
+  # are paired with the candidate by directory name. This dataset is read-only.
   reference_base: ./data/reference_annotated_t4_format
+  # Where the aligned dataset(s) are written, as output_base/<scene>.
   output_base: ./data/aligned_annotated_t4_format
-  stride: 10
-  max_candidate_offset: 30
-  max_reference_offset: 10
+  # Maximum |candidate - reference| keyframe timestamp difference, in milliseconds,
+  # for a reference keyframe to be considered matched. Required (no default).
   max_abs_diff_ms: 1.0
+  # Maximum fraction of reference keyframes allowed to be dropped (unmatched). If
+  # the drop ratio exceeds this, alignment fails. A run producing zero matched
+  # keyframes always fails. Default: 0.1 (10%).
+  max_frame_drop_ratio: 0.1
+  # If true, copy data files into the output; if false, hardlink them when
+  # possible (falling back to copy). Default: false.
   copy_data: false
+  # If true, write alignment_report.json into each output scene. Default: true.
   write_alignment_report: true

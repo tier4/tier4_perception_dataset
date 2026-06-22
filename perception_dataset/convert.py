@@ -330,7 +330,6 @@ def main():
     elif task == "align_non_annotated_t4_to_reference":
         from perception_dataset.t4_dataset.align_non_annotated_t4_to_reference import (
             AlignNonAnnotatedT4ToReferenceConverter,
-            DEFAULT_MAX_ABS_DIFF_MS,
         )
 
         input_base = config_dict["conversion"]["input_base"]
@@ -341,17 +340,10 @@ def main():
             input_base=input_base,
             reference_base=reference_base,
             output_base=output_base,
-            stride=config_dict["conversion"].get("stride", 10),
-            max_candidate_offset=config_dict["conversion"].get("max_candidate_offset", 30),
-            max_reference_offset=config_dict["conversion"].get("max_reference_offset", 10),
-            max_abs_diff_ms=config_dict["conversion"].get(
-                "max_abs_diff_ms", DEFAULT_MAX_ABS_DIFF_MS
-            ),
+            max_abs_diff_ms=config_dict["conversion"]["max_abs_diff_ms"],
+            max_frame_drop_ratio=config_dict["conversion"].get("max_frame_drop_ratio", 0.1),
             copy_data=config_dict["conversion"].get("copy_data", False),
-            write_alignment_report=config_dict["conversion"].get(
-                "write_alignment_report", True
-            ),
-            overwrite_mode=args.overwrite,
+            write_alignment_report=config_dict["conversion"].get("write_alignment_report", True),
             logger=logger,
         )
 
