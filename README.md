@@ -41,7 +41,7 @@ git clone git@github.com:tier4/tier4_perception_dataset.git perception_dataset
 cd perception_dataset
 ```
 
-Install and build ros dependencies (this step must be outside of poetry virtualenv):
+Install and build ros dependencies (this step must be outside of the uv virtualenv):
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.sh
@@ -58,8 +58,10 @@ If you already have either of them, you can remove the unnecessary one from `bui
 Install python dependencies:
 
 ```bash
-pip3 install poetry
-poetry sync
+# install uv: https://docs.astral.sh/uv/getting-started/installation/
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# use the system interpreter so compiled ROS modules (e.g. rclpy) import correctly
+uv sync --python "$(which python3)"
 ```
 
 ### Test
@@ -80,7 +82,7 @@ or manually download zipped data from [the release page](https://github.com/tier
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.sh
 source ./install/setup.bash
-poetry run pytest -v tests/
+uv run pytest -v tests/
 ```
 
 ### Pre commit

@@ -4,13 +4,13 @@ This document describes the conversion from a rosbag with traffic light recognit
 
 ## Common
 
-Those commands below are assumed to be run in poetry shell built in [README.md](../README.md)  
-Run this to start a poetry shell.
+Those commands below are assumed to be run in the uv virtualenv built in [README.md](../README.md)  
+Run this to activate the virtualenv.
 
 ```bash
 source /opt/ros/${ROS_DISTRO}/setup.bash
 source {AUTOWARE_WORKSPACE}/install/setup.bash
-poetry shell
+source .venv/bin/activate
 ```
 
 ## Convert rosbag2 (with Autoware TLR result in) to T4 dataset with Autoware result (T4 tlr-semi-annotated format data)
