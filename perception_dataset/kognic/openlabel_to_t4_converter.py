@@ -65,14 +65,14 @@ from perception_dataset.kognic.openlabel import (
     occlusion_to_visibility_level,
     to_t4_attribute_name,
 )
+from perception_dataset.t4_dataset.table_handler import TableHandler
+from perception_dataset.utils.calculate_num_points import calculate_num_points
+from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.pointcloud import detect_point_stride
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     select_lidar_channel,
 )
-from perception_dataset.t4_dataset.table_handler import TableHandler
-from perception_dataset.utils.calculate_num_points import calculate_num_points
-from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
 
