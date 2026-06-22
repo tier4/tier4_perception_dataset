@@ -1,0 +1,11 @@
+task: align_non_annotated_t4_to_reference
+conversion:
+  input_base: ./data/non_annotated_t4_format
+  reference_base: ./data/reference_annotated_t4_format
+  output_base: ./data/aligned_annotated_t4_format
+  stride: 10
+  max_candidate_offset: 30
+  max_reference_offset: 10
+  max_abs_diff_ms: 1.0
+  copy_data: false
+  write_alignment_report: true
