@@ -8,9 +8,8 @@ from typing import Dict, List, Optional, Tuple
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
-from perception_dataset.kognic.calibration import extract_calibration
-from perception_dataset.kognic.ego_pose import extract_ego_poses
-from perception_dataset.kognic.pointcloud import (
+from perception_dataset.kognic.utils import extract_calibration, extract_ego_poses
+from perception_dataset.utils.pointcloud import (
     copy_file,
     extract_pointclouds,
 )

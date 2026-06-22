@@ -52,11 +52,11 @@ flowchart LR
 
 ---
 
-# Stage 1 — T4 Sensor Data → Kognic Staging Format
+## Stage 1 — T4 Sensor Data → Kognic Staging Format
 
 [t4_to_kognic_converter.py](../perception_dataset/kognic/t4_to_kognic_converter.py) reads a Tier IV T4 sequence and reshapes it into the staging layout consumed by [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py). Both `convert_non_annotated_t4_to_kognic` and `convert_annotated_t4_to_kognic` run this stage; the annotated task adds [Stage 2](#stage-2--t4-annotations--openlabel-pre-annotation) on top.
 
-## Scope
+### Scope
 
 The extractor creates a Kognic-ready local staging format for the Kognic IO uploader:
 
@@ -72,7 +72,7 @@ An uploader then reads this folder, creates a Kognic sensor calibration, builds 
 
 The converter always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found). There is no sample-level (key-frame-only) export mode; annotation frequency is decided at upload time via `target_hz` (see [Annotation Interval Selection](#annotation-interval-selection)).
 
-## High-Level Flow
+### High-Level Flow
 
 ```mermaid
 flowchart LR
@@ -103,7 +103,7 @@ flowchart LR
   Upload --> Kognic
 ```
 
-## Input T4 Data Used
+### Input T4 Data Used
 
 The extractor expects each sequence root to contain both `annotation/` and `data/`. A folder is treated as a sequence when these annotation files exist:
 
@@ -120,7 +120,7 @@ The extractor expects each sequence root to contain both `annotation/` and `data
 
 Camera sensors are configured in `conversion.camera_sensors`.
 
-## Sequence Discovery
+### Sequence Discovery
 
 ```mermaid
 flowchart TD
@@ -141,7 +141,7 @@ flowchart TD
 
 If no sequence roots are found, extraction fails early with a `FileNotFoundError`.
 
-## Lookup Maps
+### Lookup Maps
 
 Before extracting files, `_build_lookup_maps()` loads the annotation tables and builds fast joins:
 
@@ -197,11 +197,11 @@ Important in-memory maps:
 | `sample_data_by_sample_and_channel` | `sample_token -> channel -> sample_data record`       |
 | `ego_pose_by_token`                 | `ego_pose_token -> ego_pose record`                   |
 
-## Calibration Conversion
+### Calibration Conversion
 
 `_extract_calibration()` produces `calibration.json` using Kognic IO model classes. Think of this file as the calibration for the extracted Kognic input files, not as a direct export of T4 `calibrated_sensor.json`. For cameras those are effectively the same calibration values, because the image pixels are still in the camera frame. For LiDARs they differ, because the extractor writes point coordinates that already live in `base_link`.
 
-### Cameras
+#### Cameras
 
 Each configured camera becomes a `PinholeCalibration`:
 
@@ -216,7 +216,7 @@ Each configured camera becomes a `PinholeCalibration`:
 | `distortion_coefficients.k1/k2/p1/p2/k3` | First five values from `camera_distortion`; missing values default to `0.0` |
 | `image_width`, `image_height`            | Read from the first JPG in `data/<camera_name>/`                            |
 
-### LiDARs
+#### LiDARs
 
 Each configured LiDAR becomes a `LidarCalibration` with **identity** pose:
 
@@ -239,7 +239,7 @@ flowchart LR
   Identity -. "prevents double transform" .-> Csv
 ```
 
-## Ego Pose Conversion
+### Ego Pose Conversion
 
 `_extract_ego_poses()` writes `ego_poses.json`, keyed by frame index as strings (`"0"`, `"1"`, ...). The source T4 ego poses describe the ego vehicle in a map/odometry frame; the extractor converts them into poses relative to frame 0:
 
@@ -251,7 +251,7 @@ Frame 0 therefore becomes position `(0, 0, 0)` with identity rotation. Later fra
 
 > The converter does not resample the raw T4 ego-pose stream. It loads `sample.json`, finds each sample's `LIDAR_CONCAT` `sample_data` record, reads that record's `ego_pose_token`, and converts only those selected poses. In the sample dataset the raw T4 ego poses are ~10 Hz while `sample.json` frames are ~1 Hz, so the intermediate poses exist but are not written. To exclude them from annotation, set `target_hz` at upload time.
 
-## Image Extraction
+### Image Extraction
 
 `_extract_images()` copies configured camera images into `cameras/<sensor_name>/`.
 
@@ -263,7 +263,7 @@ Frame 0 therefore becomes position `(0, 0, 0)` with identity rotation. Later fra
 | Missing camera for a sample | The frame is skipped for that camera only                                              |
 | Existing destination file   | Not overwritten                                                                        |
 
-## LiDAR Extraction
+### LiDAR Extraction
 
 `_extract_pointclouds()` normally turns one T4 concatenated point-cloud file into one CSV per source LiDAR using `LIDAR_CONCAT_INFO`. It also supports a **concat-only fallback**: if the sequence has `data/LIDAR_CONCAT/*.pcd.bin` but no `data/LIDAR_CONCAT_INFO/`, it exports the whole fused cloud as `lidar/LIDAR_CONCAT/<timestamp_ns>.csv` with an identity `LIDAR_CONCAT` calibration (source-LiDAR partitions cannot be recovered in that mode).
 
@@ -288,7 +288,7 @@ flowchart LR
 
 Each T4 point has five `float32` values (`x, y, z, intensity, ring_idx`); the extractor preserves only `ts_gps,x,y,z,intensity`. Kognic's CSV format requires exact column names, comma separation, and a timestamp column (the full documented header is `ts_gps,x,y,z,intensity,rgb,red,green,blue`; the RGB columns are optional and not written here). No point filtering, deduplication, or coordinate transformation is performed; the only change is formatting numeric fields to six decimal places.
 
-## Stage 1 Config Parameters
+### Stage 1 Config Parameters
 
 The converter is driven by a `conversion` block. These keys are read by direct indexing in `convert.py`, so all are required even though the converter class itself has fallbacks.
 
@@ -320,7 +320,7 @@ For non-annotated T4 data, annotation tables (if present) are ignored.
 
 ---
 
-# Stage 2 — T4 Annotations → OpenLABEL Pre-Annotation
+## Stage 2 — T4 Annotations → OpenLABEL Pre-Annotation
 
 When the task is `convert_annotated_t4_to_kognic`, [t4_to_openlabel.py](../perception_dataset/kognic/t4_to_openlabel.py) (`T4ToOpenLabelConverter`) runs after Stage 1 and writes a `pre_annotation.json` into each scene's staging directory:
 
@@ -334,11 +334,11 @@ When the task is `convert_annotated_t4_to_kognic`, [t4_to_openlabel.py](../perce
 
 It reads `sample_annotation.json` (and companion tables) and exports every 3D box as a Kognic OpenLABEL cuboid, following the [Kognic pre-annotation format](https://docs.kognic.com/api-guide/pre-annotations). When `pre_annotation.json` is present, the uploader (Stage 3) uploads the scene without an input, attaches the pre-annotation, and creates the input from the scene so labelers see the boxes pre-loaded.
 
-## Coordinate Convention
+### Coordinate Convention
 
 Cuboids are expressed in the **per-frame ego/`base_link`** coordinate system (required for multi-LiDAR scenes), composing with the T0-normalised ego poses uploaded in Stage 3. The cuboid `val` is `[x, y, z, qx, qy, qz, qw, sx, sy, sz]` with yaw 0 facing **+y**, so T4 box rotations are post-multiplied by `Rz(-90°)` and T4 sizes (width, length, height) map unchanged. This is exactly the transform that [Stage 5](#stage-5--kognic-annotations--t4-annotation-tables) inverts.
 
-## Frame Matching
+### Frame Matching
 
 Pre-annotation frames are matched to the staged scene frames so the cuboids land on the right capture time:
 
@@ -347,11 +347,11 @@ Pre-annotation frames are matched to the staged scene frames so the cuboids land
 
 `frame_properties.timestamp` mirrors the uploader's `relative_timestamp` (milliseconds since the first anchor frame).
 
-## Attributes vs. Geometry
+### Attributes vs. Geometry
 
 The cuboid geometry only carries the `stream` marker tying it to the LiDAR sensor frame. Class properties (e.g. `vehicle_state.driving`) must live on the **object** (`object_data.text`), not on the geometry — Kognic rejects source-specific properties on 3D geometry. The `stream` marker is always written; class properties are written only when `include_attributes: true`, and the property names must be defined for that class in the Kognic task definition or the upload is rejected.
 
-## Stage 2 Config Parameters
+### Stage 2 Config Parameters
 
 These keys live in the same `conversion` block as Stage 1 and are read with defaults, so all are optional:
 
@@ -374,7 +374,7 @@ conversion:
 
 ---
 
-# Stage 3 — Upload Staging Format to Kognic
+## Stage 3 — Upload Staging Format to Kognic
 
 [upload_dataset.py](../perception_dataset/kognic/upload_dataset.py) uploads the staging folders produced by Stages 1–2. It follows the same script shape as [perception_dataset/deepen/upload_dataset.py](../perception_dataset/deepen/upload_dataset.py):
 
@@ -385,7 +385,7 @@ python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic
 
 All staged frames are uploaded. Annotation frequency is controlled at upload time via `target_hz`: frames at that interval are marked `annotate=True`, and the rest are uploaded as context with `annotate=False`. When `target_hz` is omitted, every frame is marked `annotate=True`.
 
-## Authentication
+### Authentication
 
 The uploader (and the downloader in [Stage 4](#stage-4--download-annotations-from-kognic)) read Kognic API credentials from the environment. Set one of:
 
@@ -396,7 +396,7 @@ The uploader (and the downloader in [Stage 4](#stage-4--download-annotations-fro
 
 The credentials JSON file is downloaded from the Kognic platform under your account's [API credentials](https://developers.kognic.com/docs/getting-started/quickstart/#generating-credentials) section.
 
-## Stage 3 Config Parameters
+### Stage 3 Config Parameters
 
 ```yaml
 task: upload_dataset
@@ -428,7 +428,7 @@ conversion:
 | `include_imu_data`                | No       | `true`  | When `true`, generates a 200 Hz IMU-like stream by interpolating `ego_poses.json` and attaches it. Requires at least two ego-pose entries; otherwise no IMU data is attached.                                                                                                      |
 | `write_debug_frames`              | No       | `false` | When `true`, writes a `frames_debug.json` next to each staged sequence after building the frame list — the full Kognic model dump, useful for inspecting what was sent without checking the platform UI.                                                                           |
 
-## Frame Pairing and Calibration
+### Frame Pairing and Calibration
 
 The uploader anchors frames on the first available LiDAR stream, preferring the normal Tier IV LiDAR order (`LIDAR_FRONT_UPPER`, `LIDAR_FRONT_LOWER`, ...) and falling back to `LIDAR_CONCAT` when the converter exported a fused concat-only cloud. Other LiDAR and camera streams are attached by frame order, not by requiring identical filenames; each camera keeps its own shutter timestamp from its image filename.
 
@@ -443,7 +443,7 @@ The uploader anchors frames on the first available LiDAR stream, preferring the 
 
 **Calibration deduplication:** within a single run, if multiple sequences share a byte-for-byte identical `calibration.json`, only the first calibration upload is sent; later sequences reuse the returned `calibration_id`.
 
-## Annotation Interval Selection
+### Annotation Interval Selection
 
 When `target_hz` is set, the uploader walks frames in timestamp order and flags a frame whenever enough time has elapsed since the last flagged frame:
 
@@ -462,7 +462,7 @@ The tolerance exists because **T4 frames are rarely spaced at exactly `1 / sourc
 
 With a strict check the `1.0s` frame is dropped and the cadence drifts to `0.0, 1.1, 2.1, 3.2, ...`. The tolerance is applied **only to the comparison**; the frame's original timestamp is still stored as `last_annotated_ts`, so leniency never accumulates. When omitted, it defaults to **half the median source frame interval**. With the default, `target_hz: 1` correctly selects `0.0, 1.0, 2.0, 3.0, ...`.
 
-## Stage 3 Output
+### Stage 3 Output
 
 After each sequence is uploaded, the script appends to `dataset_id.json` under `input_base`, mapping each staged folder name to the returned Kognic scene UUID:
 
@@ -475,7 +475,7 @@ After each sequence is uploaded, the script appends to `dataset_id.json` under `
 
 ---
 
-# Stage 4 — Download Annotations from Kognic
+## Stage 4 — Download Annotations from Kognic
 
 [download_annotation.py](../perception_dataset/kognic/download_annotation.py) (`KognicAnnotationDownloader`) downloads completed annotations (OpenLABEL JSON) from the Kognic platform to local disk. Like the uploader, it reads credentials from the environment (see [Authentication](#authentication)).
 
@@ -498,7 +498,7 @@ flowchart TD
   All --> Out2["<output_base>/<project_external_id>/<scene_uuid>.json"]
 ```
 
-## Stage 4 Config Parameters
+### Stage 4 Config Parameters
 
 ```yaml
 task: download_kognic_annotation
@@ -528,7 +528,7 @@ conversion:
 
 ---
 
-# Stage 5 — Kognic Annotations → T4 Annotation Tables
+## Stage 5 — Kognic Annotations → T4 Annotation Tables
 
 [openlabel_to_t4_converter.py](../perception_dataset/kognic/openlabel_to_t4_converter.py) (`OpenLabelToT4Converter`) merges the downloaded OpenLABEL into an existing **non-annotated** T4 dataset, enriching it **in place** (the populated tables, and any lidarseg files, are written back into each scene's `annotation/`). The annotation type is auto-detected per scene.
 
@@ -543,13 +543,13 @@ python -m perception_dataset.convert --config config/convert_kognic_annotation_t
     <scene>.json  or  <scene_uuid>.json   (downloaded OpenLABEL from Stage 4)
 ```
 
-## Scene Matching and Frame Matching
+### Scene Matching and Frame Matching
 
 OpenLABEL files are indexed by filename stem and by OpenLABEL metadata (`dataset_id`, `source_filename`, `scene_uuid`, `input_external_id`, and nested `scene_metadata`). Each T4 scene is matched to a file by its directory name or any ancestor directory name up to the dataset root (T4 datasets are commonly nested as `<root>/<scene_id>/<version>/`, so the identifier is often an ancestor).
 
 OpenLABEL frames are matched to T4 samples by the **LiDAR stream's URI timestamp**: when a usable timestamp is present it is authoritative (matched to the nearest sample within a 1 ms tolerance), so a frame whose capture time has no corresponding sample is reported as unmatched rather than mis-paired. The frame `external_id` is used as a positional fallback only when no timestamp is available. This makes subsampled annotation requests (covering only some scene frames) safe. Set `output_base` equal to the dataset path to enrich it in place.
 
-## 3D Cuboids (Object Detection)
+### 3D Cuboids (Object Detection)
 
 This is the inverse of [Stage 2](#stage-2--t4-annotations--openlabel-pre-annotation): cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes (undoing the `Rz(-90°)` yaw convention). `iso_rotated_cuboids` **must match** the value used at download time. It populates the otherwise-empty tables:
 
@@ -561,7 +561,7 @@ instance.json  category.json  attribute.json  visibility.json  sample_annotation
 - Instances are reused across frames by object UUID, with `next`/`prev` links and per-instance `nbr_annotations`/`first`/`last` finalised after all frames are placed.
 - `num_lidar_pts` is computed from the actual point clouds after saving (left at `0` if the LiDAR data is unavailable); `num_radar_pts` is `0` and box velocity/acceleration are left unset.
 
-## Point-Cloud Segmentation (`3DPointCloudSegmentation` / `semseg`)
+### Point-Cloud Segmentation (`3DPointCloudSegmentation` / `semseg`)
 
 When the OpenLABEL carries per-point segmentation (object type `3DPointCloudSegmentation`, or metadata `annotation_type: semseg`), the converter writes T4 lidarseg instead of boxes:
 
@@ -571,7 +571,7 @@ When the OpenLABEL carries per-point segmentation (object type `3DPointCloudSegm
 
 Labels are decoded from Kognic's run-length encoding (`#<count>V<class_id>` repeated). Kognic encodes labels sequentially from point 0 and omits a trailing run of unlabelled points, so when the RLE is shorter than the cloud the missing trailing points are treated as `background` (class `0`) and appended — logged as a warning per frame. A frame is skipped only when it has **more** labels than points (a genuine annotation/point-cloud mismatch) or when its LiDAR point cloud cannot be read.
 
-## Stage 5 Config Parameters
+### Stage 5 Config Parameters
 
 ```yaml
 task: convert_kognic_annotation_to_t4
@@ -593,7 +593,7 @@ conversion:
 
 ---
 
-# Reference: Kognic Staging File Shapes
+## Reference: Kognic Staging File Shapes
 
 The local "Kognic format" produced by Stage 1 is a staging layout for Kognic IO, not an exported annotation format. Each file is either uploaded directly as scene data or converted into a Kognic model object by the uploader.
 
@@ -616,7 +616,7 @@ The local "Kognic format" produced by Stage 1 is a staging layout for Kognic IO,
 | `pre_annotation.json`                 | Stage 2    | OpenLABEL pre-annotation of the T4 3D boxes, attached at upload time so labelers see the boxes pre-loaded.                                                                                   |
 | `frames_debug.json`                   | Stage 3    | A local forensic dump of the constructed scene (frame IDs, timestamps, metadata, images, point clouds). Not uploaded; useful in `dryrun` mode. Written only when `write_debug_frames: true`. |
 
-## File Examples
+### File Examples
 
 `calibration.json` is keyed by sensor name. A camera entry is a pinhole model; a LiDAR entry is intentionally identity (the extracted CSV points are already in `base_link`, so copying the physical LiDAR transform would double-transform the cloud):
 
@@ -662,7 +662,7 @@ ts_gps,x,y,z,intensity
 
 ---
 
-# Failure Modes and Assumptions
+## Failure Modes and Assumptions
 
 | Case                                                               | Behavior                                                                            |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
@@ -680,7 +680,7 @@ ts_gps,x,y,z,intensity
 
 ---
 
-# Quick Mental Model
+## Quick Mental Model
 
 ```text
 Outbound (T4 → Kognic):

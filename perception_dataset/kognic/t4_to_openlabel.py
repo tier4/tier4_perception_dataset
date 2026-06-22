@@ -11,9 +11,8 @@ import numpy as np
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, PREFERRED_LIDAR_SENSORS
-from perception_dataset.kognic.openlabel_attributes import attribute_to_text
-from perception_dataset.kognic.openlabel_geometry import t4_box_to_cuboid_val
-from perception_dataset.kognic.t4_tables import (
+from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cuboid_val
+from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     records_for_channel,
 )

@@ -1,5 +1,4 @@
-"""Lookup helpers over the raw T4 annotation tables, shared by the Kognic
-converters.
+"""Lookup helpers over the raw T4 annotation tables.
 
 Several converters need to resolve which sensor channel a ``sample_data``
 record belongs to (via its ``calibrated_sensor``) and to pick the lidar channel

@@ -1,7 +1,7 @@
 task: convert_annotated_t4_to_kognic
 conversion:
   input_base: ./data/annotated_t4_format
-  output_base: ./data/kognic_format_duplicate
+  output_base: ./data/kognic_format
   workers_number: 12
   drop_camera_token_not_found: false  # If true, the frame with missing camera token be dropped. If false, the frame will be kept despite missing camera data.
   camera_sensors:

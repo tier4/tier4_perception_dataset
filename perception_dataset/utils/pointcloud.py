@@ -1,4 +1,4 @@
-"""Point-cloud helpers for the T4 → Kognic conversion pipeline."""
+"""Point-cloud helpers for reading and exporting T4 LIDAR_CONCAT data."""
 
 import json
 from pathlib import Path
@@ -157,7 +157,7 @@ def extract_pointclouds(
 
 
 def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -> None:
-    """Write *points* to a Kognic-compatible CSV at *csv_path*.
+    """Write *points* to a CSV at *csv_path*.
 
     The output columns are: ``ts_gps, x, y, z, intensity``.
     """

@@ -60,13 +60,13 @@ from t4_devkit.schema.tables import (
 )
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.kognic.openlabel_attributes import (
+from perception_dataset.kognic.openlabel import (
+    cuboid_val_to_t4_box,
     occlusion_to_visibility_level,
     to_t4_attribute_name,
 )
-from perception_dataset.kognic.openlabel_geometry import cuboid_val_to_t4_box
-from perception_dataset.kognic.pointcloud import detect_point_stride
-from perception_dataset.kognic.t4_tables import (
+from perception_dataset.utils.pointcloud import detect_point_stride
+from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     select_lidar_channel,
 )
