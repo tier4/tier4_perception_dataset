@@ -62,6 +62,82 @@ def main():
         logger.info(
             f"[END] Converting Rosbag2 ({params.input_base}) to Non Annotated T4 data ({params.output_base})"
         )
+    # both tasks share the same sensor-data conversion; the annotated task
+    # additionally exports the annotations as an OpenLABEL pre_annotation.json.
+    elif task in ("convert_non_annotated_t4_to_kognic", "convert_annotated_t4_to_kognic"):
+        from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
+
+        input_base = config_dict["conversion"]["input_base"]
+        output_base = config_dict["conversion"]["output_base"]
+        camera_sensors = config_dict["conversion"]["camera_sensors"]
+        workers_number = config_dict["conversion"]["workers_number"]
+        drop_camera_token_not_found = config_dict["conversion"]["drop_camera_token_not_found"]
+
+        converter = T4ToKognicConverter(
+            input_base=input_base,
+            output_base=output_base,
+            camera_sensors=camera_sensors,
+            workers_number=workers_number,
+            drop_camera_token_not_found=drop_camera_token_not_found,
+        )
+
+        logger.info(
+            f"[BEGIN] Converting T4 dataset ({input_base}) "
+            f"to Kognic staging format ({output_base})"
+        )
+        converter.convert()
+        logger.info(
+            f"[Done] Converting T4 dataset ({input_base}) to Kognic staging format ({output_base})"
+        )
+
+        # if annotated conversion is needed, convert T4 annotations to OpenLABEL pre-annotations
+        if task == "convert_annotated_t4_to_kognic":
+            from perception_dataset.kognic.t4_to_openlabel import T4ToOpenLabelConverter
+
+            pre_annotation_converter = T4ToOpenLabelConverter(
+                input_base=input_base,
+                output_base=output_base,
+                lidar_stream=config_dict["conversion"].get("lidar_stream", ""),
+                category_map=config_dict["conversion"].get("category_map"),
+                include_attributes=config_dict["conversion"].get("include_attributes", False),
+                frame_match_tolerance_ms=config_dict["conversion"].get(
+                    "frame_match_tolerance_ms", 50.0
+                ),
+            )
+
+            logger.info(
+                f"[BEGIN] Converting annotation from T4 dataset format ({input_base}) "
+                f"to OpenLABEL pre-annotations ({output_base})"
+            )
+            pre_annotation_converter.convert()
+            logger.info(
+                f"[Done] Converting annotation from T4 dataset format ({input_base}) "
+                f"to OpenLABEL pre-annotations ({output_base})"
+            )
+
+    elif task == "convert_kognic_annotation_to_t4":
+        from perception_dataset.kognic.openlabel_to_t4_converter import OpenLabelToT4Converter
+
+        output_base = config_dict["conversion"]["output_base"]
+        annotation_base = config_dict["conversion"]["annotation_base"]
+
+        converter = OpenLabelToT4Converter(
+            output_base=output_base,
+            annotation_base=annotation_base,
+            iso_rotated_cuboids=config_dict["conversion"].get("iso_rotated_cuboids", False),
+            category_map=config_dict["conversion"].get("category_map"),
+            include_attributes=config_dict["conversion"].get("include_attributes", True),
+        )
+
+        logger.info(
+            f"[BEGIN] Converting Kognic annotations ({annotation_base}) into "
+            f"T4 dataset ({output_base}) in place"
+        )
+        converter.convert()
+        logger.info(
+            f"[Done] Converting Kognic annotations ({annotation_base}) into T4 dataset ({output_base})"
+        )
+
     elif task == "convert_non_annotated_t4_to_deepen":
         from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
             NonAnnotatedT4ToDeepenConverter,
