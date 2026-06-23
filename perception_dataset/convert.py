@@ -340,7 +340,7 @@ def main():
             input_base=input_base,
             reference_base=reference_base,
             output_base=output_base,
-            max_abs_diff_ms=config_dict["conversion"]["max_abs_diff_ms"],
+            max_abs_diff_ms=config_dict["conversion"].get("max_abs_diff_ms", 0.1),
             max_frame_drop_ratio=config_dict["conversion"].get("max_frame_drop_ratio", 0.1),
             copy_data=config_dict["conversion"].get("copy_data", False),
             write_alignment_report=config_dict["conversion"].get("write_alignment_report", True),

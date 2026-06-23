@@ -49,7 +49,10 @@ def test_align_non_annotated_t4_to_reference(tmp_path):
     output_dir = output_base / SCENE_NAME
     assert len(reports) == 1
     assert reports[0]["max_abs_timestamp_diff_us"] == 0
-    assert reports[0]["frame_drop_ratio"] == 0
+    assert reports[0]["interior_frame_drop_ratio"] == 0
+    assert reports[0]["num_interior_dropped_keyframes"] == 0
+    assert reports[0]["num_trimmed_leading_keyframes"] == 0
+    assert reports[0]["num_trimmed_trailing_keyframes"] == 0
     assert len(reports[0]["alignment_results"]) == reports[0]["num_keyframes"]
     assert len(reports[0]["timestamp_diffs_us"]) == reports[0]["num_keyframes"]
 
@@ -116,15 +119,15 @@ def test_align_rejects_when_no_frames_matched(tmp_path, monkeypatch):
         converter.convert()
 
 
-def test_align_rejects_when_frame_drop_exceeds_ratio(tmp_path, monkeypatch):
-    # One frame matched, everything else dropped -> drop ratio well above 10%.
+def test_align_rejects_when_interior_frame_drop_exceeds_ratio(tmp_path, monkeypatch):
+    # Matches span reference indices 0..9 (span 10) with 8 interior gaps -> 80%.
     monkeypatch.setattr(
         AlignNonAnnotatedT4ToReferenceConverter,
         "_match_samples_by_timestamp",
         staticmethod(
             lambda candidate_samples, reference_samples, *, max_abs_diff_ms: (
-                [(0, 0, 0)],
-                [{} for _ in range(len(reference_samples))],
+                [(0, 0, 0), (9, 9, 0)],
+                [{"reference_index": i} for i in range(1, 9)],
             )
         ),
     )
@@ -135,8 +138,24 @@ def test_align_rejects_when_frame_drop_exceeds_ratio(tmp_path, monkeypatch):
         max_abs_diff_ms=1.0,
         max_frame_drop_ratio=0.1,
     )
-    with pytest.raises(RuntimeError, match="exceeding the allowed"):
+    with pytest.raises(RuntimeError, match="within the covered span"):
         converter.convert()
+
+
+def test_classify_unmatched_splits_boundary_and_interior():
+    matches = [(2, 0, 0), (5, 1, 0)]
+    unmatched = [
+        {"reference_index": 0},  # leading
+        {"reference_index": 1},  # leading
+        {"reference_index": 3},  # interior
+        {"reference_index": 6},  # trailing
+    ]
+    leading, interior, trailing = (
+        AlignNonAnnotatedT4ToReferenceConverter._classify_unmatched(matches, unmatched)
+    )
+    assert [row["reference_index"] for row in leading] == [0, 1]
+    assert [row["reference_index"] for row in interior] == [3]
+    assert [row["reference_index"] for row in trailing] == [6]
 
 
 def test_align_non_annotated_t4_to_reference_preserves_lidar_info(tmp_path):

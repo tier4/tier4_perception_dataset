@@ -11,11 +11,13 @@ conversion:
   # Where the aligned dataset(s) are written, as output_base/<scene>.
   output_base: ./data/aligned_annotated_t4_format
   # Maximum |candidate - reference| keyframe timestamp difference, in milliseconds,
-  # for a reference keyframe to be considered matched. Required (no default).
+  # for a reference keyframe to be considered matched. Default: 0.1.
   max_abs_diff_ms: 1.0
-  # Maximum fraction of reference keyframes allowed to be dropped (unmatched). If
-  # the drop ratio exceeds this, alignment fails. A run producing zero matched
-  # keyframes always fails. Default: 0.1 (10%).
+  # Maximum fraction of *interior* reference keyframes (those within the matched
+  # span) allowed to be dropped. Reference keyframes outside the candidate's time
+  # span (before the first / after the last match) are trimmed, not counted, since
+  # start/end timestamp mismatches between bags are largely inevitable. Exceeding
+  # this ratio (or matching zero keyframes) fails the run. Default: 0.1 (10%).
   max_frame_drop_ratio: 0.1
   # If true, copy data files into the output; if false, hardlink them when
   # possible (falling back to copy). Default: false.

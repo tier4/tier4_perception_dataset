@@ -32,15 +32,13 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
     holds a single scene). Outputs are written under ``output_base/<scene>``.
     """
 
-    LIDAR_CHANNEL = "LIDAR_CONCAT"
-
     def __init__(
         self,
         input_base: str,
         reference_base: str,
         output_base: str,
         *,
-        max_abs_diff_ms: float,
+        max_abs_diff_ms: float = 0.1,
         max_frame_drop_ratio: float = 0.1,
         copy_data: bool = False,
         write_alignment_report: bool = True,
@@ -134,26 +132,39 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         candidate_tables = self._load_tables(candidate_dir)
         reference_tables = self._load_tables(reference_dir)
 
-        candidate_samples = self._candidate_samples_with_lidar(candidate_tables)
-        reference_samples = self._reference_key_samples(reference_tables)
+        candidate_samples = self._samples_sorted_by_timestamp(candidate_tables)
+        reference_samples = self._samples_sorted_by_timestamp(reference_tables)
         if not reference_samples:
-            raise RuntimeError(f"reference {reference_dir} has no LiDAR keyframes")
+            raise RuntimeError(f"reference {reference_dir} has no samples")
 
         matches, unmatched = self._match_samples_by_timestamp(
             candidate_samples, reference_samples, max_abs_diff_ms=self._max_abs_diff_ms
         )
 
-        drop_ratio = len(unmatched) / len(reference_samples)
         if not matches:
             raise RuntimeError(
                 f"alignment produced no matched keyframes for {candidate_dir} "
                 f"(reference keyframes={len(reference_samples)}); nothing to output"
             )
-        if drop_ratio > self._max_frame_drop_ratio:
+
+        # Reference keyframes outside the candidate's covered time span (before the
+        # first / after the last matched keyframe) are trimmed, not "dropped":
+        # start/end timestamp mismatches between bags are largely inevitable. Only
+        # interior gaps — unmatched keyframes within the covered span — count
+        # against the drop ratio.
+        leading, interior_unmatched, trailing = self._classify_unmatched(matches, unmatched)
+        span_size = matches[-1][0] - matches[0][0] + 1
+        interior_drop_ratio = len(interior_unmatched) / span_size
+        if leading or trailing:
+            self._logger.info(
+                f"trimmed {len(leading)} leading + {len(trailing)} trailing reference "
+                f"keyframe(s) outside the candidate time span for {candidate_dir}"
+            )
+        if interior_drop_ratio > self._max_frame_drop_ratio:
             raise RuntimeError(
-                f"alignment dropped {len(unmatched)}/{len(reference_samples)} reference "
-                f"keyframes ({drop_ratio:.1%}) for {candidate_dir}, exceeding the "
-                f"allowed {self._max_frame_drop_ratio:.1%}"
+                f"alignment dropped {len(interior_unmatched)}/{span_size} reference "
+                f"keyframes ({interior_drop_ratio:.1%}) within the covered span for "
+                f"{candidate_dir}, exceeding the allowed {self._max_frame_drop_ratio:.1%}"
             )
 
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -202,7 +213,11 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             reference_samples=reference_samples,
             matches=matches,
             unmatched=unmatched,
-            drop_ratio=drop_ratio,
+            leading_unmatched=leading,
+            interior_unmatched=interior_unmatched,
+            trailing_unmatched=trailing,
+            span_size=span_size,
+            interior_drop_ratio=interior_drop_ratio,
             sample_rows=sample_rows,
             sample_data_rows=sample_data_rows,
             sample_annotations=sample_annotations,
@@ -214,29 +229,31 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
     # ------------------------------------------------------------------ #
     # sample selection
     # ------------------------------------------------------------------ #
-    def _lidar_rows(self, sample_data: list[JsonRow]) -> list[JsonRow]:
-        rows = [
-            row
-            for row in sample_data
-            if self._channel_from_filename(row["filename"]) == self.LIDAR_CHANNEL
-        ]
-        return sorted(rows, key=lambda row: row["timestamp"])
+    @staticmethod
+    def _samples_sorted_by_timestamp(tables: dict[str, list[JsonRow]]) -> list[JsonRow]:
+        # In the T4 format every ``sample`` is a keyframe and its ``timestamp`` is
+        # the keyframe (LiDAR) timestamp, so alignment works directly off it.
+        return sorted(tables["sample"], key=lambda row: row["timestamp"])
 
-    def _candidate_samples_with_lidar(self, tables: dict[str, list[JsonRow]]) -> list[JsonRow]:
-        lidar_by_sample = {
-            row["sample_token"]: row for row in self._lidar_rows(tables["sample_data"])
-        }
-        rows = [row for row in tables["sample"] if row["token"] in lidar_by_sample]
-        return sorted(rows, key=lambda row: lidar_by_sample[row["token"]]["timestamp"])
-
-    def _reference_key_samples(self, tables: dict[str, list[JsonRow]]) -> list[JsonRow]:
-        samples_by_token = {row["token"]: row for row in tables["sample"]}
-        keys = [
-            row
-            for row in self._lidar_rows(tables["sample_data"])
-            if row.get("is_key_frame", False) and row["sample_token"] in samples_by_token
-        ]
-        return [samples_by_token[row["sample_token"]] for row in keys]
+    @staticmethod
+    def _classify_unmatched(
+        matches: list[TimestampMatch], unmatched: list[JsonRow]
+    ) -> tuple[list[JsonRow], list[JsonRow], list[JsonRow]]:
+        """Split unmatched reference keyframes by where they fall relative to the
+        matched span: ``leading`` (before the first match), ``interior`` (within
+        the span), ``trailing`` (after the last match)."""
+        first_matched = matches[0][0]
+        last_matched = matches[-1][0]
+        leading, interior, trailing = [], [], []
+        for row in unmatched:
+            reference_index = row["reference_index"]
+            if reference_index < first_matched:
+                leading.append(row)
+            elif reference_index > last_matched:
+                trailing.append(row)
+            else:
+                interior.append(row)
+        return leading, interior, trailing
 
     @staticmethod
     def _match_samples_by_timestamp(
@@ -519,7 +536,11 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         reference_samples: list[JsonRow],
         matches: list[TimestampMatch],
         unmatched: list[JsonRow],
-        drop_ratio: float,
+        leading_unmatched: list[JsonRow],
+        interior_unmatched: list[JsonRow],
+        trailing_unmatched: list[JsonRow],
+        span_size: int,
+        interior_drop_ratio: float,
         sample_rows: list[JsonRow],
         sample_data_rows: list[JsonRow],
         sample_annotations: list[JsonRow],
@@ -550,7 +571,11 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             "num_reference_keyframes": len(reference_samples),
             "num_keyframes": len(matches),
             "num_unmatched_reference_keyframes": len(unmatched),
-            "frame_drop_ratio": drop_ratio,
+            "num_trimmed_leading_keyframes": len(leading_unmatched),
+            "num_trimmed_trailing_keyframes": len(trailing_unmatched),
+            "num_interior_dropped_keyframes": len(interior_unmatched),
+            "covered_span_keyframes": span_size,
+            "interior_frame_drop_ratio": interior_drop_ratio,
             "num_samples": len(sample_rows),
             "num_sample_data": len(sample_data_rows),
             "num_sample_annotations": len(sample_annotations),
