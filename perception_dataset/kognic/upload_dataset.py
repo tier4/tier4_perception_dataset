@@ -12,10 +12,10 @@ from kognic.io.client import KognicIOClient
 import kognic.io.model as KognicModel
 from kognic.io.model.ego.imu_data import IMUData
 from kognic.io.model.scene.feature_flags import FeatureFlags
+from kognic.io.model.scene.invalidated_reason import SceneInvalidatedReason
 from kognic.io.model.scene.lidars_and_cameras_sequence.frame import (
     Frame as LidarsAndCamerasSequenceFrame,
 )
-from kognic.io.model.scene.invalidated_reason import SceneInvalidatedReason
 from kognic.io.model.scene.metadata.metadata import FrameMetaData, MetaData
 from kognic.io.model.scene.resources.image import ImageMetadata
 from kognic.io.model.scene.scene_entry import SceneStatus
