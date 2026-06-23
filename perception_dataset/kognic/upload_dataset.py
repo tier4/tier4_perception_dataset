@@ -35,6 +35,24 @@ logger = configure_logger(modname=__name__)
 SceneUUID = str
 
 
+class SceneInputError(RuntimeError):
+    """A scene was created on Kognic but a later step failed.
+
+    Once ``lidars_and_cameras_sequence.create()`` returns a ``scene_uuid`` the
+    scene is persisted server-side. If the pre-annotation upload or input
+    creation then fails, the scene lingers as an orphan (no input, invisible to
+    labelers). This exception carries ``scene_uuid`` so the caller can record it
+    for later retry/cleanup instead of losing the handle.
+    """
+
+    def __init__(self, external_id: str, scene_uuid: str, stage: str, cause: BaseException):
+        super().__init__(f"{external_id}: scene {scene_uuid} created but {stage} failed: {cause}")
+        self.external_id = external_id
+        self.scene_uuid = scene_uuid
+        self.stage = stage
+        self.cause = cause
+
+
 @dataclass(frozen=True)
 class KognicUploadConfig:
     input_base: Path
@@ -223,32 +241,42 @@ class KognicDatasetUploader:
             return "dryrun"
 
         scene_uuid = response.scene_uuid
-        self._wait_for_scene_created(scene_uuid, external_id)
 
-        logger.info(f"Uploading pre-annotation for {external_id} (scene {scene_uuid})")
-        self.kognic_io_client.pre_annotation.create(
-            scene_uuid=scene_uuid,
-            pre_annotation=pre_annotation,
-            external_id=f"{external_id}-pre-annotation",
-            dryrun=False,
-        )
+        # The scene now exists server-side. If any step below fails it would be
+        # orphaned (no input) with its uuid lost, so wrap them and re-raise as a
+        # SceneInputError carrying scene_uuid for the caller to record.
+        stage = "scene processing"
+        try:
+            self._wait_for_scene_created(scene_uuid, external_id)
 
-        if self.config.project_external_id:
-            logger.info(
-                f"Creating input from scene {scene_uuid} in project "
-                f"{self.config.project_external_id}"
-            )
-            self.kognic_io_client.lidars_and_cameras_sequence.create_from_scene(
+            stage = "pre-annotation upload"
+            logger.info(f"Uploading pre-annotation for {external_id} (scene {scene_uuid})")
+            self.kognic_io_client.pre_annotation.create(
                 scene_uuid=scene_uuid,
-                project=self.config.project_external_id,
-                batch=self.config.batch,
+                pre_annotation=pre_annotation,
+                external_id=f"{external_id}-pre-annotation",
+                dryrun=False,
             )
-        else:
-            logger.warning(
-                f"{external_id}: no project_external_id configured; scene and "
-                "pre-annotation uploaded but no input created. Create one later with "
-                "client.lidars_and_cameras_sequence.create_from_scene()."
-            )
+
+            stage = "input creation"
+            if self.config.project_external_id:
+                logger.info(
+                    f"Creating input from scene {scene_uuid} in project "
+                    f"{self.config.project_external_id}"
+                )
+                self.kognic_io_client.lidars_and_cameras_sequence.create_from_scene(
+                    scene_uuid=scene_uuid,
+                    project=self.config.project_external_id,
+                    batch=self.config.batch,
+                )
+            else:
+                logger.warning(
+                    f"{external_id}: no project_external_id configured; scene and "
+                    "pre-annotation uploaded but no input created. Create one later with "
+                    "client.lidars_and_cameras_sequence.create_from_scene()."
+                )
+        except Exception as exc:
+            raise SceneInputError(external_id, scene_uuid, stage, exc) from exc
 
         return scene_uuid
 
@@ -581,18 +609,42 @@ def main():
     sequence_paths = find_sequence_paths(upload_config.input_base)
 
     dataset_name_id_dict = {}
+
+    def _persist_dataset_ids() -> None:
+        with open(osp.join(upload_config.input_base, "dataset_id.json"), "w") as f:
+            json.dump(dataset_name_id_dict, f)
+
+    failures: List[str] = []
     for sequence_path in sequence_paths:
         dataset_name = sequence_path.name
         time_start = time.time()
         logger.info(f"Uploading dataset {dataset_name} from {sequence_path}")
-        scene_uuid = uploader.upload_one(sequence_path, external_id=dataset_name)
+        try:
+            scene_uuid = uploader.upload_one(sequence_path, external_id=dataset_name)
+        except SceneInputError as exc:
+            # The scene was created but the pre-annotation/input step failed.
+            # Record the orphaned scene_uuid so it can be retried/cleaned up
+            # instead of being lost, then move on to the next sequence.
+            dataset_name_id_dict[dataset_name] = exc.scene_uuid
+            _persist_dataset_ids()
+            failures.append(dataset_name)
+            logger.error(
+                f"{exc}. Recorded scene_uuid {exc.scene_uuid} in dataset_id.json; "
+                "the scene exists on Kognic without an input. Retry/clean up via "
+                "create_from_scene() or the Kognic console."
+            )
+            continue
         logger.info(f"dataset_id: {scene_uuid}")
         time_end = time.time()
         logger.info(f"Time taken to upload {dataset_name}: {time_end - time_start} seconds")
         dataset_name_id_dict[dataset_name] = scene_uuid
+        _persist_dataset_ids()
 
-        with open(osp.join(upload_config.input_base, "dataset_id.json"), "w") as f:
-            json.dump(dataset_name_id_dict, f)
+    if failures:
+        raise SystemExit(
+            f"{len(failures)} scene(s) created without an input: {', '.join(failures)}. "
+            "Their scene_uuids are recorded in dataset_id.json for retry."
+        )
 
 
 if __name__ == "__main__":
