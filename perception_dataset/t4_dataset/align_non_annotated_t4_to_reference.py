@@ -243,7 +243,8 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
     ) -> tuple[list[JsonRow], list[JsonRow], list[JsonRow]]:
         """Split unmatched reference keyframes by where they fall relative to the
         matched span: ``leading`` (before the first match), ``interior`` (within
-        the span), ``trailing`` (after the last match)."""
+        the span), ``trailing`` (after the last match).
+        """
         first_matched = matches[0][0]
         last_matched = matches[-1][0]
         leading, interior, trailing = [], [], []
@@ -266,7 +267,8 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
     ) -> tuple[list[TimestampMatch], list[JsonRow]]:
         """Greedily match each reference keyframe to the nearest (monotonic)
         candidate sample within ``max_abs_diff_ms``. Reference keyframes without
-        a close-enough candidate are reported as unmatched (dropped)."""
+        a close-enough candidate are reported as unmatched (dropped).
+        """
         matches: list[TimestampMatch] = []
         unmatched: list[JsonRow] = []
         max_abs_diff_us = int(max_abs_diff_ms * 1000)

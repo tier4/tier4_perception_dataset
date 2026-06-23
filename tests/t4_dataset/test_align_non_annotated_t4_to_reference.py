@@ -150,8 +150,8 @@ def test_classify_unmatched_splits_boundary_and_interior():
         {"reference_index": 3},  # interior
         {"reference_index": 6},  # trailing
     ]
-    leading, interior, trailing = (
-        AlignNonAnnotatedT4ToReferenceConverter._classify_unmatched(matches, unmatched)
+    leading, interior, trailing = AlignNonAnnotatedT4ToReferenceConverter._classify_unmatched(
+        matches, unmatched
     )
     assert [row["reference_index"] for row in leading] == [0, 1]
     assert [row["reference_index"] for row in interior] == [3]
