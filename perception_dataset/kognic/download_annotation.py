@@ -107,7 +107,7 @@ class KognicAnnotationDownloader:
 
         logger.info(f"Found {len(annotations)} annotation(s)")
 
-        out_dir = self.config.output_base / self.config.project_external_id
+        out_dir = self.config.output_base
         out_dir.mkdir(parents=True, exist_ok=True)
 
         # A scene may carry multiple annotations (e.g. several requests); suffix
