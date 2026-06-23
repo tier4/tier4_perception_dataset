@@ -15,6 +15,7 @@ from kognic.io.model.scene.feature_flags import FeatureFlags
 from kognic.io.model.scene.lidars_and_cameras_sequence.frame import (
     Frame as LidarsAndCamerasSequenceFrame,
 )
+from kognic.io.model.scene.invalidated_reason import SceneInvalidatedReason
 from kognic.io.model.scene.metadata.metadata import FrameMetaData, MetaData
 from kognic.io.model.scene.resources.image import ImageMetadata
 from kognic.io.model.scene.scene_entry import SceneStatus
@@ -40,9 +41,9 @@ class SceneInputError(RuntimeError):
 
     Once ``lidars_and_cameras_sequence.create()`` returns a ``scene_uuid`` the
     scene is persisted server-side. If the pre-annotation upload or input
-    creation then fails, the scene lingers as an orphan (no input, invisible to
-    labelers). This exception carries ``scene_uuid`` so the caller can record it
-    for later retry/cleanup instead of losing the handle.
+    creation then fails, the scene would linger as an orphan (no input, invisible
+    to labelers), so ``upload_one`` invalidates it before raising this. The
+    ``scene_uuid`` is kept for logging/traceability only.
     """
 
     def __init__(self, external_id: str, scene_uuid: str, stage: str, cause: BaseException):
@@ -243,8 +244,8 @@ class KognicDatasetUploader:
         scene_uuid = response.scene_uuid
 
         # The scene now exists server-side. If any step below fails it would be
-        # orphaned (no input) with its uuid lost, so wrap them and re-raise as a
-        # SceneInputError carrying scene_uuid for the caller to record.
+        # orphaned (no input, invisible to labelers), so invalidate it before
+        # re-raising rather than leaving it behind.
         stage = "scene processing"
         try:
             self._wait_for_scene_created(scene_uuid, external_id)
@@ -276,6 +277,21 @@ class KognicDatasetUploader:
                     "client.lidars_and_cameras_sequence.create_from_scene()."
                 )
         except Exception as exc:
+            logger.error(
+                f"{external_id}: scene {scene_uuid} created but {stage} failed: {exc}. "
+                "Invalidating the orphaned scene."
+            )
+            try:
+                self.kognic_io_client.scene.invalidate_scenes(
+                    scene_uuids=[scene_uuid],
+                    reason=SceneInvalidatedReason.INCORRECTLY_CREATED,
+                )
+                logger.info(f"{external_id}: invalidated orphaned scene {scene_uuid}")
+            except Exception as cleanup_exc:
+                logger.error(
+                    f"{external_id}: failed to invalidate orphaned scene {scene_uuid}: "
+                    f"{cleanup_exc}"
+                )
             raise SceneInputError(external_id, scene_uuid, stage, exc) from exc
 
         return scene_uuid
@@ -622,17 +638,11 @@ def main():
         try:
             scene_uuid = uploader.upload_one(sequence_path, external_id=dataset_name)
         except SceneInputError as exc:
-            # The scene was created but the pre-annotation/input step failed.
-            # Record the orphaned scene_uuid so it can be retried/cleaned up
-            # instead of being lost, then move on to the next sequence.
-            dataset_name_id_dict[dataset_name] = exc.scene_uuid
-            _persist_dataset_ids()
+            # The scene was created but the pre-annotation/input step failed, so
+            # upload_one already invalidated the orphaned scene. Just record the
+            # failure and move on to the next sequence.
             failures.append(dataset_name)
-            logger.error(
-                f"{exc}. Recorded scene_uuid {exc.scene_uuid} in dataset_id.json; "
-                "the scene exists on Kognic without an input. Retry/clean up via "
-                "create_from_scene() or the Kognic console."
-            )
+            logger.error(f"{exc}. Orphaned scene invalidated; re-upload to retry.")
             continue
         logger.info(f"dataset_id: {scene_uuid}")
         time_end = time.time()
@@ -642,8 +652,8 @@ def main():
 
     if failures:
         raise SystemExit(
-            f"{len(failures)} scene(s) created without an input: {', '.join(failures)}. "
-            "Their scene_uuids are recorded in dataset_id.json for retry."
+            f"{len(failures)} scene(s) created without an input and invalidated: "
+            f"{', '.join(failures)}. Re-upload to retry."
         )
 
 
