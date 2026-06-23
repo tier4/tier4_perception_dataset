@@ -43,7 +43,6 @@ def test_align_non_annotated_t4_to_reference(tmp_path):
         reference_base=str(ANNOTATED_BASE),
         output_base=str(output_base),
         max_abs_diff_ms=1.0,
-        copy_data=True,
     ).convert()
 
     output_dir = output_base / SCENE_NAME
@@ -184,7 +183,6 @@ def test_align_non_annotated_t4_to_reference_preserves_lidar_info(tmp_path):
         reference_base=str(ANNOTATED_BASE),
         output_base=str(output_base),
         max_abs_diff_ms=1.0,
-        copy_data=True,
     ).convert()
 
     output_dir = output_base / SCENE_NAME
@@ -204,7 +202,6 @@ def test_align_non_annotated_t4_to_reference_can_skip_report(tmp_path):
         reference_base=str(ANNOTATED_BASE),
         output_base=str(output_base),
         max_abs_diff_ms=1.0,
-        copy_data=True,
         write_alignment_report=False,
     ).convert()
 
@@ -224,7 +221,6 @@ def test_align_non_annotated_t4_to_reference_convert_task(tmp_path, monkeypatch)
                     "reference_base": str(ANNOTATED_BASE),
                     "output_base": str(output_base),
                     "max_abs_diff_ms": 1.0,
-                    "copy_data": True,
                     "write_alignment_report": False,
                 },
             },

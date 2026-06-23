@@ -5,7 +5,6 @@ from copy import deepcopy
 from glob import glob
 import json
 import logging
-import os
 import os.path as osp
 from pathlib import Path
 import shutil
@@ -40,7 +39,6 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         *,
         max_abs_diff_ms: float = 0.1,
         max_frame_drop_ratio: float = 0.1,
-        copy_data: bool = False,
         write_alignment_report: bool = True,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -50,7 +48,6 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         self._output_base = Path(output_base)
         self._max_abs_diff_ms = max_abs_diff_ms
         self._max_frame_drop_ratio = max_frame_drop_ratio
-        self._copy_data = copy_data
         self._write_alignment_report = write_alignment_report
         self._logger = logger or configure_logger(modname=__name__)
 
@@ -360,12 +357,12 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             copied["sample_token"] = candidate_samples[next_key_index]["token"]
             copied["is_key_frame"] = candidate_index in key_candidate_index_set
 
-            self._relink_or_copy(candidate_dir / row["filename"], output_dir / copied["filename"])
+            self._copy_file(candidate_dir / row["filename"], output_dir / copied["filename"])
             if copied.get("info_filename"):
                 copied["info_filename"] = self._renamed_data_filename(
                     row["info_filename"], output_index
                 )
-                self._relink_or_copy(
+                self._copy_file(
                     candidate_dir / row["info_filename"], output_dir / copied["info_filename"]
                 )
 
@@ -623,19 +620,12 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             row["prev"] = rows[index - 1]["token"] if index > 0 else ""
             row["next"] = rows[index + 1]["token"] if index + 1 < len(rows) else ""
 
-    def _relink_or_copy(self, src: Path, dst: Path) -> None:
+    @staticmethod
+    def _copy_file(src: Path, dst: Path) -> None:
         if not src.exists():
             raise FileNotFoundError(f"sample_data file does not exist: {src}")
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if dst.exists():
-            dst.unlink()
-        if self._copy_data:
-            shutil.copy2(src, dst)
-            return
-        try:
-            os.link(src, dst)
-        except OSError:
-            shutil.copy2(src, dst)
+        shutil.copy2(src, dst)
 
     @staticmethod
     def _load_tables(dataset_dir: Path) -> dict[str, list[JsonRow]]:
