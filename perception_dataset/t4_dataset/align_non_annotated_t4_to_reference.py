@@ -171,7 +171,9 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
 
         key_candidate_indices = [candidate_index for _, candidate_index, _ in matches]
         sample_token_map = {
-            reference_samples[reference_index]["token"]: candidate_samples[candidate_index]["token"]
+            reference_samples[reference_index]["token"]: candidate_samples[candidate_index][
+                "token"
+            ]
             for reference_index, candidate_index, _ in matches
         }
         reference_sample_data_token_map = self._reference_sample_data_token_map(
