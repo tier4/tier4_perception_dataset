@@ -19,6 +19,16 @@ from perception_dataset.utils.transform import transform_matrix
 logger = configure_logger(modname=__name__)
 
 
+def json_default(obj):
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
 class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
     def __init__(self, input_base: str, output_base: str, camera_position: Dict):
         super().__init__(input_base, output_base)
@@ -200,7 +210,7 @@ class AnnotatedT4ToDeepenConverter(AbstractConverter[None]):
 
         output_json = {"labels": output_label}
         with open(osp.join(output_dir, f"{scene_name}.json"), "w") as f:
-            json.dump(output_json, f, indent=4)
+            json.dump(output_json, f, indent=4, default=json_default)
 
         logger.info(f"Done Conversion: {input_dir} to {output_dir}")
 
