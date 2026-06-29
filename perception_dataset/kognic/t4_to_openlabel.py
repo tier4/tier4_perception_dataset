@@ -28,14 +28,14 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
     For every annotated T4 sequence under ``input_base``, reads
     ``annotation/sample_annotation.json`` (and its companion tables) and
-    writes a ``pre_annotation.json`` into the matching Kognic staging
+    writes a ``cuboid_pre_annotation.json`` into the matching Kognic staging
     directory under ``output_base``, as previously produced by
     ``T4ToKognicConverter``::
 
         <output_base>/<scene>/
             calibration.json
             ego_poses.json
-            pre_annotation.json     <- added by this converter
+            cuboid_pre_annotation.json     <- added by this converter
             cameras/...  lidar/...
 
     Conventions (https://docs.kognic.com/api-guide/pre-annotations):
@@ -76,7 +76,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                     f"run convert_t4_to_kognic first. Skipping {seq_path}"
                 )
                 continue
-            logger.info(f"[BEGIN] {seq_path} -> {staging_dir / 'pre_annotation.json'}")
+            logger.info(f"[BEGIN] {seq_path} -> {staging_dir / 'cuboid_pre_annotation.json'}")
             self._convert_one_scene(seq_path, staging_dir)
             logger.info(f"[DONE]  {seq_path}")
 
@@ -264,7 +264,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             )
         )
 
-        out_path = staging_dir / "pre_annotation.json"
+        out_path = staging_dir / "cuboid_pre_annotation.json"
         with open(out_path, "w") as f:
             json.dump(annotation.model_dump(mode="json", exclude_none=True), f, indent=2)
 
