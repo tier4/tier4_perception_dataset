@@ -95,9 +95,6 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     task: str
     input_base: str  # path to the input rosbag2 directory (multiple rosbags in the directory)
     input_bag_path: Optional[str] = None  # path to the input rosbag2 (a single rosbag)
-    output_scene_name: Optional[str] = (
-        None  # output scene dir name; defaults to basename of input_bag_path when unset
-    )
     output_base: str  # path to the output directory
     gt_label_base: str = ""  # path to the gt labels directory
     overwrite_mode: bool = False

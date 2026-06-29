@@ -104,56 +104,41 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter[Rosbag2ToNonAnnotatedT4
         self._overwrite_mode = params.overwrite_mode
 
     def _get_bag_dirs(self):
-        # Each entry is (scene_name, bag_dir): scene_name is the top-level directory name
-        # used to name the output scene, bag_dir is the directory actually containing
-        # metadata.yaml (which may be nested, e.g. under intermediate_artifacts for
-        # concatenated-pointcloud-injected rosbags).
-        ret_bag_files: List[Tuple[str, str]] = []
-        for top_dir in glob.glob(osp.join(self._input_base, "*")):
-            if not osp.isdir(top_dir):
+        ret_bag_files: List[str] = []
+        for bag_dir in glob.glob(osp.join(self._input_base, "*")):
+            if not osp.isdir(bag_dir):
                 continue
 
-            scene_name = osp.basename(top_dir)
-
-            metadata_file = osp.join(top_dir, "metadata.yaml")
-            if osp.exists(metadata_file):
-                ret_bag_files.append((scene_name, top_dir))
+            db3_file = osp.join(bag_dir, "metadata.yaml")
+            if not osp.exists(db3_file):
+                logger.warning(f"{bag_dir} is directory, but metadata.yaml doesn't exist.")
                 continue
 
-            # metadata.yaml not directly present: search recursively for it.
-            nested = sorted(glob.glob(osp.join(top_dir, "**", "metadata.yaml"), recursive=True))
-            if not nested:
-                logger.warning(f"{top_dir} is directory, but metadata.yaml doesn't exist.")
-                continue
-
-            if len(nested) > 1:
-                logger.warning(
-                    f"{top_dir} contains multiple metadata.yaml files; using {nested[0]}."
-                )
-            ret_bag_files.append((scene_name, osp.dirname(nested[0])))
+            ret_bag_files.append(bag_dir)
 
         return ret_bag_files
 
     def convert(self) -> Rosbag2ToNonAnnotatedT4ConverterOutput:
-        bag_dirs: List[Tuple[str, str]] = self._get_bag_dirs()
+        bag_dirs: List[str] = self._get_bag_dirs()
 
         if not self._overwrite_mode:
             dir_exist: bool = False
-            for scene_name, bag_dir in bag_dirs[:]:  # copy to avoid modifying list while iterating
-                output_dir = osp.join(self._output_base, scene_name)
+            for bag_dir in bag_dirs[:]:  # copy to avoid modifying list while iterating
+                bag_name: str = osp.basename(bag_dir)
+
+                output_dir = osp.join(self._output_base, bag_name)
                 if osp.exists(output_dir):
                     logger.warning(f"{output_dir} already exists.")
                     dir_exist = True
-                    bag_dirs.remove((scene_name, bag_dir))
+                    bag_dirs.remove(bag_dir)
             if dir_exist and len(bag_dirs) == 0:
                 logger.warning(f"{output_dir} already exists.")
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
 
         items: list[Rosbag2ToNonAnnotatedT4ConverterOutputItem] = []
-        for scene_name, bag_dir in sorted(bag_dirs):
+        for bag_dir in sorted(bag_dirs):
             logger.info(f"Start converting {bag_dir} to T4 format.")
             self._params.input_bag_path = bag_dir
-            self._params.output_scene_name = scene_name
             try:
                 bag_converter = _Rosbag2ToNonAnnotatedT4Converter(self._params)
                 output = bag_converter.convert()
@@ -231,7 +216,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             self._sensor_mode = SensorMode.NO_LIDAR
 
         # init directories
-        self._bag_name = params.output_scene_name or osp.basename(self._input_bag)
+        self._bag_name = osp.basename(self._input_bag)
         self._output_scene_dir = osp.join(self._output_base, self._bag_name)
         self._output_anno_dir = osp.join(
             self._output_scene_dir, T4_FORMAT_DIRECTORY_NAME.ANNOTATION.value
