@@ -721,9 +721,7 @@ class KognicDatasetUploader:
         ego_poses: Optional[Dict[str, KognicModel.EgoVehiclePose]],
     ) -> List[IMUData]:
         if not self.config.include_imu_data or not ego_poses:
-            logger.info(
-            f"Skipping building the IMU data..."
-        )
+            logger.info(f"Skipping building the IMU data...")
             return []
 
         try:
@@ -732,10 +730,8 @@ class KognicDatasetUploader:
         except ModuleNotFoundError:
             logger.warning("scipy is not installed; skipping optional IMU data generation")
             return []
-        
-        logger.info(
-            f"Building IMU data for (this may take a while if there are many frames)"
-        )
+
+        logger.info(f"Building IMU data for (this may take a while if there are many frames)")
 
         sparse: List[Tuple[int, KognicModel.EgoVehiclePose]] = []
         for frame_id, timestamp_ns, _ in self.iterate_frames(sequence_path):
