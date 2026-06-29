@@ -91,6 +91,8 @@ class SceneUploadResult:
     scene_uuid: Optional[SceneUUID]
     # One entry per created input: {"project_name", "batch_name", "input_id"}.
     inputs: List[Dict[str, Optional[str]]] = field(default_factory=list)
+    # ``project/batch`` of inputs that failed while the scene itself succeeded.
+    failed_inputs: List[str] = field(default_factory=list)
     failed: bool = False
     # When ``failed``: whether the orphaned scene was successfully invalidated.
     invalidated: bool = False
@@ -255,14 +257,20 @@ class KognicDatasetUploader:
         return calibration_id
 
     def upload_one(self, sequence_path: Path, external_id: str) -> List[SceneUploadResult]:
-        """Upload a sequence, creating one scene per distinct pre-annotation.
+        """Upload a sequence as a single scene shared across all its projects.
 
-        Calibration, frames and IMU data are shared across every scene created
-        from this sequence, so they are built once. Projects are then grouped by
-        the pre-annotation they request (see ``_resolve_scene_groups``) and each
-        group becomes its own scene with its own inputs. Returns one
-        ``SceneUploadResult`` per scene; a group whose input creation failed is
-        marked ``failed`` (its orphaned scene has already been invalidated).
+        The sensor data is uploaded once as one scene. Every distinct
+        pre-annotation requested by the projects is attached to that scene, then
+        one input is created per project via ``client.input.create_from_scene``,
+        which lets each input pick its own pre-annotation (or none) -- so e.g. a
+        3D-cuboid project and a semseg project can share the same scene, the
+        cuboid input referencing the cuboid pre-annotation and the semseg input
+        referencing none.
+
+        Returns a single ``SceneUploadResult`` (in a list). It is marked
+        ``failed`` only if the scene ends up with no input at all (orphan, then
+        invalidated); if some inputs succeed and others fail, the scene is kept
+        and the failed projects are listed in ``failed_inputs``.
         """
         # create calibration first since the frames reference the calibration_id
         start_time = time.time()
@@ -290,104 +298,73 @@ class KognicDatasetUploader:
 
         feature_flags = FeatureFlags() if not self.config.motion_compensate else None
 
-        groups = self._resolve_scene_groups(sequence_path, external_id)
-        if len(groups) > 1:
-            logger.info(
-                f"{external_id}: creating {len(groups)} scenes, one per distinct "
-                f"pre-annotation: {[scene_external_id for scene_external_id, _, _ in groups]}"
-            )
-
-        results: List[SceneUploadResult] = []
-        for scene_external_id, pre_annotation, targets in groups:
-            scene = KognicModel.LidarsAndCamerasSequence(
-                external_id=scene_external_id,
-                frames=frames,
-                calibration_id=calibration_id,
-                imu_data=imu_data,
-                metadata=MetaData(
-                    source_filename=sequence_path.name,
-                    dataset_id=sequence_path.name,
-                    inner_uuid=str(uuid.uuid4()),
-                ),
-            )
-            try:
-                scene_uuid, inputs = self._upload_scene_group(
-                    scene, scene_external_id, pre_annotation, targets, feature_flags
+        # Load each distinct pre-annotation file referenced by the projects once.
+        pre_annotations: Dict[str, OpenLabelAnnotation] = {}
+        for target in self.config.project_targets:
+            if target.pre_annotation and target.pre_annotation not in pre_annotations:
+                pre_annotations[target.pre_annotation] = self._load_pre_annotation(
+                    sequence_path / target.pre_annotation
                 )
-                results.append(SceneUploadResult(scene_external_id, scene_uuid, inputs=inputs))
-            except SceneInputError as exc:
-                # The scene was created but a later step failed. _upload_scene_group
-                # tried to invalidate it; record whether that worked and continue
-                # with the remaining groups for this sequence.
-                if exc.invalidated:
-                    logger.error(f"{exc}. Orphaned scene invalidated; re-upload to retry.")
-                else:
-                    logger.error(
-                        f"{exc}. Orphaned scene {exc.scene_uuid} could NOT be invalidated "
-                        "and remains on Kognic; invalidate it manually."
-                    )
-                results.append(
-                    SceneUploadResult(
-                        scene_external_id,
-                        exc.scene_uuid,
-                        failed=True,
-                        invalidated=exc.invalidated,
-                    )
+
+        scene = KognicModel.LidarsAndCamerasSequence(
+            external_id=external_id,
+            frames=frames,
+            calibration_id=calibration_id,
+            imu_data=imu_data,
+            metadata=MetaData(
+                source_filename=sequence_path.name,
+                dataset_id=sequence_path.name,
+                inner_uuid=str(uuid.uuid4()),
+            ),
+        )
+
+        try:
+            scene_uuid, inputs, failed_inputs = self._upload_scene(
+                scene, external_id, pre_annotations, self.config.project_targets, feature_flags
+            )
+            return [
+                SceneUploadResult(
+                    external_id, scene_uuid, inputs=inputs, failed_inputs=failed_inputs
                 )
-        return results
-
-    def _resolve_scene_groups(
-        self, sequence_path: Path, external_id: str
-    ) -> List[Tuple[str, Optional[OpenLabelAnnotation], List[ProjectTarget]]]:
-        """Group project targets into scenes by the pre-annotation they request.
-
-        A pre-annotation is attached to the scene and applied to *all* inputs
-        created from it, so a scene can only be shared by targets whose task
-        definition matches that pre-annotation. Each distinct ``pre_annotation``
-        value (including ``None`` -> no pre-annotation) therefore becomes its own
-        scene. The ``None`` group keeps the sequence's external_id; each
-        pre-annotated group is suffixed with the pre-annotation file stem to keep
-        scene external_ids unique.
-
-        Returns ``(scene_external_id, pre_annotation_or_None, targets)`` tuples.
-        """
-        targets = self.config.project_targets
-        if not targets:
-            # No projects configured: still create a bare scene (no input).
-            return [(external_id, None, [])]
-
-        grouped: Dict[Optional[str], List[ProjectTarget]] = {}
-        for target in targets:  # dict preserves config order of first appearance
-            grouped.setdefault(target.pre_annotation, []).append(target)
-
-        groups: List[Tuple[str, Optional[OpenLabelAnnotation], List[ProjectTarget]]] = []
-        for pre_annotation_file, group_targets in grouped.items():
-            if pre_annotation_file is None:
-                groups.append((external_id, None, group_targets))
+            ]
+        except SceneInputError as exc:
+            # The scene was created but a step failed and it ended up with no
+            # input. _upload_scene tried to invalidate it; record whether that
+            # worked so main() can report orphans needing manual cleanup.
+            if exc.invalidated:
+                logger.error(f"{exc}. Orphaned scene invalidated; re-upload to retry.")
             else:
-                scene_external_id = f"{external_id}-{Path(pre_annotation_file).stem}"
-                pre_annotation = self._load_pre_annotation(sequence_path / pre_annotation_file)
-                groups.append((scene_external_id, pre_annotation, group_targets))
-        return groups
+                logger.error(
+                    f"{exc}. Orphaned scene {exc.scene_uuid} could NOT be invalidated "
+                    "and remains on Kognic; invalidate it manually."
+                )
+            return [
+                SceneUploadResult(
+                    external_id, exc.scene_uuid, failed=True, invalidated=exc.invalidated
+                )
+            ]
 
-    def _upload_scene_group(
+    def _upload_scene(
         self,
         scene: KognicModel.LidarsAndCamerasSequence,
         external_id: str,
-        pre_annotation: Optional[OpenLabelAnnotation],
+        pre_annotations: Dict[str, OpenLabelAnnotation],
         targets: List[ProjectTarget],
         feature_flags: Optional[FeatureFlags],
-    ) -> Tuple[SceneUUID, List[Dict[str, Optional[str]]]]:
-        """Create one scene and its input(s), attaching ``pre_annotation`` if given.
+    ) -> Tuple[SceneUUID, List[Dict[str, Optional[str]]], List[str]]:
+        """Create the scene, attach pre-annotations, and create one input/project.
 
-        Returns ``(scene_uuid, input_records)`` where each input record is
-        ``{"project_name", "batch_name", "input_id"}``. On dryrun the scene_uuid
-        is ``"dryrun"`` and the records are empty.
+        Returns ``(scene_uuid, input_records, failed_inputs)``. Each input record
+        is ``{"project_name", "batch_name", "input_id"}``; ``failed_inputs`` lists
+        ``project/batch`` for projects whose input creation failed while others
+        succeeded. On dryrun the scene_uuid is ``"dryrun"`` and both lists empty.
 
-        Always scene-first: create the scene without a project, wait for it to
-        reach Created, attach the pre-annotation if any, then create one input per
-        project from the scene (``create_from_scene`` returns the created inputs,
-        which is the only way to capture their ids).
+        Steps: create the scene (no project) and wait for Created; attach each
+        distinct pre-annotation (capturing its uuid); then create one input per
+        project, each referencing its project's pre-annotation uuid (or ``None``
+        for no pre-annotation). A failure before any input exists invalidates the
+        orphaned scene and raises; a failure once at least one input exists leaves
+        the scene in place and is reported via ``failed_inputs``.
         """
         logger.info(
             f"Uploading {external_id} as scene without input (dryrun={self.config.dryrun})"
@@ -402,37 +379,21 @@ class KognicDatasetUploader:
                 f"{external_id}: dryrun OK; scene validated locally, "
                 "pre-annotation upload and input creation skipped"
             )
-            return "dryrun", []
+            return "dryrun", [], []
 
         scene_uuid = response.scene_uuid
 
-        # The scene now exists server-side. If any step below fails it would be
-        # orphaned (no input, invisible to labelers), so invalidate it before
-        # re-raising rather than leaving it behind.
+        # Until at least one input is attached the scene is an orphan (no input,
+        # invisible to labelers), so invalidate it if scene processing or the
+        # pre-annotation upload fails.
         stage = "scene processing"
         try:
             self._wait_for_scene_created(scene_uuid, external_id)
 
-            if pre_annotation is not None:
-                stage = "pre-annotation upload"
-                logger.info(f"Uploading pre-annotation for {external_id} (scene {scene_uuid})")
-                self.kognic_io_client.pre_annotation.create(
-                    scene_uuid=scene_uuid,
-                    pre_annotation=pre_annotation,
-                    external_id=f"{external_id}-pre-annotation",
-                    dryrun=False,
-                )
-
-            stage = "input creation"
-            if targets:
-                inputs = self._create_inputs_from_scene(scene_uuid, external_id, targets)
-            else:
-                inputs = []
-                logger.warning(
-                    f"{external_id}: no project configured; scene "
-                    "uploaded but no input created. Create one later with "
-                    "client.lidars_and_cameras_sequence.create_from_scene()."
-                )
+            stage = "pre-annotation upload"
+            pre_annotation_uuids = self._upload_pre_annotations(
+                scene_uuid, external_id, pre_annotations
+            )
         except Exception as exc:
             logger.error(
                 f"{external_id}: scene {scene_uuid} created but {stage} failed: {exc}. "
@@ -443,7 +404,51 @@ class KognicDatasetUploader:
                 external_id, scene_uuid, stage, exc, invalidated=invalidated
             ) from exc
 
-        return scene_uuid, inputs
+        if not targets:
+            logger.warning(
+                f"{external_id}: no project configured; scene uploaded but no input "
+                "created. Create one later with client.input.create_from_scene()."
+            )
+            return scene_uuid, [], []
+
+        inputs, failed_inputs = self._create_inputs_from_scene(
+            scene_uuid, external_id, targets, pre_annotation_uuids
+        )
+
+        # Every input failed: the scene is an orphan, so invalidate and raise.
+        if not inputs:
+            exc = RuntimeError(f"all {len(failed_inputs)} input(s) failed: {failed_inputs}")
+            logger.error(
+                f"{external_id}: scene {scene_uuid} created but no input could be "
+                "created. Invalidating the orphaned scene."
+            )
+            invalidated = self._invalidate_scene(scene_uuid, external_id)
+            raise SceneInputError(
+                external_id, scene_uuid, "input creation", exc, invalidated=invalidated
+            ) from exc
+
+        return scene_uuid, inputs, failed_inputs
+
+    def _upload_pre_annotations(
+        self,
+        scene_uuid: SceneUUID,
+        external_id: str,
+        pre_annotations: Dict[str, OpenLabelAnnotation],
+    ) -> Dict[str, str]:
+        """Attach each distinct pre-annotation to the scene; return file -> uuid."""
+        pre_annotation_uuids: Dict[str, str] = {}
+        for filename, pre_annotation in pre_annotations.items():
+            logger.info(
+                f"Uploading pre-annotation {filename} for {external_id} (scene {scene_uuid})"
+            )
+            created = self.kognic_io_client.pre_annotation.create(
+                scene_uuid=scene_uuid,
+                pre_annotation=pre_annotation,
+                external_id=f"{external_id}-{Path(filename).stem}-pre-annotation",
+                dryrun=False,
+            )
+            pre_annotation_uuids[filename] = created.id
+        return pre_annotation_uuids
 
     def _invalidate_scene(self, scene_uuid: SceneUUID, external_id: str) -> bool:
         """Invalidate an orphaned scene; return True only if it actually worked.
@@ -468,40 +473,55 @@ class KognicDatasetUploader:
             return False
 
     def _create_inputs_from_scene(
-        self, scene_uuid: SceneUUID, external_id: str, projects: List[ProjectTarget]
-    ) -> List[Dict[str, Optional[str]]]:
-        """Create one input per project from an already-created scene.
+        self,
+        scene_uuid: SceneUUID,
+        external_id: str,
+        projects: List[ProjectTarget],
+        pre_annotation_uuids: Dict[str, str],
+    ) -> Tuple[List[Dict[str, Optional[str]]], List[str]]:
+        """Create one input per project from the shared scene.
 
-        All inputs share the single scene (and its pre-annotation), but each is
-        created in its own project/batch. A failure on any project propagates so
-        ``_upload_scene_group`` invalidates the whole scene; the next re-upload
-        recreates the scene and every input, keeping the projects consistent
-        rather than leaving a partially-attached scene behind.
+        Each input references its project's pre-annotation (resolved from
+        ``pre_annotation_uuids`` via the target's ``pre_annotation`` filename) or
+        ``None`` for no pre-annotation -- so projects with incompatible task
+        definitions (e.g. cuboid vs semseg) can share the same scene.
 
-        Returns one ``{"project_name", "batch_name", "input_id"}`` record per
-        created input (a project/batch may yield several inputs, one per
-        annotation type).
+        Inputs are created independently: a failure on one project is recorded
+        and the rest still proceed (the scene already exists and other inputs may
+        be valid). Returns ``(input_records, failed)`` where each record is
+        ``{"project_name", "batch_name", "input_id"}`` and ``failed`` lists the
+        ``project/batch`` of inputs that could not be created.
         """
         records: List[Dict[str, Optional[str]]] = []
+        failed: List[str] = []
         for target in projects:
+            pre_annotation_uuid = pre_annotation_uuids.get(target.pre_annotation)
             logger.info(
                 f"{external_id}: creating input from scene {scene_uuid} in project "
-                f"{target.external_id} (batch={target.batch})"
+                f"{target.external_id} (batch={target.batch}, "
+                f"pre_annotation={target.pre_annotation or 'none'})"
             )
-            created = self.kognic_io_client.lidars_and_cameras_sequence.create_from_scene(
-                scene_uuid=scene_uuid,
-                project=target.external_id,
-                batch=target.batch,
-            )
-            for created_input in created or []:
+            try:
+                created_input = self.kognic_io_client.input.create_from_scene(
+                    scene_uuid=scene_uuid,
+                    pre_annotation_uuid=pre_annotation_uuid,
+                    project=target.external_id,
+                    batch=target.batch,
+                )
                 records.append(
                     {
                         "project_name": target.external_id,
                         "batch_name": target.batch,
-                        "input_id": str(created_input.uuid),
+                        "input_id": str(created_input.uuid) if created_input else None,
                     }
                 )
-        return records
+            except Exception as exc:
+                logger.error(
+                    f"{external_id}: failed to create input in project "
+                    f"{target.external_id} (batch={target.batch}): {exc}"
+                )
+                failed.append(f"{target.external_id}/{target.batch}")
+        return records, failed
 
     def _load_pre_annotation(self, pre_annotation_path: Path) -> OpenLabelAnnotation:
         """Load and validate a configured pre-annotation OpenLabel file.
@@ -862,16 +882,16 @@ def main():
 
     failures: List[str] = []
     orphans: List[str] = []  # failed AND not invalidated -> need manual cleanup
+    partial: List[str] = []  # scene OK but some project inputs failed
     for sequence_path in sequence_paths:
         dataset_name = sequence_path.name
         time_start = time.time()
         logger.info(f"Uploading dataset {dataset_name} from {sequence_path}")
-        # One sequence can produce several scenes (one per distinct pre-annotation).
         results = uploader.upload_one(sequence_path, external_id=dataset_name)
         for result in results:
             if result.failed:
-                # Scene was created but a later step failed. If invalidation also
-                # failed the scene is left behind and needs manual cleanup.
+                # Scene was created but ended up with no input. If invalidation
+                # also failed the scene is left behind and needs manual cleanup.
                 failures.append(result.external_id)
                 if not result.invalidated:
                     orphans.append(f"{result.external_id}={result.scene_uuid}")
@@ -884,22 +904,32 @@ def main():
                 "scene_id": result.scene_uuid,
                 "inputs": result.inputs,
             }
+            if result.failed_inputs:
+                partial.append(f"{result.external_id} (scene kept): {', '.join(result.failed_inputs)}")
         _persist_dataset_ids()
         time_end = time.time()
         logger.info(f"Time taken to upload {dataset_name}: {time_end - time_start} seconds")
 
-    if failures:
-        message = (
-            f"{len(failures)} scene(s) created without an input: "
-            f"{', '.join(failures)}. Re-upload to retry."
-        )
-        if orphans:
-            message += (
-                f" {len(orphans)} could NOT be invalidated and remain orphaned on "
-                f"Kognic (external_id=scene_uuid): {', '.join(orphans)}. "
-                "Invalidate them manually."
+    if failures or partial:
+        parts: List[str] = []
+        if failures:
+            msg = (
+                f"{len(failures)} scene(s) created without an input: "
+                f"{', '.join(failures)}. Re-upload to retry."
             )
-        raise SystemExit(message)
+            if orphans:
+                msg += (
+                    f" {len(orphans)} could NOT be invalidated and remain orphaned on "
+                    f"Kognic (external_id=scene_uuid): {', '.join(orphans)}. "
+                    "Invalidate them manually."
+                )
+            parts.append(msg)
+        if partial:
+            parts.append(
+                f"{len(partial)} scene(s) created but some project inputs failed "
+                f"(project/batch): {'; '.join(partial)}. Re-run to create the missing inputs."
+            )
+        raise SystemExit(" ".join(parts))
 
 
 if __name__ == "__main__":
