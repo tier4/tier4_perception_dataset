@@ -121,9 +121,7 @@ class Rosbag2ToNonAnnotatedT4Converter(AbstractConverter[Rosbag2ToNonAnnotatedT4
                 continue
 
             # metadata.yaml not directly present: search recursively for it.
-            nested = sorted(
-                glob.glob(osp.join(top_dir, "**", "metadata.yaml"), recursive=True)
-            )
+            nested = sorted(glob.glob(osp.join(top_dir, "**", "metadata.yaml"), recursive=True))
             if not nested:
                 logger.warning(f"{top_dir} is directory, but metadata.yaml doesn't exist.")
                 continue
