@@ -4,7 +4,7 @@ This document describes the full round-trip pipeline that takes a Tier IV **T4**
 
 1. **Convert non-annotated T4 → Kognic staging format** — reshape T4 sensor data (cameras, LiDAR, calibration, ego poses) into the local layout the Kognic uploader consumes.
 2. **Convert annotated T4 → Kognic staging format + pre-annotation** — the same sensor-data conversion, plus an OpenLABEL `pre_annotation.json` so existing 3D boxes are pre-loaded for labelers.
-3. **Upload the staging format to Kognic** — create the calibration, build a `LidarsAndCamerasSequence`, and upload each scene (optionally with its pre-annotation).
+3. **Upload the staging format to Kognic** — create the calibration, build a `LidarsAndCamerasSequence`, upload each sequence **once** as a single scene, and create one input per configured project (each input optionally referencing a pre-annotation).
 4. **Download annotations from Kognic** — pull completed OpenLABEL annotations to local disk, either for the whole project or for a single scene.
 5. **Convert Kognic annotations → T4 annotation tables** — merge the downloaded OpenLABEL back into a non-annotated T4 dataset (3D cuboids or point-cloud segmentation), enriching it in place.
 
@@ -318,6 +318,25 @@ conversion:
 
 For non-annotated T4 data, annotation tables (if present) are ignored.
 
+### Testing
+
+Stage 1 is covered by a conversion-and-comparison test that mirrors the Deepen test setup (`tests/test_tlr_dataset_conversion.py`): run the converter on a committed T4 input fixture and diff the result byte-for-byte against a committed golden output.
+
+| Piece | Path |
+| ----- | ---- |
+| Test | [tests/kognic/test_kognic_dataset_conversion.py](../tests/kognic/test_kognic_dataset_conversion.py) |
+| Test config | [tests/config/convert_non_annotated_t4_to_kognic_test.yaml](../tests/config/convert_non_annotated_t4_to_kognic_test.yaml) |
+| Input fixture | `tests/data/t4_sample_0/non_annotated_dataset/` (LiDAR + 6 cameras) |
+| Golden output | `tests/data/t4_sample_0/kognic_format_from_non_annotated_t4/` |
+
+The test fixture runs `T4ToKognicConverter` into a sibling output dir suffixed `_generated`, then `tests.utils.check_equality.diff_check_folder` compares it against the same path with `_generated` stripped — the committed golden fixture. The `_generated` dir is removed on teardown, so only the golden copy is checked in. Because the comparison is byte-for-byte, the converter output must stay deterministic (stable JSON key order, frame ordering, and CSV formatting).
+
+```bash
+uv run pytest tests/kognic/test_kognic_dataset_conversion.py -v
+```
+
+To regenerate the golden fixture after an intentional converter change, run the converter on the input fixture, eyeball the output, then copy it to the non-`_generated` name (e.g. `kognic_format_from_non_annotated_t4/`) and commit it.
+
 ---
 
 ## Stage 2 — T4 Annotations → OpenLABEL Pre-Annotation
@@ -332,7 +351,7 @@ When the task is `convert_annotated_t4_to_kognic`, [t4_to_openlabel.py](../perce
   cameras/...  lidar/...
 ```
 
-It reads `sample_annotation.json` (and companion tables) and exports every 3D box as a Kognic OpenLABEL cuboid, following the [Kognic pre-annotation format](https://docs.kognic.com/api-guide/pre-annotations). When `pre_annotation.json` is present, the uploader (Stage 3) uploads the scene without an input, attaches the pre-annotation, and creates the input from the scene so labelers see the boxes pre-loaded.
+It reads `sample_annotation.json` (and companion tables) and exports every 3D box as a Kognic OpenLABEL cuboid, following the [Kognic pre-annotation format](https://docs.kognic.com/api-guide/pre-annotations). The uploader (Stage 3) attaches a pre-annotation file to a project's input only when that project's config entry names it via `pre_annotation:` (see [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations)); so labelers for that project see the boxes pre-loaded, while other projects on the same scene can be created without it.
 
 ### Coordinate Convention
 
@@ -385,6 +404,44 @@ python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic
 
 All staged frames are uploaded. Annotation frequency is controlled at upload time via `target_hz`: frames at that interval are marked `annotate=True`, and the rest are uploaded as context with `annotate=False`. When `target_hz` is omitted, every frame is marked `annotate=True`.
 
+Each sequence is uploaded **once** as a single scene. The uploader then creates **one input per configured project** from that scene, so the same sensor data can feed several projects/batches without re-uploading it. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations).
+
+### Projects, Batches, and Pre-Annotations
+
+Projects are configured under a `projects:` list — each entry is one input created from the shared scene:
+
+```yaml
+projects:
+  - external_id: my_cuboid_project
+    batch: my_cuboid_batch            # optional; omit -> latest open batch
+    pre_annotation: pre_annotation.json   # optional; filename relative to the sequence dir
+  - external_id: my_semseg_project
+    batch: my_semseg_batch            # no pre_annotation -> input created without one
+```
+
+- **`external_id`** (required) — the Kognic project to create the input in.
+- **`batch`** (optional) — the batch within that project; defaults to the project's latest open batch.
+- **`pre_annotation`** (optional) — filename (relative to each sequence's staging dir) of the OpenLABEL pre-annotation to apply to **this** input. Omit it for no pre-annotation on that input. Defaults to none.
+
+A `(external_id, batch)` pair must be unique across the list; a duplicate raises a `ValueError` before any upload.
+
+**One scene, per-input pre-annotations.** The scene is created once, every distinct pre-annotation file referenced by the projects is attached to it, and each input is then created with `client.input.create_from_scene(scene_uuid, pre_annotation_uuid=…)` — passing that project's pre-annotation UUID, or `None` for no pre-annotation. Because the pre-annotation is selected **per input** (not applied scene-wide), projects with incompatible task definitions can share one scene: e.g. a **3D-cuboid** project whose input references a cuboid `pre_annotation.json`, alongside a **semantic-segmentation** project whose input is created with no pre-annotation. A cuboid pre-annotation would be rejected by a semseg task definition, so it is simply not attached to that input.
+
+**Upload flow per sequence (scene-first):**
+
+1. Create the scene with no project, then poll until it reaches `Created` (a transient `404` from the scene-status query right after creation is tolerated and retried — the scene exists, it is just not queryable yet).
+2. Attach each distinct pre-annotation file to the scene, capturing its UUID.
+3. Create one input per project via `client.input.create_from_scene`, each referencing its project's pre-annotation UUID (or `None`).
+
+```mermaid
+flowchart TD
+  Create["create scene (no project)"] --> Wait["wait for Created<br/>(tolerate transient 404)"]
+  Wait --> PA["attach each distinct<br/>pre-annotation -> uuid"]
+  PA --> Loop["for each project:<br/>input.create_from_scene(<br/>pre_annotation_uuid = its uuid or None)"]
+  Loop --> Cub["cuboid input<br/>(pre_annotation.json)"]
+  Loop --> Sem["semseg input<br/>(no pre-annotation)"]
+```
+
 ### Authentication
 
 The uploader (and the downloader in [Stage 4](#stage-4--download-annotations-from-kognic)) read Kognic API credentials from the environment. Set one of:
@@ -399,19 +456,24 @@ The credentials JSON file is downloaded from the Kognic platform under your acco
 ### Stage 3 Config Parameters
 
 ```yaml
-task: upload_dataset
+task: upload_kognic_dataset
 conversion:
   input_base: ./data/kognic_format
   organization_id: "114"
   workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
-  project_external_id: my_project
-  # batch: my_batch_id                     # optional
+  projects:
+    - external_id: my_cuboid_project
+      batch: my_cuboid_batch                 # optional; omit -> latest open batch
+      pre_annotation: pre_annotation.json    # optional; omit -> no pre-annotation
+    - external_id: my_semseg_project         # second input from the same scene
   target_hz: 1 # optional
   # annotation_interval_tolerance_s: 0.05  # optional; leniency (+/-) when matching target_hz
   dryrun: false
   motion_compensate: false
   include_imu_data: true
   write_debug_frames: false
+  # scene_creation_timeout_s: 1800          # optional; max wait for a scene to reach Created
+  # scene_creation_poll_interval_s: 10      # optional; poll cadence while waiting
 ```
 
 | Parameter                         | Required | Default | Description                                                                                                                                                                                                                                                                        |
@@ -419,14 +481,15 @@ conversion:
 | `input_base`                      | Yes      | —       | Path to the staged Kognic format data. Can be a single sequence directory (containing `calibration.json`) or a parent directory of multiple sequence subdirectories.                                                                                                               |
 | `organization_id`                 | Yes      | —       | Your Kognic organization ID (also accepted as `client_organization_id`).                                                                                                                                                                                                           |
 | `workspace_id`                    | Yes      | —       | The Kognic workspace UUID to write scenes into (also accepted as `write_workspace_id`).                                                                                                                                                                                            |
-| `project_external_id`             | No       | `None`  | External ID of an existing Kognic project to attach scenes to. If omitted, scenes are created without a project. The project must already exist and have an open batch.                                                                                                            |
-| `batch`                           | No       | `None`  | External ID of the batch within the project. If omitted, Kognic uses the latest open batch. Ignored when `project_external_id` is not set.                                                                                                                                         |
+| `projects`                        | No       | `[]`    | List of projects to create inputs in from the shared scene. Each entry has `external_id` (required) plus optional `batch` and `pre_annotation`. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations). If omitted/empty, the scene is created with no input. Each `(external_id, batch)` pair must be unique. |
 | `target_hz`                       | No       | `None`  | Controls which frames are marked `annotate=True`. All staged frames are uploaded regardless, but only frames at least `1 / target_hz` seconds apart are flagged for annotation. Omit to annotate every frame. See [Annotation Interval Selection](#annotation-interval-selection). |
 | `annotation_interval_tolerance_s` | No       | `None`  | Leniency in seconds (`+/-`) applied when checking the `target_hz` interval, so a frame near a nominal boundary isn't skipped. Defaults to half the median source frame interval; set `0` to disable. Ignored when `target_hz` is unset.                                            |
-| `dryrun`                          | No       | `false` | When `true`, validates the scene structure against the Kognic API but does not create a scene or upload sensor files. The calibration **is** uploaded for real even in dryrun mode. The returned scene UUID is recorded as `"dryrun"` in `dataset_id.json`.                        |
+| `dryrun`                          | No       | `false` | When `true`, validates the scene structure against the Kognic API but does not create a scene, upload sensor files, attach pre-annotations, or create inputs. The calibration **is** uploaded for real even in dryrun mode. The scene id is recorded as `"dryrun"` in `dataset_id.json`.                        |
 | `motion_compensate`               | No       | `false` | When `false`, sends `FeatureFlags()` disabling server-side motion compensation. When `true`, no feature flags are sent and Kognic applies its default motion compensation. Requires accurate IMU or ego-pose data.                                                                 |
 | `include_imu_data`                | No       | `true`  | When `true`, generates a 200 Hz IMU-like stream by interpolating `ego_poses.json` and attaches it. Requires at least two ego-pose entries; otherwise no IMU data is attached.                                                                                                      |
 | `write_debug_frames`              | No       | `false` | When `true`, writes a `frames_debug.json` next to each staged sequence after building the frame list — the full Kognic model dump, useful for inspecting what was sent without checking the platform UI.                                                                           |
+| `scene_creation_timeout_s`        | No       | `1800`  | Maximum time to wait for a created scene to reach `Created` before raising `TimeoutError`.                                                                                                                                                                                         |
+| `scene_creation_poll_interval_s`  | No       | `10`    | How often to poll the scene status while waiting for `Created`.                                                                                                                                                                                                                    |
 
 ### Frame Pairing and Calibration
 
@@ -464,14 +527,33 @@ With a strict check the `1.0s` frame is dropped and the cadence drifts to `0.0, 
 
 ### Stage 3 Output
 
-After each sequence is uploaded, the script appends to `dataset_id.json` under `input_base`, mapping each staged folder name to the returned Kognic scene UUID:
+After each sequence is uploaded, the script writes `dataset_id.json` under `input_base`, keyed by staged folder name. Each entry records the scene UUID and one record per created input (`project_name`, `batch_name`, `input_id`):
 
 ```json
 {
-  "sequence-name-a": "9f8d5889-6a89-4881-bb67-657cf1a0f95a",
-  "sequence-name-b": "dryrun"
+  "sequence-name-a": {
+    "scene_id": "9f8d5889-6a89-4881-bb67-657cf1a0f95a",
+    "inputs": [
+      { "project_name": "my_cuboid_project", "batch_name": "my_cuboid_batch", "input_id": "bbb" },
+      { "project_name": "my_semseg_project", "batch_name": "my_semseg_batch", "input_id": "ccc" }
+    ]
+  },
+  "sequence-name-b": { "scene_id": "dryrun", "inputs": [] }
 }
 ```
+
+`batch_name` is the configured batch (may be `null` when omitted, meaning the latest open batch was used). A project/batch with several annotation types yields one input record per type. Downstream cleanup tools (`delete_scenes.py`, `invalidate_unused_scenes.py`) read `scene_id` from this structure (and still accept the legacy flat `{name: scene_uuid}` form).
+
+#### Failure reporting
+
+Once a scene exists server-side it must end up with at least one input, or it is an orphan (no input, invisible to labelers). The uploader handles failures per sequence:
+
+- **Scene processing / pre-annotation fails** (before any input) → the orphan scene is invalidated and the failure recorded.
+- **All inputs fail** → the orphan scene is invalidated.
+- **Some inputs succeed, some fail** → the scene is **kept** (it is not an orphan); succeeded inputs are recorded in `dataset_id.json` and the failed `project/batch`es are reported so you can re-run to create just the missing inputs.
+- **Invalidation itself fails** (e.g. the scene is not yet queryable) → the scene is left on Kognic and reported as an orphan needing **manual** cleanup, rather than being silently reported as invalidated.
+
+At the end of the run the script exits non-zero with a summary listing scenes created without an input, orphans that could not be invalidated (as `external_id=scene_uuid`), and scenes kept with only partial inputs.
 
 ---
 
@@ -613,7 +695,7 @@ The local "Kognic format" produced by Stage 1 is a staging layout for Kognic IO,
 | `ego_poses.json`                      | Stage 1    | Frame-indexed ego poses relative to frame 0. Keys are frame indices as strings; values contain position and rotation quaternion.                                                             |
 | `cameras/<camera>/<timestamp_ns>.jpg` | Stage 1    | A copied camera image named by its nanosecond timestamp.                                                                                                                                     |
 | `lidar/<lidar>/<timestamp_ns>.csv`    | Stage 1    | A point cloud CSV with columns `ts_gps,x,y,z,intensity`. Per-source slice with `LIDAR_CONCAT_INFO`; whole fused `LIDAR_CONCAT` cloud without it. Points remain in `base_link`.               |
-| `pre_annotation.json`                 | Stage 2    | OpenLABEL pre-annotation of the T4 3D boxes, attached at upload time so labelers see the boxes pre-loaded.                                                                                   |
+| `pre_annotation.json`                 | Stage 2    | OpenLABEL pre-annotation of the T4 3D boxes. Attached at upload time to a project's input only when that project names it via `pre_annotation:`; other projects on the same scene can skip it. |
 | `frames_debug.json`                   | Stage 3    | A local forensic dump of the constructed scene (frame IDs, timestamps, metadata, images, point clouds). Not uploaded; useful in `dryrun` mode. Written only when `write_debug_frames: true`. |
 
 ### File Examples
@@ -674,6 +756,12 @@ ts_gps,x,y,z,intensity
 | Source point-cloud file missing                                    | Raises `FileNotFoundError`.                                                         |
 | Camera image folder has no JPGs when calibration is built          | Skips configured camera channels that have no files (allows LiDAR-only conversion). |
 | Pre-annotation frame can't be matched to a staging frame (Stage 2) | Drops that frame's annotations and logs the count.                                  |
+| Duplicate `(project, batch)` in `projects:` (Stage 3)              | Raises `ValueError` before any upload.                                              |
+| `pre_annotation:` names a file missing from the staging dir (Stage 3) | Raises `FileNotFoundError` (a named pre-annotation is required, not optional-if-absent). |
+| Scene-status query returns a transient `404` right after create (Stage 3) | Treated as "not yet queryable" and retried until `Created` or `scene_creation_timeout_s`. |
+| Scene created but no input could be attached (Stage 3)             | The orphan scene is invalidated; recorded as a failure to re-upload.                |
+| Some project inputs fail, others succeed (Stage 3)                 | Scene is kept; succeeded inputs recorded; failed `project/batch`es reported to re-run. |
+| Orphan scene can't be invalidated during cleanup (Stage 3)         | Scene left on Kognic and reported as needing manual invalidation (not silently dropped). |
 | OpenLABEL frame can't be matched to a T4 sample (Stage 5)          | Drops that frame's objects/segmentation and logs the count.                         |
 | Segmentation has more labels than points (Stage 5)                 | Skips that frame (the annotated cloud differs from this T4 extraction).             |
 | Segmentation RLE shorter than the cloud (Stage 5)                  | Pads trailing points as `background` (class 0); logs a warning per frame.           |
@@ -690,7 +778,9 @@ Outbound (T4 → Kognic):
     -> frame-indexed relative ego poses
     -> timestamp-named JPG images + per-lidar CSV point clouds
     -> (annotated) OpenLABEL pre_annotation.json in per-frame ego frame
-    -> uploader builds and sends the Kognic LidarsAndCamerasSequence
+    -> uploader sends ONE Kognic LidarsAndCamerasSequence scene per sequence
+    -> one input per configured project, each referencing its pre-annotation UUID or None
+       (so a cuboid project and a semseg project can share the single scene)
 
 Inbound (Kognic → T4):
   Completed Kognic annotations
