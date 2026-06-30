@@ -22,6 +22,7 @@ class KognicDownloadConfig:
     annotation_type: Optional[str] = None
     batch: Optional[str] = None
     scene_external_id: Optional[str] = None
+    scene_uuid: Optional[str] = None
     iso_rotated_cuboids: bool = False
 
 
@@ -30,6 +31,7 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
     organization_id = conversion.get("organization_id") or conversion.get("client_organization_id")
     workspace_id = conversion.get("workspace_id") or conversion.get("write_workspace_id")
     scene_external_id = conversion.get("scene_external_id")
+    scene_uuid = conversion.get("scene_id")
 
     if not organization_id:
         raise ValueError("conversion.organization_id is required")
@@ -37,11 +39,17 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
         raise ValueError("conversion.workspace_id is required")
     if not conversion.get("project_external_id"):
         raise ValueError("conversion.project_external_id is required")
-    # annotation_type is only needed for project-wide downloads; a per-scene
-    # download (scene_external_id set) fetches every annotation type for the scene.
-    if not scene_external_id and not conversion.get("annotation_type"):
+    if scene_external_id and scene_uuid:
         raise ValueError(
-            "conversion.annotation_type is required (unless conversion.scene_external_id is set)"
+            "Specify only one of conversion.scene_external_id or conversion.scene_id"
+        )
+    # annotation_type is only needed for project-wide downloads; a per-scene
+    # download (scene_external_id or scene_id set) fetches every annotation type
+    # for the scene.
+    if not scene_external_id and not scene_uuid and not conversion.get("annotation_type"):
+        raise ValueError(
+            "conversion.annotation_type is required "
+            "(unless conversion.scene_external_id or conversion.scene_id is set)"
         )
 
     return KognicDownloadConfig(
@@ -52,6 +60,7 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
         annotation_type=conversion.get("annotation_type"),
         batch=conversion.get("batch"),
         scene_external_id=scene_external_id,
+        scene_uuid=scene_uuid,
         iso_rotated_cuboids=conversion.get("iso_rotated_cuboids", False),
     )
 
@@ -89,11 +98,19 @@ class KognicAnnotationDownloader:
         return scene_uuids.pop()
 
     def download_scene(self) -> None:
-        scene_external_id = self.config.scene_external_id
-        scene_uuid = self._resolve_scene_uuid(scene_external_id)
+        # Either an external id (needs resolving) or the scene uuid directly.
+        if self.config.scene_uuid:
+            scene_uuid = self.config.scene_uuid
+            scene_label = f"scene_id={scene_uuid}"
+            stem_base = scene_uuid
+        else:
+            scene_external_id = self.config.scene_external_id
+            scene_uuid = self._resolve_scene_uuid(scene_external_id)
+            scene_label = f"scene_external_id={scene_external_id} (scene_uuid={scene_uuid})"
+            stem_base = scene_external_id
         logger.info(
-            f"Fetching annotations for scene_external_id={scene_external_id} "
-            f"(scene_uuid={scene_uuid}) in project {self.config.project_external_id}"
+            f"Fetching annotations for {scene_label} "
+            f"in project {self.config.project_external_id}"
         )
 
         annotations = self.kognic_io_client.annotation.get_annotations_for_scene(
@@ -102,7 +119,7 @@ class KognicAnnotationDownloader:
         )
 
         if not annotations:
-            logger.warning(f"No annotations found for scene_external_id={scene_external_id}")
+            logger.warning(f"No annotations found for {scene_label}")
             return
 
         logger.info(f"Found {len(annotations)} annotation(s)")
@@ -114,9 +131,7 @@ class KognicAnnotationDownloader:
         # with request_uid so they don't overwrite each other.
         multiple = len(annotations) > 1
         for annotation in annotations:
-            stem = (
-                f"{scene_external_id}_{annotation.request_uid}" if multiple else scene_external_id
-            )
+            stem = f"{stem_base}_{annotation.request_uid}" if multiple else stem_base
             out_path = out_dir / f"{stem}.json"
             with open(out_path, "w") as f:
                 json.dump(annotation.content, f, indent=2)
@@ -125,11 +140,13 @@ class KognicAnnotationDownloader:
         logger.info(f"Done. {len(annotations)} annotation(s) written to {self.config.output_base}")
 
     def download(self) -> None:
-        if self.config.scene_external_id:
-            logger.info(
-                f"Scene external ID specified ({self.config.scene_external_id}), "
-                f"downloading annotations for that scene only."
+        if self.config.scene_external_id or self.config.scene_uuid:
+            ref = (
+                f"scene ID {self.config.scene_uuid}"
+                if self.config.scene_uuid
+                else f"scene external ID {self.config.scene_external_id}"
             )
+            logger.info(f"{ref} specified, downloading annotations for that scene only.")
             self.download_scene()
         else:
             logger.info(

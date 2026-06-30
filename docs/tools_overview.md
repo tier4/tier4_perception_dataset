@@ -172,7 +172,7 @@ python -m perception_dataset.kognic.download_annotation --config config/download
 The download mode is auto-detected from the config:
 
 - **Project-wide** (`download_kognic_annotation_whole_project.yaml`): set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene.
-- **Single scene** (`download_kognic_annotation_per_dataset_sample.yaml`): set `scene_external_id` to download all annotations for that one scene. The external id is resolved to its scene UUID via the project's inputs, then `annotation_type`/`batch` are ignored. Files are written as `<scene_external_id>.json` (suffixed with the request id when a scene has multiple annotations).
+- **Single scene** (`download_kognic_annotation_per_dataset_sample.yaml`): set either `scene_external_id` or `scene_id` (the scene UUID) to download all annotations for that one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. Either way, `annotation_type`/`batch` are ignored. Files are written as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations).
 
 Both write to `output_base/<project_external_id>/`.
 
@@ -184,9 +184,10 @@ Config parameters (`conversion`):
 | `organization_id`     | yes                                    | Kognic client organization id (alias: `client_organization_id`)              |
 | `workspace_id`        | yes                                    | Kognic workspace id (alias: `write_workspace_id`)                            |
 | `project_external_id` | yes                                    | project to download from                                                     |
-| `annotation_type`     | yes, unless `scene_external_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`)              |
+| `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`)              |
 | `batch`               | no                                     | restrict project-wide download to one batch (omit for all batches)           |
 | `scene_external_id`   | no                                     | download a single scene by external id instead of the whole project          |
+| `scene_id`            | no                                     | download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id` |
 | `iso_rotated_cuboids` | no                                     | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame |
 
 ### Kognic annotations to T4 annotation tables
