@@ -601,17 +601,17 @@ conversion:
   iso_rotated_cuboids: false
 ```
 
-| key                   | required                               | description                                                                                                                                                                   |
-| --------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `output_base`         | yes                                    | Directory where annotation JSONs are written.                                                                                                                                 |
-| `organization_id`     | yes                                    | Kognic client organization id (alias: `client_organization_id`).                                                                                                              |
-| `workspace_id`        | yes                                    | Kognic workspace id (alias: `write_workspace_id`).                                                                                                                            |
-| `project_external_id` | yes                                    | Project to download from.                                                                                                                                                     |
+| key                   | required                                          | description                                                                                                                                                                   |
+| --------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `output_base`         | yes                                               | Directory where annotation JSONs are written.                                                                                                                                 |
+| `organization_id`     | yes                                               | Kognic client organization id (alias: `client_organization_id`).                                                                                                              |
+| `workspace_id`        | yes                                               | Kognic workspace id (alias: `write_workspace_id`).                                                                                                                            |
+| `project_external_id` | yes                                               | Project to download from.                                                                                                                                                     |
 | `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | Annotation type to download (e.g. `lidar-cuboid`, `camera-tag`).                                                                                                              |
-| `batch`               | no                                     | Restrict project-wide download to one batch (omit for all batches).                                                                                                           |
-| `scene_external_id`   | no                                     | Download a single scene by external id instead of the whole project.                                                                                                          |
-| `scene_id`            | no                                     | Download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`.                                                |
-| `iso_rotated_cuboids` | no                                     | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame. **Must match the value used in [Stage 5](#stage-5--kognic-annotations--t4-annotation-tables).** |
+| `batch`               | no                                                | Restrict project-wide download to one batch (omit for all batches).                                                                                                           |
+| `scene_external_id`   | no                                                | Download a single scene by external id instead of the whole project.                                                                                                          |
+| `scene_id`            | no                                                | Download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`.                                               |
+| `iso_rotated_cuboids` | no                                                | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame. **Must match the value used in [Stage 5](#stage-5--kognic-annotations--t4-annotation-tables).** |
 
 ---
 

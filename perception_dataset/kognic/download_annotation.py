@@ -40,9 +40,7 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
     if not conversion.get("project_external_id"):
         raise ValueError("conversion.project_external_id is required")
     if scene_external_id and scene_uuid:
-        raise ValueError(
-            "Specify only one of conversion.scene_external_id or conversion.scene_id"
-        )
+        raise ValueError("Specify only one of conversion.scene_external_id or conversion.scene_id")
     # annotation_type is only needed for project-wide downloads; a per-scene
     # download (scene_external_id or scene_id set) fetches every annotation type
     # for the scene.
