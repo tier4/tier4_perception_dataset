@@ -671,6 +671,7 @@ class KognicDatasetUploader:
         reference_timestamp = None
         min_interval_ns = int(1e9 / self.config.target_hz) if self.config.target_hz else 0
         last_annotated_ts: Optional[int] = None
+        tolerance_ns = 0  # default: strict interval
 
         frame_records = list(self.iterate_frames(sequence_path))
 
