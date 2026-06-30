@@ -1,6 +1,6 @@
-task: upload_dataset
+task: upload_kognic_dataset
 conversion:
-  input_base: ./data/kognic_format_annotated
+  input_base: ./data/kognic_format
   organization_id: 114
   workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
   # The sensor data is uploaded ONCE as a single scene shared by all projects;
