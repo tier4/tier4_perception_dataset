@@ -53,9 +53,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
     def convert(self) -> None:
         start = time.time()
 
-        for seq_path, out_dir in iter_scene_pairs(
-            Path(self._input_base), Path(self._output_base)
-        ):
+        for seq_path, out_dir in iter_scene_pairs(Path(self._input_base), Path(self._output_base)):
             logger.info(f"[BEGIN] {seq_path} -> {out_dir}")
             self._convert_one_scene(seq_path, out_dir)
             logger.info(f"[DONE]  {seq_path} -> {out_dir}")
