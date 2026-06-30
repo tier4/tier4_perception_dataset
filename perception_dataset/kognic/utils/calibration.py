@@ -47,10 +47,10 @@ def extract_calibration(
             continue
 
         calib = calib_by_sensor_token[sensor_token]
-        translation = calib["translation"]
-        rotation = calib["rotation"]  # [w, x, y, z]
-        intrinsic = calib["camera_intrinsic"]
-        distortion = calib["camera_distortion"]
+        translation = calib.translation
+        rotation = calib.rotation  # [w, x, y, z]
+        intrinsic = calib.camera_intrinsic
+        distortion = calib.camera_distortion
         width, height = read_image_dims(sample_data_by_channel, seq_path, camera_channel)
 
         calibration[camera_channel] = KognicModel.PinholeCalibration(
@@ -106,8 +106,8 @@ def read_image_dims(
     omit image dimensions.
     """
     for sample_data in sample_data_by_channel.get(camera_channel, []):
-        width = int(sample_data.get("width") or 0)
-        height = int(sample_data.get("height") or 0)
+        width = int(sample_data.width or 0)
+        height = int(sample_data.height or 0)
         if width > 0 and height > 0:
             return width, height
 
@@ -139,6 +139,6 @@ def _has_existing_channel_file(
     channel: str,
 ) -> bool:
     return any(
-        (seq_path / sample_data["filename"]).exists()
+        (seq_path / sample_data.filename).exists()
         for sample_data in sample_data_by_channel.get(channel, [])
     )

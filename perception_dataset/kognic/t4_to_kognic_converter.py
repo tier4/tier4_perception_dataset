@@ -6,6 +6,8 @@ from pathlib import Path
 import time
 from typing import Dict, List, Optional, Tuple
 
+from t4_devkit import Tier4
+
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.utils import extract_calibration, extract_ego_poses
@@ -171,47 +173,42 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 channel_to_token=self._channel_to_token,
             )
 
-    def _load_annotation(self, seq_path: Path, name: str) -> list | dict:
-        with open(seq_path / "annotation" / name) as f:
-            return json.load(f)
-
     def _build_lookup_maps(self, seq_path: Path) -> None:
-        sensors = self._load_annotation(seq_path, "sensor.json")
+        t4 = Tier4(data_root=str(seq_path), verbose=False)
+
+        sensors = t4.get_table("sensor")
         self._sensors = sensors
-        self._token_to_channel = {s["token"]: s["channel"] for s in sensors}
-        self._channel_to_token = {s["channel"]: s["token"] for s in sensors}
+        self._token_to_channel = {s.token: s.channel for s in sensors}
+        self._channel_to_token = {s.channel: s.token for s in sensors}
 
-        calib_sensors = self._load_annotation(seq_path, "calibrated_sensor.json")
-        self._calib_by_token = {c["token"]: c for c in calib_sensors}
-        self._calib_by_sensor_token = {c["sensor_token"]: c for c in calib_sensors}
+        calib_sensors = t4.get_table("calibrated_sensor")
+        self._calib_by_token = {c.token: c for c in calib_sensors}
+        self._calib_by_sensor_token = {c.sensor_token: c for c in calib_sensors}
 
-        samples = self._load_annotation(seq_path, "sample.json")
-        self._samples = sorted(samples, key=lambda s: s["timestamp"])
+        samples = t4.get_table("sample")
+        self._samples = sorted(samples, key=lambda s: s.timestamp)
 
         self._sample_data_by_sample: Dict[str, list] = {}
         self._sample_data_by_channel: Dict[str, list] = {}
-        self._sample_data_by_channel_and_frame_id: Dict[str, Dict[str, dict]] = {}
-        sample_data = self._load_annotation(seq_path, "sample_data.json")
-        for sd in sample_data:
-            self._sample_data_by_sample.setdefault(sd["sample_token"], []).append(sd)
-            calib = self._calib_by_token.get(sd["calibrated_sensor_token"])
-            if not calib:
-                continue
-            channel = self._token_to_channel.get(calib["sensor_token"])
+        self._sample_data_by_channel_and_frame_id: Dict[str, Dict[str, object]] = {}
+        for sd in t4.get_table("sample_data"):
+            self._sample_data_by_sample.setdefault(sd.sample_token, []).append(sd)
+            # Tier4 resolves the channel (sample_data -> calibrated_sensor ->
+            # sensor) for us, so use it directly instead of re-deriving it.
+            channel = sd.channel
             if not channel:
                 continue
             self._sample_data_by_channel.setdefault(channel, []).append(sd)
-            frame_id = Path(sd["filename"]).stem.split(".")[0]
+            frame_id = Path(sd.filename).stem.split(".")[0]
             self._sample_data_by_channel_and_frame_id.setdefault(channel, {})[frame_id] = sd
 
         for channel in self._sample_data_by_channel:
             self._sample_data_by_channel[channel] = sorted(
                 self._sample_data_by_channel[channel],
-                key=lambda sample_data_record: sample_data_record["timestamp"],
+                key=lambda sample_data_record: sample_data_record.timestamp,
             )
 
-        ego_poses = self._load_annotation(seq_path, "ego_pose.json")
-        self._ego_pose_by_token = {ep["token"]: ep for ep in ego_poses}
+        self._ego_pose_by_token = {ep.token: ep for ep in t4.get_table("ego_pose")}
 
     def _discover_lidar_channels(self) -> List[str]:
         if not self._has_lidar_concat_info:
@@ -220,18 +217,18 @@ class T4ToKognicConverter(AbstractConverter[None]):
             return []
 
         return [
-            sensor["channel"]
+            sensor.channel
             for sensor in self._sensors
-            if sensor.get("modality") == "lidar" and sensor.get("channel") != LIDAR_CONCAT_CHANNEL
+            if sensor.modality.value == "lidar" and sensor.channel != LIDAR_CONCAT_CHANNEL
         ]
 
     def _has_existing_channel_file(self, seq_path: Path, channel: str) -> bool:
         return any(
-            (seq_path / sample_data["filename"]).exists()
+            (seq_path / sample_data.filename).exists()
             for sample_data in self._sample_data_by_channel.get(channel, [])
         )
 
-    def _build_frame_records(self) -> List[Dict[str, dict]]:
+    def _build_frame_records(self) -> List[Dict[str, object]]:
         """Build one output frame per record of the high-frequency anchor stream.
 
         Every ``sample_data.json`` record of the anchor channel is exported —
@@ -240,10 +237,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
         """
         anchor_channel = self._select_anchor_channel()
         anchor_records = self._sample_data_by_channel.get(anchor_channel, [])
-        frame_records: List[Dict[str, dict]] = []
+        frame_records: List[Dict[str, object]] = []
         for anchor_record in anchor_records:
-            frame_id = Path(anchor_record["filename"]).stem.split(".")[0]
-            frame_record: Dict[str, dict] = {}
+            frame_id = Path(anchor_record.filename).stem.split(".")[0]
+            frame_record: Dict[str, object] = {}
 
             for channel in self._channels_for_frame_records():
                 sample_data = self._sample_data_by_channel_and_frame_id.get(channel, {}).get(
@@ -273,7 +270,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
     def _channels_for_frame_records(self) -> List[str]:
         return [LIDAR_CONCAT_CHANNEL, *self._camera_channels]
 
-    def _get_reference_sample_data(self, frame_record: Dict[str, dict]) -> Optional[dict]:
+    def _get_reference_sample_data(self, frame_record: Dict[str, object]) -> Optional[object]:
         if LIDAR_CONCAT_CHANNEL in frame_record:
             return frame_record[LIDAR_CONCAT_CHANNEL]
 
@@ -308,8 +305,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
                     logger.warning(f"Camera {camera_channel} missing for selected frame; skipping")
                 continue
 
-            timestamp_ns = int(sample_data["timestamp"]) * 1000
-            src = seq_path / sample_data["filename"]
+            timestamp_ns = int(sample_data.timestamp) * 1000
+            src = seq_path / sample_data.filename
             dst = camera_dir / f"{timestamp_ns}.jpg"
             if src.exists() and not dst.exists():
                 copies.append((src, dst))

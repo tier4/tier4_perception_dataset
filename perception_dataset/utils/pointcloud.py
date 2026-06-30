@@ -97,12 +97,12 @@ def extract_pointclouds(
         if concat_sample_data is None:
             continue
 
-        bin_path = seq_path / concat_sample_data["filename"]
+        bin_path = seq_path / concat_sample_data.filename
         if not bin_path.exists():
             raise FileNotFoundError(f"Required LIDAR_CONCAT point cloud is missing: {bin_path}")
 
         if lidar_channel == LIDAR_CONCAT_CHANNEL:
-            timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
+            timestamp_ns = int(concat_sample_data.timestamp) * 1000
             floats = np.fromfile(bin_path, dtype=np.float32)
             points = floats.reshape(-1, detect_point_stride(floats, bin_path))
             csv_path = lidar_dir / f"{timestamp_ns}.csv"
@@ -110,11 +110,11 @@ def extract_pointclouds(
             count += 1
             continue
 
-        info_filename = concat_sample_data.get("info_filename")
+        info_filename = concat_sample_data.info_filename
         if not info_filename:
             raise FileNotFoundError(
                 f"LIDAR_CONCAT_INFO is required but missing in sample_data for "
-                f"sample_data {concat_sample_data['token']}"
+                f"sample_data {concat_sample_data.token}"
             )
 
         info_path = seq_path / info_filename
@@ -146,7 +146,7 @@ def extract_pointclouds(
 
         timestamp_ns = stamp_to_ns(source.get("stamp"))
         if timestamp_ns is None:
-            timestamp_ns = int(concat_sample_data["timestamp"]) * 1000
+            timestamp_ns = int(concat_sample_data.timestamp) * 1000
 
         points = np.frombuffer(raw, dtype=np.float32).reshape(-1, stride)
         csv_path = lidar_dir / f"{timestamp_ns}.csv"

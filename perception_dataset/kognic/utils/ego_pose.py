@@ -36,7 +36,7 @@ def extract_ego_poses(
     for frame_record in frame_records:
         sample_data = _get_reference_sample_data(frame_record, camera_channels)
         if sample_data is not None:
-            frame_ego_tokens.append(sample_data["ego_pose_token"])
+            frame_ego_tokens.append(sample_data.ego_pose_token)
 
     if not frame_ego_tokens:
         logger.warning("No ego poses found")
@@ -91,10 +91,10 @@ def _get_reference_sample_data(
     return next(iter(frame_record.values()), None)
 
 
-def _build_transform(ego_pose: dict, inverse: bool = False) -> np.ndarray:
+def _build_transform(ego_pose, inverse: bool = False) -> np.ndarray:
     """Build a 4x4 transform from a T4 ego_pose record (rotation is ``[w, x, y, z]``)."""
     return transform_matrix(
-        translation=np.array(ego_pose["translation"]),
-        rotation=Quaternion(ego_pose["rotation"]),
+        translation=np.array(ego_pose.translation),
+        rotation=Quaternion(ego_pose.rotation),
         inverse=inverse,
     )

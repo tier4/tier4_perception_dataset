@@ -864,8 +864,8 @@ def main():
         config_dict = yaml.safe_load(f)
 
     assert (
-        config_dict["task"] == "upload_dataset"
-    ), f"use config file of upload_dataset task: {config_dict['task']}"
+        config_dict["task"] == "upload_kognic_dataset"
+    ), f"use config file of upload_kognic_dataset task: {config_dict['task']}"
 
     upload_config = _load_upload_config(config_dict)
     uploader = KognicDatasetUploader(upload_config)
