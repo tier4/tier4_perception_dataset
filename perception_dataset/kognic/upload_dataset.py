@@ -902,7 +902,9 @@ def main():
                 "inputs": result.inputs,
             }
             if result.failed_inputs:
-                partial.append(f"{result.external_id} (scene kept): {', '.join(result.failed_inputs)}")
+                partial.append(
+                    f"{result.external_id} (scene kept): {', '.join(result.failed_inputs)}"
+                )
         _persist_dataset_ids()
         time_end = time.time()
         logger.info(f"Time taken to upload {dataset_name}: {time_end - time_start} seconds")
