@@ -12,8 +12,8 @@ import numpy as np
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, PREFERRED_LIDAR_SENSORS
 from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cuboid_val
-from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
 from perception_dataset.kognic.upload_dataset import _sensor_sort_key, _sort_key
+from perception_dataset.kognic.utils import iter_scene_pairs
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
@@ -69,7 +69,9 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
     def convert(self) -> None:
         start = time.time()
 
-        for seq_path, staging_dir in self._iter_scene_pairs():
+        for seq_path, staging_dir in iter_scene_pairs(
+            Path(self._input_base), Path(self._output_base)
+        ):
             if not (staging_dir / "lidar").is_dir():
                 logger.warning(
                     f"No Kognic staging directory with lidar data at {staging_dir}; "
@@ -81,46 +83,6 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             logger.info(f"[DONE]  {seq_path}")
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
-
-    # ------------------------------------------------------------------
-    # Sequence discovery (mirrors T4ToKognicConverter so names line up)
-    # ------------------------------------------------------------------
-
-    def _iter_scene_pairs(self) -> List[Tuple[Path, Path]]:
-        input_base = Path(self._input_base)
-        output_base = Path(self._output_base)
-
-        if T4ToKognicConverter._is_sequence_root(input_base):
-            return [(input_base, output_base / input_base.name)]
-
-        pairs: List[Tuple[Path, Path]] = []
-        for item in sorted(p for p in input_base.iterdir() if p.is_dir()):
-            if item.name == "extracted_data":
-                continue
-
-            seq_roots = self._find_sequence_roots(item)
-            if not seq_roots:
-                logger.warning(f"No T4 sequence root found under {item}; skipping")
-                continue
-
-            if len(seq_roots) == 1:
-                pairs.append((seq_roots[0], output_base / item.name))
-            else:
-                for seq_root in seq_roots:
-                    pairs.append((seq_root, output_base / item.name / seq_root.name))
-
-        return pairs
-
-    @staticmethod
-    def _find_sequence_roots(root: Path) -> List[Path]:
-        if T4ToKognicConverter._is_sequence_root(root):
-            return [root]
-
-        return sorted(
-            path
-            for path in root.rglob("*")
-            if T4ToKognicConverter._is_sequence_root(path) and "extracted_data" not in path.parts
-        )
 
     # ------------------------------------------------------------------
     # Scene conversion

@@ -1,16 +1,18 @@
 from concurrent.futures import ThreadPoolExecutor
-import glob
 import json
-import os.path as osp
 from pathlib import Path
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from t4_devkit import Tier4
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
-from perception_dataset.kognic.utils import extract_calibration, extract_ego_poses
+from perception_dataset.kognic.utils import (
+    extract_calibration,
+    extract_ego_poses,
+    iter_scene_pairs,
+)
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.pointcloud import (
     copy_file,
@@ -51,69 +53,14 @@ class T4ToKognicConverter(AbstractConverter[None]):
     def convert(self) -> None:
         start = time.time()
 
-        for seq_path, out_dir in self._iter_input_sequences():
+        for seq_path, out_dir in iter_scene_pairs(
+            Path(self._input_base), Path(self._output_base)
+        ):
             logger.info(f"[BEGIN] {seq_path} -> {out_dir}")
             self._convert_one_scene(seq_path, out_dir)
             logger.info(f"[DONE]  {seq_path} -> {out_dir}")
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
-
-    # ------------------------------------------------------------------
-    # Sequence discovery
-    # ------------------------------------------------------------------
-
-    def _iter_input_sequences(self) -> List[Tuple[Path, Path]]:
-        input_base = Path(self._input_base)
-        output_base = Path(self._output_base)
-
-        if self._is_sequence_root(input_base):
-            return [(input_base, output_base / input_base.name)]
-
-        pairs: List[Tuple[Path, Path]] = []
-        for item in sorted(Path(path) for path in glob.glob(osp.join(self._input_base, "*"))):
-            if not item.is_dir() or item.name == "extracted_data":
-                continue
-
-            seq_roots = self._find_sequence_roots(item)
-            if not seq_roots:
-                logger.warning(f"No T4 sequence root found under {item}; skipping")
-                continue
-
-            if len(seq_roots) == 1:
-                pairs.append((seq_roots[0], output_base / item.name))
-            else:
-                for seq_root in seq_roots:
-                    pairs.append((seq_root, output_base / item.name / seq_root.name))
-
-        return pairs
-
-    def _find_sequence_roots(self, root: Path) -> List[Path]:
-        if self._is_sequence_root(root):
-            return [root]
-
-        return sorted(
-            path
-            for path in root.rglob("*")
-            if self._is_sequence_root(path) and "extracted_data" not in path.parts
-        )
-
-    @staticmethod
-    def _is_sequence_root(path: Path) -> bool:
-        annotation_dir = path / "annotation"
-        data_dir = path / "data"
-        required_annotations = [
-            "sensor.json",
-            "calibrated_sensor.json",
-            "sample.json",
-            "sample_data.json",
-            "ego_pose.json",
-        ]
-        return (
-            path.is_dir()
-            and annotation_dir.is_dir()
-            and data_dir.is_dir()
-            and all((annotation_dir / name).exists() for name in required_annotations)
-        )
 
     # ------------------------------------------------------------------
     # Scene conversion
@@ -188,11 +135,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
         samples = t4.get_table("sample")
         self._samples = sorted(samples, key=lambda s: s.timestamp)
 
-        self._sample_data_by_sample: Dict[str, list] = {}
         self._sample_data_by_channel: Dict[str, list] = {}
         self._sample_data_by_channel_and_frame_id: Dict[str, Dict[str, object]] = {}
         for sd in t4.get_table("sample_data"):
-            self._sample_data_by_sample.setdefault(sd.sample_token, []).append(sd)
             # Tier4 resolves the channel (sample_data -> calibrated_sensor ->
             # sensor) for us, so use it directly instead of re-deriving it.
             channel = sd.channel
@@ -269,16 +214,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
 
     def _channels_for_frame_records(self) -> List[str]:
         return [LIDAR_CONCAT_CHANNEL, *self._camera_channels]
-
-    def _get_reference_sample_data(self, frame_record: Dict[str, object]) -> Optional[object]:
-        if LIDAR_CONCAT_CHANNEL in frame_record:
-            return frame_record[LIDAR_CONCAT_CHANNEL]
-
-        for camera_channel in self._camera_channels:
-            if camera_channel in frame_record:
-                return frame_record[camera_channel]
-
-        return next(iter(frame_record.values()), None)
 
     # ------------------------------------------------------------------
     # Sensor data
