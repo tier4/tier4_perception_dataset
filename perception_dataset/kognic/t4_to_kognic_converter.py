@@ -12,6 +12,7 @@ from perception_dataset.kognic.utils import (
     extract_calibration,
     extract_ego_poses,
     iter_scene_pairs,
+    read_image_dims,
 )
 from perception_dataset.utils.logger import configure_logger
 from perception_dataset.utils.pointcloud import (
@@ -49,6 +50,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
+        # Cache one blank black image per camera, sized to that camera's frames,
+        # reused for every frame that is missing an image (see
+        # ``_write_blank_image``).
+        self._blank_image_cache: Dict[str, object] = {}
 
     def convert(self) -> None:
         start = time.time()
@@ -231,18 +236,81 @@ class T4ToKognicConverter(AbstractConverter[None]):
         camera_dir.mkdir(parents=True, exist_ok=True)
 
         copies: List[Tuple[Path, Path]] = []
+        blanks_written = 0
         for frame_record in self._frame_records:
             sample_data = frame_record.get(camera_channel)
-            if sample_data is None:
-                if self._drop_camera_token_not_found:
-                    logger.warning(f"Camera {camera_channel} missing for selected frame; skipping")
+
+            src: Path | None = None
+            if sample_data is not None:
+                timestamp_ns = int(sample_data.timestamp) * 1000
+                candidate = seq_path / sample_data.filename
+                if candidate.exists():
+                    src = candidate
+            else:
+                # No sample_data for this camera in this frame; use a neighbouring
+                # synchronised sensor's timestamp so the blank image sorts into the
+                # correct frame position at upload time.
+                timestamp_ns = self._frame_timestamp_ns(frame_record)
+
+            dst = camera_dir / f"{timestamp_ns}.jpg"
+            if dst.exists():
                 continue
 
-            timestamp_ns = int(sample_data.timestamp) * 1000
-            src = seq_path / sample_data.filename
-            dst = camera_dir / f"{timestamp_ns}.jpg"
-            if src.exists() and not dst.exists():
+            if src is not None:
                 copies.append((src, dst))
+                continue
 
-        logger.info(f"{camera_channel}: {len(copies)} image copies queued")
+            if self._drop_camera_token_not_found:
+                logger.warning(f"Camera {camera_channel} missing for selected frame; dropping")
+                continue
+
+            # Kognic requires every calibrated camera to be present in every
+            # frame; a gap fails scene validation ("Sensors: [...] not present in
+            # frame: N"). Fill it with a blank black image so the frame validates.
+            logger.warning(
+                f"Camera {camera_channel} missing for frame at {timestamp_ns}; "
+                "writing a blank black image so the frame stays valid for Kognic"
+            )
+            self._write_blank_image(seq_path, camera_channel, dst)
+            blanks_written += 1
+
+        logger.info(
+            f"{camera_channel}: {len(copies)} image copies queued, "
+            f"{blanks_written} blank images written"
+        )
         return copies
+
+    def _frame_timestamp_ns(self, frame_record: Dict[str, object]) -> int:
+        """Representative frame timestamp (ns) from any sensor present in it.
+
+        Used to name a blank filler image when a camera has no sample_data for a
+        frame. Sensors in one frame are time-synchronised, so a neighbour's
+        timestamp places the blank at the right sort position for the missing
+        camera. T4 timestamps are microseconds, hence ``* 1000``.
+        """
+        for channel in self._channels_for_frame_records():
+            sample_data = frame_record.get(channel)
+            if sample_data is not None:
+                return int(sample_data.timestamp) * 1000
+        return 0
+
+    def _write_blank_image(self, seq_path: Path, camera_channel: str, dst: Path) -> None:
+        """Write a black JPEG matching *camera_channel*'s resolution to *dst*."""
+        try:
+            from PIL import Image
+        except ImportError as exc:
+            raise RuntimeError(
+                f"Pillow is required to write a blank filler image for camera "
+                f"{camera_channel}; install it or set drop_camera_token_not_found."
+            ) from exc
+
+        image = self._blank_image_cache.get(camera_channel)
+        if image is None:
+            width, height = read_image_dims(
+                self._sample_data_by_channel, seq_path, camera_channel
+            )
+            image = Image.new("RGB", (width, height), (0, 0, 0))
+            self._blank_image_cache[camera_channel] = image
+
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        image.save(dst, format="JPEG")
