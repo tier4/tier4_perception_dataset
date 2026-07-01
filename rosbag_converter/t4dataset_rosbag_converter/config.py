@@ -68,7 +68,11 @@ def _unique_topics(topics: list[str]) -> list[str]:
 
 def _concat_options(config: dict[str, Any], *, base_dir: Path) -> dict[str, Any]:
     strategy_config = config.get("matching_strategy", {}) or {}
-    strategy = strategy_config.get("type", strategy_config) if isinstance(strategy_config, dict) else strategy_config
+    strategy = (
+        strategy_config.get("type", strategy_config)
+        if isinstance(strategy_config, dict)
+        else strategy_config
+    )
     options: dict[str, Any] = {}
     param_file = config.get("param_file") or config.get("concat_param_file")
     if param_file:
@@ -84,7 +88,11 @@ def _concat_options(config: dict[str, Any], *, base_dir: Path) -> dict[str, Any]
         options["is_motion_compensated"] = bool(config["is_motion_compensated"])
     if "output_timestamp_offset_sec" in config:
         options["output_timestamp_offset_sec"] = float(config["output_timestamp_offset_sec"])
-    for key in ("lidar_timestamp_offsets", "lidar_timestamp_noise_window", "input_timestamp_offsets"):
+    for key in (
+        "lidar_timestamp_offsets",
+        "lidar_timestamp_noise_window",
+        "input_timestamp_offsets",
+    ):
         value = config.get(key)
         if value is None and isinstance(strategy_config, dict):
             value = strategy_config.get(key)
@@ -123,7 +131,12 @@ def _distortion_options(config: dict[str, Any], *, base_dir: Path) -> dict[str, 
         for key in ("use_imu", "use_3d_distortion_correction", "update_azimuth_and_distance"):
             if key in params:
                 options[key] = params[key]
-    for key in ("enabled", "use_imu", "use_3d_distortion_correction", "update_azimuth_and_distance"):
+    for key in (
+        "enabled",
+        "use_imu",
+        "use_3d_distortion_correction",
+        "update_azimuth_and_distance",
+    ):
         if key in config:
             options[key] = config[key]
     for key in ("input_imu_topic", "input_twist_topic"):
@@ -172,7 +185,9 @@ def load_config(path: str | Path) -> ConverterConfig:
     if not lidar_topics:
         raise ValueError("inject_concatenated_pointcloud.config.lidar_topics must not be empty")
     if not any(topic.is_reset_topic for topic in lidar_topics):
-        lidar_topics = [lidar_topics[0].__class__(**{**lidar_topics[0].__dict__, "is_reset_topic": True})] + lidar_topics[1:]
+        lidar_topics = [
+            lidar_topics[0].__class__(**{**lidar_topics[0].__dict__, "is_reset_topic": True})
+        ] + lidar_topics[1:]
 
     t4_task = _find_task(raw, "convert_rosbag2_to_non_annotated_t4")
     if t4_task is None:

@@ -10,9 +10,7 @@ from sensor_msgs.msg import PointCloud2
 import yaml
 
 from .models import LidarSource
-from .pointcloud import normalize_pointcloud_layout
-from .pointcloud import stamp_from_seconds
-from .pointcloud import stamp_to_seconds
+from .pointcloud import normalize_pointcloud_layout, stamp_from_seconds, stamp_to_seconds
 
 
 @dataclass(frozen=True)
@@ -44,7 +42,9 @@ class PointCloudConcatenator:
         self._input_topics = [source.info_topic for source in sources]
         self._packet_topics = [source.packet_topic for source in sources]
         self._options = options or {}
-        self._param_options = _load_param_options(self._options.get("param_file"), self._input_topics)
+        self._param_options = _load_param_options(
+            self._options.get("param_file"), self._input_topics
+        )
         self._input_timestamp_offsets = self._topic_offset_map("input_timestamp_offsets")
 
         strategy = str(self._option("matching_strategy", "advanced"))

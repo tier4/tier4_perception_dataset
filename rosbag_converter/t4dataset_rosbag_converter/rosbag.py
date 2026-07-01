@@ -5,18 +5,18 @@ from pathlib import Path
 from typing import Iterable
 
 from geometry_msgs.msg import TransformStamped
-from rclpy.serialization import deserialize_message
-from rclpy.serialization import serialize_message
-from rosbag2_py import ConverterOptions
-from rosbag2_py import SequentialReader
-from rosbag2_py import SequentialWriter
-from rosbag2_py import StorageFilter
-from rosbag2_py import StorageOptions
-from rosbag2_py import TopicMetadata
+from rclpy.serialization import deserialize_message, serialize_message
+from rosbag2_py import (
+    ConverterOptions,
+    SequentialReader,
+    SequentialWriter,
+    StorageFilter,
+    StorageOptions,
+    TopicMetadata,
+)
 from rosidl_runtime_py.utilities import get_message
 
-from .geometry import RigidTransform
-from .geometry import rigid_from_matrix
+from .geometry import RigidTransform, rigid_from_matrix
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,9 @@ class SequentialBagReader:
             storage_id = _infer_storage_id(bag_path)
             reader.open(
                 StorageOptions(uri=str(bag_path), storage_id=storage_id),
-                ConverterOptions(input_serialization_format="cdr", output_serialization_format="cdr"),
+                ConverterOptions(
+                    input_serialization_format="cdr", output_serialization_format="cdr"
+                ),
             )
             if topics is not None:
                 reader.set_filter(StorageFilter(topics=sorted(topics)))
@@ -62,7 +64,9 @@ class SequentialBagReader:
             reader = SequentialReader()
             reader.open(
                 StorageOptions(uri=str(bag_path), storage_id=infer_storage_id(bag_path)),
-                ConverterOptions(input_serialization_format="cdr", output_serialization_format="cdr"),
+                ConverterOptions(
+                    input_serialization_format="cdr", output_serialization_format="cdr"
+                ),
             )
             for topic in reader.get_all_topics_and_types():
                 metadata.setdefault(topic.name, topic)

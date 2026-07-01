@@ -7,10 +7,9 @@ from rclpy.duration import Duration
 from tf2_msgs.msg import TFMessage
 from tf2_py import BufferCore
 
-from .camera_calibration import CameraCalibration
 from .calibration import CalibrationSet
-from .geometry import RigidTransform
-from .geometry import quat_from_rpy
+from .camera_calibration import CameraCalibration
+from .geometry import RigidTransform, quat_from_rpy
 from .pointcloud import stamp_from_seconds
 from .rosbag import transform_stamped_to_rigid
 
@@ -54,7 +53,9 @@ class TfManager:
         )
         self.add_static_transform(transform)
 
-    def lookup(self, target_frame: str, source_frame: str, timestamp: float) -> RigidTransform | None:
+    def lookup(
+        self, target_frame: str, source_frame: str, timestamp: float
+    ) -> RigidTransform | None:
         try:
             msg = self._buffer.lookup_transform_core(
                 target_frame,
@@ -65,10 +66,14 @@ class TfManager:
             return None
         return transform_stamped_to_rigid(msg)
 
-    def lookup_required(self, target_frame: str, source_frame: str, timestamp: float) -> RigidTransform:
+    def lookup_required(
+        self, target_frame: str, source_frame: str, timestamp: float
+    ) -> RigidTransform:
         transform = self.lookup(target_frame, source_frame, timestamp)
         if transform is None:
-            raise KeyError(f"No transform from {target_frame} to {source_frame} at {timestamp:.6f}")
+            raise KeyError(
+                f"No transform from {target_frame} to {source_frame} at {timestamp:.6f}"
+            )
         return transform
 
     def lookup_nearest(

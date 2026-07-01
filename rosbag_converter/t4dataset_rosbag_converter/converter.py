@@ -7,13 +7,10 @@ import shutil
 from time import perf_counter
 from typing import Any
 
-from .camera_calibration import CameraCalibration
-from .camera_calibration import load_camera_calibrations
 from .calibration import resolve_calibration
-from .config import ConverterConfig
-from .config import load_config
-from .geometry import RigidTransform
-from .geometry import compose
+from .camera_calibration import CameraCalibration, load_camera_calibrations
+from .config import ConverterConfig, load_config
+from .geometry import RigidTransform, compose
 from .models import LidarSource
 from .pointcloud import stamp_to_seconds
 from .tf_manager import TfManager
@@ -76,8 +73,7 @@ def convert(options: RuntimeOptions) -> Path | None:
         return None
 
     from geometry_msgs.msg import TwistWithCovarianceStamped
-    from sensor_msgs.msg import CompressedImage
-    from sensor_msgs.msg import Imu
+    from sensor_msgs.msg import CompressedImage, Imu
 
     from .concat import PointCloudConcatenator
     from .decode import LidarDecoder
@@ -277,7 +273,9 @@ def convert(options: RuntimeOptions) -> Path | None:
                     _write_concat_to_rosbag(rosbag_writer, config, frame)
                     progress.add_time("rosbag_generated", perf_counter() - start)
             if options.verbose and new_frames:
-                _debug(f"concat emitted frames={len(new_frames)} total_frames={writer.frame_count}")
+                _debug(
+                    f"concat emitted frames={len(new_frames)} total_frames={writer.frame_count}"
+                )
             progress.maybe_report("lidar")
             continue
         if event.msg_type == "sensor_msgs/msg/Imu" and event.topic == distortion_imu_topic:
@@ -423,7 +421,8 @@ class _Progress:
             if not name.startswith("index_") and not name.startswith("undistort_")
         )
         topic_summary = " ".join(
-            f"{topic.rsplit('/', 2)[-2]}={count}" for topic, count in sorted(self.topic_clouds.items())
+            f"{topic.rsplit('/', 2)[-2]}={count}"
+            for topic, count in sorted(self.topic_clouds.items())
         )
         _debug(
             f"progress reason={reason} elapsed={elapsed:.1f}s events={self.events} "
@@ -443,8 +442,7 @@ class _Progress:
         accounted_stages = [
             name
             for name in self.stage_seconds
-            if name not in {"index_tf", "index_camera"}
-            and not name.startswith("undistort_")
+            if name not in {"index_tf", "index_camera"} and not name.startswith("undistort_")
         ]
         accounted = sum(self.stage_seconds[name] for name in accounted_stages)
         unaccounted = max(0.0, elapsed - accounted)
@@ -583,10 +581,10 @@ def _collect_metadata(
     return metadata
 
 
-def _create_output_rosbag_writer(options: RuntimeOptions, config: ConverterConfig, scene_name: str):
-    from .rosbag import SequentialBagReader
-    from .rosbag import SequentialBagWriter
-    from .rosbag import infer_storage_id
+def _create_output_rosbag_writer(
+    options: RuntimeOptions, config: ConverterConfig, scene_name: str
+):
+    from .rosbag import SequentialBagReader, SequentialBagWriter, infer_storage_id
 
     storage_id = options.output_rosbag_storage_id or infer_storage_id(options.input_bags[0])
     output_path = options.output_base / scene_name / "rosbag2"
@@ -744,7 +742,9 @@ def _motion_imu_transforms(calibration) -> dict[str, Any]:
     return transforms
 
 
-def _event_in_range(storage_time_ns: int, start_time: float | None, end_time: float | None) -> bool:
+def _event_in_range(
+    storage_time_ns: int, start_time: float | None, end_time: float | None
+) -> bool:
     timestamp = storage_time_ns * 1e-9
     if start_time is not None and timestamp < start_time:
         return False

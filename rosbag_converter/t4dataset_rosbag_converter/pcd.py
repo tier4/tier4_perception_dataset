@@ -14,8 +14,7 @@ def save_lidar_pointcloud_pcd(
 ) -> None:
     if num_lidar_feats not in (5, 7):
         raise ValueError(f"num_lidar_feats must be 5 or 7, got {num_lidar_feats}")
-    from pypcd4 import Encoding
-    from pypcd4 import PointCloud
+    from pypcd4 import Encoding, PointCloud
 
     path.parent.mkdir(parents=True, exist_ok=True)
     parsed = PointCloud.from_msg(cloud)

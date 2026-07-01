@@ -65,7 +65,10 @@ def load_camera_calibrations(
             height=int(info["image_height"]),
             k=np.asarray(info["camera_matrix"]["data"], dtype=np.float64),
             d=np.asarray(info["distortion_coefficients"]["data"], dtype=np.float64),
-            r=np.asarray(info.get("rectification_matrix", {}).get("data", np.eye(3).reshape(-1)), dtype=np.float64),
+            r=np.asarray(
+                info.get("rectification_matrix", {}).get("data", np.eye(3).reshape(-1)),
+                dtype=np.float64,
+            ),
             p=np.asarray(info["projection_matrix"]["data"], dtype=np.float64),
             distortion_model=str(info.get("distortion_model", "")),
         )

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from array import array
 
-import numpy as np
 from builtin_interfaces.msg import Time
-from sensor_msgs.msg import PointCloud2
-from sensor_msgs.msg import PointField
+import numpy as np
+from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 
 POINT_STEP = 32
@@ -123,7 +122,9 @@ _POINT_FIELD_FORMATS = {
 
 
 def normalize_pointcloud_layout(cloud: PointCloud2) -> PointCloud2:
-    if cloud.point_step == POINT_STEP and {field.name for field in cloud.fields} >= set(POINT_DTYPE.names):
+    if cloud.point_step == POINT_STEP and {field.name for field in cloud.fields} >= set(
+        POINT_DTYPE.names
+    ):
         return cloud
 
     count = int(cloud.width) * int(cloud.height)
@@ -150,7 +151,9 @@ def normalize_pointcloud_layout(cloud: PointCloud2) -> PointCloud2:
             info = np.iinfo(target.dtype)
             values = np.clip(values, info.min, info.max)
         arr[name] = values.astype(target.dtype, copy=False)
-    return structured_array_to_pointcloud(arr, stamp=cloud.header.stamp, frame_id=cloud.header.frame_id)
+    return structured_array_to_pointcloud(
+        arr, stamp=cloud.header.stamp, frame_id=cloud.header.frame_id
+    )
 
 
 def pointcloud_to_lidar_features(cloud: PointCloud2, *, num_lidar_feats: int = 7) -> np.ndarray:

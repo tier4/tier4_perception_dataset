@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+from collections import defaultdict, deque
+from dataclasses import dataclass
 import json
 import os
-from collections import defaultdict
-from collections import deque
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
 import cv2
 import numpy as np
-from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
 from sensor_msgs.msg import CompressedImage
 from t4_devkit.schema.tables import (
     Attribute,
@@ -35,11 +34,9 @@ from perception_dataset.utils import misc as misc_utils
 from .calibration import CalibrationSet
 from .camera_calibration import CameraCalibration
 from .concat import ConcatenatedFrame
-from .geometry import RigidTransform
-from .geometry import identity
+from .geometry import RigidTransform, identity
 from .pcd import save_lidar_pointcloud_pcd
-from .pointcloud import pointcloud_to_lidar_features
-from .pointcloud import stamp_to_seconds
+from .pointcloud import pointcloud_to_lidar_features, stamp_to_seconds
 from .tf_manager import TfManager
 
 
@@ -104,7 +101,9 @@ class T4DatasetWriter:
         self._calibrated_tokens: dict[str, str] = {}
         self._sample_data_tokens_by_channel: dict[str, list[str]] = defaultdict(list)
         self._camera_sync: dict[str, CameraSyncState] = {}
-        self._camera_buffers: dict[str, deque[tuple[int, float, CompressedImage]]] = defaultdict(deque)
+        self._camera_buffers: dict[str, deque[tuple[int, float, CompressedImage]]] = defaultdict(
+            deque
+        )
         self._pending_camera_requests: dict[tuple[str, int], CameraWriteRequest] = {}
         self._rectify_maps: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         self._scene_token = ""
@@ -241,9 +240,8 @@ class T4DatasetWriter:
 
     def _build_camera_sync(self) -> dict[str, CameraSyncState]:
         sync = {}
-        window = (
-            float(self.conversion.get("system_scan_period_sec", 0.1)) * 0.5
-            + float(self.conversion.get("max_camera_jitter_sec", 0.005))
+        window = float(self.conversion.get("system_scan_period_sec", 0.1)) * 0.5 + float(
+            self.conversion.get("max_camera_jitter_sec", 0.005)
         )
         for camera in self.conversion.get("camera_sensors", []):
             topic = camera["topic"]
@@ -259,7 +257,9 @@ class T4DatasetWriter:
         lidar_channel = lidar_sensor["channel"]
         pcd_output_format = self._pcd_output_format()
         sample_extension = "pcd" if pcd_output_format == "pcd" else "pcd.bin"
-        calibrated_token = self._ensure_calibrated_sensor(lidar_channel, self.calibration.base_frame)
+        calibrated_token = self._ensure_calibrated_sensor(
+            lidar_channel, self.calibration.base_frame
+        )
         self._validate_lidar_points(frame, frame_index)
 
         timestamp = stamp_to_seconds(frame.cloud.header.stamp)
@@ -273,8 +273,12 @@ class T4DatasetWriter:
         info_filename = ""
         lidar_info_channel = lidar_sensor.get("lidar_info_channel")
         if lidar_info_channel:
-            info_filename = misc_utils.get_sample_data_filename(lidar_info_channel, frame_index, "json")
-        filename = misc_utils.get_sample_data_filename(lidar_channel, frame_index, sample_extension)
+            info_filename = misc_utils.get_sample_data_filename(
+                lidar_info_channel, frame_index, "json"
+            )
+        filename = misc_utils.get_sample_data_filename(
+            lidar_channel, frame_index, sample_extension
+        )
         sample_data_token = self.sample_data_table.insert_into_table(
             sample_token=sample_token,
             ego_pose_token=ego_pose_token,
@@ -446,7 +450,10 @@ class T4DatasetWriter:
 
     def _camera_retention_seconds(self) -> float:
         max_delay = max(
-            [abs(float(camera.get("delay_msec", 0.0))) * 1e-3 for camera in self.conversion.get("camera_sensors", [])]
+            [
+                abs(float(camera.get("delay_msec", 0.0))) * 1e-3
+                for camera in self.conversion.get("camera_sensors", [])
+            ]
             or [0.0]
         )
         return max(
@@ -579,7 +586,9 @@ class T4DatasetWriter:
         with (self.output_scene_dir / info_filename).open("w") as fp:
             json.dump(data, fp, indent=4)
 
-    def _write_image(self, msg: CompressedImage, path: Path, calibration: CameraCalibration) -> tuple[int, int, int]:
+    def _write_image(
+        self, msg: CompressedImage, path: Path, calibration: CameraCalibration
+    ) -> tuple[int, int, int]:
         path.parent.mkdir(parents=True, exist_ok=True)
         if not self.conversion.get("undistort_image", False):
             with path.open("wb") as fp:

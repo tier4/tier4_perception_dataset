@@ -3,10 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .geometry import RigidTransform
-from .geometry import compose
-from .geometry import identity
-from .geometry import load_transform_yaml
+from .geometry import RigidTransform, compose, identity, load_transform_yaml
 
 
 @dataclass(frozen=True)

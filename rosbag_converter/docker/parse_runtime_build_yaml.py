@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import shlex
 import sys
-from pathlib import Path
 
 
 def main() -> int:

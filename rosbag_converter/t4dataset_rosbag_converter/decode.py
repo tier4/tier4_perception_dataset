@@ -4,13 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from nebula_lib import HesaiOfflineDecoder
-from nebula_lib import PandarScan
+from nebula_lib import HesaiOfflineDecoder, PandarScan
 from sensor_msgs.msg import PointCloud2
 
 from .geometry import RigidTransform
-from .pointcloud import nebula_array_to_pointcloud
-from .pointcloud import stamp_from_seconds
+from .pointcloud import nebula_array_to_pointcloud, stamp_from_seconds
 
 
 @dataclass
@@ -76,5 +74,7 @@ def _cloud_stamp(scan: Any, metadata: dict[str, Any]):
     header = getattr(scan, "header", None)
     stamp = getattr(header, "stamp", None)
     if stamp is not None and (getattr(stamp, "sec", 0) or getattr(stamp, "nanosec", 0)):
-        return stamp_from_seconds(float(getattr(stamp, "sec", 0)) + float(getattr(stamp, "nanosec", 0)) * 1e-9)
+        return stamp_from_seconds(
+            float(getattr(stamp, "sec", 0)) + float(getattr(stamp, "nanosec", 0)) * 1e-9
+        )
     return stamp_from_seconds(0.0)

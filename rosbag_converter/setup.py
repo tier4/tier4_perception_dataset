@@ -1,6 +1,4 @@
-from setuptools import find_packages
-from setuptools import setup
-
+from setuptools import find_packages, setup
 
 package_name = "t4dataset_rosbag_converter"
 

@@ -5,11 +5,9 @@ from typing import Any
 
 from autoware_pointcloud_preprocessor.distortion_corrector import DistortionCorrector
 from geometry_msgs.msg import TwistWithCovarianceStamped
-from sensor_msgs.msg import Imu
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import Imu, PointCloud2
 
-from .geometry import RigidTransform
-from .geometry import identity
+from .geometry import RigidTransform, identity
 
 
 @dataclass(frozen=True)

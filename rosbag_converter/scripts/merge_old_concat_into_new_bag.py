@@ -2,20 +2,21 @@
 from __future__ import annotations
 
 import argparse
-import heapq
-import shutil
 from dataclasses import dataclass
+import heapq
 from pathlib import Path
+import shutil
 
 from rclpy.serialization import deserialize_message
-from rosbag2_py import ConverterOptions
-from rosbag2_py import SequentialReader
-from rosbag2_py import SequentialWriter
-from rosbag2_py import StorageFilter
-from rosbag2_py import StorageOptions
-from rosbag2_py import TopicMetadata
+from rosbag2_py import (
+    ConverterOptions,
+    SequentialReader,
+    SequentialWriter,
+    StorageFilter,
+    StorageOptions,
+    TopicMetadata,
+)
 from rosidl_runtime_py.utilities import get_message
-
 
 DEFAULT_REMAPS = {
     "/sensing/lidar/concatenated/pointcloud": "/old/sensing/lidar/concatenated/pointcloud",
@@ -75,9 +76,13 @@ def main() -> int:
             "remapped names for single-clock RViz comparison."
         )
     )
-    parser.add_argument("--new-bag", required=True, type=Path, help="New converter input_bag path.")
+    parser.add_argument(
+        "--new-bag", required=True, type=Path, help="New converter input_bag path."
+    )
     parser.add_argument("--old-bag", required=True, type=Path, help="Old injected rosbag path.")
-    parser.add_argument("--output-bag", required=True, type=Path, help="Merged output rosbag path.")
+    parser.add_argument(
+        "--output-bag", required=True, type=Path, help="Merged output rosbag path."
+    )
     parser.add_argument(
         "--old-topic",
         action="append",
@@ -206,7 +211,9 @@ def create_topic(
             name=name,
             type=metadata.type,
             serialization_format=metadata.serialization_format,
-            offered_qos_profiles=getattr(metadata, "offered_qos_profiles", "") if preserve_qos else "",
+            offered_qos_profiles=(
+                getattr(metadata, "offered_qos_profiles", "") if preserve_qos else ""
+            ),
         )
     )
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Convert raw Pandar rosbag2 data to T4 dataset.")
     parser.add_argument("--config", required=True, type=Path, help="Pipeline YAML config path.")
@@ -24,8 +25,12 @@ def main() -> None:
     parser.add_argument("--vehicle-id", required=True, help="Vehicle ID, e.g. j6_gen2_16.")
     parser.add_argument("--vehicle-model", default="j6_gen2", help="Vehicle model name.")
     parser.add_argument("--sensor-model", default="aip_x2_gen2", help="Sensor model name.")
-    parser.add_argument("--start-time", type=float, default=None, help="Absolute bag storage start time.")
-    parser.add_argument("--end-time", type=float, default=None, help="Absolute bag storage end time.")
+    parser.add_argument(
+        "--start-time", type=float, default=None, help="Absolute bag storage start time."
+    )
+    parser.add_argument(
+        "--end-time", type=float, default=None, help="Absolute bag storage end time."
+    )
     parser.add_argument(
         "--pcd-output-format",
         choices=("bin", "pcd", "both"),
@@ -60,11 +65,12 @@ def main() -> None:
         default="config",
         help="Diagnostic override for LiDAR distortion correction. Defaults to config.",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Validate config and print resolved inputs.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Validate config and print resolved inputs."
+    )
     args = parser.parse_args()
 
-    from .converter import RuntimeOptions
-    from .converter import convert
+    from .converter import RuntimeOptions, convert
 
     options = RuntimeOptions(
         config_path=args.config,

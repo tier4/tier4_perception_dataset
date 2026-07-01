@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import os
+from pathlib import Path
 import shutil
 import sqlite3
 import subprocess
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Iterable
 
 from autoware_pointcloud_preprocessor.distortion_corrector import DistortionCorrector
-from geometry_msgs.msg import TransformStamped
-from geometry_msgs.msg import TwistWithCovarianceStamped
-from rclpy.serialization import deserialize_message
-from rclpy.serialization import serialize_message
-from sensor_msgs.msg import Imu
-from sensor_msgs.msg import PointCloud2
+from geometry_msgs.msg import TransformStamped, TwistWithCovarianceStamped
+from rclpy.serialization import deserialize_message, serialize_message
+from sensor_msgs.msg import Imu, PointCloud2
 from tf2_msgs.msg import TFMessage
-
 
 WORKSPACE = Path("/home/maxschmeller/autoware")
 INPUT_BAG = Path(
@@ -43,10 +39,11 @@ SENSOR_KIT_FRAME = "sensor_kit_base_link"
 
 HELPER_DIR = Path("/tmp/left_lower_pandar_decoder")
 HELPER_INSTALL = Path("/tmp/left_lower_pandar_decoder_install")
-HELPER_EXE = HELPER_INSTALL / "left_lower_pandar_decoder/lib/left_lower_pandar_decoder/decode_left_lower"
+HELPER_EXE = (
+    HELPER_INSTALL / "left_lower_pandar_decoder/lib/left_lower_pandar_decoder/decode_left_lower"
+)
 CALIBRATION_DIR = (
-    WORKSPACE
-    / "src/sensor_component/external/nebula/src/nebula_hesai/"
+    WORKSPACE / "src/sensor_component/external/nebula/src/nebula_hesai/"
     "nebula_hesai_decoders/calibration"
 )
 
@@ -121,7 +118,7 @@ ament_package()
         encoding="utf-8",
     )
     (src_dir / "decode_left_lower.cpp").write_text(
-        r'''#include <nebula_core_ros/point_cloud_conversions.hpp>
+        r"""#include <nebula_core_ros/point_cloud_conversions.hpp>
 #include <nebula_core_ros/rclcpp_logger.hpp>
 #include <nebula_hesai_common/hesai_common.hpp>
 #include <nebula_hesai_decoders/hesai_driver.hpp>
@@ -314,7 +311,7 @@ int main(int argc, char ** argv)
   rclcpp::shutdown();
   return 0;
 }
-''',
+""",
         encoding="utf-8",
     )
 
@@ -356,7 +353,9 @@ def quat_rotate(q: tuple[float, float, float, float], v: tuple[float, float, flo
     return out[:3]
 
 
-def compose_transform(parent_to_mid: TransformStamped, mid_to_child: TransformStamped) -> TransformStamped:
+def compose_transform(
+    parent_to_mid: TransformStamped, mid_to_child: TransformStamped
+) -> TransformStamped:
     out = TransformStamped()
     out.header = parent_to_mid.header
     out.child_frame_id = mid_to_child.child_frame_id
@@ -396,8 +395,12 @@ def identity_transform(parent: str, child: str) -> TransformStamped:
     return out
 
 
-def load_static_transforms(con: sqlite3.Connection) -> tuple[list[Event], dict[tuple[str, str], TransformStamped]]:
-    topic_id = con.execute("select id from topics where name = ?", (TF_STATIC_TOPIC,)).fetchone()[0]
+def load_static_transforms(
+    con: sqlite3.Connection,
+) -> tuple[list[Event], dict[tuple[str, str], TransformStamped]]:
+    topic_id = con.execute("select id from topics where name = ?", (TF_STATIC_TOPIC,)).fetchone()[
+        0
+    ]
     events: list[Event] = []
     transforms: dict[tuple[str, str], TransformStamped] = {}
     for msg_id, timestamp, data in con.execute(
@@ -414,7 +417,9 @@ def make_lidar_transform(transforms: dict[tuple[str, str], TransformStamped]) ->
     base_to_kit = transforms[(BASE_FRAME, SENSOR_KIT_FRAME)]
     kit_to_lidar_base = transforms[(SENSOR_KIT_FRAME, LIDAR_BASE_FRAME)]
     lidar_base_to_lidar = transforms[(LIDAR_BASE_FRAME, LIDAR_FRAME)]
-    return compose_transform(compose_transform(base_to_kit, kit_to_lidar_base), lidar_base_to_lidar)
+    return compose_transform(
+        compose_transform(base_to_kit, kit_to_lidar_base), lidar_base_to_lidar
+    )
 
 
 def create_output_db(path: Path) -> sqlite3.Connection:
@@ -424,8 +429,12 @@ def create_output_db(path: Path) -> sqlite3.Connection:
     if journal.exists():
         journal.unlink()
     con = sqlite3.connect(path)
-    con.execute("create table schema(schema_version integer primary key, ros_distro text not null)")
-    con.execute("create table metadata(id integer primary key, metadata_version integer not null, metadata text not null)")
+    con.execute(
+        "create table schema(schema_version integer primary key, ros_distro text not null)"
+    )
+    con.execute(
+        "create table metadata(id integer primary key, metadata_version integer not null, metadata text not null)"
+    )
     con.execute(
         "create table topics(id integer primary key, name text not null, type text not null, "
         "serialization_format text not null, offered_qos_profiles text not null)"
@@ -459,17 +468,22 @@ def iter_motion_events(src: sqlite3.Connection, decoded: sqlite3.Connection) -> 
         rows.extend(
             Event(msg_id, timestamp, topic, bytes(data))
             for msg_id, timestamp, data in src.execute(
-                "select id, timestamp, data from messages where topic_id = ? order by id", (topic_id,)
+                "select id, timestamp, data from messages where topic_id = ? order by id",
+                (topic_id,),
             )
         )
     rows.extend(
         Event(msg_id, timestamp, INPUT_CLOUD_TOPIC, bytes(data))
-        for msg_id, timestamp, data in decoded.execute("select id, timestamp, data from decoded order by id")
+        for msg_id, timestamp, data in decoded.execute(
+            "select id, timestamp, data from decoded order by id"
+        )
     )
     yield from sorted(rows, key=lambda event: event.source_id)
 
 
-def write_message(con: sqlite3.Connection, next_id: int, topic_id: int, timestamp: int, data: bytes) -> int:
+def write_message(
+    con: sqlite3.Connection, next_id: int, topic_id: int, timestamp: int, data: bytes
+) -> int:
     con.execute(
         "insert into messages(id, topic_id, timestamp, data) values (?, ?, ?, ?)",
         (next_id, topic_id, timestamp, data),
@@ -503,23 +517,31 @@ def main() -> None:
     out.execute("begin transaction")
 
     for event in tf_static_events:
-        next_id = write_message(out, next_id, topic_ids[TF_STATIC_TOPIC], event.timestamp, event.data)
+        next_id = write_message(
+            out, next_id, topic_ids[TF_STATIC_TOPIC], event.timestamp, event.data
+        )
         counts[TF_STATIC_TOPIC] += 1
 
     for event in iter_motion_events(src, decoded):
         if event.topic == IMU_TOPIC:
             imu = deserialize_message(event.data, Imu)
             corrector.process_imu_message(imu)
-            next_id = write_message(out, next_id, topic_ids[IMU_TOPIC], event.timestamp, event.data)
+            next_id = write_message(
+                out, next_id, topic_ids[IMU_TOPIC], event.timestamp, event.data
+            )
             counts[IMU_TOPIC] += 1
         elif event.topic == TWIST_TOPIC:
             twist = deserialize_message(event.data, TwistWithCovarianceStamped)
             corrector.process_twist_message(twist)
-            next_id = write_message(out, next_id, topic_ids[TWIST_TOPIC], event.timestamp, event.data)
+            next_id = write_message(
+                out, next_id, topic_ids[TWIST_TOPIC], event.timestamp, event.data
+            )
             counts[TWIST_TOPIC] += 1
         elif event.topic == INPUT_CLOUD_TOPIC:
             cloud = deserialize_message(event.data, PointCloud2)
-            next_id = write_message(out, next_id, topic_ids[INPUT_CLOUD_TOPIC], event.timestamp, event.data)
+            next_id = write_message(
+                out, next_id, topic_ids[INPUT_CLOUD_TOPIC], event.timestamp, event.data
+            )
             counts[INPUT_CLOUD_TOPIC] += 1
 
             undistorted, status = corrector.undistort_pointcloud(
