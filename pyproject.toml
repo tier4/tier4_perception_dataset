@@ -27,6 +27,8 @@ dependencies = [
     "colorama>=0.4.6,<0.5",
     "pypcd4>=1.4.3,<2",
     "httpx>=0.28.1,<0.29",
+    "kognic-auth>=3.10.0,<4",
+    "kognic-io>=2.13.1,<3",
 ]
 
 [dependency-groups]

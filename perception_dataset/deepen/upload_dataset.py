@@ -168,7 +168,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config",
         type=str,
-        default="config/upload_dataset.yaml",
+        default="config/upload_deepen_dataset_sample.yaml",
     )
     args = parser.parse_args()
 
@@ -176,8 +176,8 @@ if __name__ == "__main__":
         config = yaml.safe_load(f)
 
     assert (
-        config["task"] == "upload_dataset"
-    ), f"use config file of convert_deepen_to_t4 task: {config['task']}"
+        config["task"] == "upload_deepen_dataset"
+    ), f"use config file of upload_deepen_dataset task: {config['task']}"
     input_base = config["conversion"]["input_base"]
     labeling_profile_id = config["conversion"]["labeling_profile_id"]
     labeling_mode = config["conversion"]["labeling_mode"]

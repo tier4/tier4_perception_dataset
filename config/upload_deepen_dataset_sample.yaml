@@ -1,4 +1,4 @@
-task: upload_dataset
+task: upload_deepen_dataset
 conversion:
   input_base: ./data/deepen_format
   labeling_profile_id: NtUh5kHCy7Pl9L4HpO5iDrW0

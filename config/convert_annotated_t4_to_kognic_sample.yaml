@@ -1,0 +1,27 @@
+task: convert_annotated_t4_to_kognic
+conversion:
+  input_base: ./data/annotated_t4_format
+  output_base: ./data/kognic_format
+  workers_number: 12
+  drop_camera_token_not_found: false  # If true, the frame with missing camera token be dropped. If false, the frame will be kept despite missing camera data.
+  camera_sensors:
+    - channel: CAM_FRONT
+    - channel: CAM_FRONT_RIGHT
+    - channel: CAM_BACK_RIGHT
+    - channel: CAM_BACK
+    - channel: CAM_BACK_LEFT
+    - channel: CAM_FRONT_LEFT
+  # --- OpenLABEL pre-annotation export (written to <output_base>/<scene>/pre_annotation.json) ---
+  # Stream name the cuboids are attached to. Defaults to the anchor lidar
+  # (first staged lidar in PREFERRED_LIDAR_SENSORS order) used by the uploader.
+  lidar_stream: ""
+  # Optional mapping from T4 category names to the Kognic task-definition
+  # class names, e.g. {car: PassengerCar}. Unmapped names pass through as-is.
+  category_map: {}
+  # If true, T4 attributes (e.g. vehicle_state.driving) are exported as text
+  # attributes on each cuboid. They must be allowed by the Kognic task
+  # definition. It is set true by default.
+  include_attributes: true
+  # Used only when staging frame count differs from LIDAR_CONCAT records and
+  # frames must be matched by nearest timestamp instead of position.
+  frame_match_tolerance_ms: 50

@@ -85,6 +85,129 @@ Execute the conversion command again with `--overwrite` option.
 
 ![confirm_non_annotated_format](./confirm_non_annotated_format.png)
 
+## Kognic
+
+The Kognic tools form a round-trip annotation pipeline: T4 sensor data is reshaped into a local Kognic staging format and uploaded to the Kognic platform, then the completed annotations are downloaded and merged back into T4 format. The five stages are:
+
+| Stage | Step                                                        | Command                                                                                                     |
+| ----- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1     | Non-annotated T4 → Kognic staging format                    | `convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml`                                    |
+| 2     | Annotated T4 → staging format + OpenLABEL pre-annotation    | `convert --config config/convert_annotated_t4_to_kognic_sample.yaml`                                        |
+| 3     | Upload staging format → Kognic                              | `python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml`      |
+| 4     | Download annotations from Kognic (per project or per scene) | `python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_*.yaml` |
+| 5     | Kognic annotations → T4 annotation tables                   | `convert --config config/convert_kognic_annotation_to_t4_sample.yaml`                                       |
+
+See [tier_iv_t4_extractor_to_kognic.md](tier_iv_t4_extractor_to_kognic.md) for a full, stage-by-stage explanation of the staging format, the coordinate conventions, and every config parameter.
+
+References:
+
+- [Official help page](https://docs.kognic.com/)
+- [Kognic supported file formats](https://docs.kognic.com/api-guide/supported-file-formats)
+- [Kognic calibration overview](https://docs.kognic.com/api-guide/calibrations-overview)
+- [Kognic pre-annotations](https://docs.kognic.com/api-guide/pre-annotations)
+
+### T4 format to Kognic format
+
+Converts T4 format data to the local Kognic staging format used by the Kognic uploader.
+
+input: T4 format data  
+output: Kognic staging format data
+
+For non-annotated T4 data (annotation tables, if present, are ignored):
+
+```bash
+python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml
+```
+
+For annotated T4 data, the same sensor-data conversion runs first and the 3D
+box annotations are then exported as an OpenLABEL `pre_annotation.json` inside
+each scene's staging directory, following the
+[Kognic pre-annotation format](https://docs.kognic.com/api-guide/pre-annotations):
+
+```bash
+python -m perception_dataset.convert --config config/convert_annotated_t4_to_kognic_sample.yaml
+```
+
+When `pre_annotation.json` is present, the uploader (next section) uploads the
+scene without an input, attaches the pre-annotation, and creates the input from
+the scene so labelers see the boxes pre-loaded.
+
+See [Stage 1](tier_iv_t4_extractor_to_kognic.md#stage-1--t4-sensor-data--kognic-staging-format) and [Stage 2](tier_iv_t4_extractor_to_kognic.md#stage-2--t4-annotations--openlabel-pre-annotation) for the staging format and the pre-annotation export in detail.
+
+### Upload Kognic staging format to Kognic
+
+Uploads the local Kognic staging format to the Kognic platform.
+
+input: Kognic staging format data  
+output: Kognic scene (uploaded)
+
+Requires a [credentials file](https://developers.kognic.com/docs/getting-started/quickstart/#generating-credentials). Set the path via the environment variable before running:
+
+```bash
+export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
+python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
+```
+
+All staged frames are uploaded. Annotation frequency is controlled by `conversion.target_hz`: frames at that interval are marked `annotate=True` and the rest are uploaded as context with `annotate=False` (omit `target_hz` to annotate every frame). Because T4 frames are not spaced at exactly `1 / target_hz` (e.g. `0.09997s` instead of `0.1s`), the interval check applies a small leniency so boundary frames such as the `1.0s` frame are not skipped. The leniency defaults to half the typical source frame interval and can be overridden with `conversion.annotation_interval_tolerance_s` (set to `0` to disable).
+
+See [Stage 3](tier_iv_t4_extractor_to_kognic.md#stage-3--upload-staging-format-to-kognic) for all config parameters and [Annotation Interval Selection](tier_iv_t4_extractor_to_kognic.md#annotation-interval-selection) for the interval/tolerance details.
+
+### Download annotations from Kognic
+
+Downloads completed annotations (OpenLABEL JSON) from the Kognic platform to local disk.
+
+input: Kognic project/scene (remote)  
+output: annotation JSON files under `output_base/<project_external_id>/`
+
+Requires a [credentials file](https://developers.kognic.com/docs/getting-started/quickstart/#generating-credentials). Set the path via the environment variable before running:
+
+```bash
+export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
+# whole project:
+python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_whole_project.yaml
+# single scene:
+python -m perception_dataset.kognic.download_annotation --config config/download_kognic_annotation_per_dataset_sample.yaml
+```
+
+The download mode is auto-detected from the config:
+
+- **Project-wide** (`download_kognic_annotation_whole_project.yaml`): set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene.
+- **Single scene** (`download_kognic_annotation_per_dataset_sample.yaml`): set either `scene_external_id` or `scene_id` (the scene UUID) to download all annotations for that one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. Either way, `annotation_type`/`batch` are ignored. Files are written as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations).
+
+Both write to `output_base/<project_external_id>/`.
+
+Config parameters (`conversion`):
+
+| key                   | required                                          | description                                                                                                                    |
+| --------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `output_base`         | yes                                               | directory where annotation JSONs are written                                                                                   |
+| `organization_id`     | yes                                               | Kognic client organization id (alias: `client_organization_id`)                                                                |
+| `workspace_id`        | yes                                               | Kognic workspace id (alias: `write_workspace_id`)                                                                              |
+| `project_external_id` | yes                                               | project to download from                                                                                                       |
+| `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`)                                                                |
+| `batch`               | no                                                | restrict project-wide download to one batch (omit for all batches)                                                             |
+| `scene_external_id`   | no                                                | download a single scene by external id instead of the whole project                                                            |
+| `scene_id`            | no                                                | download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id` |
+| `iso_rotated_cuboids` | no                                                | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame                                                   |
+
+### Kognic annotations to T4 annotation tables
+
+Merges the OpenLABEL annotations downloaded from Kognic (see [Download annotations from Kognic](#download-annotations-from-kognic)) into an existing **non-annotated** T4 dataset. [openlabel_to_t4_converter.py](../perception_dataset/kognic/openlabel_to_t4_converter.py) auto-detects the annotation type per scene and handles both 3D cuboids and point-cloud segmentation.
+
+input: non-annotated T4 dataset + downloaded OpenLABEL JSON
+output: annotated T4 dataset
+
+```bash
+python -m perception_dataset.convert --config config/convert_kognic_annotation_to_t4_sample.yaml
+```
+
+The converter handles two annotation types:
+
+- **3D cuboids (object detection)** — populates the otherwise-empty `instance`, `category`, `attribute`, `visibility` and `sample_annotation` tables.
+- **Point-cloud segmentation (`3DPointCloudSegmentation` / `semseg`)** — writes `lidarseg.json`, `lidarseg/<version>/<token>.bin` (per-point labels for the corresponding `LIDAR_CONCAT` `.pcd.bin`), and `category.json`.
+
+See [Stage 5](tier_iv_t4_extractor_to_kognic.md#stage-5--kognic-annotations--t4-annotation-tables) for the frame-matching logic, coordinate convention, RLE decoding, and config parameters.
+
 ## Deepen
 
 ### Non-annotated T4 format to Deepen format

@@ -1,0 +1,14 @@
+task: convert_kognic_annotation_to_t4
+conversion:
+  # T4 dataset to annotate. Its annotation tables are populated in place.
+  # May be a single scene dir or a parent dir of scene dirs.
+  output_base: ./data/non_annotated_t4_format
+  # Directory holding the downloaded OpenLABEL JSON(s) (output of download_kognic_annotation).
+  # Files are matched to scenes by filename stem and by OpenLABEL metadata (dataset_id / scene_uuid).
+  annotation_base: ./data/kognic_annotations
+  # Must match the flag used at download time: true → cuboids in ISO8855 frame, false → Kognic internal frame.
+  iso_rotated_cuboids: false
+  # Optional: rename Kognic object types to T4 category names, e.g. {car: vehicle.car}.
+  # category_map: {}
+  # Whether to import class properties (vehicle_state, occlusion_state, ...) as T4 attributes.
+  include_attributes: true

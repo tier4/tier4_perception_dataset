@@ -59,6 +59,18 @@ def compose_transform(trans1, rot1, trans2, rot2):
     return t.tolist(), quat
 
 
+def matrix_to_quaternion_wxyz(matrix: np.ndarray) -> np.ndarray:
+    """Convert a 3x3 rotation matrix to a ``[w, x, y, z]`` quaternion.
+
+    This is the inverse of the rotation handling in :func:`transform_matrix`.
+    """
+    quat_xyzw = Rotation.from_matrix(matrix).as_quat()
+    return np.array(
+        [quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]],
+        dtype=np.float64,
+    )
+
+
 def transform_matrix(
     translation: np.ndarray = np.array([0, 0, 0]),
     rotation: Quaternion = Quaternion([1, 0, 0, 0]),
