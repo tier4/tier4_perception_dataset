@@ -306,9 +306,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
 
         image = self._blank_image_cache.get(camera_channel)
         if image is None:
-            width, height = read_image_dims(
-                self._sample_data_by_channel, seq_path, camera_channel
-            )
+            width, height = read_image_dims(self._sample_data_by_channel, seq_path, camera_channel)
             image = Image.new("RGB", (width, height), (0, 0, 0))
             self._blank_image_cache[camera_channel] = image
 
