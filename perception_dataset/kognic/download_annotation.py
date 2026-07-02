@@ -111,10 +111,31 @@ class KognicAnnotationDownloader:
             f"in project {self.config.project_external_id}"
         )
 
-        annotations = self.kognic_io_client.annotation.get_annotations_for_scene(
-            scene_uuid=scene_uuid,
-            iso_rotated_cuboids=self.config.iso_rotated_cuboids,
-        )
+        if self.config.annotation_type:
+            # The scene annotations endpoint returns every annotation type and
+            # carries no annotation_type field to filter on, so honor the
+            # requested type by filtering the project-wide query down to this
+            # scene instead.
+            logger.info(
+                f"Filtering to annotation_type={self.config.annotation_type} "
+                f"and batch {self.config.batch or '(all)'}"
+            )
+            annotations = [
+                annotation
+                for annotation in self.kognic_io_client.annotation.get_project_annotations(
+                    project=self.config.project_external_id,
+                    annotation_type=self.config.annotation_type,
+                    batch=self.config.batch,
+                    include_content=True,
+                    iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+                )
+                if annotation.scene_uuid == scene_uuid
+            ]
+        else:
+            annotations = self.kognic_io_client.annotation.get_annotations_for_scene(
+                scene_uuid=scene_uuid,
+                iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+            )
 
         if not annotations:
             logger.warning(f"No annotations found for {scene_label}")
@@ -144,7 +165,12 @@ class KognicAnnotationDownloader:
                 if self.config.scene_uuid
                 else f"scene external ID {self.config.scene_external_id}"
             )
-            logger.info(f"{ref} specified, downloading annotations for that scene only.")
+            type_note = (
+                f" (annotation type {self.config.annotation_type})"
+                if self.config.annotation_type
+                else " (all annotation types)"
+            )
+            logger.info(f"{ref} specified, downloading annotations for that scene only{type_note}.")
             self.download_scene()
         else:
             logger.info(

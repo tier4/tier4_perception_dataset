@@ -569,16 +569,20 @@ python -m perception_dataset.kognic.download_annotation --config config/download
 Output goes to `output_base/<project_external_id>/`. The download mode is **auto-detected** from the config:
 
 - **Project-wide** (default) — set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene. Config: `config/download_kognic_annotation_whole_project.yaml`.
-- **Single scene** — set either `scene_external_id` or `scene_id` (the scene UUID) to download all annotations for one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two; either way `annotation_type`/`batch` are ignored. Files are written as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations). Config: `config/download_kognic_annotation_per_dataset_sample.yaml`.
+- **Single scene** — set either `scene_external_id` or `scene_id` (the scene UUID) to download annotations for one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. `annotation_type` is optional here: omit it to download every annotation type for the scene (via `get_annotations_for_scene`), or set it (optionally with `batch`) to download only that type — done by filtering the project-wide query to the scene, since Kognic's per-scene endpoint exposes no annotation-type field. Files are written as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations). Config: `config/download_kognic_annotation_per_dataset_sample.yaml`.
 
 ```mermaid
 flowchart TD
   Cfg["download config"] --> Q{"scene_external_id or scene_id set?"}
-  Q -- "scene_external_id" --> Scene["download_scene()<br/>resolve external_id → scene_uuid<br/>get_annotations_for_scene"]
-  Q -- "scene_id" --> SceneU["download_scene()<br/>use scene_uuid directly<br/>get_annotations_for_scene"]
+  Q -- "scene_external_id" --> Scene["download_scene()<br/>resolve external_id → scene_uuid"]
+  Q -- "scene_id" --> SceneU["download_scene()<br/>use scene_uuid directly"]
   Q -- "neither" --> All["download_all()<br/>get_project_annotations<br/>(annotation_type, batch)"]
-  Scene --> Out["<output_base>/<project_external_id>/<scene_external_id>.json"]
-  SceneU --> OutU["<output_base>/<project_external_id>/<scene_id>.json"]
+  Scene --> T{"annotation_type set?"}
+  SceneU --> T
+  T -- "no" --> AllTypes["get_annotations_for_scene<br/>(all annotation types)"]
+  T -- "yes" --> OneType["get_project_annotations<br/>(annotation_type, batch)<br/>filtered to scene_uuid"]
+  AllTypes --> Out["<output_base>/<project_external_id>/<scene_external_id | scene_id>.json"]
+  OneType --> Out
   All --> Out2["<output_base>/<project_external_id>/<scene_uuid>.json"]
 ```
 
@@ -594,10 +598,11 @@ conversion:
   # Project-wide download:
   annotation_type: lidar-cuboid
   # batch: <batch_external_id>      # optional; omit for all batches
-  # Single-scene download (mutually exclusive with annotation_type above):
-  # set ONE of the two below
+  # Single-scene download — set ONE of the two below:
   # scene_external_id: <external_id>  # resolved to a scene_uuid via the API
   # scene_id: <scene_uuid>            # the scene UUID directly (skips lookup)
+  # For a single scene, annotation_type is optional: omit it to download all
+  # types, or keep it above to download only that type for the scene.
   iso_rotated_cuboids: false
 ```
 
@@ -607,8 +612,8 @@ conversion:
 | `organization_id`     | yes                                               | Kognic client organization id (alias: `client_organization_id`).                                                                                                              |
 | `workspace_id`        | yes                                               | Kognic workspace id (alias: `write_workspace_id`).                                                                                                                            |
 | `project_external_id` | yes                                               | Project to download from.                                                                                                                                                     |
-| `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | Annotation type to download (e.g. `lidar-cuboid`, `camera-tag`).                                                                                                              |
-| `batch`               | no                                                | Restrict project-wide download to one batch (omit for all batches).                                                                                                           |
+| `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | Annotation type to download (e.g. `lidar-cuboid`, `camera-tag`). Optional for a single-scene download, where it filters the scene down to just that type.                     |
+| `batch`               | no                                                | Restrict the download to one batch (omit for all batches). Applies to project-wide downloads and to single-scene downloads when `annotation_type` is set.                     |
 | `scene_external_id`   | no                                                | Download a single scene by external id instead of the whole project.                                                                                                          |
 | `scene_id`            | no                                                | Download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`.                                               |
 | `iso_rotated_cuboids` | no                                                | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame. **Must match the value used in [Stage 5](#stage-5--kognic-annotations--t4-annotation-tables).** |

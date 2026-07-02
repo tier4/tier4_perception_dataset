@@ -8,4 +8,5 @@ conversion:
   # Per-scene download: set exactly ONE of the two below.
   scene_external_id: "your_specific_scene_external_id_here"  # resolved to a scene_uuid via the API
   # scene_id: "your_scene_uuid_here"                         # the Kognic scene_uuid directly (skips lookup)
+  # annotation_type: lidar-cuboid          # optional — set to download only this type for the scene; omit to download all types
   iso_rotated_cuboids: false               # true → cuboids in ISO8855 frame; false → Kognic internal frame
