@@ -170,7 +170,9 @@ class KognicAnnotationDownloader:
                 if self.config.annotation_type
                 else " (all annotation types)"
             )
-            logger.info(f"{ref} specified, downloading annotations for that scene only{type_note}.")
+            logger.info(
+                f"{ref} specified, downloading annotations for that scene only{type_note}."
+            )
             self.download_scene()
         else:
             logger.info(
