@@ -43,7 +43,7 @@ constraint-dependencies = ["typer<0.25"]
 
 [tool.uv.sources]
 t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.7.0" }
-accelerated-image-processor = { git = "https://github.com/tier4/accelerated_image_processor" }
+accelerated-image-processor = { git = "https://github.com/tier4/accelerated_image_processor", rev = "fix/python-install" }
 
 [build-system]
 requires = ["hatchling"]
