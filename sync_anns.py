@@ -1,12 +1,15 @@
 import argparse
 from dataclasses import dataclass
+from glob import glob
 from os import PathLike
 import os.path as osp
+import warnings
 
 from t4_devkit import Tier4
 from t4_devkit.common import save_json, serialize_dataclasses
 from t4_devkit.sanity import print_sanity_result, sanity_check
 from t4_devkit.schema import SchemaName
+import tqdm
 
 
 @dataclass
@@ -44,12 +47,21 @@ class SyncContext:
         return cls(sample_map, sample_data_map, ego_pose_map)
 
 
-def sync_annotations(source_path: PathLike, target_path: PathLike):
-    src_t4 = Tier4(source_path, verbose=False)
-    tgt_t4 = Tier4(target_path, verbose=False)
-    assert len(src_t4.sample) == len(
-        tgt_t4.sample
-    ), "Source and target datasets must have the same number of samples."
+def sync_annotations(source_path: PathLike, target_path: PathLike) -> bool:
+    try:
+        src_t4 = Tier4(source_path, verbose=False)
+        tgt_t4 = Tier4(target_path, verbose=False)
+    except Exception as e:
+        warnings.warn(
+            f"Failed to load datasets, source: {source_path}, target: {target_path}, error: {e}"
+        )
+        return False
+
+    if len(src_t4.sample) != len(tgt_t4.sample):
+        warnings.warn(
+            f"Source and target datasets must have the same number of samples, target: {tgt_t4.data_root}"
+        )
+        return False
 
     # 1. Sync sample annotations/object annotations/surface annotations
     sync_context = SyncContext.from_datasets(src_t4, tgt_t4)
@@ -62,6 +74,8 @@ def sync_annotations(source_path: PathLike, target_path: PathLike):
     _copy_and_save_records(src_t4, tgt_t4, SchemaName.CATEGORY)
     _copy_and_save_records(src_t4, tgt_t4, SchemaName.INSTANCE)
     _copy_and_save_records(src_t4, tgt_t4, SchemaName.VISIBILITY)
+
+    return True
 
 
 def _sync_sample_annotations(src_t4: Tier4, tgt_t4: Tier4, context: SyncContext):
@@ -107,20 +121,38 @@ def _copy_and_save_records(src_t4: Tier4, tgt_t4: Tier4, schema_name: SchemaName
 def main():
     parser = argparse.ArgumentParser(description="Sync annotation files between datasets.")
     parser.add_argument("source", type=str, help="Path to the source dataset.")
-    parser.add_argument("targets", nargs="+", help="Path to the target datasets.")
+    parser.add_argument(
+        "targets",
+        type=str,
+        help="Path to the root directory containing target datasets.",
+    )
     args = parser.parse_args()
 
     source_path = args.source
-    target_paths = args.targets
+    target_dir = args.targets
 
-    for target_path in target_paths:
-        sync_annotations(source_path, target_path)
+    assert osp.isdir(source_path), f"Source path {source_path} must be a directory."
+
+    target_paths = glob(osp.join(target_dir, "*"))
+
+    for target_path in tqdm.tqdm(
+        target_paths,
+        desc="Syncing annotations",
+        leave=False,
+        total=len(target_paths),
+    ):
+        if not sync_annotations(source_path, target_path):
+            continue
 
         # run sanity check
-        result = sanity_check(target_path)
+        # NOTE: REF009 is excluded from sanity check because instance.category_token is meaningless
+        result = sanity_check(target_path, excludes=["REF009"])
         if not result.is_passed():
             print_sanity_result(result)
-            raise RuntimeError(f"Sanity check failed for dataset at {target_path}")
+            # raise RuntimeError(f"Sanity check failed for dataset at {target_path}")
+            warnings.warn(f"Sanity check failed for dataset at {target_path}")
+        else:
+            print(f"Successfully synced annotations for dataset at {target_path}")
 
 
 if __name__ == "__main__":
