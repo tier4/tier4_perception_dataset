@@ -137,8 +137,8 @@ def test_pointcloud_msg_to_numpy_with_extended_placeholders():
     )
 
 
-def test_compressed_msg_to_numpy():
-    # TODO(yukke42): impl test_compressed_msg_to_numpy
+def test_decode_compressed_image_msg():
+    # TODO(yukke42): impl test_decode_compressed_image_msg
     pass
 
 
