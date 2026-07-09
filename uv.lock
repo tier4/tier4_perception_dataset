@@ -17,6 +17,15 @@ resolution-markers = [
 constraints = [{ name = "typer", specifier = "<0.25" }]
 
 [[package]]
+name = "accelerated-image-processor"
+version = "0.0.0"
+source = { git = "https://github.com/tier4/accelerated_image_processor#6baf77fbe4f5cf2d0c126704521852548976c54a" }
+dependencies = [
+    { name = "numpy" },
+    { name = "opencv-python" },
+]
+
+[[package]]
 name = "aiohappyeyeballs"
 version = "2.6.2"
 source = { registry = "https://pypi.org/simple" }
@@ -926,6 +935,7 @@ name = "perception-dataset"
 version = "1.0.34"
 source = { editable = "." }
 dependencies = [
+    { name = "accelerated-image-processor" },
     { name = "colorama" },
     { name = "fastlabel" },
     { name = "httpx" },
@@ -957,6 +967,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerated-image-processor", git = "https://github.com/tier4/accelerated_image_processor" },
     { name = "colorama", specifier = ">=0.4.6,<0.5" },
     { name = "fastlabel", specifier = ">=0.16.1,<0.17" },
     { name = "httpx", specifier = ">=0.28.1,<0.29" },
