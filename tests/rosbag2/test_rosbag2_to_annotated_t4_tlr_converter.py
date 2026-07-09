@@ -3,10 +3,9 @@ import sys
 import types
 from types import SimpleNamespace
 
+from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 import numpy as np
 import pytest
-
-from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 
 
 class _DummySampleTable:

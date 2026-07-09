@@ -9,6 +9,7 @@ import warnings
 
 import builtin_interfaces.msg
 import cv2
+from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 from nptyping import NDArray
 import numpy as np
 from pypcd4 import PointCloud
@@ -24,7 +25,6 @@ from rosbag2_py import (
 from sensor_msgs.msg import CompressedImage, PointCloud2
 import yaml
 
-from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.utils.accelerated_image_processor import try_import_aip_common
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp

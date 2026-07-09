@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
 from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
+
 from perception_dataset.utils.accelerated_image_processor import try_import_aip_decompression
 
 try:
