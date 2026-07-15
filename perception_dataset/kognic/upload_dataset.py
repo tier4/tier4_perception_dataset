@@ -105,12 +105,11 @@ class KognicUploadConfig:
     workspace_id: str
     project_targets: List[ProjectTarget] = field(default_factory=list)
     target_hz: Optional[int] = None
-    annotation_interval_tolerance_s: Optional[float] = None
     dryrun: bool = False
     motion_compensate: bool = False
     include_imu_data: bool = True
     write_debug_frames: bool = False
-    scene_creation_timeout_s: int = 1800
+    scene_creation_timeout_s: int = 3600
     scene_creation_poll_interval_s: int = 10
 
     @property
@@ -165,6 +164,40 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
     return targets
 
 
+def select_annotate_indices(
+    timestamps_ns: List[int],
+    target_hz: Optional[int],
+) -> List[int]:
+    """Indices of the frames marked ``annotate=True`` by the ``target_hz`` walk.
+
+    Fallback for scenes without a ``keyframes.json`` (non-annotated data or
+    staging dirs produced before it existed): walks *timestamps_ns* and selects
+    the first frame at least ``1/target_hz`` seconds after the previously
+    selected one. Without ``target_hz`` every frame is selected.
+
+    T4 source frames are not spaced at exactly 1/source_hz: a small per-frame
+    drift (e.g. ~0.09997s instead of 0.1s) accumulates, so the frame at a
+    nominal 1.0s boundary can actually land at ~0.99999s. Half of the median
+    frame interval is used as tolerance on the interval check.
+    """
+    if not target_hz:
+        return list(range(len(timestamps_ns)))
+
+    min_interval_ns = int(1e9 / target_hz)
+    deltas = sorted(b - a for a, b in zip(timestamps_ns, timestamps_ns[1:]) if b > a)
+    tolerance_ns = deltas[len(deltas) // 2] // 2 if deltas else 0
+
+    indices: List[int] = []
+    last_annotated_ts: Optional[int] = None
+    for idx, timestamp_ns in enumerate(timestamps_ns):
+        if last_annotated_ts is None or (timestamp_ns - last_annotated_ts) >= (
+            min_interval_ns - tolerance_ns
+        ):
+            indices.append(idx)
+            last_annotated_ts = timestamp_ns
+    return indices
+
+
 def _sort_key(path: Path) -> Tuple[int, str]:
     try:
         return (0, f"{int(path.stem):030d}")
@@ -198,7 +231,6 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         workspace_id=workspace_id,
         project_targets=_parse_project_targets(conversion_config),
         target_hz=conversion_config.get("target_hz"),
-        annotation_interval_tolerance_s=conversion_config.get("annotation_interval_tolerance_s"),
         dryrun=conversion_config.get("dryrun", False),
         motion_compensate=conversion_config.get("motion_compensate", False),
         include_imu_data=conversion_config.get("include_imu_data", True),
@@ -669,40 +701,24 @@ class KognicDatasetUploader:
     ) -> List[LidarsAndCamerasSequenceFrame]:
         frames = []
         reference_timestamp = None
-        min_interval_ns = int(1e9 / self.config.target_hz) if self.config.target_hz else 0
-        last_annotated_ts: Optional[int] = None
-        tolerance_ns = 0  # default: strict interval
 
         frame_records = list(self.iterate_frames(sequence_path))
+        keyframe_indices = self._load_keyframe_indices(sequence_path, len(frame_records))
+        if keyframe_indices is not None:
+            annotate_indices = set(keyframe_indices)
+        else:
+            annotate_indices = set(
+                select_annotate_indices(
+                    [timestamp_ns for _, timestamp_ns, _ in frame_records],
+                    self.config.target_hz,
+                )
+            )
 
-        # T4 source frames are not spaced at exactly 1/source_hz: a small
-        # per-frame drift (e.g. ~0.09997s instead of 0.1s) accumulates, so the
-        # frame at a nominal 1.0s boundary can actually land at ~0.99999s.
-        # Allow a tolerance when deciding whether to annotate, taken from
-        # annotation_interval_tolerance_s. If not set, use half of the median frame interval as tolerance.
-        if min_interval_ns:
-            if self.config.annotation_interval_tolerance_s is not None:
-                tolerance_ns = int(self.config.annotation_interval_tolerance_s * 1e9)
-            else:
-                timestamps = [ts for _, ts, _ in frame_records]
-                deltas = sorted(b - a for a, b in zip(timestamps, timestamps[1:]) if b > a)
-                if deltas:
-                    tolerance_ns = deltas[len(deltas) // 2] // 2
-
-        for frame_id, timestamp_ns, sensor_files in frame_records:
+        for frame_idx, (frame_id, timestamp_ns, sensor_files) in enumerate(frame_records):
             if reference_timestamp is None:
                 reference_timestamp = timestamp_ns
 
-            if (
-                min_interval_ns == 0
-                or last_annotated_ts is None
-                or (timestamp_ns - last_annotated_ts) >= (min_interval_ns - tolerance_ns)
-            ):
-                annotate = True
-                last_annotated_ts = timestamp_ns
-            else:
-                annotate = False
-
+            annotate = frame_idx in annotate_indices
             relative_timestamp = int((timestamp_ns - reference_timestamp) / 1e6)
             point_clouds = [
                 KognicModel.PointCloud(sensor_name=name, filename=str(path))
@@ -735,6 +751,39 @@ class KognicDatasetUploader:
             )
 
         return frames
+
+    @staticmethod
+    def _load_keyframe_indices(sequence_path: Path, frame_count: int) -> Optional[List[int]]:
+        """T4 keyframe positions exported by the T4-to-Kognic converters, if any.
+
+        ``keyframes.json`` holds the staging frame indices whose source T4
+        ``sample_data`` records have ``is_key_frame`` set. When present, exactly
+        those frames are marked ``annotate=True`` so the annotatable frames
+        coincide with the T4 keyframes (and, for annotated scenes, with the
+        pre-annotation frames), and ``target_hz`` is ignored. Returns ``None``
+        (fall back to the ``target_hz`` walk) when the file is missing or was
+        generated for a different frame count.
+        """
+        keyframes_path = sequence_path / "keyframes.json"
+        if not keyframes_path.exists():
+            return None
+
+        with open(keyframes_path) as f:
+            data = json.load(f)
+
+        if data.get("frame_count") != frame_count:
+            logger.warning(
+                f"{keyframes_path} was generated for {data.get('frame_count')} frames but "
+                f"the scene has {frame_count}; ignoring it and selecting annotate frames "
+                "by target_hz instead"
+            )
+            return None
+
+        logger.info(
+            f"Marking the {len(data['keyframe_indices'])} T4 keyframes from "
+            f"{keyframes_path.name} as annotate=True"
+        )
+        return data["keyframe_indices"]
 
     def _build_imu_data(
         self,

@@ -49,6 +49,11 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
     - Pre-annotation frames are matched to scene frames by timestamp, so
       ``frame_properties.timestamp`` mirrors the uploader's
       ``relative_timestamp`` (milliseconds since the first anchor frame).
+    - A ``keyframes.json`` (staging frame indices of the T4 keyframes, from
+      ``sample_data.is_key_frame``) is written next to the pre-annotation.
+      The uploader marks exactly those frames ``annotate=True`` so the
+      annotatable frames always line up with the pre-annotation frames:
+      Kognic only surfaces pre-annotations on annotatable frames.
     """
 
     def __init__(
@@ -58,12 +63,15 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         lidar_stream: str = "",
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = False,
+        exclude_attributes: Optional[List[str]] = None,
         frame_match_tolerance_ms: float = 50.0,
     ):
         super().__init__(input_base, output_base)
         self._lidar_stream = lidar_stream
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
+        # attributes that exist in the annotation but does not want to be included in openlabel
+        self._exclude_attributes = set(exclude_attributes or []) 
         self._frame_match_tolerance_ms = frame_match_tolerance_ms
 
     def convert(self) -> None:
@@ -132,6 +140,8 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         for annotation in tables["sample_annotation"]:
             annotations_by_sample.setdefault(annotation["sample_token"], []).append(annotation)
 
+        self._write_keyframes(staging_dir, concat_records, concat_to_frame, len(anchor_ts_ns))
+
         objects: Dict[str, openlabel.Object] = {}
         frames: Dict[str, openlabel.Frame] = {}
         skipped = 0
@@ -178,6 +188,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                         attribute_to_text(attributes[token])
                         for token in annotation.get("attribute_tokens", [])
                         if token in attributes
+                        and attributes[token].rpartition(".")[0] not in self._exclude_attributes
                     ]
 
                 frame_objects[object_uuid] = openlabel.Objects(
@@ -235,6 +246,36 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             f"{out_path}: {len(objects)} objects, {total} cuboids over "
             f"{len(frames)} frames (skipped {skipped})"
         )
+
+    @staticmethod
+    def _write_keyframes(
+        staging_dir: Path,
+        concat_records: List[dict],
+        concat_to_frame: Dict[int, int],
+        frame_count: int,
+    ) -> None:
+        """Write the T4 keyframe positions for the uploader to ``keyframes.json``.
+
+        The staging frame indices of the ``sample_data`` records with
+        ``is_key_frame`` set. The uploader marks exactly those frames
+        ``annotate=True`` (instead of walking a fixed ``target_hz`` grid), so
+        the annotatable frames always coincide with the pre-annotation frames
+        even when the source keyframe cadence skips a sweep. ``frame_count``
+        lets the uploader detect a stale file after the staging data changed.
+
+        ``T4ToKognicConverter`` writes the same file for every scene (including
+        non-annotated ones); this refresh keeps re-running only the
+        pre-annotation step on an older staging dir sufficient.
+        """
+        keyframe_indices = sorted(
+            concat_to_frame[idx]
+            for idx, record in enumerate(concat_records)
+            if record.get("is_key_frame") and idx in concat_to_frame
+        )
+        out_path = staging_dir / "keyframes.json"
+        with open(out_path, "w") as f:
+            json.dump({"frame_count": frame_count, "keyframe_indices": keyframe_indices}, f)
+        logger.info(f"{out_path}: {len(keyframe_indices)} keyframes over {frame_count} frames")
 
     @staticmethod
     def _load_annotation(seq_path: Path, name: str) -> list:

@@ -22,6 +22,10 @@ conversion:
   # attributes on each cuboid. They must be allowed by the Kognic task
   # definition. It is set true by default.
   include_attributes: true
+  # T4 attribute groups NOT exported, for attributes the Kognic task
+  # definition does not declare (upload fails on unknown dynamic properties).
+  exclude_attributes:
+    - emergency_vehicle_lights_state
   # Used only when staging frame count differs from LIDAR_CONCAT records and
   # frames must be matched by nearest timestamp instead of position.
   frame_match_tolerance_ms: 50

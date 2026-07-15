@@ -79,6 +79,8 @@ def main():
             camera_sensors=camera_sensors,
             workers_number=workers_number,
             drop_camera_token_not_found=drop_camera_token_not_found,
+            annotated=(task == "convert_annotated_t4_to_kognic"),
+            annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
         )
 
         logger.info(
@@ -100,6 +102,7 @@ def main():
                 lidar_stream=config_dict["conversion"].get("lidar_stream", ""),
                 category_map=config_dict["conversion"].get("category_map"),
                 include_attributes=config_dict["conversion"].get("include_attributes", False),
+                exclude_attributes=config_dict["conversion"].get("exclude_attributes"),
                 frame_match_tolerance_ms=config_dict["conversion"].get(
                     "frame_match_tolerance_ms", 50.0
                 ),

@@ -34,8 +34,17 @@ class T4ToKognicConverter(AbstractConverter[None]):
         <output_base>/<input_item_name>/
             calibration.json
             ego_poses.json
+            keyframes.json
             cameras/<camera_name>/<timestamp_ns>.jpg
             lidar/<lidar_name>/<timestamp_ns>.csv
+
+    ``keyframes.json`` holds the staging frame indices of the keyframes; the
+    uploader marks exactly those frames ``annotate=True`` instead of walking a
+    fixed ``target_hz`` grid. For annotated datasets (``annotated=True``) the
+    keyframes are the T4 keyframes (``sample_data.is_key_frame``). Non-annotated
+    datasets mark every frame ``is_key_frame=True``, so their keyframes are
+    instead selected by sample index at ``annotation_hz``, matching the
+    non-annotated T4 -> Deepen converter.
     """
 
     def __init__(
@@ -45,11 +54,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
         camera_sensors: list,
         workers_number: int = 32,
         drop_camera_token_not_found: bool = False,
+        annotated: bool = True,
+        annotation_hz: int = 10,
     ):
         super().__init__(input_base, output_base)
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
+        self._annotated = annotated
+        self._annotation_hz = annotation_hz
         # Cache one blank black image per camera, sized to that camera's frames,
         # reused for every frame that is missing an image (see
         # ``_write_blank_image``).
@@ -79,6 +92,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._lidar_channels = self._discover_lidar_channels()
         self._frame_records = self._build_frame_records()
         logger.info(f"Selected {len(self._frame_records)} frames")
+        self._write_keyframes(out_dir)
 
         if not self._has_lidar_concat_info and LIDAR_CONCAT_CHANNEL in self._lidar_channels:
             logger.warning(
@@ -176,14 +190,59 @@ class T4ToKognicConverter(AbstractConverter[None]):
             for sample_data in self._sample_data_by_channel.get(channel, [])
         )
 
+    def _write_keyframes(self, out_dir: Path) -> None:
+        """Write the staging frame indices of the keyframes to ``keyframes.json``.
+
+        The uploader marks exactly those frames ``annotate=True``;
+        ``frame_count`` lets it detect a stale file after the staging data
+        changed.
+
+        Annotated datasets: a frame is a keyframe when its anchor
+        ``sample_data`` record has ``is_key_frame`` set.
+
+        Non-annotated datasets: ``is_key_frame`` is uninformative (the rosbag
+        converter sets it on every frame), so keyframes are selected by sample
+        index at ``annotation_hz``, with the same logic as the non-annotated
+        T4 -> Deepen converter (every ``int(10 / annotation_hz)``-th sample).
+        """
+        if self._annotated:
+            keyframe_indices = [
+                idx
+                for idx, frame_record in enumerate(self._frame_records)
+                if getattr(frame_record.get(self._anchor_channel), "is_key_frame", False)
+            ]
+        else:
+            step = max(1, int(10 / self._annotation_hz))
+            selected_samples = {
+                sample.token
+                for sample_index, sample in enumerate(self._samples)
+                if sample_index % step == 0
+            }
+            keyframe_indices = [
+                idx
+                for idx, frame_record in enumerate(self._frame_records)
+                if getattr(frame_record.get(self._anchor_channel), "sample_token", None)
+                in selected_samples
+            ]
+        with open(out_dir / "keyframes.json", "w") as f:
+            json.dump(
+                {"frame_count": len(self._frame_records), "keyframe_indices": keyframe_indices},
+                f,
+            )
+        logger.info(
+            f"keyframes.json: {len(keyframe_indices)} keyframes over "
+            f"{len(self._frame_records)} frames"
+        )
+
     def _build_frame_records(self) -> List[Dict[str, object]]:
         """Build one output frame per record of the high-frequency anchor stream.
 
         Every ``sample_data.json`` record of the anchor channel is exported —
-        key frames and intermediate sweeps alike. Annotation frequency is
-        controlled at upload time via ``target_hz``.
+        key frames and intermediate sweeps alike. The keyframes among them are
+        recorded in ``keyframes.json`` and become the annotatable frames at
+        upload time.
         """
-        anchor_channel = self._select_anchor_channel()
+        anchor_channel = self._anchor_channel = self._select_anchor_channel()
         anchor_records = self._sample_data_by_channel.get(anchor_channel, [])
         frame_records: List[Dict[str, object]] = []
         for anchor_record in anchor_records:
