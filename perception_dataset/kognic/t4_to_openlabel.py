@@ -71,7 +71,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
         # attributes that exist in the annotation but does not want to be included in openlabel
-        self._exclude_attributes = set(exclude_attributes or []) 
+        self._exclude_attributes = set(exclude_attributes or [])
         self._frame_match_tolerance_ms = frame_match_tolerance_ms
 
     def convert(self) -> None:
