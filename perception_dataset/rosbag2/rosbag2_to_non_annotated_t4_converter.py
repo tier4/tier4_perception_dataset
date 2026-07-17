@@ -53,7 +53,7 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
-from perception_dataset.ros2.oxts_msgs.ins_handler import EgoState, INSHandler
+from perception_dataset.ros2.ins_msgs.ins_handler import EgoState, INSHandler
 from perception_dataset.rosbag2.converter_params import (
     DataType,
     LidarSensor,
@@ -276,6 +276,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             self._vehicle_status_handler = None
 
     def _make_optional_ins_handler(self, params: Rosbag2ConverterParams) -> Optional[INSHandler]:
+        if params.ins_topic_mapping is None:
+            logger.info(
+                "Skipping optional INS ego_pose fields because `ins_topic_mapping` is not set."
+            )
+            return None
         topic_mapping = INSHandler.get_topic_mapping(params.ins_topic_mapping)
         missing_topics = [
             topic

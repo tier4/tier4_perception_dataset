@@ -396,15 +396,17 @@ conversion:
 
 ##### With INS messages
 
-In this option, it is assumed that input RosBag contains following messages, which are related to INS.
+In this option, it is assumed that input RosBag contains the following INS-related
+messages.
 
-|          Topic          |            Type             | Description                                                          |
-| :---------------------: | :-------------------------: | -------------------------------------------------------------------- |
-|  `/ins/oxts/odometry`   |   `nav_msgs/msg/Odometry`   | An estimate of a position and velocity in free space.                |
-|     `/ins/oxts/imu`     |    `sensor_msgs/msg/Imu`    | An IMU (Internal Measurement Unit) data.                             |
-| `/ins/oxts/nav_sat_fix` | `sensor_msgs/msg/NavSatFix` | Navigation Satellite fix for any Global Navigation Satellite System. |
+| Key (`ins_topic_mapping`) |            Type             | Description                                                          |
+| :-----------------------: | :-------------------------: | -------------------------------------------------------------------- |
+|        `odometry`         |   `nav_msgs/msg/Odometry`   | An estimate of a position and velocity in free space.                |
+|           `imu`           |    `sensor_msgs/msg/Imu`    | An IMU (Inertial Measurement Unit) data.                             |
+|       `nav_sat_fix`       | `sensor_msgs/msg/NavSatFix` | Navigation Satellite fix for any Global Navigation Satellite System. |
 
-In order to enable to create ego pose records using INS message, set `with_ins: true` in your configuration:
+In order to enable to create ego pose records using INS messages, set `with_ins: true`
+and provide `ins_topic_mapping` in your configuration:
 
 ```yaml
 task: convert_rosbag2_to_non_annotated_t4
@@ -413,6 +415,10 @@ description:
 conversion:
   ...
   with_ins: true # use INS messages
+  ins_topic_mapping: # topic names are vehicle-specific
+    imu: /sensing/imu/tamagawa/imu_raw
+    nav_sat_fix: /sensing/gnss/septentrio/nav_sat_fix
+    odometry: /localization/kinematic_state
   ...
 ```
 
