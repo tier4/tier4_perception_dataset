@@ -53,7 +53,7 @@ from perception_dataset.constants import (
     SENSOR_MODALITY_ENUM,
     T4_FORMAT_DIRECTORY_NAME,
 )
-from perception_dataset.ros2.oxts_msgs.ins_handler import EgoState, INSHandler
+from perception_dataset.ros2.ins_msgs.ins_handler import EgoState, INSHandler
 from perception_dataset.rosbag2.converter_params import (
     DataType,
     LidarSensor,
