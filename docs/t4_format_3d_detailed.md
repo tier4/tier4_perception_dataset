@@ -397,8 +397,7 @@ conversion:
 ##### With INS messages
 
 In this option, it is assumed that input RosBag contains the following INS-related
-messages. The concrete topic names are vehicle-specific and must always be provided
-explicitly via `ins_topic_mapping` (there is no default topic set).
+messages.
 
 | Key (`ins_topic_mapping`) |            Type             | Description                                                          |
 | :-----------------------: | :-------------------------: | -------------------------------------------------------------------- |
