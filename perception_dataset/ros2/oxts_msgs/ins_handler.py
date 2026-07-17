@@ -306,9 +306,6 @@ class LocalizeMethod(Enum):
 
 
 class INSHandler:
-    # Required keys for `ins_topic_mapping`. The concrete topic names are
-    # vehicle-specific and must always be provided explicitly via
-    # `ins_topic_mapping`; there is no implicit default topic set.
     REQUIRED_TOPIC_KEYS: Tuple[str, ...] = ("imu", "nav_sat_fix", "odometry")
 
     def __init__(
