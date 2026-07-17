@@ -306,22 +306,21 @@ class LocalizeMethod(Enum):
 
 
 class INSHandler:
-    DEFAULT_TOPIC_MAPPING = {
-        "imu": "/ins/oxts/imu",
-        "nav_sat_fix": "/ins/oxts/nav_sat_fix",
-        "odometry": "/ins/oxts/odometry",
-    }
+    # Required keys for `ins_topic_mapping`. The concrete topic names are
+    # vehicle-specific and must always be provided explicitly via
+    # `ins_topic_mapping`; there is no implicit default topic set.
+    REQUIRED_TOPIC_KEYS: Tuple[str, ...] = ("imu", "nav_sat_fix", "odometry")
 
     def __init__(
         self,
         bag_dir: str,
         *,
+        topic_mapping: Dict[str, str],
         localize_method: LocalizeMethod = LocalizeMethod.WITH_ODOMETRY,
-        topic_mapping: Optional[Dict[str, str]] = None,
     ) -> None:
         self._reader = Rosbag2Reader(bag_dir=bag_dir)
         self._localize_method = localize_method
-        self._topic_mapping = self.get_topic_mapping(topic_mapping=topic_mapping)
+        self._topic_mapping = self.get_topic_mapping(topic_mapping)
 
         # buffer to store all messages
         buffer = {
@@ -339,11 +338,18 @@ class INSHandler:
             raise ValueError(f"Unexpected localize method: {self._localize_method}")
 
     @classmethod
-    def get_topic_mapping(cls, topic_mapping: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        if topic_mapping is not None:
-            assert set(cls.DEFAULT_TOPIC_MAPPING) == set(topic_mapping.keys())
-            return topic_mapping
-        return cls.DEFAULT_TOPIC_MAPPING
+    def get_topic_mapping(cls, topic_mapping: Optional[Dict[str, str]]) -> Dict[str, str]:
+        if topic_mapping is None:
+            raise ValueError(
+                "`ins_topic_mapping` is required to use INS messages. "
+                f"Provide a mapping with keys {set(cls.REQUIRED_TOPIC_KEYS)}."
+            )
+        if set(cls.REQUIRED_TOPIC_KEYS) != set(topic_mapping.keys()):
+            raise ValueError(
+                "`ins_topic_mapping` must have exactly the keys "
+                f"{set(cls.REQUIRED_TOPIC_KEYS)}, but got {set(topic_mapping.keys())}."
+            )
+        return topic_mapping
 
     def _localize_with_odometry(self) -> None:
         odometries: List[Odometry] = self._buffer["odometry"]
