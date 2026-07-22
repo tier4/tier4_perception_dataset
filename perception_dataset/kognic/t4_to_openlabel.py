@@ -304,15 +304,18 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
         The exact inverse of ``OpenLabelToT4Converter._convert_segmentation``:
         each frame's per-point uint8 class ids are run-length encoded as
-        ``#<count>V<class_id>`` on a ``binary`` object data entry (in
-        LIDAR_CONCAT point order, ``0`` = unlabelled), and the positive
+        ``#<count>V<class_id>`` on ``binary`` object data entries, each bound
+        to its lidar stream via a ``stream`` text attribute as Kognic's
+        pre-annotation spec requires (``0`` = unlabelled), and the positive
         ``category.json`` ``index`` fields become the ontology
         ``classifications`` (index 0/background is implicit on the way back).
 
-        Kognic requires the binary entry to carry a ``stream`` text attribute
-        naming the LiDAR stream the labels apply to, and its own exports use
-        ``data_type: ""`` (https://docs.kognic.com/api-guide/pre-annotations),
-        so both are mirrored here.
+        When LIDAR_CONCAT_INFO is available the labels are sliced per source
+        lidar with the same ``idx_begin``/``length`` layout that
+        ``extract_pointclouds`` used to stage the per-sensor CSVs, so each
+        stream's labels line up with the points Kognic loads for that stream.
+        Without it the scene was staged as a single fused stream and the whole
+        label array is bound to *stream_name*.
         """
         classifications = self._segmentation_classifications(tables["category"])
         if not classifications:
@@ -324,6 +327,12 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
         concat_idx_by_sd_token = {
             record["token"]: idx for idx, record in enumerate(concat_records)
+        }
+        channel_by_sensor_token = {
+            sensor["token"]: sensor["channel"] for sensor in tables["sensor"]
+        }
+        staged_streams = {
+            path.name for path in (staging_dir / "lidar").iterdir() if path.is_dir()
         }
         # One segmentation object shared by all frames; deterministic per scene.
         object_uuid = str(uuid.uuid5(uuid.NAMESPACE_OID, f"{staging_dir.name}/lidarseg"))
@@ -359,10 +368,22 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                 skipped += 1
                 continue
 
+            stream_labels = self._split_labels_by_stream(
+                seq_path,
+                concat_records[concat_idx],
+                labels,
+                channel_by_sensor_token,
+                staged_streams,
+                stream_name,
+            )
+            if not stream_labels:
+                skipped += 1
+                continue
+
             frames[str(frame_idx)] = openlabel.Frame(
                 frame_properties=openlabel.FrameProperties(
                     timestamp=relative_ms[frame_idx],
-                    streams={stream_name: {}},
+                    streams={stream: {} for stream, _ in stream_labels},
                     external_id=str(frame_idx),
                 ),
                 objects={
@@ -373,13 +394,12 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                                     name="labels",
                                     encoding="rle",
                                     data_type="",
-                                    val=_encode_rle_labels(labels),
+                                    val=_encode_rle_labels(labels_slice),
                                     attributes=openlabel.Attributes(
-                                        text=[
-                                            openlabel.Text(name="stream", val=stream_name)
-                                        ]
+                                        text=[openlabel.Text(name="stream", val=stream)]
                                     ),
                                 )
+                                for stream, labels_slice in stream_labels
                             ]
                         )
                     )
@@ -431,6 +451,53 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             f"{out_path}: {len(classifications)} classes over {len(frames)} frames "
             f"(skipped {skipped})"
         )
+
+    def _split_labels_by_stream(
+        self,
+        seq_path: Path,
+        concat_record: dict,
+        labels: np.ndarray,
+        channel_by_sensor_token: Dict[str, str],
+        staged_streams: set,
+        stream_name: str,
+    ) -> List[Tuple[str, np.ndarray]]:
+        """Slice concat-order *labels* per staged lidar stream via LIDAR_CONCAT_INFO.
+
+        Returns ``[(stream, labels_slice), ...]`` in ``idx_begin`` order, or the
+        whole array on *stream_name* when the scene has no LIDAR_CONCAT_INFO
+        (fused single-stream export). An empty list means the frame must be
+        dropped because the info layout does not cover the labels.
+        """
+        info_filename = concat_record.get("info_filename")
+        if not info_filename:
+            return [(stream_name, labels)]
+
+        with open(seq_path / info_filename) as f:
+            sources = json.load(f)["sources"]
+
+        total = sum(int(source["length"]) for source in sources)
+        if total != labels.size:
+            logger.warning(
+                f"{info_filename}: sources cover {total} points but there are "
+                f"{labels.size} labels; dropping this frame"
+            )
+            return []
+
+        stream_labels: List[Tuple[str, np.ndarray]] = []
+        for source in sorted(sources, key=lambda source: int(source["idx_begin"])):
+            length = int(source["length"])
+            if length == 0:
+                continue
+            channel = channel_by_sensor_token.get(source["sensor_token"])
+            if channel not in staged_streams:
+                logger.warning(
+                    f"{info_filename}: source lidar {channel or source['sensor_token']} "
+                    f"is not a staged stream; dropping its {length} labels"
+                )
+                continue
+            idx_begin = int(source["idx_begin"])
+            stream_labels.append((channel, labels[idx_begin : idx_begin + length]))
+        return stream_labels
 
     def _segmentation_classifications(self, categories: List[dict]) -> Dict[int, str]:
         """Ontology class id -> class name, from ``category.json`` ``index`` fields.
