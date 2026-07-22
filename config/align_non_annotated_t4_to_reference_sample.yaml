@@ -3,9 +3,9 @@ conversion:
   # Directory of non-annotated T4 dataset(s) to align (the "candidate").
   # Parent directory containing one sub-directory per scene,
   # each holding annotation/ and data/ (or a t4_dataset/ sub-directory).
-  input_base: ./data/non_annotated_t4_format
+  input_base: ./data/allign/new-dataset-allign
   # Directory of annotated "reference" T4dataset supplying the keyframes (read-only).
-  reference_base: ./data/reference_annotated_t4_format
+  reference_base: ./data/reference/reference_data
   # Where the aligned dataset(s) are written, as output_base/<scene>.
   output_base: ./data/aligned_annotated_t4_format
   # Maximum abs(candidate - reference) keyframe timestamp difference, in milliseconds,
@@ -16,3 +16,12 @@ conversion:
   max_frame_drop_ratio: 0.1
   # If true, write alignment_report.json into each output scene. Default: true.
   write_alignment_report: true
+  # Lidarseg transfer runs automatically when the reference provides
+  # annotation/lidarseg.json: since the candidate point cloud has a different
+  # number of points, each candidate point is classified by a distance-weighted
+  # vote among its nearest reference points.
+  # Number of nearest reference points that vote per candidate point. Default: 5.
+  lidarseg_num_neighbors: 5
+  # Reference points farther than this (meters) do not vote; candidate points
+  # with no voting neighbor fall back to category index 0 ("unpainted"). Default: 1.0.
+  lidarseg_max_neighbor_dist_m: 1.0

@@ -11,7 +11,11 @@ import shutil
 from statistics import median
 from typing import Any
 
+import numpy as np
+from scipy.spatial import cKDTree
+
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.utils.gen_tokens import generate_token
 from perception_dataset.utils.logger import configure_logger
 
 JsonRow = dict[str, Any]
@@ -29,6 +33,12 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
     ``annotation/`` and ``data/`` directly or a ``t4_dataset/`` sub-directory
     that does. Scenes are paired by directory name (or one-to-one when each base
     holds a single scene). Outputs are written under ``output_base/<scene>``.
+
+    When the reference provides lidarseg annotations (``lidarseg.json`` plus
+    per-point label bins) they are transferred onto the candidate point clouds
+    as well, even though the clouds differ in point count: each candidate point
+    is classified by a distance-weighted vote among its nearest reference
+    points (see :meth:`_transfer_lidarseg`).
     """
 
     def __init__(
@@ -40,6 +50,8 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         max_abs_diff_ms: float = 0.1,
         max_frame_drop_ratio: float = 0.1,
         write_alignment_report: bool = True,
+        lidarseg_num_neighbors: int = 5,
+        lidarseg_max_neighbor_dist_m: float = 1.0,
         logger: logging.Logger | None = None,
     ) -> None:
         super().__init__(input_base=input_base, output_base=output_base)
@@ -49,6 +61,8 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         self._max_abs_diff_ms = max_abs_diff_ms
         self._max_frame_drop_ratio = max_frame_drop_ratio
         self._write_alignment_report = write_alignment_report
+        self._lidarseg_num_neighbors = lidarseg_num_neighbors
+        self._lidarseg_max_neighbor_dist_m = lidarseg_max_neighbor_dist_m
         self._logger = logger or configure_logger(modname=__name__)
 
     # ------------------------------------------------------------------ #
@@ -190,6 +204,13 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             sample_token_map,
             {row["token"]: index for index, row in enumerate(sample_rows)},
         )
+        lidarseg_rows, lidarseg_summary = self._transfer_lidarseg(
+            reference_dir=reference_dir,
+            output_dir=output_dir,
+            reference_tables=reference_tables,
+            sample_data_rows=sample_data_rows,
+            reference_sample_data_token_map=reference_sample_data_token_map,
+        )
 
         self._write_output_tables(
             output_dir=output_dir,
@@ -201,6 +222,7 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             instances=instances,
             reference_sample_token_map=sample_token_map,
             reference_sample_data_token_map=reference_sample_data_token_map,
+            lidarseg_rows=lidarseg_rows,
         )
         self._copy_non_annotation_files(candidate_dir, output_dir)
 
@@ -220,6 +242,7 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             sample_rows=sample_rows,
             sample_data_rows=sample_data_rows,
             sample_annotations=sample_annotations,
+            lidarseg_summary=lidarseg_summary,
         )
         if self._write_alignment_report:
             self._save_json(output_dir / "alignment_report.json", report)
@@ -463,6 +486,195 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             remapped.append(copied)
         return remapped
 
+    # ------------------------------------------------------------------ #
+    # lidarseg transfer
+    # ------------------------------------------------------------------ #
+    def _transfer_lidarseg(
+        self,
+        *,
+        reference_dir: Path,
+        output_dir: Path,
+        reference_tables: dict[str, list[JsonRow]],
+        sample_data_rows: list[JsonRow],
+        reference_sample_data_token_map: dict[str, str],
+    ) -> tuple[list[JsonRow] | None, dict[str, Any] | None]:
+        """Transfer the reference per-point lidarseg labels onto the candidate
+        point clouds. Runs only when the reference provides ``lidarseg.json``.
+
+        The matched keyframes capture the same scene at (nearly) the same
+        timestamp, but the clouds differ in point count, so labels cannot be
+        copied one-to-one. Instead each candidate point is classified from the
+        reference points surrounding it: a distance-weighted vote among its
+        ``lidarseg_num_neighbors`` nearest reference points, where reference
+        points farther than ``lidarseg_max_neighbor_dist_m`` do not vote.
+        Candidate points left without any vote fall back to category index 0
+        ("unpainted"). New label bins are written to
+        ``lidarseg/annotation/<token>.bin`` under the output scene.
+        """
+        reference_lidarseg = reference_tables.get("lidarseg")
+        if reference_lidarseg is None:
+            return None, None
+
+        reference_sample_data_by_token = {
+            row["token"]: row for row in reference_tables["sample_data"]
+        }
+        output_sample_data_by_token = {row["token"]: row for row in sample_data_rows}
+
+        lidarseg_rows: list[JsonRow] = []
+        frames: list[dict[str, Any]] = []
+        num_skipped = 0
+        for reference_row in reference_lidarseg:
+            candidate_token = reference_sample_data_token_map.get(
+                reference_row["sample_data_token"]
+            )
+            if candidate_token is None or candidate_token not in output_sample_data_by_token:
+                # The reference keyframe was trimmed/dropped during alignment.
+                num_skipped += 1
+                continue
+
+            reference_points = self._load_pointcloud_xyz(
+                reference_dir, reference_sample_data_by_token[reference_row["sample_data_token"]]
+            )
+            reference_labels = np.fromfile(
+                str(reference_dir / reference_row["filename"]), dtype=np.uint8
+            )
+            if reference_labels.shape[0] != reference_points.shape[0]:
+                raise ValueError(
+                    f"lidarseg annotation {reference_row['filename']} has "
+                    f"{reference_labels.shape[0]} labels but its point cloud has "
+                    f"{reference_points.shape[0]} points"
+                )
+
+            candidate_row = output_sample_data_by_token[candidate_token]
+            candidate_points = self._load_pointcloud_xyz(output_dir, candidate_row)
+            labels, stats = self._vote_point_labels(
+                reference_points,
+                reference_labels,
+                candidate_points,
+                num_neighbors=self._lidarseg_num_neighbors,
+                max_neighbor_dist_m=self._lidarseg_max_neighbor_dist_m,
+            )
+
+            token = generate_token()
+            filename = f"lidarseg/annotation/{token}.bin"
+            output_path = output_dir / filename
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            labels.tofile(str(output_path))
+            lidarseg_rows.append(
+                {"token": token, "sample_data_token": candidate_token, "filename": filename}
+            )
+            frames.append(
+                {
+                    "reference_lidarseg_token": reference_row["token"],
+                    "sample_data_token": candidate_token,
+                    "sample_data_filename": candidate_row["filename"],
+                    "num_reference_points": int(reference_points.shape[0]),
+                    **stats,
+                }
+            )
+
+        summary = {
+            "num_records": len(lidarseg_rows),
+            "num_skipped_reference_records": num_skipped,
+            "num_neighbors": self._lidarseg_num_neighbors,
+            "max_neighbor_dist_m": self._lidarseg_max_neighbor_dist_m,
+            "num_points": sum(frame["num_points"] for frame in frames),
+            "num_out_of_range_points": sum(frame["num_out_of_range_points"] for frame in frames),
+            "frames": frames,
+        }
+        self._logger.info(
+            f"transferred lidarseg onto {summary['num_records']} keyframe(s): "
+            f"{summary['num_points']} points, "
+            f"{summary['num_out_of_range_points']} out-of-range -> unpainted"
+        )
+        return lidarseg_rows, summary
+
+    @staticmethod
+    def _load_pointcloud_xyz(dataset_dir: Path, sample_data_row: JsonRow) -> np.ndarray:
+        """Load the xyz coordinates (N, 3) of a lidar ``sample_data`` bin.
+
+        The bin holds float32 values with ``num_pts_feats`` fields per point
+        (x, y, z first); the field count comes from the point cloud metainfo
+        JSON (``info_filename``) when present, defaulting to 5 as in t4-devkit.
+        """
+        num_pts_feats = 5
+        info_filename = sample_data_row.get("info_filename")
+        if info_filename and (dataset_dir / info_filename).exists():
+            with (dataset_dir / info_filename).open() as f:
+                num_pts_feats = json.load(f).get("num_pts_feats", 5)
+
+        pointcloud_path = dataset_dir / sample_data_row["filename"]
+        scan = np.fromfile(str(pointcloud_path), dtype=np.float32)
+        if scan.size % num_pts_feats != 0:
+            raise ValueError(
+                f"point cloud {pointcloud_path} holds {scan.size} float32 values, "
+                f"which is not divisible by num_pts_feats={num_pts_feats}"
+            )
+        return scan.reshape(-1, num_pts_feats)[:, :3]
+
+    @staticmethod
+    def _vote_point_labels(
+        reference_points: np.ndarray,
+        reference_labels: np.ndarray,
+        candidate_points: np.ndarray,
+        *,
+        num_neighbors: int,
+        max_neighbor_dist_m: float,
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        """Classify each candidate point from its surrounding reference points.
+
+        Each candidate point queries its ``num_neighbors`` nearest reference
+        points and takes the class with the highest inverse-distance weight
+        sum, so a coincident reference point dominates while more distant
+        neighbors only break the remaining ties. Neighbors beyond
+        ``max_neighbor_dist_m`` do not vote; candidate points without any
+        voting neighbor get label 0 ("unpainted").
+        """
+        num_candidates = candidate_points.shape[0]
+        if num_candidates == 0 or reference_points.shape[0] == 0:
+            return np.zeros(num_candidates, dtype=np.uint8), {
+                "num_points": int(num_candidates),
+                "num_out_of_range_points": int(num_candidates),
+                "mean_nearest_neighbor_dist_m": None,
+                "max_nearest_neighbor_dist_m": None,
+            }
+
+        num_neighbors = min(num_neighbors, reference_points.shape[0])
+        distances, indices = cKDTree(reference_points).query(
+            candidate_points, k=num_neighbors, workers=-1
+        )
+        distances = distances.reshape(num_candidates, num_neighbors)
+        indices = indices.reshape(num_candidates, num_neighbors)
+
+        # Vote over the compact set of classes actually present to keep the
+        # (num_candidates, num_classes) vote matrix small.
+        unique_labels = np.unique(reference_labels)
+        compact_of_label = np.zeros(256, dtype=np.int64)
+        compact_of_label[unique_labels] = np.arange(unique_labels.shape[0])
+        neighbor_compact = compact_of_label[reference_labels[indices]]
+
+        weights = 1.0 / np.maximum(distances, 1e-6)
+        weights[distances > max_neighbor_dist_m] = 0.0
+
+        num_classes = unique_labels.shape[0]
+        flat_bins = np.arange(num_candidates)[:, None] * num_classes + neighbor_compact
+        votes = np.bincount(
+            flat_bins.ravel(), weights=weights.ravel(), minlength=num_candidates * num_classes
+        ).reshape(num_candidates, num_classes)
+        labels = unique_labels[np.argmax(votes, axis=1)].astype(np.uint8)
+
+        out_of_range = ~(weights > 0.0).any(axis=1)
+        labels[out_of_range] = 0
+
+        nearest_dist = distances[:, 0]
+        stats = {
+            "num_points": int(num_candidates),
+            "num_out_of_range_points": int(out_of_range.sum()),
+            "mean_nearest_neighbor_dist_m": float(nearest_dist.mean()),
+            "max_nearest_neighbor_dist_m": float(nearest_dist.max()),
+        }
+        return labels, stats
+
     def _write_output_tables(
         self,
         *,
@@ -475,6 +687,7 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         instances: list[JsonRow],
         reference_sample_token_map: dict[str, str],
         reference_sample_data_token_map: dict[str, str],
+        lidarseg_rows: list[JsonRow] | None = None,
     ) -> None:
         output_annotation_dir = output_dir / "annotation"
         used_ego_pose_tokens = {row["ego_pose_token"] for row in sample_data_rows}
@@ -511,6 +724,8 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
                     sample_token_map=reference_sample_token_map,
                     sample_data_token_map=reference_sample_data_token_map,
                 )
+        if lidarseg_rows is not None:
+            tables["lidarseg"] = lidarseg_rows
 
         for name, rows in tables.items():
             self._save_json(output_annotation_dir / f"{name}.json", rows)
@@ -545,6 +760,7 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         sample_rows: list[JsonRow],
         sample_data_rows: list[JsonRow],
         sample_annotations: list[JsonRow],
+        lidarseg_summary: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         used_diffs = [diff for _, _, diff in matches]
         max_abs_diff_us = max(abs(diff) for diff in used_diffs)
@@ -586,6 +802,7 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             "timestamp_diffs_us": used_diffs,
             "alignment_results": alignment_results,
             "unmatched_reference_results": unmatched,
+            "lidarseg": lidarseg_summary,
         }
 
     # ------------------------------------------------------------------ #
