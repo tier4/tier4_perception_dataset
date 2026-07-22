@@ -11,7 +11,11 @@ conversion:
     - channel: CAM_BACK
     - channel: CAM_BACK_LEFT
     - channel: CAM_FRONT_LEFT
-  # --- OpenLABEL pre-annotation export (written to <output_base>/<scene>/pre_annotation.json) ---
+  # --- OpenLABEL pre-annotation export ---
+  # The annotation kind is auto-detected per scene: sample_annotation.json is
+  # exported as <output_base>/<scene>/cuboid_pre_annotation.json and, when
+  # annotation/lidarseg.json exists, the lidar semantic segmentation is
+  # exported as <output_base>/<scene>/semseg_pre_annotation.json.
   # Stream name the cuboids are attached to. Defaults to the anchor lidar
   # (first staged lidar in PREFERRED_LIDAR_SENSORS order) used by the uploader.
   lidar_stream: ""

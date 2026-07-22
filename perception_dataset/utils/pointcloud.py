@@ -38,6 +38,16 @@ def point_stride_from_info(bin_path: Path, total_points: int) -> int:
     return stride
 
 
+def lidar_point_count(bin_path: Path) -> Optional[int]:
+    """Number of points in a LIDAR_CONCAT ``.pcd.bin``, or None if unreadable."""
+    if not bin_path.exists():
+        return None
+    floats = np.fromfile(bin_path, dtype=np.float32)
+    if floats.size == 0:
+        return 0
+    return floats.size // detect_point_stride(floats, bin_path)
+
+
 def detect_point_stride(floats: np.ndarray, bin_path: Path) -> int:
     """Guess the floats-per-point stride when no LIDAR_CONCAT_INFO is available.
 

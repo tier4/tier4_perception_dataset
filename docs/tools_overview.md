@@ -119,18 +119,24 @@ For non-annotated T4 data (annotation tables, if present, are ignored):
 python -m perception_dataset.convert --config config/convert_non_annotated_t4_to_kognic_sample.yaml
 ```
 
-For annotated T4 data, the same sensor-data conversion runs first and the 3D
-box annotations are then exported as an OpenLABEL `pre_annotation.json` inside
-each scene's staging directory, following the
-[Kognic pre-annotation format](https://docs.kognic.com/api-guide/pre-annotations):
+For annotated T4 data, the same sensor-data conversion runs first and the
+annotations are then exported as OpenLABEL pre-annotations inside each scene's
+staging directory, following the
+[Kognic pre-annotation format](https://docs.kognic.com/api-guide/pre-annotations).
+The annotation kind is auto-detected per scene from the annotation tables
+present: 3D boxes (`sample_annotation.json`) become `cuboid_pre_annotation.json`,
+and lidar semantic segmentation (`lidarseg.json`) becomes
+`semseg_pre_annotation.json` (per-point class ids run-length encoded as
+`#<count>V<class_id>`, the same format `convert_kognic_annotation_to_t4` reads
+back):
 
 ```bash
 python -m perception_dataset.convert --config config/convert_annotated_t4_to_kognic_sample.yaml
 ```
 
-When `pre_annotation.json` is present, the uploader (next section) uploads the
-scene without an input, attaches the pre-annotation, and creates the input from
-the scene so labelers see the boxes pre-loaded.
+The uploader (next section) attaches a pre-annotation to a scene when the
+project target's `pre_annotation` config names one of these files, and creates
+the input from the scene so labelers see the annotations pre-loaded.
 
 See [Stage 1](tier_iv_t4_extractor_to_kognic.md#stage-1--t4-sensor-data--kognic-staging-format) and [Stage 2](tier_iv_t4_extractor_to_kognic.md#stage-2--t4-annotations--openlabel-pre-annotation) for the staging format and the pre-annotation export in detail.
 

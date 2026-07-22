@@ -15,6 +15,7 @@ from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cub
 from perception_dataset.kognic.upload_dataset import _sensor_sort_key, _sort_key
 from perception_dataset.kognic.utils import iter_scene_pairs
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.pointcloud import lidar_point_count
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     records_for_channel,
@@ -24,18 +25,19 @@ logger = configure_logger(modname=__name__)
 
 
 class T4ToOpenLabelConverter(AbstractConverter[None]):
-    """Convert T4 3D box annotations to a Kognic OpenLABEL pre-annotation.
+    """Convert T4 annotations to Kognic OpenLABEL pre-annotations.
 
-    For every annotated T4 sequence under ``input_base``, reads
-    ``annotation/sample_annotation.json`` (and its companion tables) and
-    writes a ``cuboid_pre_annotation.json`` into the matching Kognic staging
+    For every annotated T4 sequence under ``input_base``, the annotation kind
+    is auto-detected per scene from the annotation tables present, and the
+    matching pre-annotation files are written into the Kognic staging
     directory under ``output_base``, as previously produced by
     ``T4ToKognicConverter``::
 
         <output_base>/<scene>/
             calibration.json
             ego_poses.json
-            cuboid_pre_annotation.json     <- added by this converter
+            cuboid_pre_annotation.json     <- from sample_annotation.json
+            semseg_pre_annotation.json     <- from lidarseg.json
             cameras/...  lidar/...
 
     Conventions (https://docs.kognic.com/api-guide/pre-annotations):
@@ -54,6 +56,16 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
       The uploader marks exactly those frames ``annotate=True`` so the
       annotatable frames always line up with the pre-annotation frames:
       Kognic only surfaces pre-annotations on annotatable frames.
+
+    Point-cloud segmentation (``annotation/lidarseg.json``, when present) is
+    exported as ``semseg_pre_annotation.json``, the exact inverse of
+    ``OpenLabelToT4Converter._convert_segmentation``: each frame carries one
+    ``object_data.binary`` entry (``name="labels"``, ``encoding="rle"``) whose
+    value run-length encodes the per-point class ids (``#<count>V<class_id>``,
+    ``0`` = unlabelled/background) in LIDAR_CONCAT point order, and the
+    ``ontologies`` block maps each class id to its name from the T4
+    ``category.json`` ``index`` fields. To attach it, point the uploader's
+    project target at it: ``pre_annotation: semseg_pre_annotation.json``.
     """
 
     def __init__(
@@ -86,7 +98,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                     f"run convert_t4_to_kognic first. Skipping {seq_path}"
                 )
                 continue
-            logger.info(f"[BEGIN] {seq_path} -> {staging_dir / 'cuboid_pre_annotation.json'}")
+            logger.info(f"[BEGIN] {seq_path} -> {staging_dir}")
             self._convert_one_scene(seq_path, staging_dir)
             logger.info(f"[DONE]  {seq_path}")
 
@@ -112,7 +124,9 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             )
         }
 
-        if not tables["sample_annotation"]:
+        lidarseg_records = self._load_annotation_optional(seq_path, "lidarseg.json")
+
+        if not tables["sample_annotation"] and not lidarseg_records:
             logger.warning(f"No annotations in {seq_path}; skipping")
             return
 
@@ -125,6 +139,30 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         concat_to_frame = self._map_concat_to_frames(concat_records, anchor_ts_ns)
         stream_name = self._lidar_stream or anchor_stream
 
+        self._write_keyframes(staging_dir, concat_records, concat_to_frame, len(anchor_ts_ns))
+
+        if tables["sample_annotation"]:
+            self._write_cuboid_pre_annotation(
+                seq_path, staging_dir, tables, concat_records, concat_to_frame,
+                relative_ms, stream_name,
+            )
+        if lidarseg_records:
+            self._write_semseg_pre_annotation(
+                seq_path, staging_dir, tables, lidarseg_records, concat_records,
+                concat_to_frame, relative_ms, stream_name,
+            )
+
+    def _write_cuboid_pre_annotation(
+        self,
+        seq_path: Path,
+        staging_dir: Path,
+        tables: dict,
+        concat_records: List[dict],
+        concat_to_frame: Dict[int, int],
+        relative_ms: List[int],
+        stream_name: str,
+    ) -> None:
+        """Export ``sample_annotation.json`` boxes as ``cuboid_pre_annotation.json``."""
         concat_idx_by_sample = {
             record["sample_token"]: idx
             for idx, record in enumerate(concat_records)
@@ -139,8 +177,6 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         annotations_by_sample: Dict[str, List[dict]] = {}
         for annotation in tables["sample_annotation"]:
             annotations_by_sample.setdefault(annotation["sample_token"], []).append(annotation)
-
-        self._write_keyframes(staging_dir, concat_records, concat_to_frame, len(anchor_ts_ns))
 
         objects: Dict[str, openlabel.Object] = {}
         frames: Dict[str, openlabel.Frame] = {}
@@ -247,6 +283,159 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             f"{len(frames)} frames (skipped {skipped})"
         )
 
+    # ------------------------------------------------------------------
+    # Point-cloud segmentation (T4 lidarseg -> semseg pre-annotation)
+    # ------------------------------------------------------------------
+
+    def _write_semseg_pre_annotation(
+        self,
+        seq_path: Path,
+        staging_dir: Path,
+        tables: dict,
+        lidarseg_records: List[dict],
+        concat_records: List[dict],
+        concat_to_frame: Dict[int, int],
+        relative_ms: List[int],
+        stream_name: str,
+    ) -> None:
+        """Export ``lidarseg.json`` labels as ``semseg_pre_annotation.json``.
+
+        The exact inverse of ``OpenLabelToT4Converter._convert_segmentation``:
+        each frame's per-point uint8 class ids are run-length encoded as
+        ``#<count>V<class_id>`` on a ``binary`` object data entry (in
+        LIDAR_CONCAT point order, ``0`` = unlabelled), and the positive
+        ``category.json`` ``index`` fields become the ontology
+        ``classifications`` (index 0/background is implicit on the way back).
+        """
+        classifications = self._segmentation_classifications(tables["category"])
+        if not classifications:
+            logger.warning(
+                f"{seq_path}: lidarseg.json present but no category.json entry has a "
+                "positive index; skipping the semseg pre-annotation"
+            )
+            return
+
+        concat_idx_by_sd_token = {
+            record["token"]: idx for idx, record in enumerate(concat_records)
+        }
+        # One segmentation object shared by all frames; deterministic per scene.
+        object_uuid = str(uuid.uuid5(uuid.NAMESPACE_OID, f"{staging_dir.name}/lidarseg"))
+
+        frames: Dict[str, openlabel.Frame] = {}
+        skipped = 0
+        for record in lidarseg_records:
+            concat_idx = concat_idx_by_sd_token.get(record["sample_data_token"])
+            frame_idx = concat_to_frame.get(concat_idx) if concat_idx is not None else None
+            if frame_idx is None:
+                logger.warning(
+                    f"lidarseg record {record['token']} could not be matched to a "
+                    f"staging frame; dropping its segmentation"
+                )
+                skipped += 1
+                continue
+
+            labels = np.fromfile(seq_path / record["filename"], dtype=np.uint8)
+            num_points = lidar_point_count(seq_path / concat_records[concat_idx]["filename"])
+            if num_points is not None and labels.size != num_points:
+                logger.warning(
+                    f"{record['filename']}: {labels.size} labels vs {num_points} points in "
+                    f"{concat_records[concat_idx]['filename']}; dropping this frame"
+                )
+                skipped += 1
+                continue
+            unknown = set(np.unique(labels).tolist()) - {0} - set(classifications)
+            if unknown:
+                logger.warning(
+                    f"{record['filename']}: label value(s) {sorted(unknown)} have no "
+                    f"category.json index; dropping this frame"
+                )
+                skipped += 1
+                continue
+
+            frames[str(frame_idx)] = openlabel.Frame(
+                frame_properties=openlabel.FrameProperties(
+                    timestamp=relative_ms[frame_idx],
+                    streams={stream_name: {}},
+                    external_id=str(frame_idx),
+                ),
+                objects={
+                    object_uuid: openlabel.Objects(
+                        object_data=openlabel.ObjectData(
+                            binary=[
+                                openlabel.Binary(
+                                    name="labels",
+                                    encoding="rle",
+                                    data_type="uint8",
+                                    val=_encode_rle_labels(labels),
+                                )
+                            ]
+                        )
+                    )
+                },
+            )
+
+        if not frames:
+            logger.warning(
+                f"No lidarseg frame could be placed on a staging frame for {seq_path}"
+            )
+            return
+
+        frame_indices = sorted(int(idx) for idx in frames)
+        annotation = openlabel.OpenLabelAnnotation(
+            openlabel=openlabel.Openlabel(
+                metadata=openlabel.Metadata(
+                    schema_version=openlabel.SchemaVersion.field_1_0_0,
+                    name=staging_dir.name,
+                    annotation_type="semseg",
+                ),
+                ontologies={
+                    "0": openlabel.OntologyItem(
+                        uri="",
+                        classifications={
+                            str(index): name for index, name in sorted(classifications.items())
+                        },
+                    )
+                },
+                objects={
+                    object_uuid: openlabel.Object(
+                        name="lidarseg", type="3DPointCloudSegmentation"
+                    )
+                },
+                frames=frames,
+                frame_intervals=[
+                    openlabel.FrameInterval(
+                        frame_start=frame_indices[0], frame_end=frame_indices[-1]
+                    )
+                ],
+                streams=self._build_streams(staging_dir),
+            )
+        )
+
+        out_path = staging_dir / "semseg_pre_annotation.json"
+        with open(out_path, "w") as f:
+            json.dump(annotation.model_dump(mode="json", exclude_none=True), f, indent=2)
+
+        logger.info(
+            f"{out_path}: {len(classifications)} classes over {len(frames)} frames "
+            f"(skipped {skipped})"
+        )
+
+    def _segmentation_classifications(self, categories: List[dict]) -> Dict[int, str]:
+        """Ontology class id -> class name, from ``category.json`` ``index`` fields.
+
+        Categories without a positive ``index`` are not paint classes: index 0
+        is the implicit unlabelled/background class, and box-only categories
+        carry no index at all.
+        """
+        classifications: Dict[int, str] = {}
+        for category in categories:
+            index = category.get("index")
+            if not index or index < 0:
+                continue
+            name = category["name"]
+            classifications[int(index)] = self._category_map.get(name, name)
+        return classifications
+
     @staticmethod
     def _write_keyframes(
         staging_dir: Path,
@@ -281,6 +470,13 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
     def _load_annotation(seq_path: Path, name: str) -> list:
         with open(seq_path / "annotation" / name) as f:
             return json.load(f)
+
+    @staticmethod
+    def _load_annotation_optional(seq_path: Path, name: str) -> list:
+        """Like ``_load_annotation``, but an absent table reads as empty."""
+        if not (seq_path / "annotation" / name).exists():
+            return []
+        return T4ToOpenLabelConverter._load_annotation(seq_path, name)
 
     @staticmethod
     def _collect_concat_records(tables: dict) -> List[dict]:
@@ -352,6 +548,23 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _encode_rle_labels(labels: np.ndarray) -> str:
+    """Run-length encode per-point labels as ``#<count>V<class_id>``.
+
+    The inverse of ``openlabel_to_t4_converter._decode_rle_labels``. Every run
+    is encoded explicitly, including unlabelled (0) runs, so the decoded label
+    count always equals the point count.
+    """
+    if labels.size == 0:
+        return ""
+    boundaries = np.flatnonzero(np.diff(labels)) + 1
+    starts = np.concatenate(([0], boundaries))
+    ends = np.concatenate((boundaries, [labels.size]))
+    return "".join(
+        f"#{int(end - start)}V{int(labels[start])}" for start, end in zip(starts, ends)
+    )
 
 
 def _token_to_uuid(token: str) -> str:

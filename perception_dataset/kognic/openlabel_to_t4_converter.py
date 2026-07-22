@@ -68,7 +68,7 @@ from perception_dataset.kognic.openlabel import (
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.pointcloud import detect_point_stride
+from perception_dataset.utils.pointcloud import lidar_point_count
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     select_lidar_channel,
@@ -505,7 +505,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 continue
 
             labels = _decode_rle_labels(rle)
-            num_points = _lidar_point_count(scene_dir / sample_data["filename"])
+            num_points = lidar_point_count(scene_dir / sample_data["filename"])
             if num_points is None:
                 logger.warning(
                     f"Could not read {sample_data['filename']} for frame {frame_key}; "
@@ -735,11 +735,3 @@ def _decode_rle_labels(val: str) -> np.ndarray:
     return np.repeat(classes, counts).astype(np.uint8)
 
 
-def _lidar_point_count(bin_path: Path) -> Optional[int]:
-    """Number of points in a LIDAR_CONCAT ``.pcd.bin``, or None if unreadable."""
-    if not bin_path.exists():
-        return None
-    floats = np.fromfile(bin_path, dtype=np.float32)
-    if floats.size == 0:
-        return 0
-    return floats.size // detect_point_stride(floats, bin_path)
