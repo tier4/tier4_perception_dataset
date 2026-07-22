@@ -60,9 +60,11 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
     Point-cloud segmentation (``annotation/lidarseg.json``, when present) is
     exported as ``semseg_pre_annotation.json``, the exact inverse of
     ``OpenLabelToT4Converter._convert_segmentation``: each frame carries one
-    ``object_data.binary`` entry (``name="labels"``, ``encoding="rle"``) whose
-    value run-length encodes the per-point class ids (``#<count>V<class_id>``,
-    ``0`` = unlabelled/background) in LIDAR_CONCAT point order, and the
+    ``object_data.binary`` entry (``name="labels"``, ``encoding="rle"``, plus
+    the ``stream`` text attribute Kognic requires to tie the labels to the
+    LiDAR stream) whose value run-length encodes the per-point class ids
+    (``#<count>V<class_id>``, ``0`` = unlabelled/background) in LIDAR_CONCAT
+    point order, and the
     ``ontologies`` block maps each class id to its name from the T4
     ``category.json`` ``index`` fields. To attach it, point the uploader's
     project target at it: ``pre_annotation: semseg_pre_annotation.json``.
@@ -306,6 +308,11 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         LIDAR_CONCAT point order, ``0`` = unlabelled), and the positive
         ``category.json`` ``index`` fields become the ontology
         ``classifications`` (index 0/background is implicit on the way back).
+
+        Kognic requires the binary entry to carry a ``stream`` text attribute
+        naming the LiDAR stream the labels apply to, and its own exports use
+        ``data_type: ""`` (https://docs.kognic.com/api-guide/pre-annotations),
+        so both are mirrored here.
         """
         classifications = self._segmentation_classifications(tables["category"])
         if not classifications:
@@ -365,8 +372,13 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                                 openlabel.Binary(
                                     name="labels",
                                     encoding="rle",
-                                    data_type="uint8",
+                                    data_type="",
                                     val=_encode_rle_labels(labels),
+                                    attributes=openlabel.Attributes(
+                                        text=[
+                                            openlabel.Text(name="stream", val=stream_name)
+                                        ]
+                                    ),
                                 )
                             ]
                         )
