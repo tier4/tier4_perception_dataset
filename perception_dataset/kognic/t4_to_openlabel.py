@@ -23,12 +23,6 @@ from perception_dataset.utils.t4_tables import (
 
 logger = configure_logger(modname=__name__)
 
-# Kognic's stream literal for the merged lidar point cloud: segmentation RLEs
-# address the merge of all per-sensor clouds, not an individual sensor stream
-# (cf. https://docs.kognic.com/api-guide/pre-annotations and Kognic's own
-# semseg OpenLabel exports).
-MERGED_LIDAR_STREAM = "lidar"
-
 
 class T4ToOpenLabelConverter(AbstractConverter[None]):
     """Convert T4 annotations to Kognic OpenLABEL pre-annotations.
@@ -316,16 +310,18 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         ``category.json`` ``index`` fields become the ontology
         ``classifications`` (index 0/background is implicit on the way back).
 
-        Kognic expects one RLE per frame addressing its *merged* point cloud
-        via the special stream literal ``"lidar"`` (as its own semseg exports
-        show). The merge follows point-cloud registration order at scene
-        creation, i.e. ``KognicDatasetUploader._collect_sensor_files``'s
-        alphabetical sensor order — so when LIDAR_CONCAT_INFO is available the
-        labels are re-sliced out of LIDAR_CONCAT order with the same
-        ``idx_begin``/``length`` layout that ``extract_pointclouds`` used to
-        stage the per-sensor CSVs, and concatenated alphabetically by stream.
-        Without it the scene was staged as a single fused stream and the label
-        array is used as-is.
+        The ``stream`` attribute must name a sensor of the scene: Kognic's
+        pre-annotation validation rejects any other value (verified via a
+        dryrun ``pre_annotation.create``: ``stream names [lidar] not among
+        [..., LIDAR_FRONT_UPPER, ...]``; the ``"lidar"`` literal in Kognic's
+        docs and exports is just the single lidar sensor name of those
+        scenes). So when LIDAR_CONCAT_INFO is available the labels are sliced
+        per source lidar with the same ``idx_begin``/``length`` layout that
+        ``extract_pointclouds`` used to stage the per-sensor CSVs, and each
+        frame carries one binary entry per staged stream, its RLE covering
+        exactly that stream's points in CSV row order. Without it the scene
+        was staged as a single fused stream and the whole label array is
+        bound to *stream_name*.
         """
         classifications = self._segmentation_classifications(tables["category"])
         if not classifications:
@@ -389,19 +385,11 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             if not stream_labels:
                 skipped += 1
                 continue
-            # Kognic merges the per-sensor clouds in registration order
-            # (alphabetical, cf. KognicDatasetUploader._collect_sensor_files).
-            merged_labels = np.concatenate(
-                [
-                    labels_slice
-                    for _, labels_slice in sorted(stream_labels, key=lambda x: x[0])
-                ]
-            )
 
             frames[str(frame_idx)] = openlabel.Frame(
                 frame_properties=openlabel.FrameProperties(
                     timestamp=relative_ms[frame_idx],
-                    streams={stream_name: {}},
+                    streams={stream: {} for stream, _ in stream_labels},
                     external_id=str(frame_idx),
                 ),
                 objects={
@@ -412,16 +400,12 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                                     name="labels",
                                     encoding="rle",
                                     data_type="",
-                                    val=_encode_rle_labels(merged_labels),
+                                    val=_encode_rle_labels(labels_slice),
                                     attributes=openlabel.Attributes(
-                                        text=[
-                                            openlabel.Text(
-                                                name="stream",
-                                                val=MERGED_LIDAR_STREAM,
-                                            )
-                                        ]
+                                        text=[openlabel.Text(name="stream", val=stream)]
                                     ),
                                 )
+                                for stream, labels_slice in stream_labels
                             ]
                         )
                     )
