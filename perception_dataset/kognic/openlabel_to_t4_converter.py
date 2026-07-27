@@ -214,7 +214,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             self._convert_segmentation(scene_dir, openlabel, sample_index, lidar_channel)
             return
 
-        tables = self._init_annotation_tables()
+        tables = self._init_annotation_tables(scene_dir)
         # object_uuid -> instance token; reused across frames.
         instance_tokens: Dict[str, str] = {}
         # instance token -> ordered list of (frame_idx, sample_annotation token)
@@ -328,15 +328,29 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     # Table building
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _init_annotation_tables() -> Dict[str, TableHandler]:
+    @classmethod
+    def _init_annotation_tables(cls, scene_dir: Path) -> Dict[str, TableHandler]:
         return {
-            "category": TableHandler(Category),
+            "category": cls._load_category_table(scene_dir),
             "instance": TableHandler(Instance),
             "attribute": TableHandler(Attribute),
             "visibility": TableHandler(Visibility),
             "sample_annotation": TableHandler(SampleAnnotation),
         }
+
+    @staticmethod
+    def _load_category_table(scene_dir: Path) -> TableHandler:
+        """Seed the category table from the scene's existing ``category.json``.
+
+        A scene may receive several conversions (e.g. a bbox OpenLABEL and a
+        semseg OpenLABEL); each run saves ``category.json``, so starting from
+        the on-disk table lets the runs compose instead of clobbering each
+        other's categories.
+        """
+        path = scene_dir / "annotation" / "category.json"
+        if path.exists():
+            return TableHandler.from_json(Category, str(path))
+        return TableHandler(Category)
 
     def _get_or_create_instance(
         self,
@@ -355,10 +369,20 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             field_name="name", field_value=category_name
         )
         if not category_token:
+            # max+1 rather than len(): the seeded table may hold semseg
+            # categories whose indices (ontology ids) are sparse, and a lidarseg
+            # index must never be shared by two categories.
+            next_index = (
+                max(
+                    (r.index for r in tables["category"].to_records() if r.index is not None),
+                    default=-1,
+                )
+                + 1
+            )
             category_token = tables["category"].insert_into_table(
                 name=category_name,
                 description="",
-                index=len(tables["category"].to_records()),
+                index=next_index,
                 has_orientation=True,
                 has_number=False,
             )
@@ -452,6 +476,13 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         if not ontology:
             logger.warning(f"No segmentation ontology found in annotation; skipping {scene_dir}")
             return
+        if max(ontology) > np.iinfo(np.uint8).max:
+            raise ValueError(
+                f"Segmentation ontology id {max(ontology)} does not fit in uint8 lidarseg labels"
+            )
+        # RLE label value -> ontology id (countable objects are encoded as
+        # per-instance classification_ids rather than ontology ids).
+        value_map = _segmentation_value_map(openlabel, ontology)
 
         # Lidar sample_data record keyed by the sample it belongs to.
         lidar_sd_by_sample: Dict[str, dict] = {
@@ -460,13 +491,16 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             if lidar_channel in sd["filename"]
         }
 
-        category_table = TableHandler(Category)
-        # Reserve index 0 for points the annotator left unlabelled.
-        category_table.insert_into_table(
-            name="background", description="unlabelled / background points", index=0
-        )
+        category_table = self._load_category_table(scene_dir)
+        # Reserve index 0 for points the annotator left unlabelled. Skip names
+        # already present (seeded from a previous conversion / rerun).
+        if category_table.get_token_from_field("name", "background") is None:
+            category_table.insert_into_table(
+                name="background", description="unlabelled / background points", index=0
+            )
         for index in sorted(ontology):
-            category_table.insert_into_table(name=ontology[index], description="", index=index)
+            if category_table.get_token_from_field("name", ontology[index]) is None:
+                category_table.insert_into_table(name=ontology[index], description="", index=index)
 
         lidarseg_table = TableHandler(LidarSeg)
         anno_dir = scene_dir / "annotation"
@@ -478,11 +512,15 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         shutil.rmtree(lidarseg_dir, ignore_errors=True)
         lidarseg_dir.mkdir(parents=True, exist_ok=True)
 
+        channel_by_sensor_token = {
+            s["token"]: s["channel"] for s in self._load_table(scene_dir, "sensor.json")
+        }
+
         placed = 0
         skipped = 0
         for frame_key, frame in sorted(frames.items(), key=lambda kv: int(kv[0])):
-            rle = _frame_segmentation_rle(frame)
-            if rle is None:
+            rles = _frame_segmentation_rles(frame)
+            if not rles:
                 continue
 
             match = sample_index.match(frame, frame_key, lidar_channel)
@@ -504,7 +542,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 skipped += 1
                 continue
 
-            labels = _decode_rle_labels(rle)
             num_points = _lidar_point_count(scene_dir / sample_data["filename"])
             if num_points is None:
                 logger.warning(
@@ -513,27 +550,30 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 )
                 skipped += 1
                 continue
-            if labels.shape[0] > num_points:
-                # More labels than points means the annotated cloud is not this
-                # extraction at all (a genuine data mismatch); aligning is unsafe.
-                logger.warning(
-                    f"Segmentation has more labels than points for frame {frame_key} "
-                    f"({sample_data['filename']}): {labels.shape[0]} labels vs "
-                    f"{num_points} points. The annotated cloud differs from this T4 "
-                    f"extraction; skipping this frame."
+
+            if len(rles) == 1:
+                # A single blob covers the whole (fused) cloud, whatever its
+                # stream tag; only per-source splits need LIDAR_CONCAT_INFO.
+                labels = self._single_stream_labels(
+                    next(iter(rles.values())),
+                    value_map,
+                    num_points,
+                    frame_key,
+                    sample_data["filename"],
                 )
+            else:
+                labels = self._stitch_stream_labels(
+                    scene_dir,
+                    sample_data,
+                    rles,
+                    value_map,
+                    num_points,
+                    channel_by_sensor_token,
+                    frame_key,
+                )
+            if labels is None:
                 skipped += 1
                 continue
-            if labels.shape[0] < num_points:
-                # Kognic RLE encodes labels sequentially from point 0 and omits a
-                # trailing run of unlabelled points; restore them as background (0).
-                # NOTE: missing points are treated as 0 and added at the end.
-                pad = num_points - labels.shape[0]
-                logger.warning(
-                    f"Frame {frame_key}: RLE covers {labels.shape[0]}/{num_points} points; "
-                    f"padding {pad} trailing point(s) as background (class 0)."
-                )
-                labels = np.concatenate([labels, np.zeros(pad, dtype=np.uint8)])
 
             token = lidarseg_table.insert_into_table(
                 filename="", sample_data_token=sample_data["token"]
@@ -551,6 +591,113 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             f"[DONE]  {scene_dir}: {placed} lidarseg frame(s), "
             f"{len(ontology)} categor(y/ies) (skipped {skipped})"
         )
+
+    @staticmethod
+    def _single_stream_labels(
+        rle: str,
+        value_map: Dict[int, int],
+        num_points: int,
+        frame_key: str,
+        filename: str,
+    ) -> Optional[np.ndarray]:
+        """Labels for a frame annotated as one cloud (single lidar stream)."""
+        labels = _remap_labels(_decode_rle_labels(rle), value_map, frame_key)
+        if labels.shape[0] > num_points:
+            # More labels than points means the annotated cloud is not this
+            # extraction at all (a genuine data mismatch); aligning is unsafe.
+            logger.warning(
+                f"Segmentation has more labels than points for frame {frame_key} "
+                f"({filename}): {labels.shape[0]} labels vs {num_points} points. "
+                f"The annotated cloud differs from this T4 extraction; skipping this frame."
+            )
+            return None
+        if labels.shape[0] < num_points:
+            # Kognic RLE encodes labels sequentially from point 0 and omits a
+            # trailing run of unlabelled points; restore them as background (0).
+            pad = num_points - labels.shape[0]
+            logger.warning(
+                f"Frame {frame_key}: RLE covers {labels.shape[0]}/{num_points} points; "
+                f"padding {pad} trailing point(s) as background (class 0)."
+            )
+            labels = np.concatenate([labels, np.zeros(pad, dtype=np.uint8)])
+        return labels
+
+    def _stitch_stream_labels(
+        self,
+        scene_dir: Path,
+        sample_data: dict,
+        rles: Dict[Optional[str], str],
+        value_map: Dict[int, int],
+        num_points: int,
+        channel_by_sensor_token: Dict[str, str],
+        frame_key: str,
+    ) -> Optional[np.ndarray]:
+        """Labels for a frame annotated per source lidar stream.
+
+        The upload split LIDAR_CONCAT into per-sensor Kognic streams using the
+        LIDAR_CONCAT_INFO slice table (``sensor_token``/``idx_begin``/``length``),
+        so each stream's RLE is written back into its slice of the concat cloud.
+        """
+        info_filename = sample_data.get("info_filename")
+        info_path = scene_dir / info_filename if info_filename else None
+        if info_path is None or not info_path.exists():
+            logger.warning(
+                f"Frame {frame_key}: segmentation is split per lidar stream but "
+                f"LIDAR_CONCAT_INFO is missing for {sample_data['filename']}; skipping"
+            )
+            return None
+        with open(info_path) as f:
+            sources = json.load(f)["sources"]
+
+        labels = np.zeros(num_points, dtype=np.uint8)
+        matched_streams = set()
+        for source in sources:
+            channel = channel_by_sensor_token.get(source["sensor_token"])
+            idx_begin, length = int(source["idx_begin"]), int(source["length"])
+            if length == 0:
+                continue
+            rle = rles.get(channel)
+            if rle is None:
+                logger.warning(
+                    f"Frame {frame_key}: no RLE labels for stream {channel}; leaving "
+                    f"its {length} point(s) as background"
+                )
+                continue
+            if idx_begin + length > num_points:
+                logger.warning(
+                    f"Frame {frame_key}: LIDAR_CONCAT_INFO slice for {channel} "
+                    f"([{idx_begin}, {idx_begin + length})) exceeds the {num_points}-point "
+                    f"cloud; skipping this frame"
+                )
+                return None
+            stream_labels = _remap_labels(
+                _decode_rle_labels(rle), value_map, f"{frame_key}/{channel}"
+            )
+            if stream_labels.shape[0] > length:
+                logger.warning(
+                    f"Frame {frame_key}: stream {channel} has {stream_labels.shape[0]} labels "
+                    f"for a {length}-point slice; the annotated cloud differs from this T4 "
+                    f"extraction; skipping this frame"
+                )
+                return None
+            if stream_labels.shape[0] < length:
+                pad = length - stream_labels.shape[0]
+                logger.warning(
+                    f"Frame {frame_key}: stream {channel} RLE covers "
+                    f"{stream_labels.shape[0]}/{length} points; padding {pad} trailing "
+                    f"point(s) as background (class 0)."
+                )
+                stream_labels = np.concatenate([stream_labels, np.zeros(pad, dtype=np.uint8)])
+            labels[idx_begin : idx_begin + length] = stream_labels
+            matched_streams.add(channel)
+
+        unmatched = set(rles) - matched_streams
+        if unmatched:
+            logger.warning(
+                f"Frame {frame_key}: RLE stream(s) {sorted(str(s) for s in unmatched)} have no "
+                f"matching LIDAR_CONCAT_INFO source; their labels were dropped"
+            )
+        return labels
 
     # ------------------------------------------------------------------
     # IO
@@ -698,10 +845,7 @@ def _is_segmentation(openlabel: dict) -> bool:
     """True if this OpenLABEL carries point-cloud segmentation labels."""
     if openlabel.get("metadata", {}).get("annotation_type") == "semseg":
         return True
-    return any(
-        _frame_segmentation_rle(frame) is not None
-        for frame in openlabel.get("frames", {}).values()
-    )
+    return any(_frame_segmentation_rles(frame) for frame in openlabel.get("frames", {}).values())
 
 
 def _segmentation_ontology(openlabel: dict) -> Dict[int, str]:
@@ -716,23 +860,82 @@ def _segmentation_ontology(openlabel: dict) -> Dict[int, str]:
     return ontology
 
 
-def _frame_segmentation_rle(frame: dict) -> Optional[str]:
-    """Return the RLE-encoded lidar label string for a frame, if present."""
+def _frame_segmentation_rles(frame: dict) -> Dict[Optional[str], str]:
+    """Map lidar stream name -> RLE label string for a frame.
+
+    Multi-lidar scenes carry one ``3DPointCloudSegmentation`` blob per source
+    lidar (tagged with a ``stream`` text attribute); single-lidar scenes carry
+    one untagged blob, keyed here as ``None``.
+    """
+    rles: Dict[Optional[str], str] = {}
     for frame_object in frame.get("objects", {}).values():
         for binary in frame_object.get("object_data", {}).get("binary", []):
             if binary.get("name") == "labels" and binary.get("encoding") == "rle":
-                return binary.get("val")
-    return None
+                stream = next(
+                    (
+                        text.get("val")
+                        for text in binary.get("attributes", {}).get("text", [])
+                        if text.get("name") == "stream"
+                    ),
+                    None,
+                )
+                rles[stream] = binary.get("val")
+    return rles
 
 
 def _decode_rle_labels(val: str) -> np.ndarray:
-    """Expand a ``#<count>V<class>`` RLE string into per-point uint8 labels."""
+    """Expand a ``#<count>V<class>`` RLE string into per-point label values."""
     pairs = _RLE_TOKEN.findall(val)
     counts = np.fromiter((int(c) for c, _ in pairs), dtype=np.int64, count=len(pairs))
     classes = np.fromiter((int(v) for _, v in pairs), dtype=np.int64, count=len(pairs))
-    if classes.size and classes.max() > np.iinfo(np.uint8).max:
-        raise ValueError(f"Segmentation class id {classes.max()} does not fit in uint8")
-    return np.repeat(classes, counts).astype(np.uint8)
+    return np.repeat(classes, counts)
+
+
+def _segmentation_value_map(openlabel: dict, ontology: Dict[int, str]) -> Dict[int, int]:
+    """Map an RLE label value to its T4 category index (ontology id).
+
+    Kognic semseg RLEs mix two value spaces: stuff classes are encoded
+    directly as ontology ids, while countable objects are encoded as the
+    per-instance ``classification_id`` declared on the top-level object,
+    whose ``type`` names the ontology class.
+    """
+    name_to_id = {name: class_id for class_id, name in ontology.items()}
+    value_map = {class_id: class_id for class_id in ontology}
+    for obj in openlabel.get("objects", {}).values():
+        class_id = next(
+            (
+                num.get("val")
+                for num in obj.get("object_data", {}).get("num", [])
+                if num.get("name") == "classification_id"
+            ),
+            None,
+        )
+        if class_id is None:
+            continue
+        index = name_to_id.get(obj.get("type"))
+        if index is None:
+            logger.warning(
+                f"Object {obj.get('name')} has type '{obj.get('type')}' not present in the "
+                f"segmentation ontology; its points will be mapped to background"
+            )
+            continue
+        value_map[int(class_id)] = index
+    return value_map
+
+
+def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str) -> np.ndarray:
+    """Convert raw RLE label values into uint8 T4 category indices."""
+    unmapped = sorted(set(np.unique(labels).tolist()) - set(value_map) - {0})
+    if unmapped:
+        logger.warning(
+            f"Frame {frame_key}: {len(unmapped)} RLE label value(s) have no ontology/object "
+            f"mapping (e.g. {unmapped[:5]}); mapping them to background (0)"
+        )
+    size = int(max(labels.max(initial=0), max(value_map, default=0))) + 1
+    lut = np.zeros(size, dtype=np.uint8)
+    for value, index in value_map.items():
+        lut[value] = index
+    return lut[labels]
 
 
 def _lidar_point_count(bin_path: Path) -> Optional[int]:
