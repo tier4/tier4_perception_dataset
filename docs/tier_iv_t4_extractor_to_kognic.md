@@ -412,18 +412,18 @@ Projects are configured under a `projects:` list — each entry is one input cre
 
 ```yaml
 projects:
-  - external_id: my_cuboid_project
-    batch: my_cuboid_batch # optional; omit -> latest open batch
+  - project_external_id: my_cuboid_project
+    batch_external_id: my_cuboid_batch # optional; omit -> latest open batch
     pre_annotation: pre_annotation.json # optional; filename relative to the sequence dir
-  - external_id: my_semseg_project
-    batch: my_semseg_batch # no pre_annotation -> input created without one
+  - project_external_id: my_semseg_project
+    batch_external_id: my_semseg_batch # no pre_annotation -> input created without one
 ```
 
-- **`external_id`** (required) — the Kognic project to create the input in.
-- **`batch`** (optional) — the batch within that project; defaults to the project's latest open batch.
+- **`project_external_id`** (required) — the Kognic project to create the input in.
+- **`batch_external_id`** (optional) — the batch within that project; defaults to the project's latest open batch.
 - **`pre_annotation`** (optional) — filename (relative to each sequence's staging dir) of the OpenLABEL pre-annotation to apply to **this** input. Omit it for no pre-annotation on that input. Defaults to none.
 
-A `(external_id, batch)` pair must be unique across the list; a duplicate raises a `ValueError` before any upload.
+A `(project_external_id, batch_external_id)` pair must be unique across the list; a duplicate raises a `ValueError` before any upload.
 
 **One scene, per-input pre-annotations.** The scene is created once, every distinct pre-annotation file referenced by the projects is attached to it, and each input is then created with `client.input.create_from_scene(scene_uuid, pre_annotation_uuid=…)` — passing that project's pre-annotation UUID, or `None` for no pre-annotation. Because the pre-annotation is selected **per input** (not applied scene-wide), projects with incompatible task definitions can share one scene: e.g. a **3D-cuboid** project whose input references a cuboid `pre_annotation.json`, alongside a **semantic-segmentation** project whose input is created with no pre-annotation. A cuboid pre-annotation would be rejected by a semseg task definition, so it is simply not attached to that input.
 
@@ -462,10 +462,10 @@ conversion:
   organization_id: "114"
   workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
   projects:
-    - external_id: my_cuboid_project
-      batch: my_cuboid_batch # optional; omit -> latest open batch
+    - project_external_id: my_cuboid_project
+      batch_external_id: my_cuboid_batch # optional; omit -> latest open batch
       pre_annotation: pre_annotation.json # optional; omit -> no pre-annotation
-    - external_id: my_semseg_project # second input from the same scene
+    - project_external_id: my_semseg_project # second input from the same scene
   target_hz: 1 # optional
   # annotation_interval_tolerance_s: 0.05  # optional; leniency (+/-) when matching target_hz
   dryrun: false
@@ -481,7 +481,7 @@ conversion:
 | `input_base`                      | Yes      | —       | Path to the staged Kognic format data. Can be a single sequence directory (containing `calibration.json`) or a parent directory of multiple sequence subdirectories.                                                                                                                                                                        |
 | `organization_id`                 | Yes      | —       | Your Kognic organization ID (also accepted as `client_organization_id`).                                                                                                                                                                                                                                                                    |
 | `workspace_id`                    | Yes      | —       | The Kognic workspace UUID to write scenes into (also accepted as `write_workspace_id`).                                                                                                                                                                                                                                                     |
-| `projects`                        | No       | `[]`    | List of projects to create inputs in from the shared scene. Each entry has `external_id` (required) plus optional `batch` and `pre_annotation`. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations). If omitted/empty, the scene is created with no input. Each `(external_id, batch)` pair must be unique. |
+| `projects`                        | No       | `[]`    | List of projects to create inputs in from the shared scene. Each entry has `project_external_id` (required) plus optional `batch_external_id` and `pre_annotation`. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations). If omitted/empty, the scene is created with no input. Each `(project_external_id, batch_external_id)` pair must be unique. |
 | `target_hz`                       | No       | `None`  | Controls which frames are marked `annotate=True`. All staged frames are uploaded regardless, but only frames at least `1 / target_hz` seconds apart are flagged for annotation. Omit to annotate every frame. See [Annotation Interval Selection](#annotation-interval-selection).                                                          |
 | `annotation_interval_tolerance_s` | No       | `None`  | Leniency in seconds (`+/-`) applied when checking the `target_hz` interval, so a frame near a nominal boundary isn't skipped. Defaults to half the median source frame interval; set `0` to disable. Ignored when `target_hz` is unset.                                                                                                     |
 | `dryrun`                          | No       | `false` | When `true`, validates the scene structure against the Kognic API but does not create a scene, upload sensor files, attach pre-annotations, or create inputs. The calibration **is** uploaded for real even in dryrun mode. The scene id is recorded as `"dryrun"` in `dataset_id.json`.                                                    |

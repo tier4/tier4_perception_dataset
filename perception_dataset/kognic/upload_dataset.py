@@ -126,18 +126,19 @@ class KognicUploadConfig:
 def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
     """Resolve the projects (and their optional batches) a scene's inputs go to.
 
-    Configured via a ``projects`` list. ``batch`` and ``pre_annotation`` are both
-    optional per project: ``batch`` defaults to the latest open batch on the
-    Kognic side, and ``pre_annotation`` defaults to ``None`` (no pre-annotation
-    uploaded for that batch). Listing several projects shares one scene across
-    those that request the same ``pre_annotation``::
+    Configured via a ``projects`` list. ``batch_external_id`` and
+    ``pre_annotation`` are both optional per project: ``batch_external_id``
+    defaults to the latest open batch on the Kognic side, and ``pre_annotation``
+    defaults to ``None`` (no pre-annotation uploaded for that batch). Listing
+    several projects shares one scene across those that request the same
+    ``pre_annotation``::
 
         projects:
-          - external_id: project_a
-            batch: cuboid_batch
+          - project_external_id: project_a
+            batch_external_id: cuboid_batch
             pre_annotation: pre_annotation.json   # cuboids -> attached to its own scene
-          - external_id: project_b
-            batch: semseg_batch                    # no pre_annotation -> separate, plain scene
+          - project_external_id: project_b
+            batch_external_id: semseg_batch        # no pre_annotation -> separate, plain scene
     """
     targets: List[ProjectTarget] = []
     seen: set = set()
@@ -145,11 +146,13 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
         if isinstance(entry, str):
             external_id, batch, pre_annotation = entry, None, None
         else:
-            external_id = entry.get("external_id") or entry.get("project_external_id")
-            batch = entry.get("batch")
+            external_id = entry.get("project_external_id")
+            batch = entry.get("batch_external_id")
             pre_annotation = entry.get("pre_annotation")
         if not external_id or not str(external_id).strip():
-            raise ValueError(f"conversion.projects entry is missing external_id: {entry!r}")
+            raise ValueError(
+                f"conversion.projects entry is missing project_external_id: {entry!r}"
+            )
         target = ProjectTarget(
             external_id=str(external_id).strip(), batch=batch, pre_annotation=pre_annotation
         )
@@ -157,7 +160,8 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
         if combination in seen:
             raise ValueError(
                 "conversion.projects has a duplicate project/batch combination: "
-                f"external_id={target.external_id!r}, batch={target.batch!r}"
+                f"project_external_id={target.external_id!r}, "
+                f"batch_external_id={target.batch!r}"
             )
         seen.add(combination)
         targets.append(target)

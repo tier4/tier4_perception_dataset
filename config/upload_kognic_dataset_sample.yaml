@@ -4,19 +4,20 @@ conversion:
   organization_id: 114
   workspace_id: efa90d1e-99bc-4064-98bb-5bfc8758157d
   # The sensor data is uploaded ONCE as a single scene shared by all projects;
-  # one input is created per project. `batch` and `pre_annotation` are optional:
-  #   - batch defaults to the latest open batch when omitted.
+  # one input is created per project. `batch_external_id` and `pre_annotation`
+  # are optional:
+  #   - batch_external_id defaults to the latest open batch when omitted.
   #   - pre_annotation is a filename relative to each sequence dir; omit it for no
   #     pre-annotation on that project's input.
   # Each input references only its own project's pre-annotation (or none), so
   # projects with incompatible task definitions can share the scene -- e.g. a
   # cuboid project (with a cuboid pre-annotation) and a semseg project (none).
   projects:
-    - external_id: test_upload_data
-      batch: test_batch
+    - project_external_id: test_upload_data
+      batch_external_id: test_batch
       pre_annotation: cuboid_pre_annotation.json   # cuboid input references this pre-annotation
-    - external_id: test_upload_data
-      batch: test-semseg-upload-batch        # no pre_annotation -> input created without one
+    - project_external_id: test_upload_data
+      batch_external_id: test-semseg-upload-batch  # no pre_annotation -> input created without one
   target_hz: 1
   # annotation_interval_tolerance_s: 0.05  # optional leniency (+/-) when matching the target interval.
   #                                        # Defaults to half the typical source frame interval if unset.
