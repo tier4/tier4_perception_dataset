@@ -780,7 +780,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 ]
                 # Field types follow autoware_point_types, except that ring is uint16 to
                 # match the channel field of PointXYZIRC and intensity keeps the float32
-                # value written to .pcd.bin files.
+                # value written to .pcd.bin files. time_stamp stays float32 because
+                # pointcloud_msg_to_numpy casts all fields to float32; revisit once
+                # per-point timestamps are supported end-to-end.
                 types = (
                     np.float32,
                     np.float32,
@@ -788,7 +790,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     np.float32,
                     np.uint16,
                     np.uint8,
-                    np.float64,
+                    np.float32,
                 )[: self._num_lidar_feats]
                 PointCloud.from_points(points_arr, fields, list(types)).save(pointcloud_filepath)
             else:
