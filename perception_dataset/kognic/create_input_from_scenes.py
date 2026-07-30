@@ -38,9 +38,7 @@ from perception_dataset.utils.logger import configure_logger
 logger = configure_logger(modname=__name__)
 
 
-def _collect_scene_uuids(
-    explicit: Optional[str], dataset_id_json: Optional[Path]
-) -> List[str]:
+def _collect_scene_uuids(explicit: Optional[str], dataset_id_json: Optional[Path]) -> List[str]:
     """Gather candidate scene uuids from --scene-uuids and/or a dataset_id.json."""
     uuids: List[str] = []
     seen: Set[str] = set()
@@ -73,9 +71,7 @@ def _collect_scene_uuids(
     return uuids
 
 
-def find_scenes_ready_for_input(
-    client: KognicIOClient, scene_uuids: List[str]
-) -> List[Scene]:
+def find_scenes_ready_for_input(client: KognicIOClient, scene_uuids: List[str]) -> List[Scene]:
     """Return the subset of *scene_uuids* that exist, are live and have no input."""
     if not scene_uuids:
         return []
@@ -110,9 +106,7 @@ def load_pre_annotation(pre_annotation_path: Path) -> OpenLabelAnnotation:
 
     frames = pre_annotation.openlabel.frames or {}
     objects = pre_annotation.openlabel.objects or {}
-    logger.info(
-        f"Loaded {pre_annotation_path}: {len(objects)} objects over {len(frames)} frames"
-    )
+    logger.info(f"Loaded {pre_annotation_path}: {len(objects)} objects over {len(frames)} frames")
     return pre_annotation
 
 
