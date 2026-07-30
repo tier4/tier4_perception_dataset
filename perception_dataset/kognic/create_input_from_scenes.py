@@ -16,8 +16,10 @@ Candidate scene uuids are taken from a source you provide:
 * ``--scene-uuids`` — an explicit comma/space separated list, or
 * ``--dataset-id-json`` — a ``dataset_id.json`` as written by the uploader.
 
-Scenes that are failed/invalidated, or that already have an input, are
-skipped. By default the script only reports what it would do; pass ``--apply``
+Scenes that are failed/invalidated, or that already have an input in the
+target project/batch, are skipped; inputs in other project/batch
+combinations do not block creation, so the same scene can be sent to
+several projects or batches. By default the script only reports what it would do; pass ``--apply``
 to actually create the inputs.
 """
 
@@ -71,8 +73,20 @@ def _collect_scene_uuids(explicit: Optional[str], dataset_id_json: Optional[Path
     return uuids
 
 
-def find_scenes_ready_for_input(client: KognicIOClient, scene_uuids: List[str]) -> List[Scene]:
-    """Return the subset of *scene_uuids* that exist, are live and have no input."""
+def find_scenes_ready_for_input(
+    client: KognicIOClient,
+    scene_uuids: List[str],
+    project: str,
+    batch: Optional[str],
+) -> List[Scene]:
+    """Return the subset of *scene_uuids* that exist, are live and have no input
+    in the target *project*/*batch*.
+
+    A scene may hold inputs in several project/batch combinations; only an
+    existing input in the same project (and batch, when one is given — with
+    ``batch=None`` any input in the project counts, since the default batch
+    cannot be queried by name) makes it a duplicate and skips the scene.
+    """
     if not scene_uuids:
         return []
 
@@ -88,9 +102,21 @@ def find_scenes_ready_for_input(client: KognicIOClient, scene_uuids: List[str]) 
         if scene.status == SceneStatus.Failed or status.startswith("invalidated"):
             logger.info(f"{scene_uuid}: status={status}; skipping")
             continue
-        if client.input.query_inputs(scene_uuids=[scene_uuid]):
-            logger.info(f"{scene_uuid}: already has an input; skipping")
+        duplicates = client.input.query_inputs(
+            scene_uuids=[scene_uuid], project=project, batch=batch
+        )
+        if duplicates:
+            logger.info(
+                f"{scene_uuid}: already has {len(duplicates)} input(s) in project "
+                f"{project} (batch={batch or 'any'}); skipping"
+            )
             continue
+        others = client.input.query_inputs(scene_uuids=[scene_uuid])
+        if others:
+            logger.info(
+                f"{scene_uuid}: has {len(others)} input(s) in other project/batch "
+                "combinations; creating another one here"
+            )
         ready.append(scene)
 
     return ready
@@ -349,7 +375,7 @@ def main():
     )
 
     logger.info(f"Checking {len(scene_uuids)} candidate scene(s)")
-    ready = find_scenes_ready_for_input(client, scene_uuids)
+    ready = find_scenes_ready_for_input(client, scene_uuids, args.project, args.batch)
     if not ready:
         logger.info("No scenes ready for input creation; nothing to do.")
         return
