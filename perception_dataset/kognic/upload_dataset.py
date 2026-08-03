@@ -5,9 +5,10 @@ import json
 import os.path as osp
 from pathlib import Path
 import time
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Tuple, Union
 import uuid
 
+from kognic.auth.credentials_parser import ApiCredentials
 from kognic.io.client import KognicIOClient
 import kognic.io.model as KognicModel
 from kognic.io.model.ego.imu_data import IMUData
@@ -35,6 +36,11 @@ from perception_dataset.utils.logger import configure_logger
 logger = configure_logger(modname=__name__)
 
 SceneUUID = str
+
+# What ``KognicIOClient(auth=...)`` accepts (see ``kognic.auth.resolve_credentials``):
+# a path to a credentials JSON, a ``(client_id, client_secret)`` pair, or a
+# parsed ``ApiCredentials``. ``None`` means "resolve from the environment".
+KognicAuth = Union[str, Tuple[str, str], ApiCredentials]
 
 
 class SceneInputError(RuntimeError):
@@ -117,6 +123,10 @@ class KognicUploadConfig:
     input_base: Path
     organization_id: int
     workspace_id: str
+    # Credentials forwarded to ``KognicIOClient(auth=...)``. ``None`` falls back
+    # to the credentials in the environment (``KOGNIC_CREDENTIALS`` or
+    # ``KOGNIC_CLIENT_ID``/``KOGNIC_CLIENT_SECRET``).
+    auth: Optional[KognicAuth] = None
     project_targets: List[ProjectTarget] = field(default_factory=list)
     target_hz: Optional[int] = None
     dryrun: bool = False
@@ -229,6 +239,30 @@ def _sensor_sort_key(sensor_name: str, preferred_order: List[str]) -> Tuple[int,
     return (len(preferred_order), sensor_name)
 
 
+def _parse_auth(conversion_config: Dict) -> Optional[KognicAuth]:
+    """Resolve ``conversion.auth`` into something ``KognicIOClient`` accepts.
+
+    YAML can express two of the three forms: a path to a credentials JSON, or a
+    ``[client_id, client_secret]`` pair. The pair arrives as a list, which
+    ``resolve_credentials`` rejects (it checks for a ``tuple``), so convert it
+    here rather than letting it fail as "Bad auth credentials".
+    """
+    auth = conversion_config.get("auth")
+    if auth is None or isinstance(auth, str):
+        return auth
+    if isinstance(auth, (list, tuple)):
+        if len(auth) != 2:
+            raise ValueError(
+                "conversion.auth as a credentials pair must be "
+                f"[client_id, client_secret], got {len(auth)} item(s)"
+            )
+        return (str(auth[0]), str(auth[1]))
+    raise ValueError(
+        "conversion.auth must be a path to a credentials JSON or a "
+        f"[client_id, client_secret] pair, got {type(auth).__name__}"
+    )
+
+
 def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     conversion_config = config_dict["conversion"]
     organization_id = conversion_config.get("organization_id") or conversion_config.get(
@@ -247,6 +281,7 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         input_base=Path(conversion_config["input_base"]),
         organization_id=organization_id,
         workspace_id=workspace_id,
+        auth=_parse_auth(conversion_config),
         project_targets=_parse_project_targets(conversion_config),
         target_hz=conversion_config.get("target_hz"),
         dryrun=conversion_config.get("dryrun", False),
@@ -285,6 +320,7 @@ class KognicDatasetUploader:
     def kognic_io_client(self) -> KognicIOClient:
         if self._kognic_io_client is None:
             self._kognic_io_client = KognicIOClient(
+                auth=self.config.auth,
                 client_organization_id=self.config.organization_id,
                 write_workspace_id=self.config.workspace_id,
             )
