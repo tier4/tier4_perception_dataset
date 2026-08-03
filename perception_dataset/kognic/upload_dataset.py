@@ -115,7 +115,7 @@ class SceneUploadResult:
 @dataclass(frozen=True)
 class KognicUploadConfig:
     input_base: Path
-    organization_id: str
+    organization_id: int
     workspace_id: str
     project_targets: List[ProjectTarget] = field(default_factory=list)
     target_hz: Optional[int] = None
