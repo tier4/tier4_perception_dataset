@@ -1,5 +1,5 @@
 import argparse
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 import hashlib
 import json
 import os.path as osp
@@ -83,14 +83,28 @@ class ProjectTarget:
     pre_annotation: Optional[str] = None
 
 
+@dataclass(frozen=True)
+class InputRecord:
+    """One input created from a scene, as recorded in ``dataset_id.json``.
+
+    ``batch_name`` is ``None`` when the target left the batch unset (the latest
+    open batch was used); ``input_id`` is ``None`` when the API returned no
+    created input.
+    """
+
+    project_name: str
+    batch_name: Optional[str]
+    input_id: Optional[str]
+
+
 @dataclass
 class SceneUploadResult:
     """Outcome of creating one scene (and its inputs) for a sequence."""
 
     external_id: str
     scene_uuid: Optional[SceneUUID]
-    # One entry per created input: {"project_name", "batch_name", "input_id"}.
-    inputs: List[Dict[str, Optional[str]]] = field(default_factory=list)
+    # One entry per created input.
+    inputs: List[InputRecord] = field(default_factory=list)
     # ``project/batch`` of inputs that failed while the scene itself succeeded.
     failed_inputs: List[str] = field(default_factory=list)
     failed: bool = False
@@ -387,13 +401,13 @@ class KognicDatasetUploader:
         pre_annotations: Dict[str, OpenLabelAnnotation],
         targets: List[ProjectTarget],
         feature_flags: Optional[FeatureFlags],
-    ) -> Tuple[SceneUUID, List[Dict[str, Optional[str]]], List[str]]:
+    ) -> Tuple[SceneUUID, List[InputRecord], List[str]]:
         """Create the scene, attach pre-annotations, and create one input/project.
 
-        Returns ``(scene_uuid, input_records, failed_inputs)``. Each input record
-        is ``{"project_name", "batch_name", "input_id"}``; ``failed_inputs`` lists
-        ``project/batch`` for projects whose input creation failed while others
-        succeeded. On dryrun the scene_uuid is ``"dryrun"`` and both lists empty.
+        Returns ``(scene_uuid, input_records, failed_inputs)``; ``failed_inputs``
+        lists ``project/batch`` for projects whose input creation failed while
+        others succeeded. On dryrun the scene_uuid is ``"dryrun"`` and both lists
+        empty.
 
         Steps: create the scene (no project) and wait for Created; attach each
         distinct pre-annotation (capturing its uuid); then create one input per
@@ -514,7 +528,7 @@ class KognicDatasetUploader:
         external_id: str,
         projects: List[ProjectTarget],
         pre_annotation_uuids: Dict[str, str],
-    ) -> Tuple[List[Dict[str, Optional[str]]], List[str]]:
+    ) -> Tuple[List[InputRecord], List[str]]:
         """Create one input per project from the shared scene.
 
         Each input references its project's pre-annotation (resolved from
@@ -524,11 +538,10 @@ class KognicDatasetUploader:
 
         Inputs are created independently: a failure on one project is recorded
         and the rest still proceed (the scene already exists and other inputs may
-        be valid). Returns ``(input_records, failed)`` where each record is
-        ``{"project_name", "batch_name", "input_id"}`` and ``failed`` lists the
+        be valid). Returns ``(input_records, failed)`` where ``failed`` lists the
         ``project/batch`` of inputs that could not be created.
         """
-        records: List[Dict[str, Optional[str]]] = []
+        records: List[InputRecord] = []
         failed: List[str] = []
         for target in projects:
             pre_annotation_uuid = pre_annotation_uuids.get(target.pre_annotation)
@@ -545,11 +558,11 @@ class KognicDatasetUploader:
                     batch=target.batch,
                 )
                 records.append(
-                    {
-                        "project_name": target.external_id,
-                        "batch_name": target.batch,
-                        "input_id": str(created_input.uuid) if created_input else None,
-                    }
+                    InputRecord(
+                        project_name=target.external_id,
+                        batch_name=target.batch,
+                        input_id=str(created_input.uuid) if created_input else None,
+                    )
                 )
             except Exception as exc:
                 logger.error(
@@ -952,7 +965,7 @@ def main():
             )
             dataset_name_id_dict[result.external_id] = {
                 "scene_id": result.scene_uuid,
-                "inputs": result.inputs,
+                "inputs": [asdict(record) for record in result.inputs],
             }
             if result.failed_inputs:
                 partial.append(
