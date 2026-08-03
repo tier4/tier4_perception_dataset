@@ -94,14 +94,28 @@ class SceneInputError(RuntimeError):
         self.failed_input_errors = failed_input_errors or []
 
 
+@dataclass(frozen=True)
+class InputRecord:
+    """One input created from a scene, as recorded in the upload report.
+
+    ``batch_name`` is ``None`` when the target left the batch unset (the latest
+    open batch was used); ``input_id`` is ``None`` when the API returned no
+    created input.
+    """
+
+    project_name: str
+    batch_name: Optional[str]
+    input_id: Optional[str]
+
+
 @dataclass
 class SceneUploadResult:
     """Outcome of creating one scene (and its inputs) for a sequence."""
 
     external_id: str
     scene_uuid: Optional[SceneUUID]
-    # One entry per created input: {"project_name", "batch_name", "input_id"}.
-    inputs: List[Dict[str, Optional[str]]] = field(default_factory=list)
+    # One entry per created input.
+    inputs: List[InputRecord] = field(default_factory=list)
     # ``project/batch`` of inputs that failed while the scene itself succeeded.
     failed_inputs: List[str] = field(default_factory=list)
     # Project/batch target and the original exception for each failed input.
@@ -345,14 +359,13 @@ class KognicDatasetUploader:
         feature_flags: Optional[FeatureFlags],
     ) -> Tuple[
         SceneUUID,
-        List[Dict[str, Optional[str]]],
+        List[InputRecord],
         List[str],
         List[Tuple[ProjectTarget, BaseException]],
     ]:
         """Create the scene, attach pre-annotations, and create one input/project.
 
-        Returns ``(scene_uuid, input_records, failed_inputs, failed_input_errors)``.
-        Each input record is ``{"project_name", "batch_name", "input_id"}``;
+        Returns ``(scene_uuid, input_records, failed_inputs, failed_input_errors)``;
         ``failed_inputs`` lists ``project/batch`` labels and
         ``failed_input_errors`` retains their original exceptions for reporting.
         On dryrun the scene_uuid is ``"dryrun"`` and all three lists are empty.
@@ -528,7 +541,7 @@ class KognicDatasetUploader:
         projects: List[ProjectTarget],
         pre_annotation_uuids: Dict[str, str],
     ) -> Tuple[
-        List[Dict[str, Optional[str]]],
+        List[InputRecord],
         List[str],
         List[Tuple[ProjectTarget, BaseException]],
     ]:
@@ -541,9 +554,8 @@ class KognicDatasetUploader:
 
         Inputs are created independently: a failure on one project is recorded
         and the rest still proceed (the scene already exists and other inputs may
-        be valid). Returns ``(input_records, failed, failed_errors)`` where each
-        record is ``{"project_name", "batch_name", "input_id"}``, ``failed``
-        lists the ``project/batch`` of inputs that could not be created, and
+        be valid). Returns ``(input_records, failed, failed_errors)`` where
+        ``failed`` lists the ``project/batch`` of inputs that could not be created, and
         ``failed_errors`` retains the target and original exception.
 
         Args:
@@ -557,7 +569,7 @@ class KognicDatasetUploader:
             Tuple: Successful input records, failed project/batch labels, and
                 failed target/exception pairs.
         """
-        records: List[Dict[str, Optional[str]]] = []
+        records: List[InputRecord] = []
         failed: List[str] = []
         failed_errors: List[Tuple[ProjectTarget, BaseException]] = []
         for target in projects:
@@ -575,11 +587,11 @@ class KognicDatasetUploader:
                     batch=target.batch,
                 )
                 records.append(
-                    {
-                        "project_name": target.external_id,
-                        "batch_name": target.batch,
-                        "input_id": str(created_input.uuid) if created_input else None,
-                    }
+                    InputRecord(
+                        project_name=target.external_id,
+                        batch_name=target.batch,
+                        input_id=str(created_input.uuid) if created_input else None,
+                    )
                 )
             except Exception as exc:
                 logger.error(
@@ -799,10 +811,10 @@ def _result_report_rows(
             scene=scene,
             status="input_successful",
             stage="input creation",
-            project=str(input_record.get("project_name") or ""),
-            batch=input_record.get("batch_name"),
+            project=input_record.project_name,
+            batch=input_record.batch_name,
             scene_uuid=result.scene_uuid,
-            input_id=input_record.get("input_id"),
+            input_id=input_record.input_id,
             duration_seconds=duration_seconds,
         )
         for input_record in result.inputs
