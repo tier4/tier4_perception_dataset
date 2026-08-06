@@ -121,8 +121,8 @@ class SceneUploadResult:
 @dataclass(frozen=True)
 class KognicUploadConfig:
     input_base: Path
-    organization_id: int
-    workspace_id: str
+    organization_id: Optional[int]
+    workspace_id: Optional[str]
     # Credentials forwarded to ``KognicIOClient(auth=...)``. ``None`` falls back
     # to the credentials in the environment (``KOGNIC_CREDENTIALS`` or
     # ``KOGNIC_CLIENT_ID``/``KOGNIC_CLIENT_SECRET``).
