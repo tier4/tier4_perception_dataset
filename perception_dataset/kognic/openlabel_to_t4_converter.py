@@ -28,13 +28,19 @@ OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp
 (authoritative when present; the frame ``external_id`` is a positional fallback
 only when no timestamp is available).
 
-The dataset is enriched **in place**: the populated tables (and any lidarseg
-files) are written back into each scene's ``annotation/`` directory.
+Like ``DeepenToT4Converter``, each scene is first copied from the
+non-annotated dataset (``input_base``) into ``output_base`` and the
+annotations are written into the copy. When ``input_bag_base`` is given, a
+time/topic filtered copy of each scene's rosbag is placed next to the
+annotations as ``input_bag`` (same as the Deepen flow).
 
 Layout::
 
-    <output_base>/<scene>/                (T4 dataset, enriched in place)
-        annotation/  data/  [lidarseg/]
+    <input_base>/<scene>/                 (non-annotated T4 dataset)
+        annotation/  data/
+    <input_bag_base>/<scene>/             (optional source rosbag)
+    <output_base>/<scene>/                (annotated T4 dataset)
+        annotation/  data/  [lidarseg/]  [input_bag/]
     <annotation_base>/
         <scene>.json  or  <scene_uuid>.json   (downloaded OpenLABEL)
 
@@ -43,11 +49,12 @@ Layout::
 import bisect
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from t4_devkit.schema.tables import (
@@ -68,6 +75,7 @@ from perception_dataset.kognic.openlabel import (
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
+import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.pointcloud import detect_point_stride
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
@@ -82,14 +90,21 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     def __init__(
         self,
+        input_base: str,
         output_base: str,
         annotation_base: str,
+        input_bag_base: Optional[str] = None,
+        topic_list: Union[Dict[str, List[str]], List[str], None] = None,
+        overwrite_mode: bool = False,
         iso_rotated_cuboids: bool = False,
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = True,
     ):
-        super().__init__(output_base, output_base)
+        super().__init__(input_base, output_base)
         self._annotation_base = Path(annotation_base)
+        self._input_bag_base: Optional[str] = input_bag_base
+        self._topic_list: Union[Dict[str, List[str]], List[str]] = topic_list or []
+        self._overwrite_mode = overwrite_mode
         self._iso_rotated_cuboids = iso_rotated_cuboids
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
@@ -100,16 +115,16 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     def convert(self) -> None:
         start = time.time()
-        output_base = Path(self._output_base)
+        input_base = Path(self._input_base)
 
         openlabels = self._index_openlabels()
         if not openlabels:
             logger.warning(f"No OpenLABEL annotation files found under {self._annotation_base}")
             return
 
-        scenes = self._find_t4_scenes(output_base)
+        scenes = self._find_t4_scenes(input_base)
         if not scenes:
-            logger.warning(f"No T4 scenes found under {output_base}")
+            logger.warning(f"No T4 scenes found under {input_base}")
             return
 
         for scene_dir in scenes:
@@ -120,9 +135,99 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 )
                 continue
 
-            self._convert_one_scene(scene_dir, openlabel_path)
+            output_dir = self._prepare_output_scene(scene_dir)
+            self._convert_one_scene(output_dir, openlabel_path)
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
+
+    # ------------------------------------------------------------------
+    # Output preparation (copy data / make filtered rosbag, Deepen-style)
+    # ------------------------------------------------------------------
+
+    def _prepare_output_scene(self, scene_dir: Path) -> Path:
+        """Copy the non-annotated scene (and optionally its rosbag) into the output.
+
+        Mirrors ``DeepenToT4Converter.convert``: the scene keeps its path
+        relative to ``input_base`` under ``output_base``.
+        """
+        input_base = Path(self._input_base).resolve()
+        scene_dir = scene_dir.resolve()
+        relative = scene_dir.relative_to(input_base)
+        output_dir = Path(self._output_base).resolve() / relative
+        if output_dir == scene_dir:
+            raise ValueError(
+                f"input_base and output_base resolve to the same scene ({scene_dir}); "
+                f"they must differ"
+            )
+
+        if output_dir.exists():
+            logger.warning(f"{output_dir} already exists.")
+            if not self._overwrite_mode:
+                raise ValueError("If you want to overwrite files, use --overwrite option.")
+        shutil.rmtree(output_dir, ignore_errors=True)
+        self._copy_data(scene_dir, output_dir)
+
+        if self._input_bag_base is not None:
+            scene_name = relative.parts[0] if relative.parts else scene_dir.name
+            input_bag_dir = Path(self._input_bag_base) / scene_name
+            self._make_rosbag(scene_dir, input_bag_dir, output_dir)
+        return output_dir
+
+    @staticmethod
+    def _copy_data(input_dir: Path, output_dir: Path) -> None:
+        logger.info(f"Copying {input_dir} to {output_dir} ... ")
+        for item in os.listdir(input_dir):
+            if item not in ["annotation", "data", "status.json"]:
+                # Skip non t4-format files
+                continue
+            output_dir.mkdir(parents=True, exist_ok=True)
+            src_path = input_dir / item
+            dest_path = output_dir / item
+            if src_path.is_dir():
+                logger.info(f"Copying directory {src_path} to {dest_path} ...")
+                shutil.copytree(src_path, dest_path)
+            else:
+                logger.info(f"Copying file {src_path} to {dest_path} ...")
+                shutil.copy2(src_path, dest_path)
+            if item == "data" and (input_dir / "anonymized_data").exists():
+                # Overwrite data with anonymized_data if exists
+                shutil.copytree(input_dir / "anonymized_data", dest_path, dirs_exist_ok=True)
+        logger.info("Done!")
+
+    @staticmethod
+    def _find_start_end_time(t4_dataset_dir: Path) -> Tuple[float, float]:
+        """Scene time range (with a 2 s margin on both ends) for bag filtering."""
+        from t4_devkit import Tier4
+
+        t4_dataset = Tier4(data_root=str(t4_dataset_dir), verbose=False)
+        timestamps = [sample.timestamp for sample in t4_dataset.sample]
+        start_sec = misc_utils.nusc_timestamp_to_unix_timestamp(min(timestamps)) - 2.0
+        end_sec = misc_utils.nusc_timestamp_to_unix_timestamp(max(timestamps)) + 2.0
+        return start_sec, end_sec
+
+    def _make_rosbag(self, scene_dir: Path, input_bag_dir: Path, output_dir: Path) -> None:
+        """Copy a time/topic filtered rosbag into the scene as ``input_bag``."""
+        # Imported lazily: pulls in ROS 2 dependencies not needed otherwise.
+        from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
+
+        if not input_bag_dir.exists():
+            logger.warning(f"Input rosbag {input_bag_dir} not found; skipping input_bag")
+            return
+        output_bag_dir = output_dir / "input_bag"
+
+        logger.info(f"Copying {input_bag_dir} to {output_bag_dir} ... ")
+        start_sec, end_sec = self._find_start_end_time(scene_dir)
+        output_bag_dir_temp = output_dir / input_bag_dir.name
+        converter = Rosbag2Converter(
+            str(input_bag_dir),
+            str(output_bag_dir_temp),
+            self._topic_list,
+            start_sec,
+            end_sec,
+        )
+        converter.convert()
+        if output_bag_dir_temp != output_bag_dir:
+            shutil.move(str(output_bag_dir_temp), str(output_bag_dir))
 
     # ------------------------------------------------------------------
     # Discovery / matching
@@ -183,7 +288,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         so the matching identifier is often an ancestor (e.g. ``<scene_id>``)
         rather than the leaf (e.g. version ``0``).
         """
-        root = Path(self._output_base).resolve()
+        root = Path(self._input_base).resolve()
         current = scene_dir.resolve()
         while True:
             if current.name in openlabels:
