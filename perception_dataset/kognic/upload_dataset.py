@@ -101,8 +101,10 @@ class SceneUploadResult:
 @dataclass(frozen=True)
 class KognicUploadConfig:
     input_base: Path
-    organization_id: str
-    workspace_id: str
+    # Both optional: Kognic derives the organization from the auth credentials
+    # and infers the write workspace when not provided.
+    organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
     project_targets: List[ProjectTarget] = field(default_factory=list)
     target_hz: Optional[int] = None
     dryrun: bool = False
@@ -223,11 +225,6 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     workspace_id = conversion_config.get("workspace_id") or conversion_config.get(
         "write_workspace_id"
     )
-
-    if not organization_id:
-        raise ValueError("conversion.organization_id is required for Kognic upload")
-    if not workspace_id:
-        raise ValueError("conversion.workspace_id is required for Kognic upload")
 
     return KognicUploadConfig(
         input_base=Path(conversion_config["input_base"]),
