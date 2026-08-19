@@ -94,13 +94,17 @@ class InputRecord:
     """One input created from a scene, as recorded in ``dataset_id.json``.
 
     ``batch_name`` is ``None`` when the target left the batch unset (the latest
-    open batch was used); ``input_id`` is ``None`` when the API returned no
-    created input.
+    open batch was used); ``input_id`` and ``request_id`` are ``None`` when the
+    API returned no created input.
+
+    ``input_id`` identifies the Request Input itself, while ``request_id``
+    identifies the Request it belongs to (one Request holds many Inputs).
     """
 
     project_name: str
     batch_name: Optional[str]
     input_id: Optional[str]
+    request_id: Optional[str] = None
 
 
 @dataclass
@@ -615,6 +619,7 @@ class KognicDatasetUploader:
                         project_name=target.external_id,
                         batch_name=target.batch,
                         input_id=str(created_input.uuid) if created_input else None,
+                        request_id=str(created_input.request_uid) if created_input else None,
                     )
                 )
             except Exception as exc:
