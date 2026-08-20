@@ -43,6 +43,8 @@ def detect_point_stride(floats: np.ndarray, bin_path: Path) -> int:
 
     Tries ``LIDAR_CONCAT_NUM_POINT_FEATURES`` first, then other strides,
     accepting the first one that yields finite, plausibly-sized coordinates.
+    A small fraction of corrupt returns is tolerated (they are dropped later by
+    :func:`save_pointcloud_csv`); a wrong stride corrupts far more points.
     """
     candidates = [LIDAR_CONCAT_NUM_POINT_FEATURES] + [
         stride for stride in range(4, 17) if stride != LIDAR_CONCAT_NUM_POINT_FEATURES
@@ -51,7 +53,10 @@ def detect_point_stride(floats: np.ndarray, bin_path: Path) -> int:
         if len(floats) == 0 or len(floats) % stride != 0:
             continue
         xyz = floats.reshape(-1, stride)[:, :3]
-        if np.isfinite(xyz).all() and np.abs(xyz).max() < _MAX_REASONABLE_COORDINATE_M:
+        plausible = np.isfinite(xyz).all(axis=1) & (
+            np.abs(xyz) < _MAX_REASONABLE_COORDINATE_M
+        ).all(axis=1)
+        if plausible.mean() >= 0.999:
             if stride != LIDAR_CONCAT_NUM_POINT_FEATURES:
                 logger.warning(
                     f"{bin_path}: detected {stride} floats per point "
@@ -159,8 +164,21 @@ def extract_pointclouds(
 def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -> None:
     """Write *points* to a CSV at *csv_path*.
 
-    The output columns are: ``ts_gps, x, y, z, intensity``.
+    The output columns are: ``ts_gps, x, y, z, intensity``. 
+    Points with a non-finite value or a coordinate beyond ``_MAX_REASONABLE_COORDINATE_M``
+    (corrupt lidar returns) are dropped: Kognic rejects the whole scene on any
+    coordinate outside its int32-backed range.
     """
+    valid = np.isfinite(points[:, 0:4]).all(axis=1) & (
+        np.abs(points[:, 0:3]) < _MAX_REASONABLE_COORDINATE_M
+    ).all(axis=1)
+    if not valid.all():
+        logger.warning(
+            f"{csv_path}: dropped {int((~valid).sum())} of {len(points)} points with "
+            "non-finite or out-of-range coordinates"
+        )
+        points = points[valid]
+
     arr = np.empty((len(points), 5), dtype=np.float64)
     arr[:, 0] = timestamp_ns
     arr[:, 1:5] = points[:, 0:4]
