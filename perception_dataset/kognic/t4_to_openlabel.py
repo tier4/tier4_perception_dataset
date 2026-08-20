@@ -66,6 +66,17 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         exclude_attributes: Optional[List[str]] = None,
         frame_match_tolerance_ms: float = 50.0,
     ):
+        """Initialize the pre-annotation converter.
+
+        Args:
+            input_base (str): Input T4 dataset directory.
+            output_base (str): Existing Kognic staging directory.
+            lidar_stream (str): Explicit OpenLABEL lidar stream name.
+            category_map (Optional[Dict[str, str]]): T4-to-Kognic category map.
+            include_attributes (bool): Whether to include T4 box attributes.
+            exclude_attributes (Optional[List[str]]): Attribute groups to omit.
+            frame_match_tolerance_ms (float): Maximum timestamp matching error.
+        """
         super().__init__(input_base, output_base)
         self._lidar_stream = lidar_stream
         self._category_map = category_map or {}
@@ -75,6 +86,11 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         self._frame_match_tolerance_ms = frame_match_tolerance_ms
 
     def convert(self) -> None:
+        """Convert annotations for every discovered T4 sequence.
+
+        Returns:
+            None
+        """
         start = time.time()
 
         for seq_path, staging_dir in iter_scene_pairs(
@@ -97,6 +113,15 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
     # ------------------------------------------------------------------
 
     def _convert_one_scene(self, seq_path: Path, staging_dir: Path) -> None:
+        """Create an OpenLABEL pre-annotation for one scene.
+
+        Args:
+            seq_path (Path): Source T4 sequence root.
+            staging_dir (Path): Destination Kognic staging directory.
+
+        Returns:
+            None
+        """
         tables = {
             name: self._load_annotation(seq_path, f"{name}.json")
             for name in (
@@ -266,6 +291,15 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         ``T4ToKognicConverter`` writes the same file for every scene (including
         non-annotated ones); this refresh keeps re-running only the
         pre-annotation step on an older staging dir sufficient.
+
+        Args:
+            staging_dir (Path): Destination staging directory.
+            concat_records (List[dict]): Ordered fused-lidar sample data.
+            concat_to_frame (Dict[int, int]): Concat-record to frame mapping.
+            frame_count (int): Number of staging frames.
+
+        Returns:
+            None
         """
         keyframe_indices = sorted(
             concat_to_frame[idx]
@@ -279,11 +313,28 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
     @staticmethod
     def _load_annotation(seq_path: Path, name: str) -> list:
+        """Load a T4 annotation table.
+
+        Args:
+            seq_path (Path): T4 sequence root.
+            name (str): Annotation-table filename.
+
+        Returns:
+            list: Parsed table records.
+        """
         with open(seq_path / "annotation" / name) as f:
             return json.load(f)
 
     @staticmethod
     def _collect_concat_records(tables: dict) -> List[dict]:
+        """Collect fused-lidar sample-data records in timestamp order.
+
+        Args:
+            tables (dict): Loaded T4 tables.
+
+        Returns:
+            List[dict]: Ordered ``LIDAR_CONCAT`` records.
+        """
         channel_by_calib = channel_by_calibrated_sensor(
             tables["sensor"], tables["calibrated_sensor"]
         )
@@ -291,7 +342,18 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
     @staticmethod
     def _load_staging_frames(staging_dir: Path) -> Tuple[List[int], List[int], str]:
-        """Enumerate scene frames exactly like ``KognicDatasetUploader.iterate_frames``."""
+        """Enumerate staging frames using the uploader's ordering.
+
+        Args:
+            staging_dir (Path): Kognic staging directory.
+
+        Returns:
+            Tuple[List[int], List[int], str]: Absolute timestamps, relative
+                timestamps in milliseconds, and anchor lidar channel.
+
+        Raises:
+            FileNotFoundError: If the anchor lidar directory contains no CSVs.
+        """
         lidar_root = staging_dir / "lidar"
         sensor_names = sorted(
             (p.name for p in lidar_root.iterdir() if p.is_dir()),
@@ -317,6 +379,13 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         Otherwise fall back to nearest-timestamp matching within tolerance
         (anchor per-source stamps are offset from the concat timestamp by a
         fraction of the sweep period).
+
+        Args:
+            concat_records (List[dict]): Ordered fused-lidar sample data.
+            anchor_ts_ns (List[int]): Staging anchor timestamps in nanoseconds.
+
+        Returns:
+            Dict[int, int]: Concat-record indices mapped to staging frames.
         """
         if len(concat_records) == len(anchor_ts_ns):
             return {idx: idx for idx in range(len(concat_records))}
@@ -337,6 +406,14 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
     @staticmethod
     def _build_streams(staging_dir: Path) -> Dict[str, openlabel.Stream]:
+        """Build OpenLABEL stream declarations from staged sensors.
+
+        Args:
+            staging_dir (Path): Kognic staging directory.
+
+        Returns:
+            Dict[str, openlabel.Stream]: Stream declarations keyed by channel.
+        """
         streams: Dict[str, openlabel.Stream] = {}
         for path in sorted((staging_dir / "lidar").iterdir()):
             if path.is_dir():
@@ -355,6 +432,14 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
 
 def _token_to_uuid(token: str) -> str:
+    """Convert a T4 token to a stable UUID string.
+
+    Args:
+        token (str): T4 token, which may or may not be hexadecimal.
+
+    Returns:
+        str: Canonical UUID derived from the token.
+    """
     try:
         return str(uuid.UUID(hex=token))
     except ValueError:
@@ -362,6 +447,15 @@ def _token_to_uuid(token: str) -> str:
 
 
 def _object_name(instance: dict, object_uuid: str) -> str:
+    """Choose an OpenLABEL object name for a T4 instance.
+
+    Args:
+        instance (dict): T4 instance record.
+        object_uuid (str): Fallback object UUID.
+
+    Returns:
+        str: Instance-name suffix when available, otherwise ``object_uuid``.
+    """
     instance_name = instance.get("instance_name", "")
     if instance_name:
         return instance_name.split("::")[-1]

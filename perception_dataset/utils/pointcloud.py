@@ -22,11 +22,22 @@ _MAX_REASONABLE_COORDINATE_M = 10_000.0
 
 
 def point_stride_from_info(bin_path: Path, total_points: int) -> int:
-    """Floats per point record, derived from the LIDAR_CONCAT_INFO totals.
+    """Derive the number of floats in each point record.
 
     T4 datasets ship LIDAR_CONCAT ``.pcd.bin`` files with varying per-point
     layouts (e.g. x,y,z,intensity,ring or x,y,z,intensity,ring,lidar_id,
     time_offset), so the stride must be derived per file rather than assumed.
+
+    Args:
+        bin_path (Path): Path to the binary point-cloud file.
+        total_points (int): Number of points declared by ``LIDAR_CONCAT_INFO``.
+
+    Returns:
+        int: Number of 32-bit floats in each point record.
+
+    Raises:
+        ValueError: If the file size is inconsistent with ``total_points`` or
+            the derived stride contains fewer than four floats.
     """
     n_floats = bin_path.stat().st_size // 4
     stride, remainder = divmod(n_floats, total_points)
@@ -45,6 +56,16 @@ def detect_point_stride(floats: np.ndarray, bin_path: Path) -> int:
     accepting the first one that yields finite, plausibly-sized coordinates.
     A small fraction of corrupt returns is tolerated (they are dropped later by
     :func:`save_pointcloud_csv`); a wrong stride corrupts far more points.
+
+    Args:
+        floats (np.ndarray): Flat array of point-cloud values.
+        bin_path (Path): Source path included in diagnostics.
+
+    Returns:
+        int: Detected number of floats in each point record.
+
+    Raises:
+        ValueError: If no plausible point stride can be detected.
     """
     candidates = [LIDAR_CONCAT_NUM_POINT_FEATURES] + [
         stride for stride in range(4, 17) if stride != LIDAR_CONCAT_NUM_POINT_FEATURES
@@ -73,20 +94,25 @@ def extract_pointclouds(
     frame_records: List[Dict[str, dict]],
     channel_to_token: Dict[str, str],
 ) -> None:
-    """Write per-frame CSV point-cloud files for *lidar_channel*.
+    """Write per-frame CSV point clouds for a lidar channel.
 
-    Parameters
-    ----------
-    seq_path:
-        Root path of the T4 sequence (source files are read from here).
-    out_dir:
-        Destination root; files are written to ``out_dir/lidar/<lidar_channel>/``.
-    lidar_channel:
-        Name of the LiDAR sensor channel to extract.
-    frame_records:
-        Ordered list of per-frame dicts mapping channel name → sample_data record.
-    channel_to_token:
-        Mapping from sensor channel name to sensor token.
+    Args:
+        seq_path (Path): Root directory of the source T4 sequence.
+        out_dir (Path): Destination root. Files are written below
+            ``lidar/<lidar_channel>``.
+        lidar_channel (str): Lidar sensor channel to extract.
+        frame_records (List[Dict[str, dict]]): Ordered frame mappings from
+            channel names to sample-data records.
+        channel_to_token (Dict[str, str]): Mapping from channel names to sensor
+            tokens.
+
+    Returns:
+        None
+
+    Raises:
+        FileNotFoundError: If required point-cloud or concat-info data is
+            missing.
+        ValueError: If a point-record stride cannot be derived or detected.
     """
     sensor_token = channel_to_token.get(lidar_channel)
     if sensor_token is None:
@@ -168,6 +194,15 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
     Points with a non-finite value or a coordinate beyond ``_MAX_REASONABLE_COORDINATE_M``
     (corrupt lidar returns) are dropped: Kognic rejects the whole scene on any
     coordinate outside its int32-backed range.
+
+    Args:
+        csv_path (Path): Destination CSV path.
+        timestamp_ns (int): Capture timestamp in nanoseconds.
+        points (np.ndarray): Point records whose first four columns are
+            ``x``, ``y``, ``z``, and intensity.
+
+    Returns:
+        None
     """
     valid = np.isfinite(points[:, 0:4]).all(axis=1) & (
         np.abs(points[:, 0:3]) < _MAX_REASONABLE_COORDINATE_M
@@ -194,13 +229,29 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
 
 
 def stamp_to_ns(stamp: Optional[dict]) -> Optional[int]:
-    """Convert a ROS-style ``{sec, nanosec}`` stamp dict to nanoseconds."""
+    """Convert a ROS-style timestamp to nanoseconds.
+
+    Args:
+        stamp (Optional[dict]): Mapping containing ``sec`` and ``nanosec``.
+
+    Returns:
+        Optional[int]: Timestamp in nanoseconds, or ``None`` when ``stamp`` is
+            empty.
+    """
     if not stamp:
         return None
     return int(stamp["sec"]) * 1_000_000_000 + int(stamp["nanosec"])
 
 
 def copy_file(src: Path, dst: Path) -> None:
-    """Copy *src* to *dst*, creating parent directories as needed."""
+    """Copy a file while creating its destination directory.
+
+    Args:
+        src (Path): Source file path.
+        dst (Path): Destination file path.
+
+    Returns:
+        None
+    """
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)

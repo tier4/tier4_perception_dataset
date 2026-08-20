@@ -22,15 +22,16 @@ def extract_ego_poses(
 
     Poses are expressed relative to the first frame (T0-normalised).
 
-    Parameters
-    ----------
-    frame_records:
-        Ordered list of per-frame dicts mapping channel name → sample_data record.
-    ego_pose_by_token:
-        Mapping from ego_pose token to ego_pose record.
-    camera_channels:
-        Ordered list of camera channel names; used to pick the reference
-        sample_data when LIDAR_CONCAT is absent (first camera with data wins).
+    Args:
+        frame_records (List[Dict[str, dict]]): Ordered frame mappings from
+            channel names to sample-data records.
+        ego_pose_by_token (Dict[str, dict]): Ego-pose records keyed by token.
+        camera_channels (Sequence[str]): Ordered fallback camera channels used
+            when ``LIDAR_CONCAT`` is absent.
+
+    Returns:
+        Dict[str, KognicModel.EgoVehiclePose]: Relative poses keyed by frame
+            index as a string.
     """
     frame_ego_tokens: List[str] = []
     for frame_record in frame_records:
@@ -80,6 +81,14 @@ def _get_reference_sample_data(
     """Pick the canonical sample_data record for a frame.
 
     Preference order: LIDAR_CONCAT → first camera with data → any channel.
+
+    Args:
+        frame_record (Dict[str, dict]): Channel-to-sample-data mapping.
+        camera_channels (Sequence[str]): Ordered fallback camera channels.
+
+    Returns:
+        Optional[dict]: Selected sample-data record, or ``None`` for an empty
+            frame.
     """
     if LIDAR_CONCAT_CHANNEL in frame_record:
         return frame_record[LIDAR_CONCAT_CHANNEL]
@@ -92,7 +101,16 @@ def _get_reference_sample_data(
 
 
 def _build_transform(ego_pose, inverse: bool = False) -> np.ndarray:
-    """Build a 4x4 transform from a T4 ego_pose record (rotation is ``[w, x, y, z]``)."""
+    """Build a transformation matrix from a T4 ego-pose record.
+
+    Args:
+        ego_pose (Mapping): Ego-pose record whose rotation is in
+            ``[w, x, y, z]`` order.
+        inverse (bool): Whether to return the inverse transform.
+
+    Returns:
+        np.ndarray: A 4-by-4 homogeneous transformation matrix.
+    """
     return transform_matrix(
         translation=np.array(ego_pose.translation),
         rotation=Quaternion(ego_pose.rotation),
