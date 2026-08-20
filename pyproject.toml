@@ -37,11 +37,11 @@ dev = [
 ]
 
 [tool.uv]
-# t4-devkit 0.7.0 imports click without declaring it; typer<0.25 still pulls click in.
+# t4-devkit 0.8.0 imports click without declaring it; typer<0.25 still pulls click in.
 constraint-dependencies = ["typer<0.25"]
 
 [tool.uv.sources]
-t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.7.0" }
+t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.8.0" }
 
 [build-system]
 requires = ["hatchling"]
