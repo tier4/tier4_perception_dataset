@@ -41,11 +41,27 @@ logger = configure_logger(modname=__name__)
 
 
 def _collect_scene_uuids(explicit: Optional[str], dataset_id_json: Optional[Path]) -> List[str]:
-    """Gather candidate scene uuids from --scene-uuids and/or a dataset_id.json."""
+    """Gather candidate scene UUIDs from command-line sources.
+
+    Args:
+        explicit (Optional[str]): Comma- or space-separated scene UUIDs.
+        dataset_id_json (Optional[Path]): Uploader-generated dataset ID file.
+
+    Returns:
+        List[str]: Unique scene UUIDs in discovery order.
+    """
     uuids: List[str] = []
     seen: Set[str] = set()
 
     def _add(value: str) -> None:
+        """Add a nonempty, unique scene UUID to the result.
+
+        Args:
+            value (str): Candidate scene UUID.
+
+        Returns:
+            None
+        """
         value = value.strip()
         if value and value != "dryrun" and value not in seen:
             seen.add(value)
@@ -86,6 +102,15 @@ def find_scenes_ready_for_input(
     existing input in the same project (and batch, when one is given — with
     ``batch=None`` any input in the project counts, since the default batch
     cannot be queried by name) makes it a duplicate and skips the scene.
+
+    Args:
+        client (KognicIOClient): Authenticated Kognic client.
+        scene_uuids (List[str]): Candidate scene UUIDs.
+        project (str): Target project external ID.
+        batch (Optional[str]): Target batch, or ``None`` for any project input.
+
+    Returns:
+        List[Scene]: Live scenes without an input in the target scope.
     """
     if not scene_uuids:
         return []
@@ -123,7 +148,18 @@ def find_scenes_ready_for_input(
 
 
 def load_pre_annotation(pre_annotation_path: Path) -> OpenLabelAnnotation:
-    """Load and validate an OpenLabel pre-annotation file."""
+    """Load and validate an OpenLABEL pre-annotation file.
+
+    Args:
+        pre_annotation_path (Path): Path to the OpenLABEL JSON file.
+
+    Returns:
+        OpenLabelAnnotation: Validated pre-annotation model.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValidationError: If the JSON does not match the OpenLABEL model.
+    """
     if not pre_annotation_path.exists():
         raise FileNotFoundError(f"pre-annotation file not found: {pre_annotation_path}")
 
@@ -163,6 +199,18 @@ def _wait_for_pre_annotation(
     Raises ``RuntimeError`` on failure, with the full record in the message
     since it may carry the server's error details. On timeout the last record
     is returned with a warning — input creation will then surface the verdict.
+
+    Args:
+        client (KognicIOClient): Authenticated Kognic client.
+        pre_annotation_uuid (str): Uploaded pre-annotation UUID.
+        timeout_s (float): Maximum polling duration in seconds.
+        poll_s (float): Delay between status requests in seconds.
+
+    Returns:
+        dict: Final or last observed pre-annotation record.
+
+    Raises:
+        RuntimeError: If the record is missing or processing fails.
     """
     deadline = time.time() + timeout_s
     while True:
@@ -215,6 +263,19 @@ def create_inputs_from_scenes(
 
     Returns the uuids of scenes whose pre-annotation upload or input creation
     failed.
+
+    Args:
+        client (KognicIOClient): Authenticated Kognic client.
+        scenes (List[Scene]): Scenes for which to create inputs.
+        project (str): Target project external ID.
+        batch (Optional[str]): Target batch.
+        pre_annotation_uuid (Optional[str]): Existing pre-annotation UUID.
+        pre_annotation (Optional[OpenLabelAnnotation]): Local pre-annotation
+            to upload separately for each scene.
+        pre_annotation_name (Optional[str]): Name used in uploaded external IDs.
+
+    Returns:
+        List[str]: Scene UUIDs whose upload or input creation failed.
     """
     failed: List[str] = []
     for scene in scenes:
@@ -291,6 +352,11 @@ def create_inputs_from_scenes(
 
 
 def main():
+    """Run the create-inputs command-line interface.
+
+    Returns:
+        None
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--config",

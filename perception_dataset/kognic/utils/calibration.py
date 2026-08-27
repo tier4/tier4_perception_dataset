@@ -18,22 +18,21 @@ def extract_calibration(
     sample_data_by_channel: Dict[str, list],
     seq_path: Path,
 ) -> Dict[str, KognicModel.BaseCalibration]:
-    """Build a Kognic calibration dict for all cameras and LiDARs in the scene.
+    """Build Kognic calibration records for a scene's cameras and lidars.
 
-    Parameters
-    ----------
-    channel_to_token:
-        Mapping from sensor channel name to sensor token.
-    calib_by_sensor_token:
-        Mapping from sensor_token to calibrated_sensor record.
-    camera_channels:
-        Ordered list of camera channel names to include.
-    lidar_channels:
-        List of LiDAR channel names to include.
-    sample_data_by_channel:
-        Mapping from channel name to sorted list of sample_data records.
-    seq_path:
-        Root path of the T4 sequence (used to locate image files on disk).
+    Args:
+        channel_to_token (Dict[str, str]): Mapping from channel names to sensor
+            tokens.
+        calib_by_sensor_token (Dict[str, dict]): Mapping from sensor tokens to
+            calibrated-sensor records.
+        camera_channels (Sequence[str]): Ordered camera channels to include.
+        lidar_channels (Sequence[str]): Lidar channels to include.
+        sample_data_by_channel (Dict[str, list]): Mapping from channel names to
+            sorted sample-data records.
+        seq_path (Path): T4 sequence root used to locate image files.
+
+    Returns:
+        Dict[str, KognicModel.BaseCalibration]: Calibration keyed by channel.
     """
     calibration: Dict[str, KognicModel.BaseCalibration] = {}
 
@@ -104,6 +103,18 @@ def read_image_dims(
     First tries the metadata recorded in the sample_data records; falls back to
     opening the first JPEG on disk via Pillow for malformed T4 archives that
     omit image dimensions.
+
+    Args:
+        sample_data_by_channel (Dict[str, list]): Sample-data records keyed by
+            channel.
+        seq_path (Path): T4 sequence root.
+        camera_channel (str): Camera channel whose dimensions are required.
+
+    Returns:
+        Tuple[int, int]: Image width and height in pixels.
+
+    Raises:
+        FileNotFoundError: If dimensions are absent and no image can be read.
     """
     for sample_data in sample_data_by_channel.get(camera_channel, []):
         width = int(sample_data.width or 0)
@@ -138,6 +149,17 @@ def _has_existing_channel_file(
     seq_path: Path,
     channel: str,
 ) -> bool:
+    """Check whether a channel has at least one existing data file.
+
+    Args:
+        sample_data_by_channel (Dict[str, list]): Sample-data records keyed by
+            channel.
+        seq_path (Path): T4 sequence root.
+        channel (str): Sensor channel to inspect.
+
+    Returns:
+        bool: ``True`` when at least one referenced file exists.
+    """
     return any(
         (seq_path / sample_data.filename).exists()
         for sample_data in sample_data_by_channel.get(channel, [])

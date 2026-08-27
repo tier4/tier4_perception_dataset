@@ -28,13 +28,19 @@ OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp
 (authoritative when present; the frame ``external_id`` is a positional fallback
 only when no timestamp is available).
 
-The dataset is enriched **in place**: the populated tables (and any lidarseg
-files) are written back into each scene's ``annotation/`` directory.
+Like ``DeepenToT4Converter``, each scene is first copied from the
+non-annotated dataset (``input_base``) into ``output_base`` and the
+annotations are written into the copy. When ``input_bag_base`` is given, a
+time/topic filtered copy of each scene's rosbag is placed next to the
+annotations as ``input_bag`` (same as the Deepen flow).
 
 Layout::
 
-    <output_base>/<scene>/                (T4 dataset, enriched in place)
-        annotation/  data/  [lidarseg/]
+    <input_base>/<scene>/                 (non-annotated T4 dataset)
+        annotation/  data/
+    <input_bag_base>/<scene>/             (optional source rosbag)
+    <output_base>/<scene>/                (annotated T4 dataset)
+        annotation/  data/  [lidarseg/]  [input_bag/]
     <annotation_base>/
         <scene>.json  or  <scene_uuid>.json   (downloaded OpenLABEL)
 
@@ -43,11 +49,12 @@ Layout::
 import bisect
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from t4_devkit.schema.tables import (
@@ -68,6 +75,7 @@ from perception_dataset.kognic.openlabel import (
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
+import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.pointcloud import detect_point_stride
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
@@ -82,14 +90,35 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     def __init__(
         self,
+        input_base: str,
         output_base: str,
         annotation_base: str,
+        input_bag_base: Optional[str] = None,
+        topic_list: Union[Dict[str, List[str]], List[str], None] = None,
+        overwrite_mode: bool = False,
         iso_rotated_cuboids: bool = False,
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = True,
     ):
-        super().__init__(output_base, output_base)
+        """Initialize the converter.
+
+        Args:
+            input_base (str): Base directory containing non-annotated T4 scenes.
+            output_base (str): Destination directory for annotated T4 scenes.
+            annotation_base (str): OpenLABEL file or directory to import.
+            input_bag_base (Optional[str]): Optional source rosbag directory.
+            topic_list (Union[Dict[str, List[str]], List[str], None]): Rosbag
+                topics to preserve.
+            overwrite_mode (bool): Whether existing output scenes may be replaced.
+            iso_rotated_cuboids (bool): Whether cuboids use the T4 forward axis.
+            category_map (Optional[Dict[str, str]]): Kognic-to-T4 category map.
+            include_attributes (bool): Whether to import object attributes.
+        """
+        super().__init__(input_base, output_base)
         self._annotation_base = Path(annotation_base)
+        self._input_bag_base: Optional[str] = input_bag_base
+        self._topic_list: Union[Dict[str, List[str]], List[str]] = topic_list or []
+        self._overwrite_mode = overwrite_mode
         self._iso_rotated_cuboids = iso_rotated_cuboids
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
@@ -99,17 +128,22 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     # ------------------------------------------------------------------
 
     def convert(self) -> None:
+        """Convert all matched OpenLABEL and T4 scenes.
+
+        Returns:
+            None
+        """
         start = time.time()
-        output_base = Path(self._output_base)
+        input_base = Path(self._input_base)
 
         openlabels = self._index_openlabels()
         if not openlabels:
             logger.warning(f"No OpenLABEL annotation files found under {self._annotation_base}")
             return
 
-        scenes = self._find_t4_scenes(output_base)
+        scenes = self._find_t4_scenes(input_base)
         if not scenes:
-            logger.warning(f"No T4 scenes found under {output_base}")
+            logger.warning(f"No T4 scenes found under {input_base}")
             return
 
         for scene_dir in scenes:
@@ -120,9 +154,134 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 )
                 continue
 
-            self._convert_one_scene(scene_dir, openlabel_path)
+            output_dir = self._prepare_output_scene(scene_dir)
+            self._convert_one_scene(output_dir, openlabel_path)
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
+
+    # ------------------------------------------------------------------
+    # Output preparation (copy data / make filtered rosbag, Deepen-style)
+    # ------------------------------------------------------------------
+
+    def _prepare_output_scene(self, scene_dir: Path) -> Path:
+        """Copy the non-annotated scene (and optionally its rosbag) into the output.
+
+        Mirrors ``DeepenToT4Converter.convert``: the scene keeps its path
+        relative to ``input_base`` under ``output_base``.
+
+        Args:
+            scene_dir (Path): Source T4 scene directory.
+
+        Returns:
+            Path: Prepared output scene directory.
+
+        Raises:
+            ValueError: If input and output resolve to the same scene, or an
+                output exists while overwrite mode is disabled.
+        """
+        input_base = Path(self._input_base).resolve()
+        scene_dir = scene_dir.resolve()
+        relative = scene_dir.relative_to(input_base)
+        output_dir = Path(self._output_base).resolve() / relative
+        if output_dir == scene_dir:
+            raise ValueError(
+                f"input_base and output_base resolve to the same scene ({scene_dir}); "
+                f"they must differ"
+            )
+
+        if output_dir.exists():
+            logger.warning(f"{output_dir} already exists.")
+            if not self._overwrite_mode:
+                raise ValueError("If you want to overwrite files, use --overwrite option.")
+        shutil.rmtree(output_dir, ignore_errors=True)
+        self._copy_data(scene_dir, output_dir)
+
+        if self._input_bag_base is not None:
+            scene_name = relative.parts[0] if relative.parts else scene_dir.name
+            input_bag_dir = Path(self._input_bag_base) / scene_name
+            self._make_rosbag(scene_dir, input_bag_dir, output_dir)
+        return output_dir
+
+    @staticmethod
+    def _copy_data(input_dir: Path, output_dir: Path) -> None:
+        """Copy T4 data files into an output scene.
+
+        Args:
+            input_dir (Path): Source scene directory.
+            output_dir (Path): Destination scene directory.
+
+        Returns:
+            None
+        """
+        logger.info(f"Copying {input_dir} to {output_dir} ... ")
+        for item in os.listdir(input_dir):
+            if item not in ["annotation", "data", "status.json"]:
+                # Skip non t4-format files
+                continue
+            output_dir.mkdir(parents=True, exist_ok=True)
+            src_path = input_dir / item
+            dest_path = output_dir / item
+            if src_path.is_dir():
+                logger.info(f"Copying directory {src_path} to {dest_path} ...")
+                shutil.copytree(src_path, dest_path)
+            else:
+                logger.info(f"Copying file {src_path} to {dest_path} ...")
+                shutil.copy2(src_path, dest_path)
+            if item == "data" and (input_dir / "anonymized_data").exists():
+                # Overwrite data with anonymized_data if exists
+                shutil.copytree(input_dir / "anonymized_data", dest_path, dirs_exist_ok=True)
+        logger.info("Done!")
+
+    @staticmethod
+    def _find_start_end_time(t4_dataset_dir: Path) -> Tuple[float, float]:
+        """Get the scene time range for rosbag filtering.
+
+        Args:
+            t4_dataset_dir (Path): T4 scene directory.
+
+        Returns:
+            Tuple[float, float]: Unix start and end times with two-second margins.
+        """
+        from t4_devkit import Tier4
+
+        t4_dataset = Tier4(data_root=str(t4_dataset_dir), verbose=False)
+        timestamps = [sample.timestamp for sample in t4_dataset.sample]
+        start_sec = misc_utils.nusc_timestamp_to_unix_timestamp(min(timestamps)) - 2.0
+        end_sec = misc_utils.nusc_timestamp_to_unix_timestamp(max(timestamps)) + 2.0
+        return start_sec, end_sec
+
+    def _make_rosbag(self, scene_dir: Path, input_bag_dir: Path, output_dir: Path) -> None:
+        """Copy a filtered rosbag into an output scene.
+
+        Args:
+            scene_dir (Path): Source T4 scene used to derive the time range.
+            input_bag_dir (Path): Source rosbag directory.
+            output_dir (Path): Destination scene directory.
+
+        Returns:
+            None
+        """
+        # Imported lazily: pulls in ROS 2 dependencies not needed otherwise.
+        from perception_dataset.rosbag2.rosbag2_converter import Rosbag2Converter
+
+        if not input_bag_dir.exists():
+            logger.warning(f"Input rosbag {input_bag_dir} not found; skipping input_bag")
+            return
+        output_bag_dir = output_dir / "input_bag"
+
+        logger.info(f"Copying {input_bag_dir} to {output_bag_dir} ... ")
+        start_sec, end_sec = self._find_start_end_time(scene_dir)
+        output_bag_dir_temp = output_dir / input_bag_dir.name
+        converter = Rosbag2Converter(
+            str(input_bag_dir),
+            str(output_bag_dir_temp),
+            self._topic_list,
+            start_sec,
+            end_sec,
+        )
+        converter.convert()
+        if output_bag_dir_temp != output_bag_dir:
+            shutil.move(str(output_bag_dir_temp), str(output_bag_dir))
 
     # ------------------------------------------------------------------
     # Discovery / matching
@@ -130,9 +289,25 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @staticmethod
     def _is_t4_scene(path: Path) -> bool:
+        """Check whether a directory contains a T4 scene.
+
+        Args:
+            path (Path): Candidate directory.
+
+        Returns:
+            bool: ``True`` when ``annotation/sample.json`` exists.
+        """
         return (path / "annotation" / "sample.json").exists()
 
     def _find_t4_scenes(self, dataset_base: Path) -> List[Path]:
+        """Find T4 scenes at or below a dataset directory.
+
+        Args:
+            dataset_base (Path): Directory to search.
+
+        Returns:
+            List[Path]: Sorted T4 scene directories.
+        """
         if self._is_t4_scene(dataset_base):
             return [dataset_base]
         # A scene is any directory (at any depth) holding annotation/sample.json.
@@ -143,7 +318,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         return sorted(scenes)
 
     def _index_openlabels(self) -> Dict[str, Path]:
-        """Map every plausible scene identifier to its OpenLABEL file path."""
+        """Index OpenLABEL files by plausible scene identifiers.
+
+        Returns:
+            Dict[str, Path]: Annotation paths keyed by file and metadata IDs.
+        """
         index: Dict[str, Path] = {}
         if not self._annotation_base.exists():
             return index
@@ -169,6 +348,14 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @staticmethod
     def _read_metadata(path: Path) -> dict:
+        """Read OpenLABEL metadata without failing on malformed files.
+
+        Args:
+            path (Path): OpenLABEL JSON path.
+
+        Returns:
+            dict: Metadata mapping, or an empty mapping when unreadable.
+        """
         try:
             with open(path) as f:
                 return json.load(f).get("openlabel", {}).get("metadata", {})
@@ -182,8 +369,15 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         T4 datasets are commonly nested as ``<root>/<scene_id>/<version>/``,
         so the matching identifier is often an ancestor (e.g. ``<scene_id>``)
         rather than the leaf (e.g. version ``0``).
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            openlabels (Dict[str, Path]): Indexed OpenLABEL paths.
+
+        Returns:
+            Optional[Path]: Matching OpenLABEL path, if found.
         """
-        root = Path(self._output_base).resolve()
+        root = Path(self._input_base).resolve()
         current = scene_dir.resolve()
         while True:
             if current.name in openlabels:
@@ -197,6 +391,15 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     # ------------------------------------------------------------------
 
     def _convert_one_scene(self, scene_dir: Path, openlabel_path: Path) -> None:
+        """Import one OpenLABEL annotation into a T4 scene.
+
+        Args:
+            scene_dir (Path): Prepared output T4 scene.
+            openlabel_path (Path): Source OpenLABEL JSON file.
+
+        Returns:
+            None
+        """
         logger.info(f"[BEGIN] {scene_dir} + {openlabel_path.name}")
 
         with open(openlabel_path) as f:
@@ -290,6 +493,13 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Annotation requests often cover only a subsampled set of scene frames,
         so a positional ``frame k -> sample k`` mapping is unsafe; matching by
         timestamp (with external-id as a fallback) is exact.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+
+        Returns:
+            Tuple[_SampleIndex, str]: Sample lookup index and selected lidar
+                channel.
         """
         sample = self._load_table(scene_dir, "sample.json")
         sample_data = self._load_table(scene_dir, "sample_data.json")
@@ -322,6 +532,16 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     def _cuboid_to_t4_box(
         self, val: List[float], ego_pose: dict
     ) -> Tuple[List[float], List[float], List[float]]:
+        """Convert a Kognic cuboid to T4 box geometry.
+
+        Args:
+            val (List[float]): Kognic cuboid values.
+            ego_pose (dict): T4 ego pose for the frame.
+
+        Returns:
+            Tuple[List[float], List[float], List[float]]: Translation, size,
+                and quaternion in T4 conventions.
+        """
         return cuboid_val_to_t4_box(val, ego_pose, self._iso_rotated_cuboids)
 
     # ------------------------------------------------------------------
@@ -330,6 +550,14 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @classmethod
     def _init_annotation_tables(cls, scene_dir: Path) -> Dict[str, TableHandler]:
+        """Create table handlers used by a box-annotation import.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+
+        Returns:
+            Dict[str, TableHandler]: Table handlers keyed by table name.
+        """
         return {
             "category": cls._load_category_table(scene_dir),
             "instance": TableHandler(Instance),
@@ -346,6 +574,12 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         semseg OpenLABEL); each run saves ``category.json``, so starting from
         the on-disk table lets the runs compose instead of clobbering each
         other's categories.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+
+        Returns:
+            TableHandler: Existing or empty category table handler.
         """
         path = scene_dir / "annotation" / "category.json"
         if path.exists():
@@ -359,6 +593,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         object_uuid: str,
         category_name: str,
     ) -> str:
+        """Get or create the T4 instance for an OpenLABEL object.
+
+        Args:
+            tables (Dict[str, TableHandler]): Mutable annotation tables.
+            instance_tokens (Dict[str, str]): Object-to-instance token cache.
+            object_uuid (str): OpenLABEL object UUID.
+            category_name (str): T4 category name.
+
+        Returns:
+            str: Existing or newly created instance token.
+        """
         if object_uuid in instance_tokens:
             return instance_tokens[object_uuid]
 
@@ -399,6 +644,15 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     def _collect_attribute_tokens(
         self, tables: Dict[str, TableHandler], object_data: dict
     ) -> List[str]:
+        """Convert OpenLABEL properties to T4 attribute tokens.
+
+        Args:
+            tables (Dict[str, TableHandler]): Mutable annotation tables.
+            object_data (dict): OpenLABEL object-data mapping.
+
+        Returns:
+            List[str]: T4 attribute tokens.
+        """
         if not self._include_attributes:
             return []
 
@@ -418,11 +672,29 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @staticmethod
     def _attribute_token(tables: Dict[str, TableHandler], name: str) -> str:
+        """Get or create a T4 attribute token.
+
+        Args:
+            tables (Dict[str, TableHandler]): Mutable annotation tables.
+            name (str): Fully qualified T4 attribute name.
+
+        Returns:
+            str: Attribute token.
+        """
         return tables["attribute"].insert_into_table(
             reuse_if_duplicate=True, name=name, description=""
         )
 
     def _visibility_token(self, tables: Dict[str, TableHandler], object_data: dict) -> str:
+        """Get or create the visibility token for OpenLABEL object data.
+
+        Args:
+            tables (Dict[str, TableHandler]): Mutable annotation tables.
+            object_data (dict): OpenLABEL object-data mapping.
+
+        Returns:
+            str: T4 visibility token.
+        """
         occlusion = next(
             (t["val"] for t in object_data.get("text", []) if t["name"] == "occlusion_state"),
             None,
@@ -437,6 +709,16 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         tables: Dict[str, TableHandler],
         instance_annotations: Dict[str, List[Tuple[int, str]]],
     ) -> None:
+        """Link per-instance annotations and update instance summaries.
+
+        Args:
+            tables (Dict[str, TableHandler]): Mutable annotation tables.
+            instance_annotations (Dict[str, List[Tuple[int, str]]]): Frame and
+                annotation tokens keyed by instance token.
+
+        Returns:
+            None
+        """
         sample_annotation = tables["sample_annotation"]
         for instance_token, annotations in instance_annotations.items():
             ordered = [token for _, token in sorted(annotations, key=lambda fa: fa[0])]
@@ -467,6 +749,15 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         class indices per frame under ``<scene>/lidarseg/<version>/``, and adds
         the ontology classes (with their ``index``) to ``category.json``. The
         layout mirrors ``annotation_files_generator._convert_lidarseg_scene_annotations``.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            openlabel (dict): Parsed OpenLABEL document body.
+            sample_index (_SampleIndex): Frame-to-sample lookup index.
+            lidar_channel (str): T4 lidar channel receiving segmentation.
+
+        Returns:
+            None
         """
         frames = openlabel.get("frames", {})
 
@@ -600,7 +891,19 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         frame_key: str,
         filename: str,
     ) -> Optional[np.ndarray]:
-        """Labels for a frame annotated as one cloud (single lidar stream)."""
+        """Decode labels for a frame represented by one lidar stream.
+
+        Args:
+            rle (str): Kognic run-length encoded labels.
+            value_map (Dict[int, int]): Raw-label to category-index mapping.
+            num_points (int): Expected point count.
+            frame_key (str): Frame identifier used in diagnostics.
+            filename (str): Point-cloud filename used in diagnostics.
+
+        Returns:
+            Optional[np.ndarray]: One uint8 label per point, or ``None`` when
+                the annotation contains more labels than the cloud has points.
+        """
         labels = _remap_labels(_decode_rle_labels(rle), value_map, frame_key)
         if labels.shape[0] > num_points:
             # More labels than points means the annotated cloud is not this
@@ -637,6 +940,19 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         The upload split LIDAR_CONCAT into per-sensor Kognic streams using the
         LIDAR_CONCAT_INFO slice table (``sensor_token``/``idx_begin``/``length``),
         so each stream's RLE is written back into its slice of the concat cloud.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            sample_data (dict): Fused-lidar sample-data record.
+            rles (Dict[Optional[str], str]): Encoded labels keyed by stream.
+            value_map (Dict[int, int]): Raw-label to category-index mapping.
+            num_points (int): Total fused-cloud point count.
+            channel_by_sensor_token (Dict[str, str]): Sensor-token to channel map.
+            frame_key (str): Frame identifier used in diagnostics.
+
+        Returns:
+            Optional[np.ndarray]: Stitched uint8 labels, or ``None`` when source
+                metadata is missing or inconsistent.
         """
         info_filename = sample_data.get("info_filename")
         info_path = scene_dir / info_filename if info_filename else None
@@ -705,6 +1021,15 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @staticmethod
     def _load_table(scene_dir: Path, name: str) -> list:
+        """Load an optional T4 annotation table.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            name (str): Annotation-table filename.
+
+        Returns:
+            list: Parsed records, or an empty list when the file is absent.
+        """
         path = scene_dir / "annotation" / name
         if not path.exists():
             return []
@@ -721,6 +1046,14 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         ``Tier4``; this therefore runs *after* ``_save``. If the scene's lidar
         point clouds are unavailable the counts are left at their default of 0
         rather than failing the whole conversion.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            sample_annotation (TableHandler): Sample-annotation table.
+            lidar_channel (str): Lidar channel used for point counting.
+
+        Returns:
+            None
         """
         try:
             calculate_num_points(str(scene_dir), lidar_channel, sample_annotation)
@@ -734,7 +1067,15 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @staticmethod
     def _save(scene_dir: Path, tables: Dict[str, TableHandler]) -> None:
-        """Write the populated annotation tables back into the scene in place."""
+        """Write populated annotation tables into a scene.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            tables (Dict[str, TableHandler]): Tables to save.
+
+        Returns:
+            None
+        """
         anno_dir = scene_dir / "annotation"
         anno_dir.mkdir(parents=True, exist_ok=True)
         for table in tables.values():
@@ -761,9 +1102,20 @@ class _SampleIndex:
     _MATCH_TOLERANCE_US = 1000
 
     def __post_init__(self):
+        """Build the sorted timestamp index used for nearest matching."""
         self._sorted_us: List[int] = sorted(self.by_timestamp_us)
 
     def match(self, frame: dict, frame_key: str, lidar_channel: str) -> Optional[Tuple[str, dict]]:
+        """Match an OpenLABEL frame to a T4 sample and ego pose.
+
+        Args:
+            frame (dict): OpenLABEL frame mapping.
+            frame_key (str): OpenLABEL frame key used for diagnostics.
+            lidar_channel (str): Preferred T4 lidar channel.
+
+        Returns:
+            Optional[Tuple[str, dict]]: Sample token and ego pose, if matched.
+        """
         # The lidar uri timestamp is the ground truth: when present it is
         # authoritative, so a frame whose capture time has no nearby sample is
         # genuinely unmatched (e.g. annotation and point clouds from different
@@ -779,6 +1131,15 @@ class _SampleIndex:
         return candidate  # type: ignore[return-value]
 
     def _uri_timestamp_ns(self, frame: dict, lidar_channel: str) -> Optional[int]:
+        """Extract a lidar capture timestamp from a frame.
+
+        Args:
+            frame (dict): OpenLABEL frame mapping.
+            lidar_channel (str): Preferred T4 lidar channel.
+
+        Returns:
+            Optional[int]: Capture timestamp in nanoseconds, if available.
+        """
         streams = frame.get("frame_properties", {}).get("streams", {})
         stream = self._select_lidar_stream(streams, lidar_channel)
         uri = stream.get("uri") if stream else None
@@ -791,6 +1152,13 @@ class _SampleIndex:
         OpenLABEL exports key the lidar stream as ``"lidar"``; other paths may
         use the T4 channel name (e.g. ``LIDAR_CONCAT``). Try both, then fall
         back to any lidar-like key.
+
+        Args:
+            streams (dict): OpenLABEL frame stream mapping.
+            lidar_channel (str): Preferred T4 lidar channel.
+
+        Returns:
+            Optional[dict]: Selected stream mapping, if found.
         """
         for key in (lidar_channel, "lidar"):
             if key in streams:
@@ -801,7 +1169,14 @@ class _SampleIndex:
         return None
 
     def _nearest(self, ts_us: int) -> Optional[Tuple[str, Optional[dict]]]:
-        """Return the sample whose timestamp is closest to ``ts_us`` within tolerance."""
+        """Find the sample nearest a timestamp within tolerance.
+
+        Args:
+            ts_us (int): Capture timestamp in microseconds.
+
+        Returns:
+            Optional[Tuple[str, Optional[dict]]]: Sample token and ego pose.
+        """
         if not self._sorted_us:
             return None
         i = bisect.bisect_left(self._sorted_us, ts_us)
@@ -816,6 +1191,14 @@ class _SampleIndex:
         return self.by_timestamp_us[best]
 
     def _by_external_id(self, frame: dict) -> Optional[Tuple[str, Optional[dict]]]:
+        """Match a frame by its positional external ID.
+
+        Args:
+            frame (dict): OpenLABEL frame mapping.
+
+        Returns:
+            Optional[Tuple[str, Optional[dict]]]: Sample token and ego pose.
+        """
         external_id = frame.get("frame_properties", {}).get("external_id")
         try:
             idx = int(external_id)
@@ -829,6 +1212,12 @@ def _parse_uri_timestamp_ns(uri: str) -> Optional[int]:
 
     Camera uris are ``<ns>.<ext>``; lidar uris carry a frame-index prefix,
     e.g. ``550_<ns>.csv``. Take the last underscore-separated numeric token.
+
+    Args:
+        uri (str): OpenLABEL stream URI.
+
+    Returns:
+        Optional[int]: Capture timestamp in nanoseconds, if parseable.
     """
     token = Path(uri).stem.rsplit("_", 1)[-1]
     try:
@@ -842,14 +1231,28 @@ _RLE_TOKEN = re.compile(r"#(\d+)V(\d+)")
 
 
 def _is_segmentation(openlabel: dict) -> bool:
-    """True if this OpenLABEL carries point-cloud segmentation labels."""
+    """Check whether an OpenLABEL document contains point-cloud segmentation.
+
+    Args:
+        openlabel (dict): Parsed OpenLABEL document body.
+
+    Returns:
+        bool: ``True`` when segmentation metadata or frame labels are present.
+    """
     if openlabel.get("metadata", {}).get("annotation_type") == "semseg":
         return True
     return any(_frame_segmentation_rles(frame) for frame in openlabel.get("frames", {}).values())
 
 
 def _segmentation_ontology(openlabel: dict) -> Dict[int, str]:
-    """Map ontology class id -> class name (used as T4 category index -> name)."""
+    """Extract segmentation class names by ontology ID.
+
+    Args:
+        openlabel (dict): Parsed OpenLABEL document body.
+
+    Returns:
+        Dict[int, str]: Class names keyed by numeric ontology ID.
+    """
     ontology: Dict[int, str] = {}
     for entry in openlabel.get("ontologies", {}).values():
         for class_id, name in entry.get("classifications", {}).items():
@@ -866,6 +1269,12 @@ def _frame_segmentation_rles(frame: dict) -> Dict[Optional[str], str]:
     Multi-lidar scenes carry one ``3DPointCloudSegmentation`` blob per source
     lidar (tagged with a ``stream`` text attribute); single-lidar scenes carry
     one untagged blob, keyed here as ``None``.
+
+    Args:
+        frame (dict): OpenLABEL frame mapping.
+
+    Returns:
+        Dict[Optional[str], str]: RLE strings keyed by lidar stream.
     """
     rles: Dict[Optional[str], str] = {}
     for frame_object in frame.get("objects", {}).values():
@@ -884,7 +1293,14 @@ def _frame_segmentation_rles(frame: dict) -> Dict[Optional[str], str]:
 
 
 def _decode_rle_labels(val: str) -> np.ndarray:
-    """Expand a ``#<count>V<class>`` RLE string into per-point label values."""
+    """Expand a Kognic RLE string into per-point label values.
+
+    Args:
+        val (str): Repeated ``#<count>V<class>`` tokens.
+
+    Returns:
+        np.ndarray: Decoded integer class values.
+    """
     pairs = _RLE_TOKEN.findall(val)
     counts = np.fromiter((int(c) for c, _ in pairs), dtype=np.int64, count=len(pairs))
     classes = np.fromiter((int(v) for _, v in pairs), dtype=np.int64, count=len(pairs))
@@ -898,6 +1314,13 @@ def _segmentation_value_map(openlabel: dict, ontology: Dict[int, str]) -> Dict[i
     directly as ontology ids, while countable objects are encoded as the
     per-instance ``classification_id`` declared on the top-level object,
     whose ``type`` names the ontology class.
+
+    Args:
+        openlabel (dict): Parsed OpenLABEL document body.
+        ontology (Dict[int, str]): Class names keyed by ontology ID.
+
+    Returns:
+        Dict[int, int]: Raw RLE values mapped to T4 category indices.
     """
     name_to_id = {name: class_id for class_id, name in ontology.items()}
     value_map = {class_id: class_id for class_id in ontology}
@@ -924,7 +1347,16 @@ def _segmentation_value_map(openlabel: dict, ontology: Dict[int, str]) -> Dict[i
 
 
 def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str) -> np.ndarray:
-    """Convert raw RLE label values into uint8 T4 category indices."""
+    """Convert raw RLE values into uint8 T4 category indices.
+
+    Args:
+        labels (np.ndarray): Decoded raw label values.
+        value_map (Dict[int, int]): Raw-value to category-index mapping.
+        frame_key (str): Frame identifier used in diagnostics.
+
+    Returns:
+        np.ndarray: Remapped uint8 category indices.
+    """
     unmapped = sorted(set(np.unique(labels).tolist()) - set(value_map) - {0})
     if unmapped:
         logger.warning(
@@ -939,7 +1371,14 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
 
 
 def _lidar_point_count(bin_path: Path) -> Optional[int]:
-    """Number of points in a LIDAR_CONCAT ``.pcd.bin``, or None if unreadable."""
+    """Count points in a fused-lidar binary file.
+
+    Args:
+        bin_path (Path): Path to a ``.pcd.bin`` file.
+
+    Returns:
+        Optional[int]: Point count, or ``None`` when the file is missing.
+    """
     if not bin_path.exists():
         return None
     floats = np.fromfile(bin_path, dtype=np.float32)

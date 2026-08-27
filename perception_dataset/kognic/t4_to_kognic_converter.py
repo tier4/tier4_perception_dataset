@@ -1,3 +1,5 @@
+"""Convert T4 sensor data to the Kognic staging layout."""
+
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
@@ -57,6 +59,19 @@ class T4ToKognicConverter(AbstractConverter[None]):
         annotated: bool = True,
         annotation_hz: int = 10,
     ):
+        """Initialize the converter.
+
+        Args:
+            input_base (str): Input T4 dataset directory.
+            output_base (str): Destination staging directory.
+            camera_sensors (list): Camera configuration records.
+            workers_number (int): Number of image-copy worker threads.
+            drop_camera_token_not_found (bool): Whether to omit missing camera
+                frames instead of writing blank images.
+            annotated (bool): Whether the source contains meaningful T4
+                keyframe flags.
+            annotation_hz (int): Keyframe frequency for non-annotated data.
+        """
         super().__init__(input_base, output_base)
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
         self._workers_number = workers_number
@@ -69,6 +84,11 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._blank_image_cache: Dict[str, object] = {}
 
     def convert(self) -> None:
+        """Convert every discovered T4 sequence.
+
+        Returns:
+            None
+        """
         start = time.time()
 
         for seq_path, out_dir in iter_scene_pairs(Path(self._input_base), Path(self._output_base)):
@@ -83,6 +103,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
     # ------------------------------------------------------------------
 
     def _convert_one_scene(self, input_dir: Path | str, output_dir: Path | str) -> None:
+        """Convert one T4 sequence to a Kognic staging directory.
+
+        Args:
+            input_dir (Path | str): Source T4 sequence root.
+            output_dir (Path | str): Destination staging directory.
+
+        Returns:
+            None
+        """
         seq_path = Path(input_dir)
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -138,6 +167,14 @@ class T4ToKognicConverter(AbstractConverter[None]):
             )
 
     def _build_lookup_maps(self, seq_path: Path) -> None:
+        """Load T4 tables and build lookup mappings used during conversion.
+
+        Args:
+            seq_path (Path): Source T4 sequence root.
+
+        Returns:
+            None
+        """
         t4 = Tier4(data_root=str(seq_path), verbose=False)
 
         sensors = t4.get_table("sensor")
@@ -173,6 +210,12 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._ego_pose_by_token = {ep.token: ep for ep in t4.get_table("ego_pose")}
 
     def _discover_lidar_channels(self) -> List[str]:
+        """Select lidar channels that can be exported.
+
+        Returns:
+            List[str]: Per-sensor lidar channels when concat metadata exists,
+                otherwise the fused concat channel when available.
+        """
         if not self._has_lidar_concat_info:
             if LIDAR_CONCAT_CHANNEL in self._channel_to_token:
                 return [LIDAR_CONCAT_CHANNEL]
@@ -185,6 +228,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
         ]
 
     def _has_existing_channel_file(self, seq_path: Path, channel: str) -> bool:
+        """Check whether a channel references an existing data file.
+
+        Args:
+            seq_path (Path): Source T4 sequence root.
+            channel (str): Sensor channel to inspect.
+
+        Returns:
+            bool: ``True`` when at least one referenced file exists.
+        """
         return any(
             (seq_path / sample_data.filename).exists()
             for sample_data in self._sample_data_by_channel.get(channel, [])
@@ -204,6 +256,12 @@ class T4ToKognicConverter(AbstractConverter[None]):
         converter sets it on every frame), so keyframes are selected by sample
         index at ``annotation_hz``, with the same logic as the non-annotated
         T4 -> Deepen converter (every ``int(10 / annotation_hz)``-th sample).
+
+        Args:
+            out_dir (Path): Destination staging directory.
+
+        Returns:
+            None
         """
         if self._annotated:
             keyframe_indices = [
@@ -241,6 +299,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
         key frames and intermediate sweeps alike. The keyframes among them are
         recorded in ``keyframes.json`` and become the annotatable frames at
         upload time.
+
+        Returns:
+            List[Dict[str, object]]: Ordered channel-to-sample-data mappings.
         """
         anchor_channel = self._anchor_channel = self._select_anchor_channel()
         anchor_records = self._sample_data_by_channel.get(anchor_channel, [])
@@ -262,6 +323,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
         return frame_records
 
     def _select_anchor_channel(self) -> str:
+        """Select the high-frequency stream that defines output frames.
+
+        Returns:
+            str: Fused lidar channel when available, otherwise the first
+                configured camera containing sample data.
+
+        Raises:
+            ValueError: If no usable anchor channel exists.
+        """
         if self._sample_data_by_channel.get(LIDAR_CONCAT_CHANNEL):
             return LIDAR_CONCAT_CHANNEL
 
@@ -275,6 +345,11 @@ class T4ToKognicConverter(AbstractConverter[None]):
         )
 
     def _channels_for_frame_records(self) -> List[str]:
+        """Get channels included in synchronized frame records.
+
+        Returns:
+            List[str]: Fused lidar followed by configured camera channels.
+        """
         return [LIDAR_CONCAT_CHANNEL, *self._camera_channels]
 
     # ------------------------------------------------------------------
@@ -284,6 +359,17 @@ class T4ToKognicConverter(AbstractConverter[None]):
     def _collect_image_copies(
         self, seq_path: Path, out_dir: Path, camera_channel: str
     ) -> List[Tuple[Path, Path]]:
+        """Prepare image-copy operations for a camera channel.
+
+        Args:
+            seq_path (Path): Source T4 sequence root.
+            out_dir (Path): Destination staging directory.
+            camera_channel (str): Camera channel to export.
+
+        Returns:
+            List[Tuple[Path, Path]]: Source and destination paths for images
+                that should be copied.
+        """
         if camera_channel not in self._channel_to_token:
             logger.warning(f"Camera {camera_channel} not found in {seq_path}; skipping")
             return []
@@ -346,6 +432,13 @@ class T4ToKognicConverter(AbstractConverter[None]):
         frame. Sensors in one frame are time-synchronised, so a neighbour's
         timestamp places the blank at the right sort position for the missing
         camera. T4 timestamps are microseconds, hence ``* 1000``.
+
+        Args:
+            frame_record (Dict[str, object]): Channel-to-sample-data mapping.
+
+        Returns:
+            int: Representative frame timestamp in nanoseconds, or zero for an
+                empty record.
         """
         for channel in self._channels_for_frame_records():
             sample_data = frame_record.get(channel)
@@ -354,7 +447,19 @@ class T4ToKognicConverter(AbstractConverter[None]):
         return 0
 
     def _write_blank_image(self, seq_path: Path, camera_channel: str, dst: Path) -> None:
-        """Write a black JPEG matching *camera_channel*'s resolution to *dst*."""
+        """Write a black JPEG matching a camera's resolution.
+
+        Args:
+            seq_path (Path): Source T4 sequence root.
+            camera_channel (str): Camera channel defining image dimensions.
+            dst (Path): Destination JPEG path.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If Pillow is unavailable.
+        """
         try:
             from PIL import Image
         except ImportError as exc:

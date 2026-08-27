@@ -20,12 +20,28 @@ ROTATION_T4_TO_KOGNIC = Rotation.from_euler("z", -90, degrees=True)
 
 
 def quat_wxyz_to_xyzw(quat: list) -> List[float]:
-    """Reorder a ``[w, x, y, z]`` quaternion to scipy's ``[x, y, z, w]``."""
+    """Reorder a quaternion for SciPy.
+
+    Args:
+        quat (list): Quaternion in ``[w, x, y, z]`` order.
+
+    Returns:
+        List[float]: Quaternion in ``[x, y, z, w]`` order.
+    """
     return [float(quat[1]), float(quat[2]), float(quat[3]), float(quat[0])]
 
 
 def t4_box_to_cuboid_val(annotation: dict, ego_pose: dict) -> List[float]:
-    """Build the 10-float Kognic cuboid from a global-frame T4 box."""
+    """Convert a global-frame T4 box to a Kognic cuboid.
+
+    Args:
+        annotation (dict): T4 sample-annotation record.
+        ego_pose (dict): T4 ego-pose record for the frame.
+
+    Returns:
+        List[float]: Cuboid as
+            ``[x, y, z, qx, qy, qz, qw, width, length, height]``.
+    """
     rotation_ego = Rotation.from_quat(quat_wxyz_to_xyzw(ego_pose["rotation"]))
     position = rotation_ego.inv().apply(
         np.asarray(annotation["translation"], dtype=np.float64)
@@ -60,6 +76,16 @@ def cuboid_val_to_t4_box(
     global frame, with rotation as a wxyz quaternion and size as
     ``[width, length, height]``. When *iso_rotated_cuboids* is true the cuboids
     already face +x (T4 convention) so the yaw correction is skipped.
+
+    Args:
+        val (List[float]): Kognic cuboid values in the ego frame.
+        ego_pose (dict): T4 ego-pose record for the frame.
+        iso_rotated_cuboids (bool): Whether cuboids already use the T4 forward
+            axis convention.
+
+    Returns:
+        Tuple[List[float], List[float], List[float]]: Global translation, box
+            size, and quaternion in ``[w, x, y, z]`` order.
     """
     rotation_ego = Rotation.from_quat(quat_wxyz_to_xyzw(ego_pose["rotation"]))
 

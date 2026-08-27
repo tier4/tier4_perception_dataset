@@ -25,7 +25,15 @@ _REQUIRED_ANNOTATIONS = (
 
 
 def is_sequence_root(path: Path) -> bool:
-    """True if *path* is a T4 sequence root (``annotation/`` + ``data/`` with the required tables)."""
+    """Check whether a path is a T4 sequence root.
+
+    Args:
+        path (Path): Candidate directory.
+
+    Returns:
+        bool: ``True`` when the directory contains ``annotation`` and ``data``
+            directories plus all required annotation tables.
+    """
     annotation_dir = path / "annotation"
     data_dir = path / "data"
     return (
@@ -37,7 +45,14 @@ def is_sequence_root(path: Path) -> bool:
 
 
 def find_sequence_roots(root: Path) -> List[Path]:
-    """All T4 sequence roots at or below *root* (skipping ``extracted_data``)."""
+    """Find T4 sequence roots at or below a directory.
+
+    Args:
+        root (Path): Directory to search.
+
+    Returns:
+        List[Path]: Sorted sequence roots, excluding ``extracted_data`` paths.
+    """
     if is_sequence_root(root):
         return [root]
 
@@ -55,6 +70,14 @@ def iter_scene_pairs(input_base: Path, output_base: Path) -> List[Tuple[Path, Pa
     ``output_base/<name>``. Otherwise each immediate subdirectory is searched:
     a single sequence root maps to ``output_base/<item>``, while multiple roots
     nest under ``output_base/<item>/<seq_root>``.
+
+    Args:
+        input_base (Path): Input directory or a T4 sequence root.
+        output_base (Path): Base directory for converted scenes.
+
+    Returns:
+        List[Tuple[Path, Path]]: Source sequence and destination directory
+            pairs.
     """
     input_base = Path(input_base)
     output_base = Path(output_base)

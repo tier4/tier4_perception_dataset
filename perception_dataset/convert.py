@@ -121,12 +121,24 @@ def main():
     elif task == "convert_kognic_annotation_to_t4":
         from perception_dataset.kognic.openlabel_to_t4_converter import OpenLabelToT4Converter
 
+        input_base = config_dict["conversion"]["input_base"]
         output_base = config_dict["conversion"]["output_base"]
         annotation_base = config_dict["conversion"]["annotation_base"]
+        # Without input_bag_base no input_bag is created (same as the Deepen flow).
+        input_bag_base = config_dict["conversion"].get("input_bag_base")
+        topic_list_yaml_path = config_dict["conversion"].get("topic_list")
+        topic_list_yaml = None
+        if topic_list_yaml_path:
+            with open(topic_list_yaml_path) as f:
+                topic_list_yaml = yaml.safe_load(f)
 
         converter = OpenLabelToT4Converter(
+            input_base=input_base,
             output_base=output_base,
             annotation_base=annotation_base,
+            input_bag_base=input_bag_base,
+            topic_list=topic_list_yaml,
+            overwrite_mode=args.overwrite,
             iso_rotated_cuboids=config_dict["conversion"].get("iso_rotated_cuboids", False),
             category_map=config_dict["conversion"].get("category_map"),
             include_attributes=config_dict["conversion"].get("include_attributes", True),
@@ -134,7 +146,7 @@ def main():
 
         logger.info(
             f"[BEGIN] Converting Kognic annotations ({annotation_base}) into "
-            f"T4 dataset ({output_base}) in place"
+            f"T4 dataset ({output_base})"
         )
         converter.convert()
         logger.info(

@@ -35,8 +35,13 @@ KOGNIC_ATTRIBUTE_NAME_TO_T4 = {
 
 
 def attribute_to_text(attribute_name: str) -> openlabel.Text:
-    """Split a T4 attribute like ``vehicle_state.driving`` into an OpenLABEL
-    ``text`` property, remapping the group name to its Kognic spelling.
+    """Convert a T4 attribute name to an OpenLABEL text property.
+
+    Args:
+        attribute_name (str): T4 attribute in ``group.value`` form.
+
+    Returns:
+        openlabel.Text: Text property with the Kognic-compatible group name.
     """
     name, _, value = attribute_name.rpartition(".")
     if not name:
@@ -46,12 +51,26 @@ def attribute_to_text(attribute_name: str) -> openlabel.Text:
 
 
 def to_t4_attribute_name(kognic_name: str) -> str:
-    """Map a Kognic property name back to its T4 attribute-group spelling."""
+    """Map a Kognic property name to its T4 attribute-group spelling.
+
+    Args:
+        kognic_name (str): Kognic property name.
+
+    Returns:
+        str: Corresponding T4 attribute-group name.
+    """
     return KOGNIC_ATTRIBUTE_NAME_TO_T4.get(kognic_name, kognic_name)
 
 
 def occlusion_to_visibility_level(occlusion: Optional[str]) -> str:
-    """Map a Kognic ``occlusion_state`` value to a T4 visibility level."""
+    """Map a Kognic occlusion state to a T4 visibility level.
+
+    Args:
+        occlusion (Optional[str]): Kognic ``occlusion_state`` value.
+
+    Returns:
+        str: Corresponding T4 visibility level, or ``unavailable``.
+    """
     if not occlusion:
         return "unavailable"
     return OCCLUSION_TO_VISIBILITY.get(occlusion, "unavailable")

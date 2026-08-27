@@ -1,3 +1,5 @@
+"""Upload converted T4 staging sequences to Kognic."""
+
 import argparse
 from dataclasses import dataclass, field
 import hashlib
@@ -55,6 +57,15 @@ class SceneInputError(RuntimeError):
         cause: BaseException,
         invalidated: bool = False,
     ):
+        """Initialize an error for a failed post-creation stage.
+
+        Args:
+            external_id (str): Scene external ID.
+            scene_uuid (str): UUID of the created scene.
+            stage (str): Post-creation stage that failed.
+            cause (BaseException): Original failure.
+            invalidated (bool): Whether orphan cleanup succeeded.
+        """
         super().__init__(f"{external_id}: scene {scene_uuid} created but {stage} failed: {cause}")
         self.external_id = external_id
         self.scene_uuid = scene_uuid
@@ -100,9 +111,26 @@ class SceneUploadResult:
 
 @dataclass(frozen=True)
 class KognicUploadConfig:
+    """Configuration for uploading Kognic staging sequences.
+
+    Attributes:
+        input_base (Path): Base staging directory.
+        organization_id (Optional[str]): Kognic organization identifier.
+        workspace_id (Optional[str]): Kognic write-workspace identifier.
+        project_targets (List[ProjectTarget]): Projects and batches to receive inputs.
+        target_hz (Optional[int]): Fallback annotation-frame frequency.
+        dryrun (bool): Whether Kognic should validate without persisting scenes.
+        motion_compensate (bool): Whether to enable motion compensation.
+        include_imu_data (bool): Whether to derive dense IMU pose data.
+        write_debug_frames (bool): Whether to save serialized frames locally.
+        scene_creation_timeout_s (int): Scene-processing timeout in seconds.
+        scene_creation_poll_interval_s (int): Status polling interval in seconds.
+    """
     input_base: Path
-    organization_id: str
-    workspace_id: str
+    # Both optional: Kognic derives the organization from the auth credentials
+    # and infers the write workspace when not provided.
+    organization_id: Optional[str] = None
+    workspace_id: Optional[str] = None
     project_targets: List[ProjectTarget] = field(default_factory=list)
     target_hz: Optional[int] = None
     dryrun: bool = False
@@ -114,12 +142,20 @@ class KognicUploadConfig:
 
     @property
     def project_external_id(self) -> Optional[str]:
-        """First configured project, for callers that only handle one project."""
+        """Get the first configured project external ID.
+
+        Returns:
+            Optional[str]: Project external ID, or ``None`` when unconfigured.
+        """
         return self.project_targets[0].external_id if self.project_targets else None
 
     @property
     def batch(self) -> Optional[str]:
-        """Batch of the first project, for callers that only handle one project."""
+        """Get the first configured project batch.
+
+        Returns:
+            Optional[str]: Batch external ID, or ``None``.
+        """
         return self.project_targets[0].batch if self.project_targets else None
 
 
@@ -139,6 +175,15 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
             pre_annotation: pre_annotation.json   # cuboids -> attached to its own scene
           - project_external_id: project_b
             batch_external_id: semseg_batch        # no pre_annotation -> separate, plain scene
+
+    Args:
+        conversion_config (Dict): Upload conversion settings.
+
+    Returns:
+        List[ProjectTarget]: Validated project targets.
+
+    Raises:
+        ValueError: If a project ID is missing or a project/batch pair repeats.
     """
     targets: List[ProjectTarget] = []
     seen: set = set()
@@ -183,6 +228,14 @@ def select_annotate_indices(
     drift (e.g. ~0.09997s instead of 0.1s) accumulates, so the frame at a
     nominal 1.0s boundary can actually land at ~0.99999s. Half of the median
     frame interval is used as tolerance on the interval check.
+
+    Args:
+        timestamps_ns (List[int]): Ordered frame timestamps in nanoseconds.
+        target_hz (Optional[int]): Desired annotation frequency, or ``None``
+            to annotate every frame.
+
+    Returns:
+        List[int]: Indices of frames to mark for annotation.
     """
     if not target_hz:
         return list(range(len(timestamps_ns)))
@@ -203,6 +256,14 @@ def select_annotate_indices(
 
 
 def _sort_key(path: Path) -> Tuple[int, str]:
+    """Build a stable sort key for timestamp-named sensor files.
+
+    Args:
+        path (Path): Sensor file path.
+
+    Returns:
+        Tuple[int, str]: Numeric-first filename sort key.
+    """
     try:
         return (0, f"{int(path.stem):030d}")
     except ValueError:
@@ -210,12 +271,29 @@ def _sort_key(path: Path) -> Tuple[int, str]:
 
 
 def _sensor_sort_key(sensor_name: str, preferred_order: List[str]) -> Tuple[int, str]:
+    """Build a sort key that prioritizes preferred sensors.
+
+    Args:
+        sensor_name (str): Sensor channel name.
+        preferred_order (List[str]): Channel names in preferred order.
+
+    Returns:
+        Tuple[int, str]: Preference rank and channel name.
+    """
     if sensor_name in preferred_order:
         return (preferred_order.index(sensor_name), sensor_name)
     return (len(preferred_order), sensor_name)
 
 
 def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
+    """Load uploader configuration from parsed YAML.
+
+    Args:
+        config_dict (Dict): Parsed configuration mapping.
+
+    Returns:
+        KognicUploadConfig: Normalized upload settings.
+    """
     conversion_config = config_dict["conversion"]
     organization_id = conversion_config.get("organization_id") or conversion_config.get(
         "client_organization_id"
@@ -223,11 +301,6 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     workspace_id = conversion_config.get("workspace_id") or conversion_config.get(
         "write_workspace_id"
     )
-
-    if not organization_id:
-        raise ValueError("conversion.organization_id is required for Kognic upload")
-    if not workspace_id:
-        raise ValueError("conversion.workspace_id is required for Kognic upload")
 
     return KognicUploadConfig(
         input_base=Path(conversion_config["input_base"]),
@@ -245,6 +318,17 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
 
 
 def find_sequence_paths(input_base: Path) -> List[Path]:
+    """Find Kognic staging sequences below a base path.
+
+    Args:
+        input_base (Path): Staging sequence or parent directory.
+
+    Returns:
+        List[Path]: Sequence directories containing ``calibration.json``.
+
+    Raises:
+        FileNotFoundError: If no staging sequences are found.
+    """
     if (input_base / "calibration.json").exists():
         return [input_base]
 
@@ -262,13 +346,25 @@ def find_sequence_paths(input_base: Path) -> List[Path]:
 
 
 class KognicDatasetUploader:
+    """Build and upload Kognic scenes from local staging sequences."""
+
     def __init__(self, config: KognicUploadConfig):
+        """Initialize the uploader.
+
+        Args:
+            config (KognicUploadConfig): Upload settings.
+        """
         self.config = config
         self._kognic_io_client: Optional[KognicIOClient] = None
         self._calibration_cache: Dict[str, str] = {}  # content hash → calibration_id
 
     @property
     def kognic_io_client(self) -> KognicIOClient:
+        """Get a lazily initialized Kognic client.
+
+        Returns:
+            KognicIOClient: Client configured for the requested workspace.
+        """
         if self._kognic_io_client is None:
             self._kognic_io_client = KognicIOClient(
                 client_organization_id=self.config.organization_id,
@@ -277,6 +373,15 @@ class KognicDatasetUploader:
         return self._kognic_io_client
 
     def _get_or_upload_calibration(self, sequence_path: Path, external_id: str) -> str:
+        """Reuse or upload a sequence calibration.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+            external_id (str): Scene external ID used in logs.
+
+        Returns:
+            str: Kognic calibration ID.
+        """
         raw = (sequence_path / "calibration.json").read_bytes()
         content_hash = hashlib.sha256(raw).hexdigest()
         if content_hash in self._calibration_cache:
@@ -307,6 +412,13 @@ class KognicDatasetUploader:
         ``failed`` only if the scene ends up with no input at all (orphan, then
         invalidated); if some inputs succeed and others fail, the scene is kept
         and the failed projects are listed in ``failed_inputs``.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+            external_id (str): External ID for the uploaded scene.
+
+        Returns:
+            List[SceneUploadResult]: Upload outcomes for the sequence.
         """
         # create calibration first since the frames reference the calibration_id
         start_time = time.time()
@@ -401,6 +513,18 @@ class KognicDatasetUploader:
         for no pre-annotation). A failure before any input exists invalidates the
         orphaned scene and raises; a failure once at least one input exists leaves
         the scene in place and is reported via ``failed_inputs``.
+
+        Args:
+            scene (KognicModel.LidarsAndCamerasSequence): Scene payload.
+            external_id (str): Scene external ID.
+            pre_annotations (Dict[str, OpenLabelAnnotation]): Annotations keyed
+                by staged filename.
+            targets (List[ProjectTarget]): Projects that receive scene inputs.
+            feature_flags (Optional[FeatureFlags]): Kognic scene feature flags.
+
+        Returns:
+            Tuple[SceneUUID, List[Dict[str, Optional[str]]], List[str]]: Scene
+                UUID, successful input records, and failed project/batch labels.
         """
         logger.info(
             f"Uploading {external_id} as scene without input (dryrun={self.config.dryrun})"
@@ -471,7 +595,17 @@ class KognicDatasetUploader:
         external_id: str,
         pre_annotations: Dict[str, OpenLabelAnnotation],
     ) -> Dict[str, str]:
-        """Attach each distinct pre-annotation to the scene; return file -> uuid."""
+        """Attach each distinct pre-annotation to a scene.
+
+        Args:
+            scene_uuid (SceneUUID): Target scene UUID.
+            external_id (str): Scene external ID used to build annotation IDs.
+            pre_annotations (Dict[str, OpenLabelAnnotation]): Annotations keyed
+                by staged filename.
+
+        Returns:
+            Dict[str, str]: Uploaded pre-annotation UUIDs keyed by filename.
+        """
         pre_annotation_uuids: Dict[str, str] = {}
         for filename, pre_annotation in pre_annotations.items():
             logger.info(
@@ -492,6 +626,13 @@ class KognicDatasetUploader:
         If invalidation fails (e.g. the scene is not yet queryable and the API
         404s) the scene is left behind on Kognic with no input, so log loudly and
         report it as ``False`` rather than pretending it was cleaned up.
+
+        Args:
+            scene_uuid (SceneUUID): Orphaned scene UUID.
+            external_id (str): Scene external ID used in logs.
+
+        Returns:
+            bool: ``True`` only when invalidation succeeds.
         """
         try:
             self.kognic_io_client.scene.invalidate_scenes(
@@ -527,6 +668,17 @@ class KognicDatasetUploader:
         be valid). Returns ``(input_records, failed)`` where each record is
         ``{"project_name", "batch_name", "input_id"}`` and ``failed`` lists the
         ``project/batch`` of inputs that could not be created.
+
+        Args:
+            scene_uuid (SceneUUID): Source scene UUID.
+            external_id (str): Scene external ID used in logs.
+            projects (List[ProjectTarget]): Target projects and batches.
+            pre_annotation_uuids (Dict[str, str]): Annotation UUIDs keyed by
+                staged filename.
+
+        Returns:
+            Tuple[List[Dict[str, Optional[str]]], List[str]]: Successful input
+                records and failed project/batch labels.
         """
         records: List[Dict[str, Optional[str]]] = []
         failed: List[str] = []
@@ -565,6 +717,16 @@ class KognicDatasetUploader:
         Raises ``FileNotFoundError`` if the path is missing: a pre-annotation is
         only loaded when a project target explicitly requested it, so a missing
         file is a configuration error rather than an "absent, skip it" signal.
+
+        Args:
+            pre_annotation_path (Path): Staged OpenLABEL JSON path.
+
+        Returns:
+            OpenLabelAnnotation: Validated pre-annotation.
+
+        Raises:
+            FileNotFoundError: If the configured file is missing.
+            ValidationError: If the JSON does not match the OpenLABEL model.
         """
         if not pre_annotation_path.exists():
             raise FileNotFoundError(
@@ -582,7 +744,19 @@ class KognicDatasetUploader:
         return pre_annotation
 
     def _wait_for_scene_created(self, scene_uuid: str, external_id: str) -> None:
-        """Poll until the scene finished server-side processing."""
+        """Poll until a scene finishes server-side processing.
+
+        Args:
+            scene_uuid (str): Scene UUID to query.
+            external_id (str): Scene external ID used in logs.
+
+        Returns:
+            None
+
+        Raises:
+            RuntimeError: If scene processing fails.
+            TimeoutError: If processing exceeds the configured timeout.
+        """
         deadline = time.time() + self.config.scene_creation_timeout_s
 
         while True:
@@ -622,6 +796,14 @@ class KognicDatasetUploader:
             time.sleep(self.config.scene_creation_poll_interval_s)
 
     def _load_calibration(self, sequence_path: Path) -> KognicModel.SensorCalibration:
+        """Load a staged calibration into the Kognic model.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+
+        Returns:
+            KognicModel.SensorCalibration: Parsed sensor calibration.
+        """
         with open(sequence_path / "calibration.json") as f:
             json_calibration = json.load(f)
 
@@ -636,6 +818,15 @@ class KognicDatasetUploader:
     def _load_ego_poses(
         self, sequence_path: Path
     ) -> Optional[Dict[str, KognicModel.EgoVehiclePose]]:
+        """Load optional staged ego poses.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+
+        Returns:
+            Optional[Dict[str, KognicModel.EgoVehiclePose]]: Poses keyed by
+                frame ID, or ``None`` when the file is absent.
+        """
         poses_file = sequence_path / "ego_poses.json"
         if not poses_file.exists():
             return None
@@ -651,6 +842,16 @@ class KognicDatasetUploader:
     def _collect_sensor_files(
         self, sequence_path: Path, root_name: str, suffix: str
     ) -> Dict[str, List[Path]]:
+        """Collect staged files grouped by sensor channel.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+            root_name (str): Sensor root such as ``lidar`` or ``cameras``.
+            suffix (str): File suffix to include.
+
+        Returns:
+            Dict[str, List[Path]]: Sorted files keyed by sensor channel.
+        """
         root = sequence_path / root_name
         if not root.exists():
             return {}
@@ -665,6 +866,18 @@ class KognicDatasetUploader:
     def iterate_frames(
         self, sequence_path: Path
     ) -> Generator[Tuple[str, int, Dict[str, Path]], None, None]:
+        """Yield synchronized staging frames in anchor-sensor order.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+
+        Yields:
+            Tuple[str, int, Dict[str, Path]]: Frame ID, timestamp in
+                nanoseconds, and sensor files keyed by channel.
+
+        Raises:
+            FileNotFoundError: If the sequence contains no supported sensor files.
+        """
         lidar_files = self._collect_sensor_files(sequence_path, "lidar", ".csv")
         camera_files = self._collect_sensor_files(sequence_path, "cameras", ".jpg")
 
@@ -703,6 +916,16 @@ class KognicDatasetUploader:
         sequence_path: Path,
         ego_poses: Optional[Dict[str, KognicModel.EgoVehiclePose]],
     ) -> List[LidarsAndCamerasSequenceFrame]:
+        """Build Kognic frame models for a staging sequence.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+            ego_poses (Optional[Dict[str, KognicModel.EgoVehiclePose]]): Optional
+                poses keyed by frame ID.
+
+        Returns:
+            List[LidarsAndCamerasSequenceFrame]: Ordered Kognic scene frames.
+        """
         frames = []
         reference_timestamp = None
 
@@ -767,6 +990,14 @@ class KognicDatasetUploader:
         pre-annotation frames), and ``target_hz`` is ignored. Returns ``None``
         (fall back to the ``target_hz`` walk) when the file is missing or was
         generated for a different frame count.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+            frame_count (int): Current number of staging frames.
+
+        Returns:
+            Optional[List[int]]: Keyframe indices, or ``None`` to use the
+                frequency-based fallback.
         """
         keyframes_path = sequence_path / "keyframes.json"
         if not keyframes_path.exists():
@@ -794,6 +1025,17 @@ class KognicDatasetUploader:
         sequence_path: Path,
         ego_poses: Optional[Dict[str, KognicModel.EgoVehiclePose]],
     ) -> List[IMUData]:
+        """Interpolate ego poses into dense Kognic IMU data.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+            ego_poses (Optional[Dict[str, KognicModel.EgoVehiclePose]]): Sparse
+                poses keyed by frame ID.
+
+        Returns:
+            List[IMUData]: Dense pose samples, or an empty list when disabled
+                or insufficient data is available.
+        """
         if not self.config.include_imu_data or not ego_poses:
             logger.info("Skipping building the IMU data...")
             return []
@@ -891,6 +1133,16 @@ class KognicDatasetUploader:
         external_id: str,
         frames: List[LidarsAndCamerasSequenceFrame],
     ) -> None:
+        """Write serialized frame models for local debugging.
+
+        Args:
+            sequence_path (Path): Staging sequence directory.
+            external_id (str): Scene external ID.
+            frames (List[LidarsAndCamerasSequenceFrame]): Frames to serialize.
+
+        Returns:
+            None
+        """
         debug_path = sequence_path / "frames_debug.json"
         with open(debug_path, "w") as f:
             json.dump(
@@ -905,6 +1157,11 @@ class KognicDatasetUploader:
 
 
 def main():
+    """Run the dataset-upload command-line interface.
+
+    Returns:
+        None
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config",
@@ -927,6 +1184,11 @@ def main():
     dataset_name_id_dict = {}
 
     def _persist_dataset_ids() -> None:
+        """Persist successful scene and input IDs after each upload.
+
+        Returns:
+            None
+        """
         with open(osp.join(upload_config.input_base, "dataset_id.json"), "w") as f:
             json.dump(dataset_name_id_dict, f)
 

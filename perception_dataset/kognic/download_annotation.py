@@ -1,3 +1,5 @@
+"""Download OpenLABEL annotations from Kognic."""
+
 import argparse
 from dataclasses import dataclass
 import json
@@ -15,6 +17,19 @@ logger = configure_logger(modname=__name__)
 
 @dataclass(frozen=True)
 class KognicDownloadConfig:
+    """Configuration for downloading Kognic annotations.
+
+    Attributes:
+        output_base (Path): Base directory for downloaded JSON files.
+        organization_id (str): Kognic organization identifier.
+        workspace_id (str): Kognic write-workspace identifier.
+        project_external_id (str): External identifier of the source project.
+        annotation_type (Optional[str]): Annotation type filter.
+        batch (Optional[str]): Project batch filter.
+        scene_external_id (Optional[str]): External ID of one scene to fetch.
+        scene_uuid (Optional[str]): UUID of one scene to fetch.
+        iso_rotated_cuboids (bool): Whether to request ISO-rotated cuboids.
+    """
     output_base: Path
     organization_id: str
     workspace_id: str
@@ -27,6 +42,17 @@ class KognicDownloadConfig:
 
 
 def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
+    """Validate and load annotation-download configuration.
+
+    Args:
+        config_dict (Dict): Parsed YAML configuration.
+
+    Returns:
+        KognicDownloadConfig: Validated download settings.
+
+    Raises:
+        ValueError: If required settings are absent or scene selectors conflict.
+    """
     conversion = config_dict["conversion"]
     organization_id = conversion.get("organization_id") or conversion.get("client_organization_id")
     workspace_id = conversion.get("workspace_id") or conversion.get("write_workspace_id")
@@ -64,12 +90,24 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
 
 
 class KognicAnnotationDownloader:
+    """Download scene or project annotations from Kognic."""
+
     def __init__(self, config: KognicDownloadConfig):
+        """Initialize the downloader.
+
+        Args:
+            config (KognicDownloadConfig): Download settings.
+        """
         self.config = config
         self._kognic_io_client: Optional[KognicIOClient] = None
 
     @property
     def kognic_io_client(self) -> KognicIOClient:
+        """Get a lazily initialized Kognic client.
+
+        Returns:
+            KognicIOClient: Client configured for the requested workspace.
+        """
         if self._kognic_io_client is None:
             self._kognic_io_client = KognicIOClient(
                 client_organization_id=self.config.organization_id,
@@ -78,6 +116,17 @@ class KognicAnnotationDownloader:
         return self._kognic_io_client
 
     def _resolve_scene_uuid(self, scene_external_id: str) -> str:
+        """Resolve a scene external ID to its UUID.
+
+        Args:
+            scene_external_id (str): External ID to resolve within the project.
+
+        Returns:
+            str: The unique matching scene UUID.
+
+        Raises:
+            ValueError: If zero or multiple scenes match.
+        """
         inputs = self.kognic_io_client.input.query_inputs(
             project=self.config.project_external_id,
             external_ids=[scene_external_id],
@@ -96,6 +145,11 @@ class KognicAnnotationDownloader:
         return scene_uuids.pop()
 
     def download_scene(self) -> None:
+        """Download annotations for the configured scene.
+
+        Returns:
+            None
+        """
         # Either an external id (needs resolving) or the scene uuid directly.
         if self.config.scene_uuid:
             scene_uuid = self.config.scene_uuid
@@ -159,6 +213,11 @@ class KognicAnnotationDownloader:
         logger.info(f"Done. {len(annotations)} annotation(s) written to {self.config.output_base}")
 
     def download(self) -> None:
+        """Download annotations using the configured scope.
+
+        Returns:
+            None
+        """
         if self.config.scene_external_id or self.config.scene_uuid:
             ref = (
                 f"scene ID {self.config.scene_uuid}"
@@ -183,6 +242,11 @@ class KognicAnnotationDownloader:
             self.download_all()
 
     def download_all(self) -> None:
+        """Download all matching annotations in the configured project.
+
+        Returns:
+            None
+        """
         scope = (
             f"project={self.config.project_external_id}, "
             f"batch={self.config.batch or '(all)'}, "
@@ -224,6 +288,11 @@ class KognicAnnotationDownloader:
 
 
 def main():
+    """Run the annotation-download command-line interface.
+
+    Returns:
+        None
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config",
