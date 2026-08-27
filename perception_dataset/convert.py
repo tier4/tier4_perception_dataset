@@ -153,6 +153,32 @@ def main():
             f"[Done] Converting Kognic annotations ({annotation_base}) into T4 dataset ({output_base})"
         )
 
+    elif task == "convert_kognic_to_deepen":
+        from perception_dataset.kognic.kognic_to_deepen_converter import (
+            KognicToDeepenConverter,
+        )
+
+        conversion = config_dict["conversion"]
+        converter = KognicToDeepenConverter(
+            input_base=conversion["input_base"],
+            output_base=conversion["output_base"],
+            dataset_id=conversion.get("dataset_id", ""),
+            iso_rotated_cuboids=conversion.get("iso_rotated_cuboids", False),
+            category_map=conversion.get("category_map"),
+            sensor_map=conversion.get("sensor_map"),
+            lidar_streams=conversion.get("lidar_streams"),
+            include_attributes=conversion.get("include_attributes", True),
+        )
+        logger.info(
+            f"[BEGIN] Converting Kognic annotations ({conversion['input_base']}) "
+            f"to Deepen annotations ({conversion['output_base']})"
+        )
+        converter.convert()
+        logger.info(
+            f"[END] Converting Kognic annotations ({conversion['input_base']}) "
+            f"to Deepen annotations ({conversion['output_base']})"
+        )
+
     elif task == "convert_non_annotated_t4_to_deepen":
         from perception_dataset.deepen.non_annotated_t4_to_deepen_converter import (
             NonAnnotatedT4ToDeepenConverter,

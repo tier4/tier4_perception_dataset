@@ -1,0 +1,19 @@
+task: convert_kognic_to_deepen
+conversion:
+  # OpenLABEL JSON file, or a directory searched recursively for JSON files.
+  input_base: ./data/kognic_format
+  output_base: ./data/deepen_annotations
+  # Deepen dataset ID. It may be left empty when preparing labels before upload.
+  dataset_id: ""
+  # Must match the option used when downloading annotations from Kognic.
+  iso_rotated_cuboids: false
+  # Optional Kognic category to Deepen category renaming.
+  # category_map:
+  #   PassengerCar: car
+  # Optional Kognic stream to Deepen sensor ID mapping for 2D boxes.
+  # sensor_map:
+  #   CAM_FRONT: camera_0
+  # For multi-lidar semantic segmentation, this order must match the point order
+  # in the Deepen point cloud. When omitted, OpenLABEL binary entry order is used.
+  # lidar_streams: [LIDAR_FRONT, LIDAR_LEFT, LIDAR_RIGHT]
+  include_attributes: true
