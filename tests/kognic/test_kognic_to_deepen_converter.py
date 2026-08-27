@@ -82,12 +82,13 @@ def _write_openlabel(path: Path) -> None:
 
 
 def test_converts_bbox_and_semantic_segmentation(tmp_path: Path):
-    input_path = tmp_path / "scene.json"
+    input_path = tmp_path / "scene.openlabel.json"
     output_path = tmp_path / "output"
     _write_openlabel(input_path)
+    (tmp_path / "calibration.json").write_text(json.dumps({"sensors": {}}))
 
     result = KognicToDeepenConverter(
-        input_base=str(input_path),
+        input_base=str(tmp_path),
         output_base=str(output_path),
         dataset_id="dataset-id",
         category_map={"PassengerCar": "car"},
@@ -95,7 +96,7 @@ def test_converts_bbox_and_semantic_segmentation(tmp_path: Path):
         lidar_streams=["LIDAR_B", "LIDAR_A"],
     ).convert()
 
-    labels = json.loads((output_path / "scene.json").read_text())["labels"]
+    labels = json.loads((output_path / "scene.openlabel.json").read_text())["labels"]
     assert len(labels) == 2
     cuboid = next(label for label in labels if label["label_type"] == "3d_bbox")
     assert cuboid["dataset_id"] == "dataset-id"
@@ -110,14 +111,16 @@ def test_converts_bbox_and_semantic_segmentation(tmp_path: Path):
     assert bbox["sensor_id"] == "camera_0"
     assert bbox["box"] == [40, 35, 20, 10]
 
-    lidarseg = json.loads((output_path / "scene_lidarseg.json").read_text())
+    lidarseg = json.loads((output_path / "scene.openlabel_lidarseg.json").read_text())
     assert lidarseg[0]["file_id"] == "12.pcd"
     assert lidarseg[0]["paint_categories"] == ["road", "car"]
     assert lidarseg[0]["total_lidar_points"] == 5
     labels_bin = np.fromfile(output_path / lidarseg[0]["lidarseg_anno_file"], dtype=np.uint8)
     assert labels_bin.tolist() == [2, 2, 1, 1, 0]
-    assert result.items[0].bbox_annotation_path == str(output_path / "scene.json")
-    assert result.items[0].lidarseg_annotation_path == str(output_path / "scene_lidarseg.json")
+    assert result.items[0].bbox_annotation_path == str(output_path / "scene.openlabel.json")
+    assert result.items[0].lidarseg_annotation_path == str(
+        output_path / "scene.openlabel_lidarseg.json"
+    )
 
 
 def test_rejects_invalid_segmentation_rle(tmp_path: Path):

@@ -80,17 +80,24 @@ class KognicToDeepenConverter(AbstractConverter[KognicToDeepenConverterOutput]):
             raise ValueError(f"No JSON annotations found under {input_path}")
 
         output_base.mkdir(parents=True, exist_ok=True)
-        items = [self._convert_file(path, output_base) for path in paths]
+        items = []
+        for path in paths:
+            item = self._convert_file(path, output_base)
+            if item is not None:
+                items.append(item)
+        if not items:
+            raise ValueError(f"No OpenLABEL annotations found under {input_path}")
         return KognicToDeepenConverterOutput(items=items)
 
     def _convert_file(
         self, input_path: Path, output_base: Path
-    ) -> KognicToDeepenConverterOutputItem:
+    ) -> Optional[KognicToDeepenConverterOutputItem]:
         with open(input_path) as f:
             document = json.load(f)
         openlabel = document.get("openlabel", document)
         if not isinstance(openlabel.get("frames"), dict):
-            raise ValueError(f"{input_path} does not contain OpenLABEL frames")
+            logger.debug(f"Skipping non-OpenLABEL JSON file {input_path}")
+            return None
 
         stem = input_path.stem
         labels = self._convert_boxes(openlabel)
