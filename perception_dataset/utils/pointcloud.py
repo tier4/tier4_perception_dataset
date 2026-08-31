@@ -21,6 +21,25 @@ logger = configure_logger(modname=__name__)
 _MAX_REASONABLE_COORDINATE_M = 10_000.0
 
 
+def valid_point_mask(points: np.ndarray) -> np.ndarray:
+    """Return the validity mask applied when exporting points to Kognic.
+
+    ``save_pointcloud_csv`` fails the conversion when this mask is not
+    all-True. Semantic-segmentation labels use the same mask so their RLE
+    length always matches the uploaded point count.
+
+    Args:
+        points (np.ndarray): Point records whose first four columns are
+            ``x``, ``y``, ``z``, and intensity.
+
+    Returns:
+        np.ndarray: Boolean mask selecting finite, reasonably-sized points.
+    """
+    return np.isfinite(points[:, 0:4]).all(axis=1) & (
+        np.abs(points[:, 0:3]) < _MAX_REASONABLE_COORDINATE_M
+    ).all(axis=1)
+
+
 def point_stride_from_info(bin_path: Path, total_points: int) -> int:
     """Derive the number of floats in each point record.
 
@@ -203,9 +222,7 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
             range, so the conversion fails instead of staging a scene the
             upload cannot process.
     """
-    valid = np.isfinite(points[:, 0:4]).all(axis=1) & (
-        np.abs(points[:, 0:3]) < _MAX_REASONABLE_COORDINATE_M
-    ).all(axis=1)
+    valid = valid_point_mask(points)
     if not valid.all():
         bad_indices = np.flatnonzero(~valid)
         raise ValueError(
