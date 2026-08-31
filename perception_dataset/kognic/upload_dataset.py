@@ -23,7 +23,7 @@ from kognic.io.model.scene.resources.image import ImageMetadata
 from kognic.io.model.scene.scene_entry import SceneStatus
 from kognic.openlabel.models.models import OpenLabelAnnotation
 import numpy as np
-from requests import HTTPError
+from requests.exceptions import HTTPError
 import yaml
 
 from perception_dataset.constants import (
