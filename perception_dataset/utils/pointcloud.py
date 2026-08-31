@@ -58,9 +58,11 @@ def point_stride_from_info(bin_path: Path, total_points: int) -> int:
         ValueError: If the file size is inconsistent with ``total_points`` or
             the derived stride contains fewer than four floats.
     """
-    n_floats = bin_path.stat().st_size // 4
+    size_bytes = bin_path.stat().st_size
+    if size_bytes % 4 != 0:
+        raise ValueError(f"{bin_path}: file size {size_bytes} bytes is not divisible by 4 (float32)")
+    n_floats = size_bytes // 4
     stride, remainder = divmod(n_floats, total_points)
-    if remainder != 0 or stride < 4:
         raise ValueError(
             f"{bin_path}: {n_floats} floats is not an integer multiple (>=4) of the "
             f"{total_points} points declared in LIDAR_CONCAT_INFO"
