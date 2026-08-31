@@ -22,9 +22,7 @@ conversion:
     - project_external_id: test_upload_data
       batch_external_id: test-semseg-upload-batch  # no pre_annotation -> input created without one
   target_hz: 1
-  # annotation_interval_tolerance_s: 0.05  # optional leniency (+/-) when matching the target interval.
-  #                                        # Defaults to half the typical source frame interval if unset.
-  #                                        # Accounts for T4 frames not being spaced at exactly 1/target_hz.
+  # Note: annotate=True frame selection applies a built-in tolerance derived from the source frame cadence.
   dryrun: false
   motion_compensate: false
   include_imu_data: false
