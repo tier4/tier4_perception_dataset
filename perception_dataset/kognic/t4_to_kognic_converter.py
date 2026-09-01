@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from t4_devkit import Tier4
 
@@ -382,6 +382,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
 
         copies: List[Tuple[Path, Path]] = []
         blanks_written = 0
+        used_timestamps_ns: Set[int] = set()
+        collisions = 0
         for frame_record in self._frame_records:
             sample_data = frame_record.get(camera_channel)
 
@@ -396,6 +398,25 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 # synchronised sensor's timestamp so the blank image sorts into the
                 # correct frame position at upload time.
                 timestamp_ns = self._frame_timestamp_ns(frame_record)
+
+            # Frames must map 1:1 onto files. The uploader rebuilds frames by
+            # counting files per sensor directory and pairing them by index, so a
+            # dropped file shifts every later frame onto the wrong image and
+            # leaves the last frame without one, failing Kognic scene validation
+            # with "Sensors: [...] not present in frame: N".
+            #
+            # T4 can repeat a timestamp across frames: when a camera drops out,
+            # upstream extraction writes a black image but reuses the previous
+            # capture's timestamp, so a run of dropped frames shares one
+            # timestamp. Naming files by timestamp alone would collapse the run
+            # into a single file, so nudge each duplicate forward by 1ns. Source
+            # frame intervals are ~1e8 ns, hence the nudged file still sorts into
+            # its own frame position.
+            if timestamp_ns in used_timestamps_ns:
+                collisions += 1
+                while timestamp_ns in used_timestamps_ns:
+                    timestamp_ns += 1
+            used_timestamps_ns.add(timestamp_ns)
 
             dst = camera_dir / f"{timestamp_ns}.jpg"
             if dst.exists():
@@ -419,9 +440,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
             self._write_blank_image(seq_path, camera_channel, dst)
             blanks_written += 1
 
+        if collisions:
+            logger.warning(
+                f"{camera_channel}: {collisions} frame(s) shared a timestamp with an "
+                "earlier frame and were renamed with a 1ns offset to keep one file "
+                "per frame; upstream T4 likely reused a timestamp for dropped frames"
+            )
         logger.info(
             f"{camera_channel}: {len(copies)} image copies queued, "
-            f"{blanks_written} blank images written"
+            f"{blanks_written} blank images written, {collisions} timestamp collisions"
         )
         return copies
 

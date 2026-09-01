@@ -36,6 +36,8 @@ def kognic_dataset_path():
     yield osp.join(output_base, TEST_SCENE_NAME)
 
     # after test - remove generated resource
+    assert output_base.startswith(str(TEST_ROOT_DIR)), f"refusing to delete outside tests root: {output_base}"
+    assert "_generated" in osp.basename(output_base), f"refusing to delete unexpected output_base: {output_base}"
     shutil.rmtree(output_base, ignore_errors=True)
 
 
