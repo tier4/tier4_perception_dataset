@@ -17,6 +17,7 @@ conversion:
   lidar_latency_sec: 0.005
   system_scan_period_sec: 0.05
   lidar_sensor:
+    output_pointcloud_format: bin
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
   camera_sensors:

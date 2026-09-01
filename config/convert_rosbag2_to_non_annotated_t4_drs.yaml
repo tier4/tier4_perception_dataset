@@ -18,6 +18,7 @@ conversion:
   system_scan_period_sec: 0.10  # LiDAR scan period
   camera_scan_period_sec: 0.05  # Camera scan period
   lidar_sensor:
+    output_pointcloud_format: bin
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
   camera_sensors:

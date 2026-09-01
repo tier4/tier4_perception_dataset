@@ -26,6 +26,7 @@ except ImportError:
 import builtin_interfaces.msg
 import cv2
 import numpy as np
+from pypcd4 import PointCloud
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CameraInfo, CompressedImage, PointCloud2
@@ -230,6 +231,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
         self._num_lidar_feats: int = self._lidar_sensor["num_lidar_feats"]
+        self._output_pointcloud_format: str = self._lidar_sensor["output_pointcloud_format"]
         self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor[
             "lidar_sources_mapping"
         ]
@@ -734,7 +736,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 # Skip frame if no lidar info found and accept_no_info is True
                 continue
 
-            fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
+            if self._output_pointcloud_format == "pcd":
+                fileformat = EXTENSION_ENUM.PCD.value[1:]
+            else:
+                fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
             filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
 
             nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
@@ -760,7 +765,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 sample_data_token
             )
 
-            # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
             points_arr = rosbag2_utils.pointcloud_msg_to_numpy(
                 pointcloud_msg, num_lidar_feats=self._num_lidar_feats
             )
@@ -769,7 +773,28 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                 )
 
-            points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
+            pointcloud_filepath = osp.join(self._output_scene_dir, sample_data_record.filename)
+            if self._output_pointcloud_format == "pcd":
+                fields = ("x", "y", "z", "intensity", "ring", "return_type", "time_stamp")[
+                    : self._num_lidar_feats
+                ]
+                # Field types follow autoware_point_types, except that ring is uint16 to
+                # match the channel field of PointXYZIRC and intensity keeps the float32
+                # value written to .pcd.bin files. time_stamp stays float32 because
+                # pointcloud_msg_to_numpy casts all fields to float32; revisit once
+                # per-point timestamps are supported end-to-end.
+                types = (
+                    np.float32,
+                    np.float32,
+                    np.float32,
+                    np.float32,
+                    np.uint16,
+                    np.uint8,
+                    np.float32,
+                )[: self._num_lidar_feats]
+                PointCloud.from_points(points_arr, fields, list(types)).save(pointcloud_filepath)
+            else:
+                points_arr.tofile(pointcloud_filepath)
             if self._lidar_info_topic and info_filename:
                 self._save_info_as_json(
                     lidar_info_message,

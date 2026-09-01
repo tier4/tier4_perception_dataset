@@ -598,7 +598,7 @@ class AnnotationFilesGenerator:
             for anno in anno_list:
                 # This step validates if the annotation can be loaded and is compatible with point cloud data and metainfo data.
                 lidar_semseg_pointcloud = SegmentationPointCloud.from_file(
-                    point_filepath=lidar_data_path,
+                    point_filepath=str(lidar_data_path),
                     label_filepath=anno["lidarseg_anno_file"],
                     metainfo_filepath=lidar_metainfo_path,
                 )

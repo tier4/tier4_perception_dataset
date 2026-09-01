@@ -10,6 +10,7 @@ conversion:
   num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
   lidar_sensor:
+    output_pointcloud_format: bin
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
   radar_sensors:
