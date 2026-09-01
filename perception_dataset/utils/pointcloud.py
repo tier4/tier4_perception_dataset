@@ -234,18 +234,12 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
             f"{points[bad_indices[0], 0:4].tolist()}"
         )
 
-    arr = np.empty((len(points), 5), dtype=np.float64)
-    arr[:, 0] = timestamp_ns
-    arr[:, 1:5] = points[:, 0:4]
-
-    np.savetxt(
-        csv_path,
-        arr,
-        delimiter=",",
-        header="ts_gps,x,y,z,intensity",
-        comments="",
-        fmt=["%d", "%.6f", "%.6f", "%.6f", "%.6f"],
-    )
+    with open(csv_path, "w") as f:
+        f.write("ts_gps,x,y,z,intensity\n")
+        for x, y, z, intensity, *_ in points:
+            f.write(
+                f"{timestamp_ns},{float(x):.6f},{float(y):.6f},{float(z):.6f},{float(intensity):.6f}\n"
+            )
 
 
 def stamp_to_ns(stamp: Optional[dict]) -> Optional[int]:
