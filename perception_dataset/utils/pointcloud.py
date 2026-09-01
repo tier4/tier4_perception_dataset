@@ -21,6 +21,25 @@ logger = configure_logger(modname=__name__)
 _MAX_REASONABLE_COORDINATE_M = 10_000.0
 
 
+def valid_point_mask(points: np.ndarray) -> np.ndarray:
+    """Return the validity mask applied when exporting points to Kognic.
+
+    ``save_pointcloud_csv`` fails the conversion when this mask is not
+    all-True. Semantic-segmentation labels use the same mask so their RLE
+    length always matches the uploaded point count.
+
+    Args:
+        points (np.ndarray): Point records whose first four columns are
+            ``x``, ``y``, ``z``, and intensity.
+
+    Returns:
+        np.ndarray: Boolean mask selecting finite, reasonably-sized points.
+    """
+    return np.isfinite(points[:, 0:4]).all(axis=1) & (
+        np.abs(points[:, 0:3]) < _MAX_REASONABLE_COORDINATE_M
+    ).all(axis=1)
+
+
 def point_stride_from_info(bin_path: Path, total_points: int) -> int:
     """Derive the number of floats in each point record.
 
@@ -39,7 +58,10 @@ def point_stride_from_info(bin_path: Path, total_points: int) -> int:
         ValueError: If the file size is inconsistent with ``total_points`` or
             the derived stride contains fewer than four floats.
     """
-    n_floats = bin_path.stat().st_size // 4
+    size_bytes = bin_path.stat().st_size
+    if size_bytes % 4 != 0:
+        raise ValueError(f"{bin_path}: file size {size_bytes} bytes is not divisible by 4 (float32)")
+    n_floats = size_bytes // 4
     stride, remainder = divmod(n_floats, total_points)
     if remainder != 0 or stride < 4:
         raise ValueError(
@@ -203,9 +225,7 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
             range, so the conversion fails instead of staging a scene the
             upload cannot process.
     """
-    valid = np.isfinite(points[:, 0:4]).all(axis=1) & (
-        np.abs(points[:, 0:3]) < _MAX_REASONABLE_COORDINATE_M
-    ).all(axis=1)
+    valid = valid_point_mask(points)
     if not valid.all():
         bad_indices = np.flatnonzero(~valid)
         raise ValueError(
@@ -215,18 +235,12 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
             f"{points[bad_indices[0], 0:4].tolist()}"
         )
 
-    arr = np.empty((len(points), 5), dtype=np.float64)
-    arr[:, 0] = timestamp_ns
-    arr[:, 1:5] = points[:, 0:4]
-
-    np.savetxt(
-        csv_path,
-        arr,
-        delimiter=",",
-        header="ts_gps,x,y,z,intensity",
-        comments="",
-        fmt=["%d", "%.6f", "%.6f", "%.6f", "%.6f"],
-    )
+    with open(csv_path, "w") as f:
+        f.write("ts_gps,x,y,z,intensity\n")
+        for x, y, z, intensity, *_ in points:
+            f.write(
+                f"{timestamp_ns},{float(x):.6f},{float(y):.6f},{float(z):.6f},{float(intensity):.6f}\n"
+            )
 
 
 def stamp_to_ns(stamp: Optional[dict]) -> Optional[int]:
