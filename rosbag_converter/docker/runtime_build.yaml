@@ -1,0 +1,27 @@
+# Runtime image source pins.
+#
+# Keep refs as immutable commits for reproducible images. Values exported in
+# the shell override this file.
+
+ros_distro: humble
+image_name: t4dataset_rosbag_converter
+
+repos:
+  autoware:
+    repo: https://github.com/autowarefoundation/autoware_universe.git
+    ref: 094f9b45ea0457a20db706035c5e3a183ed55e14
+  aip_launcher:
+    repo: git@github.com:tier4/aip_launcher.git
+    ref: f2401f29e1afdf7d504572e65a0e6790a1694a87
+  nebula:
+    repo: git@github.com:tier4/nebula_lib.git
+    ref: 464f273945c87e9f14deffdc49aa0ee8b7c8af46
+  individual_params:
+    repo: git@github.com:tier4/autoware_individual_params.j6_gen2.git
+    ref: 8c614db71ae74f2a8db4a3025babf2d3ca4962a8
+  t4_devkit:
+    repo: https://github.com/tier4/t4-devkit.git
+    ref: 8403461ec9530c87c6cced98ae0985a238ecb302
+  tier4_perception_dataset:
+    repo: https://github.com/tier4/tier4_perception_dataset.git
+    ref: 29b7ffc837d9b81406799efd1a096496900022ca

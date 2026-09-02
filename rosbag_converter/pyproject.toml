@@ -1,0 +1,36 @@
+[project]
+name = "t4dataset-rosbag-converter"
+version = "0.1.0"
+description = "Offline raw rosbag to T4Dataset converter using Nebula and Autoware pointcloud libraries."
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "opencv-python>=4.6,<5",
+  "perception-dataset",
+  "pydantic>=2.8,<3",
+  "pypcd4>=1.4",
+  "pyyaml>=6.0",
+  "t4-devkit",
+]
+
+[project.scripts]
+t4dataset-rosbag-converter = "t4dataset_rosbag_converter.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.uv]
+package = true
+
+[dependency-groups]
+dev = [
+  "pytest>=7.1,<8",
+]
+
+[tool.uv.sources]
+t4-devkit = { path = "../../t4-devkit", editable = true }
+perception-dataset = { path = "..", editable = true }
