@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import uuid
 import warnings
 
+import accelerated_image_processor.common as aip_common
 import builtin_interfaces.msg
 import cv2
 from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
@@ -26,11 +27,7 @@ from sensor_msgs.msg import CompressedImage, PointCloud2
 import yaml
 
 from perception_dataset.constants import EXTENSION_ENUM
-from perception_dataset.utils.accelerated_image_processor import try_import_aip_common
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
-
-aip_common = try_import_aip_common()
-IMPORTED_ACCELERATED_IMAGE_PROCESSOR = aip_common is not None
 
 
 @dataclass(frozen=True)
@@ -298,8 +295,9 @@ def _decode_ffmpeg_packet(image_msg: FFMPEGPacket, *, video_decompressor: Any) -
         warnings.warn("Failed to decompress image")
         image_arr = None
     else:
-        image_arr = np.array(decompressed_image.data, dtype=np.uint8)
-        image_arr = image_arr.reshape((image_msg.height, image_msg.width, 3))
+        # The decompressor returns the Boost.Python base Image, whereas to_numpy()
+        # is defined by the Python Image wrapper. Invoke the wrapper method explicitly.
+        image_arr = aip_common.Image.to_numpy(decompressed_image)
 
     return DecodedImage(array=image_arr, fileformat=EXTENSION_ENUM.PNG.value[1:])
 
@@ -313,11 +311,6 @@ def _ffmpeg_msg_to_image(ffmpeg_msg: FFMPEGPacket) -> Any:
     Returns:
         Image: The converted aip_common.Image.
     """
-    if not IMPORTED_ACCELERATED_IMAGE_PROCESSOR:
-        raise ModuleNotFoundError(
-            "accelerated_image_processor is required to decode FFMPEGPacket messages"
-        )
-
     image = aip_common.Image()
 
     image.frame_id = ffmpeg_msg.header.frame_id
@@ -334,11 +327,6 @@ def _ffmpeg_msg_to_image(ffmpeg_msg: FFMPEGPacket) -> Any:
 
 
 def _ffmpeg_encoding_to_image_format(encoding: str) -> Any:
-    if not IMPORTED_ACCELERATED_IMAGE_PROCESSOR:
-        raise ModuleNotFoundError(
-            "accelerated_image_processor is required to decode FFMPEGPacket messages"
-        )
-
     codec_candidates = _split_string_by_comma_and_semicolon(encoding)
     for codec in codec_candidates:
         if codec == "h264":

@@ -10,9 +10,8 @@ import time
 from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
+import accelerated_image_processor.decompression as aip_decompression
 from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
-
-from perception_dataset.utils.accelerated_image_processor import try_import_aip_decompression
 
 try:
     from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
@@ -70,9 +69,6 @@ from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
-
-aip_decompression = try_import_aip_decompression(warn=True)
-IMPORTED_ACCELERATED_IMAGE_PROCESSOR = aip_decompression is not None
 
 logger = configure_logger(modname=__name__)
 
@@ -285,10 +281,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             self._vehicle_status_handler = None
 
         # video decompressor (only used if the input bag contains compressed video)
-        self._video_decompressor = (
-            aip_decompression.create_decompressor(aip_decompression.DecompressionType.VIDEO)
-            if IMPORTED_ACCELERATED_IMAGE_PROCESSOR
-            else None
+        self._video_decompressor = aip_decompression.create_decompressor(
+            aip_decompression.DecompressionType.VIDEO
         )
 
     def _make_optional_ins_handler(self, params: Rosbag2ConverterParams) -> Optional[INSHandler]:
