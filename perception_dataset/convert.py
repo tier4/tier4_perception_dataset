@@ -327,6 +327,35 @@ def main():
         converter.convert()
         logger.info(f"[Done] Merging T4 dataset ({input_base}) into T4 dataset ({output_base})")
 
+    elif task == "align_non_annotated_t4_to_reference":
+        from perception_dataset.t4_dataset.align_non_annotated_t4_to_reference import (
+            AlignNonAnnotatedT4ToReferenceConverter,
+        )
+
+        input_base = config_dict["conversion"]["input_base"]
+        reference_base = config_dict["conversion"]["reference_base"]
+        output_base = config_dict["conversion"]["output_base"]
+
+        converter = AlignNonAnnotatedT4ToReferenceConverter(
+            input_base=input_base,
+            reference_base=reference_base,
+            output_base=output_base,
+            max_abs_diff_ms=config_dict["conversion"].get("max_abs_diff_ms", 0.1),
+            max_frame_drop_ratio=config_dict["conversion"].get("max_frame_drop_ratio", 0.1),
+            write_alignment_report=config_dict["conversion"].get("write_alignment_report", True),
+            logger=logger,
+        )
+
+        logger.info(
+            "[BEGIN] Aligning non-annotated T4 dataset "
+            f"({input_base}) to reference ({reference_base})"
+        )
+        converter.convert()
+        logger.info(
+            "[DONE] Aligning non-annotated T4 dataset "
+            f"({input_base}) to reference ({reference_base})"
+        )
+
     elif task == "interpolate":
         from perception_dataset.t4_dataset.data_interpolator import DataInterpolator
 
