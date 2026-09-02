@@ -44,6 +44,7 @@ class LidarSensor(BaseModelWithDictAccess):
     topic: Optional[str] = None  # e.g., "/lidar_points"
     channel: Optional[str] = None  # e.g., "LIDAR_TOP"
     num_lidar_feats: int = 5  # Number of float32 fields written per lidar point.
+    output_pointcloud_format: str = "bin"  # Output pointcloud file format, "bin" or "pcd".
     lidar_info_topic: Optional[str] = None  # topic for lidar info, e.g., "/lidar_info"
     lidar_info_channel: Optional[str] = None  # channel for lidar info, e.g., "LIDAR_INFO"
     accept_no_info: Optional[bool] = (
@@ -78,6 +79,12 @@ class LidarSensor(BaseModelWithDictAccess):
     def check_num_lidar_feats(cls, v):
         if v not in (5, 7):
             raise ValueError(f"num_lidar_feats must be 5 or 7, got {v}")
+        return v
+
+    @field_validator("output_pointcloud_format")
+    def check_output_pointcloud_format(cls, v):
+        if v not in ("bin", "pcd"):
+            raise ValueError(f"output_pointcloud_format must be 'bin' or 'pcd', got {v}")
         return v
 
 

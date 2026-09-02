@@ -1,6 +1,6 @@
 [project]
 name = "perception-dataset"
-version = "1.0.34"
+version = "1.0.35"
 description = "TIER IV Perception dataset has modules to convert dataset from rosbag to t4_dataset"
 authors = [
     { name = "Yusuke Muramatsu", email = "yusuke.muramatsu@tier4.jp" },
@@ -38,12 +38,13 @@ dev = [
 ]
 
 [tool.uv]
-# t4-devkit 0.7.0 imports click without declaring it; typer<0.25 still pulls click in.
+# t4-devkit 0.8.0 imports click without declaring it; typer<0.25 still pulls click in.
 constraint-dependencies = ["typer<0.25"]
 
 [tool.uv.sources]
-t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.7.0" }
-accelerated-image-processor = { git = "https://github.com/tier4/accelerated_image_processor", rev = "fix/python-install" }
+t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.8.0" }
+accelerated-image-processor = { git = "https://github.com/tier4/accelerated_image_processor", rev = "main" }
+
 
 [build-system]
 requires = ["hatchling"]
