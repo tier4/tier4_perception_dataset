@@ -215,7 +215,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         """
         logger.info(f"Copying {input_dir} to {output_dir} ... ")
         for item in os.listdir(input_dir):
-            if item not in ["annotation", "data", "status.json"]:
+            if item not in ["annotation", "data", "lidarseg", "status.json"]:
                 # Skip non t4-format files
                 continue
             output_dir.mkdir(parents=True, exist_ok=True)
