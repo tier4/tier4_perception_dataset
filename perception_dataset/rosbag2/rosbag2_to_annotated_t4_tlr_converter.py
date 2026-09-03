@@ -179,7 +179,10 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
 
             # Get image shape
             temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
-            image_shape = rosbag2_utils.compressed_msg_to_numpy(temp_image_msg).shape
+            decoded_image = rosbag2_utils.decode_image_msg(
+                temp_image_msg, video_decompressor=self._video_decompressor
+            )
+            image_shape = decoded_image.array.shape
 
             # Save image
             sample_data_token_list: List[str] = []
@@ -284,7 +287,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                             f"frame: {generated_frame_index}, image stamp: {image_unix_timestamp}"
                         )
                         sample_data_token = self._generate_image_data(
-                            rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                            image_msg,
                             image_unix_timestamp,
                             sample_token,
                             calibrated_sensor_token,

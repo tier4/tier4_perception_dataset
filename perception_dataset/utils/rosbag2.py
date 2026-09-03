@@ -1,12 +1,16 @@
 """some implementations are from https://github.com/tier4/ros2bag_extensions/blob/main/ros2bag_extensions/ros2bag_extensions/verb/__init__.py"""
 
+from dataclasses import dataclass
 import os.path as osp
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
+import warnings
 
+import accelerated_image_processor.common as aip_common
 import builtin_interfaces.msg
 import cv2
+from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 from nptyping import NDArray
 import numpy as np
 from pypcd4 import PointCloud
@@ -22,7 +26,22 @@ from rosbag2_py import (
 from sensor_msgs.msg import CompressedImage, PointCloud2
 import yaml
 
+from perception_dataset.constants import EXTENSION_ENUM
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
+
+
+@dataclass(frozen=True)
+class DecodedImage:
+    """Decoded image data and the file format to use when saving it.
+
+    Attributes:
+        array (NDArray | None): Decoded image array. This is `None` when decoding or decompression
+            fails.
+        fileformat (str): Output file format without the leading dot, such as `jpg` or `png`.
+    """
+
+    array: NDArray | None
+    fileformat: str
 
 
 def get_options(
@@ -208,7 +227,41 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
     return radar_tracks
 
 
-def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
+def decode_image_msg(
+    image_msg: CompressedImage | FFMPEGPacket, *, video_decompressor: Any | None = None
+) -> DecodedImage:
+    """Decode a supported ROS image message into image data and file metadata.
+
+    Args:
+        image_msg: Input image message. `CompressedImage` is decoded with OpenCV and
+            keeps its original jpg/png file format. `FFMPEGPacket` is decompressed with
+            `video_decompressor` and returned as png.
+        video_decompressor: Decompressor used only for `FFMPEGPacket` messages. This
+            must be provided when `image_msg` is an `FFMPEGPacket`.
+
+    Returns:
+        DecodedImage: Decoded pixel array and the file format to use when saving it.
+        `array` can be `None` when decoding or decompression fails.
+
+    Raises:
+        ValueError: If `image_msg` is an `FFMPEGPacket` and `video_decompressor` is not
+            provided.
+        TypeError: If `image_msg` is not a supported message type.
+        ModuleNotFoundError: If decoding an `FFMPEGPacket` requires
+            `accelerated_image_processor` but it is unavailable.
+    """
+    if isinstance(image_msg, CompressedImage):
+        return _decode_compressed_image_msg(image_msg)
+    elif isinstance(image_msg, FFMPEGPacket):
+        if video_decompressor is None:
+            raise ValueError("video_decompressor must be provided for FFMPEGPacket images")
+        return _decode_ffmpeg_packet(image_msg, video_decompressor=video_decompressor)
+    else:
+        raise TypeError(f"Unsupported image message type: {type(image_msg)}")
+
+
+def _decode_compressed_image_msg(compressed_image_msg: CompressedImage) -> DecodedImage:
+    """Decode a CompressedImage message and infer its file format."""
     if hasattr(compressed_image_msg, "_encoding"):
         try:
             np_arr = np.frombuffer(compressed_image_msg.data, np.uint8)
@@ -217,7 +270,7 @@ def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
             )
         except Exception as e:
             print(e)
-            return None
+            image = None
     else:
         image_buf = np.ndarray(
             shape=(1, len(compressed_image_msg.data)),
@@ -225,7 +278,74 @@ def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
             buffer=compressed_image_msg.data,
         )
         image = cv2.imdecode(image_buf, cv2.IMREAD_ANYCOLOR)
+
+    fileformat = (
+        EXTENSION_ENUM.JPG.value[1:]
+        if compressed_image_msg.format == "jpeg"
+        else EXTENSION_ENUM.PNG.value[1:]
+    )
+    return DecodedImage(array=image, fileformat=fileformat)
+
+
+def _decode_ffmpeg_packet(image_msg: FFMPEGPacket, *, video_decompressor: Any) -> DecodedImage:
+    """Decode an FFMPEGPacket message into image data."""
+    aip_image = _ffmpeg_msg_to_image(image_msg)
+    decompressed_image = video_decompressor.process(aip_image)
+    if decompressed_image is None:
+        warnings.warn("Failed to decompress image")
+        image_arr = None
+    else:
+        # The decompressor returns the Boost.Python base Image, whereas to_numpy()
+        # is defined by the Python Image wrapper. Invoke the wrapper method explicitly.
+        image_arr = decompressed_image.to_numpy()
+
+    return DecodedImage(array=image_arr, fileformat=EXTENSION_ENUM.PNG.value[1:])
+
+
+def _ffmpeg_msg_to_image(ffmpeg_msg: FFMPEGPacket) -> Any:
+    """Convert an FFMPEG packet to an aip_common.Image.
+
+    Args:
+        ffmpeg_msg (FFMPEGPacket): The FFMPEG packet to convert.
+
+    Returns:
+        Image: The converted aip_common.Image.
+    """
+    image = aip_common.Image()
+
+    image.frame_id = ffmpeg_msg.header.frame_id
+    image.timestamp = int(stamp_to_unix_timestamp(ffmpeg_msg.header.stamp))
+    image.width = ffmpeg_msg.width
+    image.height = ffmpeg_msg.height
+    image.format = _ffmpeg_encoding_to_image_format(ffmpeg_msg.encoding)
+    image.pts = ffmpeg_msg.pts
+    image.flags = ffmpeg_msg.flags
+    image.is_bigendian = ffmpeg_msg.is_bigendian
+    image.data = ffmpeg_msg.data
+
     return image
+
+
+def _ffmpeg_encoding_to_image_format(encoding: str) -> Any:
+    codec_candidates = _split_string_by_comma_and_semicolon(encoding)
+    for codec in codec_candidates:
+        if codec == "h264":
+            return aip_common.ImageFormat.H264
+        elif codec == "h265":
+            return aip_common.ImageFormat.H265
+        elif codec == "av1":
+            return aip_common.ImageFormat.AV1
+    raise ValueError(f"Unsupported codec: {encoding}")
+
+
+def _split_string_by_comma_and_semicolon(encoding: str) -> list[str]:
+    def _split_by_delimiter(strings: list[str], delimiter: str) -> list[str]:
+        result: list[str] = []
+        for s in strings:
+            result.extend(s.split(delimiter))
+        return result
+
+    return _split_by_delimiter(_split_by_delimiter([encoding], ","), ";")
 
 
 def stamp_to_unix_timestamp(stamp: builtin_interfaces.msg.Time) -> float:

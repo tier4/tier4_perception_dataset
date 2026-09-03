@@ -27,6 +27,7 @@ dependencies = [
     "colorama>=0.4.6,<0.5",
     "pypcd4>=1.4.3,<2",
     "httpx>=0.28.1,<0.29",
+    "accelerated-image-processor",
 ]
 
 [dependency-groups]
@@ -42,6 +43,7 @@ constraint-dependencies = ["typer<0.25"]
 
 [tool.uv.sources]
 t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.8.0" }
+accelerated-image-processor = { git = "https://github.com/tier4/accelerated_image_processor", rev = "perf/python/image-data-conversion" }
 
 [build-system]
 requires = ["hatchling"]

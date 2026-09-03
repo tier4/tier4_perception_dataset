@@ -10,6 +10,9 @@ import time
 from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
+import accelerated_image_processor.decompression as aip_decompression
+from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
+
 try:
     from autoware_sensing_msgs.msg import ConcatenatedPointCloudInfo
 
@@ -277,6 +280,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         else:
             self._vehicle_status_handler = None
 
+        # video decompressor (only used if the input bag contains compressed video)
+        self._video_decompressor = aip_decompression.create_decompressor(
+            aip_decompression.DecompressionType.VIDEO
+        )
+
     def _make_optional_ins_handler(self, params: Rosbag2ConverterParams) -> Optional[INSHandler]:
         topic_mapping = INSHandler.get_topic_mapping(params.ins_topic_mapping)
         missing_topics = [
@@ -447,7 +455,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         zipped_output_path: str | None = None
         zipped_input_path: str | None = None
         if not self._without_compress:
-            (zipped_output_path, zipped_input_path) = self._compress_directory()
+            zipped_output_path, zipped_input_path = self._compress_directory()
         return Rosbag2ToNonAnnotatedT4ConverterOutputItem(
             uncompressed_output_path=self._output_scene_dir,
             zipped_output_path=zipped_output_path,
@@ -1057,7 +1065,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             # Get image shape
             temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
-            image_shape = rosbag2_utils.compressed_msg_to_numpy(temp_image_msg).shape
+            decoded_image = rosbag2_utils.decode_image_msg(
+                temp_image_msg, video_decompressor=self._video_decompressor
+            )
+            image_shape = decoded_image.array.shape
 
             # Save image
             sample_data_token_list: List[str] = []
@@ -1161,7 +1172,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                         f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}"
                     )
                     sample_data_token = self._generate_image_data(
-                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                        image_msg,
                         image_unix_timestamp,
                         sample_token,
                         calibrated_sensor_token,
@@ -1204,7 +1215,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _generate_image_data(
         self,
-        image_arr: Union[np.ndarray, CompressedImage],
+        image_arr: Union[np.ndarray, CompressedImage, FFMPEGPacket],
         image_unix_timestamp: float,
         sample_token: Optional[str],
         calibrated_sensor_token: str,
@@ -1219,10 +1230,35 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp)
         )
 
-        fileformat = EXTENSION_ENUM.JPG.value[1:]  # Note: png for all images
+        fileformat = EXTENSION_ENUM.JPG.value[1:]
+        output_image: Optional[np.ndarray] = None
+        output_image_bytes: Optional[bytes] = None
+
         filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
         if hasattr(image_arr, "shape"):
             image_shape = image_arr.shape
+            output_image = image_arr
+        elif isinstance(image_arr, (CompressedImage, FFMPEGPacket)):
+            decoded_image = rosbag2_utils.decode_image_msg(
+                image_arr, video_decompressor=self._video_decompressor
+            )
+            output_image = decoded_image.array
+            fileformat = decoded_image.fileformat
+            if output_image is None:
+                raise ValueError(f"Failed to decode image message: {type(image_arr)}")
+
+            image_shape = output_image.shape
+            filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
+
+            if camera_info is None or not self._undistort_image:
+                if isinstance(image_arr, CompressedImage):
+                    output_image_bytes = image_arr.data
+                    output_image = None
+            else:
+                output_image = cv2.remap(
+                    output_image, self.undistort_map_x, self.undistort_map_y, cv2.INTER_LINEAR
+                )
+
         if sample_token is None:
             is_key_frame = False
         sample_data_token = self._sample_data_table.insert_into_table(
@@ -1244,25 +1280,20 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sample_data_record: SampleData = self._sample_data_table.get_record_from_token(
             sample_data_token
         )
-        if isinstance(image_arr, np.ndarray):
+        if output_image is not None:
+            imwrite_params = []
+            if fileformat == EXTENSION_ENUM.JPG.value[1:]:
+                imwrite_params = [int(cv2.IMWRITE_JPEG_QUALITY), 95]
+
             cv2.imwrite(
                 osp.join(self._output_scene_dir, sample_data_record.filename),
-                image_arr,
-                [int(cv2.IMWRITE_JPEG_QUALITY), 95],
+                output_image,
+                imwrite_params,
             )
-        elif isinstance(image_arr, CompressedImage):
+        elif output_image_bytes is not None:
             output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
-            if camera_info is None or not self._undistort_image:
-                # save compressed image as is
-                with open(output_image_path, "xb") as fw:
-                    fw.write(image_arr.data)
-            else:
-                # load image and undistort
-                image = rosbag2_utils.compressed_msg_to_numpy(image_arr)
-                image = cv2.remap(
-                    image, self.undistort_map_x, self.undistort_map_y, cv2.INTER_LINEAR
-                )
-                cv2.imwrite(output_image_path, image)
+            with open(output_image_path, "xb") as fw:
+                fw.write(output_image_bytes)
 
         return sample_data_token
 
