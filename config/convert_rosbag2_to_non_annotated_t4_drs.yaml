@@ -10,6 +10,8 @@ conversion:
   num_load_frames: 0 # Maximum number of frames to save as t4 data. Set to 0 to automatically set it based on the number of lidar topics.
   accept_frame_drop: true # If true, the conversion will continue even if the LiDAR frame is dropped.
   undistort_image: true # If true, the camera image will be undistorted.
+  jpeg_quality: 95 # JPEG encoding quality in [1, 100], applied when images are re-encoded.
+  jpeg_optimize: false # If true, enable optimized Huffman tables for smaller files.
   with_ins: true            # whether to use INS messages as a ego state instead of `/tf`
   with_vehicle_status: false # whether to generate `vehicle_state.json`
   # The following configuration is generally not modified unless there are changes to the vehicle sensor configuration.
