@@ -297,7 +297,7 @@ def _decode_ffmpeg_packet(image_msg: FFMPEGPacket, *, video_decompressor: Any) -
     else:
         # The decompressor returns the Boost.Python base Image, whereas to_numpy()
         # is defined by the Python Image wrapper. Invoke the wrapper method explicitly.
-        image_arr = aip_common.Image.to_numpy(decompressed_image)
+        image_arr = decompressed_image.to_numpy()
 
     return DecodedImage(array=image_arr, fileformat=EXTENSION_ENUM.PNG.value[1:])
 

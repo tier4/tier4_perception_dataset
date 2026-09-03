@@ -19,7 +19,7 @@ constraints = [{ name = "typer", specifier = "<0.25" }]
 [[package]]
 name = "accelerated-image-processor"
 version = "0.0.0"
-source = { git = "https://github.com/tier4/accelerated_image_processor?rev=perf%2Fpython%2Fimage-data-conversion#85c8cebd4c80cf4d8246bffab50ee2dc8ae939f6" }
+source = { git = "https://github.com/tier4/accelerated_image_processor?rev=perf%2Fpython%2Fimage-data-conversion#3addc429eaa361c2a2cc7ea14a9393fd53265b36" }
 dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
