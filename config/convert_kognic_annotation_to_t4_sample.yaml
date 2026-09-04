@@ -1,0 +1,22 @@
+task: convert_kognic_annotation_to_t4
+conversion:
+  # Non-annotated T4 dataset to copy from (same pattern as convert_deepen_to_t4).
+  # Each scene is copied to output_base and annotated there (--overwrite to replace).
+  # May be a single scene dir or a parent dir of scene dirs.
+  input_base: ./data/non_annotated_t4_format
+  # Annotated T4 dataset destination.
+  output_base: ./data/t4_format
+  # Optional: directory holding one rosbag dir per scene (<input_bag_base>/<scene>).
+  # When set, a time/topic filtered copy is written into each scene as input_bag/.
+  # input_bag_base: ./data/rosbag2
+  # Optional: topic list yaml used to filter the rosbag (see config/topic_list_sample.yaml).
+  # topic_list: ./config/topic_list_sample.yaml
+  # Directory holding the downloaded OpenLABEL JSON(s) (output of download_kognic_annotation).
+  # Files are matched to scenes by filename stem and by OpenLABEL metadata (dataset_id / scene_uuid).
+  annotation_base: ./data/kognic_annotations
+  # Must match the flag used at download time: true → cuboids in ISO8855 frame, false → Kognic internal frame.
+  iso_rotated_cuboids: false
+  # Optional: rename Kognic object types to T4 category names, e.g. {car: vehicle.car}.
+  # category_map: {}
+  # Whether to import class properties (vehicle_state, occlusion_state, ...) as T4 attributes.
+  include_attributes: true
