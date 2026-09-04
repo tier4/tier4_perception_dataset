@@ -1,6 +1,7 @@
 import enum
 from typing import Dict, List, Optional, Union
 
+import numpy as np
 from pydantic import BaseModel, field_validator, model_validator
 import yaml
 
@@ -112,6 +113,8 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     scene_description: str = ""  # scene description
     accept_frame_drop: bool = False  # whether to accept frame drop
     undistort_image: bool = False  # whether to undistort image
+    jpeg_quality: int = 95  # 1-100
+    jpeg_optimize: bool = False  # must default False: pixel-identical but byte-different
     make_t4_dataset_dir: bool = True  # whether to make t4 dataset directory
 
     # rosbag data type
@@ -196,6 +199,22 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
         if v < 1:
             logger.warning("workers_number must be positive, replaced to 1.")
             v = 1
+        return v
+
+    @field_validator("jpeg_quality", mode="before")
+    def reject_jpeg_quality_bool(cls, v):
+        if isinstance(v, (bool, np.bool_)):
+            raise ValueError("jpeg_quality must be an integer, not a boolean")
+        return v
+
+    @field_validator("jpeg_quality")
+    def check_jpeg_quality(cls, v):
+        if v < 1:
+            logger.warning(f"jpeg_quality must be in [1, 100], got {v}, replaced to 1.")
+            v = 1
+        elif v > 100:
+            logger.warning(f"jpeg_quality must be in [1, 100], got {v}, replaced to 100.")
+            v = 100
         return v
 
     @field_validator("skip_timestamp")
