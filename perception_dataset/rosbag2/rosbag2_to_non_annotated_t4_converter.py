@@ -468,9 +468,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             "--------------------------------------------------------------------------------------------------------------------------"
         )
 
-    def _write_jpeg(
-        self, output_path: str, image: np.ndarray, *, legacy_no_params: bool
-    ) -> None:
+    def _write_jpeg(self, output_path: str, image: np.ndarray, *, legacy_no_params: bool) -> None:
         if legacy_no_params and self._jpeg_quality == 95 and not self._jpeg_optimize:
             cv2.imwrite(output_path, image)
             return

@@ -10,7 +10,6 @@ from perception_dataset.rosbag2.converter_params import (
     Rosbag2ConverterParams,
 )
 
-
 CONVERTER_PARAMS_LOGGER = "perception_dataset.rosbag2.converter_params"
 
 
