@@ -17,6 +17,7 @@ from perception_dataset.kognic.utils import (
     read_image_dims,
 )
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.misc import MAX_ANNOTATION_HZ, validate_annotation_hz
 from perception_dataset.utils.pointcloud import (
     copy_file,
     extract_pointclouds,
@@ -69,14 +70,18 @@ class T4ToKognicConverter(AbstractConverter[None]):
             drop_camera_token_not_found (bool): Whether to omit missing camera
                 frames instead of writing blank images.
             annotated (bool): Whether the source carries T4 annotations.
-            annotation_hz (int): Keyframe frequency for non-annotated data.
+            annotation_hz (int): Keyframe frequency for non-annotated data, in
+                ``1..10``.
+
+        Raises:
+            ValueError: If ``annotation_hz`` is outside ``1..10``.
         """
         super().__init__(input_base, output_base)
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
         self._annotated = annotated
-        self._annotation_hz = annotation_hz
+        self._annotation_hz = validate_annotation_hz(annotation_hz)
         # Cache one blank black image per camera, sized to that camera's frames,
         # reused for every frame that is missing an image (see
         # ``_write_blank_image``).
@@ -276,7 +281,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 in self._annotated_sample_tokens
             ]
         else:
-            step = max(1, int(10 / self._annotation_hz))
+            step = int(MAX_ANNOTATION_HZ / self._annotation_hz)
             selected_samples = {
                 sample.token
                 for sample_index, sample in enumerate(self._samples)
