@@ -43,10 +43,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
     ``keyframes.json`` holds the staging frame indices of the keyframes; the
     uploader marks exactly those frames ``annotate=True`` instead of walking a
     fixed ``target_hz`` grid. For annotated datasets (``annotated=True``) the
-    keyframes are the T4 keyframes (``sample_data.is_key_frame``). Non-annotated
-    datasets mark every frame ``is_key_frame=True``, so their keyframes are
-    instead selected by sample index at ``annotation_hz``, matching the
-    non-annotated T4 -> Deepen converter.
+    keyframes are the frames whose sample carries at least one
+    ``sample_annotation``. Non-annotated datasets have no annotations, so their
+    keyframes are instead selected by sample index at ``annotation_hz``,
+    matching the non-annotated T4 -> Deepen converter.
     """
 
     def __init__(
@@ -68,8 +68,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
             workers_number (int): Number of image-copy worker threads.
             drop_camera_token_not_found (bool): Whether to omit missing camera
                 frames instead of writing blank images.
-            annotated (bool): Whether the source contains meaningful T4
-                keyframe flags.
+            annotated (bool): Whether the source carries T4 annotations.
             annotation_hz (int): Keyframe frequency for non-annotated data.
         """
         super().__init__(input_base, output_base)
@@ -189,6 +188,12 @@ class T4ToKognicConverter(AbstractConverter[None]):
         samples = t4.get_table("sample")
         self._samples = sorted(samples, key=lambda s: s.timestamp)
 
+        self._annotated_sample_tokens: Set[str] = set()
+        if self._annotated:
+            self._annotated_sample_tokens = {
+                annotation.sample_token for annotation in t4.get_table("sample_annotation")
+            }
+
         self._sample_data_by_channel: Dict[str, list] = {}
         self._sample_data_by_channel_and_frame_id: Dict[str, Dict[str, object]] = {}
         for sd in t4.get_table("sample_data"):
@@ -249,13 +254,13 @@ class T4ToKognicConverter(AbstractConverter[None]):
         ``frame_count`` lets it detect a stale file after the staging data
         changed.
 
-        Annotated datasets: a frame is a keyframe when its anchor
-        ``sample_data`` record has ``is_key_frame`` set.
+        Annotated datasets: a frame is a keyframe when its sample carries at
+        least one ``sample_annotation``.
 
-        Non-annotated datasets: ``is_key_frame`` is uninformative (the rosbag
-        converter sets it on every frame), so keyframes are selected by sample
-        index at ``annotation_hz``, with the same logic as the non-annotated
-        T4 -> Deepen converter (every ``int(10 / annotation_hz)``-th sample).
+        Non-annotated datasets: there are no annotations to key off, so
+        keyframes are selected by sample index at ``annotation_hz``, with the
+        same logic as the non-annotated T4 -> Deepen converter (every
+        ``int(10 / annotation_hz)``-th sample).
 
         Args:
             out_dir (Path): Destination staging directory.
@@ -267,7 +272,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
             keyframe_indices = [
                 idx
                 for idx, frame_record in enumerate(self._frame_records)
-                if getattr(frame_record.get(self._anchor_channel), "is_key_frame", False)
+                if getattr(frame_record.get(self._anchor_channel), "sample_token", None)
+                in self._annotated_sample_tokens
             ]
         else:
             step = max(1, int(10 / self._annotation_hz))
