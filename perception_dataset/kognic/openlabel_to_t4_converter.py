@@ -177,7 +177,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         Raises:
             ValueError: If input and output resolve to the same scene, or an
-                output exists while overwrite mode is disabled.
+                output exists while overwrite mode is disabled, or overwriting
+                the output would delete a directory containing the source scene.
         """
         input_base = Path(self._input_base).resolve()
         scene_dir = scene_dir.resolve()
@@ -193,6 +194,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             logger.warning(f"{output_dir} already exists.")
             if not self._overwrite_mode:
                 raise ValueError("If you want to overwrite files, use --overwrite option.")
+            if scene_dir.is_relative_to(output_dir.resolve()):
+                raise ValueError(
+                    f"Cannot overwrite output directory {output_dir}: it contains "
+                    f"the source scene {scene_dir}; overwriting would delete the source."
+                )
         shutil.rmtree(output_dir, ignore_errors=True)
         self._copy_data(scene_dir, output_dir)
 
