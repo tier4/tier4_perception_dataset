@@ -148,15 +148,16 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             return
 
         for scene_dir in scenes:
-            openlabel_path = self._match_openlabel(scene_dir, openlabels)
-            if openlabel_path is None:
+            annotation_paths = self._match_openlabels(scene_dir, openlabels)
+            if not annotation_paths:
                 logger.warning(
                     f"No matching OpenLABEL annotation for scene {scene_dir.name}; skipping"
                 )
                 continue
 
             output_dir = self._prepare_output_scene(scene_dir)
-            self._convert_one_scene(output_dir, openlabel_path)
+            for openlabel_path in annotation_paths:
+                self._convert_one_scene(output_dir, openlabel_path)
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
 
@@ -324,15 +325,24 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         }
         return sorted(scenes)
 
-    def _index_openlabels(self) -> Dict[str, Path]:
+    def _index_openlabels(self) -> Dict[str, List[Path]]:
         """Index OpenLABEL files by plausible scene identifiers.
 
+        A scene sometimes has several annotations (e.g. one cuboid and one
+        semseg request), so each identifier maps to every file claiming it
+        rather than to the first one seen.
+
         Returns:
-            Dict[str, Path]: Annotation paths keyed by file and metadata IDs.
+            Dict[str, List[Path]]: Annotation paths keyed by file and metadata IDs.
         """
-        index: Dict[str, Path] = {}
+        index: Dict[str, List[Path]] = {}
         if not self._annotation_base.exists():
             return index
+
+        def add(key: str, path: Path) -> None:
+            paths = index.setdefault(key, [])
+            if path not in paths:
+                paths.append(path)
 
         files = (
             [self._annotation_base]
@@ -340,17 +350,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             else sorted(self._annotation_base.rglob("*.json"))
         )
         for path in files:
-            index.setdefault(path.stem, path)
+            add(path.stem, path)
             metadata = self._read_metadata(path)
             for key in ("dataset_id", "source_filename", "scene_uuid", "input_external_id"):
                 value = metadata.get(key)
                 if value:
-                    index.setdefault(str(value), path)
+                    add(str(value), path)
             scene_metadata = metadata.get("scene_metadata") or {}
             for key in ("dataset_id", "source_filename", "inner_uuid"):
                 value = scene_metadata.get(key)
                 if value:
-                    index.setdefault(str(value), path)
+                    add(str(value), path)
         return index
 
     @staticmethod
@@ -369,8 +379,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         except (json.JSONDecodeError, OSError):
             return {}
 
-    def _match_openlabel(self, scene_dir: Path, openlabels: Dict[str, Path]) -> Optional[Path]:
-        """Match a scene to its OpenLABEL file by the scene dir name or any of
+    def _match_openlabels(self, scene_dir: Path, openlabels: Dict[str, List[Path]]) -> List[Path]:
+        """Match a scene to its OpenLABEL files by the scene dir name or any of
         its ancestor dir names up to the dataset root.
 
         T4 datasets are commonly nested as ``<root>/<scene_id>/<version>/``,
@@ -379,19 +389,68 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         Args:
             scene_dir (Path): T4 scene directory.
-            openlabels (Dict[str, Path]): Indexed OpenLABEL paths.
+            openlabels (Dict[str, List[Path]]): Indexed OpenLABEL paths.
 
         Returns:
-            Optional[Path]: Matching OpenLABEL path, if found.
+            List[Path]: One annotation per type, boxes first.
         """
         root = Path(self._input_base).resolve()
         current = scene_dir.resolve()
         while True:
             if current.name in openlabels:
-                return openlabels[current.name]
+                return self._select_by_type(scene_dir, openlabels[current.name])
             if current == root or current.parent == current:
-                return None
+                return []
             current = current.parent
+
+    def _select_by_type(self, scene_dir: Path, candidates: List[Path]) -> List[Path]:
+        """Reduce candidate annotations to one per annotation type.
+
+        Boxes are applied before segmentation so the box categories seed
+        ``category.json`` before the ontology classes extend it. Competing
+        files of the same type have no defined precedence, so that type is
+        skipped and the caller is told to name one explicitly.
+
+        Args:
+            scene_dir (Path): T4 scene the candidates were matched to.
+            candidates (List[Path]): Annotation paths claiming this scene.
+
+        Returns:
+            List[Path]: Selected annotation paths in application order.
+        """
+        by_type: Dict[str, List[Path]] = {}
+        for path in candidates:
+            by_type.setdefault(self._annotation_type(path), []).append(path)
+
+        selected: List[Path] = []
+        for annotation_type in ("boxes", "segmentation"):
+            paths = by_type.get(annotation_type, [])
+            if len(paths) > 1:
+                logger.error(
+                    f"Scene {scene_dir.name} matches {len(paths)} {annotation_type} "
+                    f"annotations ({', '.join(p.name for p in paths)}); skipping this type. "
+                    f"Point annotation_base at a single file to choose one."
+                )
+                continue
+            selected.extend(paths)
+        return selected
+
+    @staticmethod
+    def _annotation_type(path: Path) -> str:
+        """Classify an OpenLABEL file as boxes or segmentation.
+
+        Args:
+            path (Path): OpenLABEL JSON path.
+
+        Returns:
+            str: ``"segmentation"`` or ``"boxes"``.
+        """
+        try:
+            with open(path) as f:
+                openlabel = json.load(f).get("openlabel", {})
+        except (json.JSONDecodeError, OSError):
+            return "boxes"
+        return "segmentation" if _is_segmentation(openlabel) else "boxes"
 
     # ------------------------------------------------------------------
     # Scene conversion
