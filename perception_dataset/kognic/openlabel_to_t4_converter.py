@@ -497,9 +497,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         OpenLABEL frames carry their lidar stream ``uri``, whose stem is the
         absolute-ns capture timestamp of the exported cloud. For a fused
-        ``LIDAR_CONCAT`` upload that is the sample timestamp, but a per-sensor
-        split upload uses each source's own stamp, which can sit tens of
-        milliseconds away; both are therefore indexed onto the same sample.
+        ``LIDAR_CONCAT`` upload that is the ``sample_data`` timestamp, but a
+        per-sensor split upload uses each source's own stamp, which can sit tens
+        of milliseconds away; both are therefore indexed onto the same sample.
 
         Args:
             scene_dir (Path): T4 scene directory.
@@ -518,33 +518,78 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         lidar_channel = select_lidar_channel(sensor, channel_by_calib, sample_data)
         ego_pose_by_token = {ep["token"]: ep for ep in ego_pose}
 
-        ego_pose_by_sample: Dict[str, dict] = {}
+        lidar_sd_by_sample = self._select_lidar_sample_data(
+            sample, sample_data, channel_by_calib, lidar_channel
+        )
+        entry_by_sample = {
+            sample_token: (sample_token, ego_pose_by_token.get(record["ego_pose_token"]))
+            for sample_token, record in lidar_sd_by_sample.items()
+        }
+        # ``extract_pointclouds`` names the exported cloud after
+        # ``sample_data.timestamp``, so keying on that record makes the match
+        # bit-exact; ``sample.timestamp`` is only an alias for it.
+        by_timestamp_us = {
+            record["timestamp"]: entry_by_sample[sample_token]
+            for sample_token, record in lidar_sd_by_sample.items()
+        }
+        for s in sample:
+            if s["token"] in entry_by_sample:
+                by_timestamp_us.setdefault(s["timestamp"], entry_by_sample[s["token"]])
+        self._index_source_timestamps(
+            scene_dir, lidar_sd_by_sample, entry_by_sample, by_timestamp_us
+        )
+        return _SampleIndex(by_timestamp_us, lidar_sd_by_sample), lidar_channel
+
+    @staticmethod
+    def _select_lidar_sample_data(
+        sample: List[dict],
+        sample_data: List[dict],
+        channel_by_calib: Dict[str, Optional[str]],
+        lidar_channel: str,
+    ) -> Dict[str, dict]:
+        """Resolve the one lidar ``sample_data`` record backing each sample.
+
+        A sample owns its keyframe record *and* the intermediate sweeps that
+        follow it, all sharing its ``sample_token``. The keyframe is the record
+        whose timestamp is the sample's; ``is_key_frame`` breaks the tie when no
+        timestamp matches. A sample whose record cannot be pinned down is left
+        out of the index rather than resolved by table order, since the sweeps
+        of one sample can be metres apart.
+
+        Args:
+            sample (List[dict]): Sample table records.
+            sample_data (List[dict]): Sample-data table records.
+            channel_by_calib (Dict[str, Optional[str]]): Calibrated-sensor token
+                to channel mapping.
+            lidar_channel (str): Lidar channel to resolve.
+
+        Returns:
+            Dict[str, dict]: Lidar sample-data record keyed by sample token.
+        """
+        records_by_sample: Dict[str, List[dict]] = {}
         for record in sample_data:
             if channel_by_calib.get(record["calibrated_sensor_token"]) == lidar_channel:
-                ego_pose_by_sample[record["sample_token"]] = ego_pose_by_token.get(
-                    record["ego_pose_token"]
-                )
+                records_by_sample.setdefault(record["sample_token"], []).append(record)
 
-        entry_by_sample = {
-            s["token"]: (s["token"], ego_pose_by_sample.get(s["token"])) for s in sample
-        }
-        by_timestamp_us = {s["timestamp"]: entry_by_sample[s["token"]] for s in sample}
-        self._index_source_timestamps(
-            scene_dir,
-            sample_data,
-            channel_by_calib,
-            lidar_channel,
-            entry_by_sample,
-            by_timestamp_us,
-        )
-        return _SampleIndex(by_timestamp_us), lidar_channel
+        selected: Dict[str, dict] = {}
+        for s in sample:
+            candidates = records_by_sample.get(s["token"], [])
+            exact = [r for r in candidates if r["timestamp"] == s["timestamp"]]
+            if len(exact) != 1:
+                exact = [r for r in candidates if r.get("is_key_frame")]
+            if len(exact) != 1:
+                logger.warning(
+                    f"Sample {s['token']} has {len(candidates)} {lidar_channel} sample_data "
+                    f"record(s) and no unambiguous keyframe; excluding it from the frame index"
+                )
+                continue
+            selected[s["token"]] = exact[0]
+        return selected
 
     @staticmethod
     def _index_source_timestamps(
         scene_dir: Path,
-        sample_data: List[dict],
-        channel_by_calib: Dict[str, Optional[str]],
-        lidar_channel: str,
+        lidar_sd_by_sample: Dict[str, dict],
         entry_by_sample: Dict[str, Tuple[str, Optional[dict]]],
         by_timestamp_us: Dict[int, Tuple[str, Optional[dict]]],
     ) -> None:
@@ -558,10 +603,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         Args:
             scene_dir (Path): T4 scene directory.
-            sample_data (List[dict]): Sample-data table records.
-            channel_by_calib (Dict[str, Optional[str]]): Calibrated-sensor token
-                to channel mapping.
-            lidar_channel (str): Fused lidar channel carrying the concat info.
+            lidar_sd_by_sample (Dict[str, dict]): Selected lidar sample-data
+                record keyed by sample token.
             entry_by_sample (Dict[str, Tuple[str, Optional[dict]]]): Index entry
                 keyed by sample token.
             by_timestamp_us (Dict[int, Tuple[str, Optional[dict]]]): Timestamp
@@ -570,11 +613,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Returns:
             None
         """
-        for record in sample_data:
-            if channel_by_calib.get(record["calibrated_sensor_token"]) != lidar_channel:
-                continue
+        for sample_token, record in lidar_sd_by_sample.items():
             info_filename = record.get("info_filename")
-            entry = entry_by_sample.get(record["sample_token"])
+            entry = entry_by_sample.get(sample_token)
             if not info_filename or entry is None:
                 continue
             info_path = scene_dir / info_filename
@@ -840,12 +881,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         # per-instance classification_ids rather than ontology ids).
         value_map = _segmentation_value_map(openlabel, ontology)
 
-        # Lidar sample_data record keyed by the sample it belongs to.
-        lidar_sd_by_sample: Dict[str, dict] = {
-            sd["sample_token"]: sd
-            for sd in self._load_table(scene_dir, "sample_data.json")
-            if lidar_channel in sd["filename"]
-        }
+        lidar_sd_by_sample = sample_index.sample_data_by_sample
 
         category_table = self._load_category_table(scene_dir)
         # Reserve index 0 for points the annotator left unlabelled. Skip names
@@ -1154,14 +1190,21 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
 @dataclass
 class _SampleIndex:
-    """Resolve an OpenLABEL frame to its T4 (sample_token, ego_pose)."""
+    """Resolve an OpenLABEL frame to its T4 (sample_token, ego_pose).
+
+    Both the ego pose and ``sample_data_by_sample`` are derived from the same
+    resolved lidar record, so poses and point clouds cannot disagree.
+    """
 
     by_timestamp_us: Dict[int, Tuple[str, Optional[dict]]]
+    sample_data_by_sample: Dict[str, dict]
 
-    # Max |Δ| (µs) between an OpenLABEL capture time and a T4 sample timestamp
-    # still treated as the same frame. T4 sample timestamps are produced via a
-    # lossy float64 path (``int((sec + nanosec * 1e-9) * 1e6)``), so the µs value
-    # can differ from a direct ns->µs conversion by ~1; 1 ms is far below the
+    # Max |Δ| (µs) between an OpenLABEL capture time and an indexed timestamp
+    # still treated as the same frame. A fused-upload uri matches its
+    # ``sample_data`` key exactly, but per-source stamps are converted from
+    # ``{sec, nanosec}`` and T4 timestamps come from a lossy float64 path
+    # (``int((sec + nanosec * 1e-9) * 1e6)``), so the µs value can differ by ~1;
+    # 1 ms is far below the
     # ~100 ms frame period yet absorbs that rounding error.
     _MATCH_TOLERANCE_US = 1000
 
