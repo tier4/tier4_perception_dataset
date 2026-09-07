@@ -24,9 +24,10 @@ Point-cloud segmentation (``3DPointCloudSegmentation`` / ``semseg``)
     (``#<count>V<class_id>``); a trailing run of unlabelled points omitted by the
     RLE is restored as ``background`` (0) and appended at the end.
 
-OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp
-(authoritative when present; the frame ``external_id`` is a positional fallback
-only when no timestamp is available).
+OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp.
+Uploads that split ``LIDAR_CONCAT`` into per-sensor streams name their files
+with each source sensor's own capture stamp, so those stamps are indexed from
+``LIDAR_CONCAT_INFO`` alongside the sample timestamps.
 
 Like ``DeepenToT4Converter``, each scene is first copied from the
 non-annotated dataset (``input_base``) into ``output_base`` and the
@@ -76,7 +77,7 @@ from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
-from perception_dataset.utils.pointcloud import detect_point_stride
+from perception_dataset.utils.pointcloud import detect_point_stride, stamp_to_ns
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     select_lidar_channel,
@@ -494,11 +495,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     def _build_sample_index(self, scene_dir: Path) -> Tuple["_SampleIndex", str]:
         """Index T4 samples by lidar timestamp so OpenLABEL frames can be matched.
 
-        OpenLABEL frames carry their lidar stream ``uri`` (the absolute-ns
-        capture timestamp) and an ``external_id`` (original scene frame index).
-        Annotation requests often cover only a subsampled set of scene frames,
-        so a positional ``frame k -> sample k`` mapping is unsafe; matching by
-        timestamp (with external-id as a fallback) is exact.
+        OpenLABEL frames carry their lidar stream ``uri``, whose stem is the
+        absolute-ns capture timestamp of the exported cloud. For a fused
+        ``LIDAR_CONCAT`` upload that is the sample timestamp, but a per-sensor
+        split upload uses each source's own stamp, which can sit tens of
+        milliseconds away; both are therefore indexed onto the same sample.
 
         Args:
             scene_dir (Path): T4 scene directory.
@@ -524,12 +525,70 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                     record["ego_pose_token"]
                 )
 
-        ordered = sorted(sample, key=lambda s: s["timestamp"])
-        by_timestamp_us = {
-            s["timestamp"]: (s["token"], ego_pose_by_sample.get(s["token"])) for s in ordered
+        entry_by_sample = {
+            s["token"]: (s["token"], ego_pose_by_sample.get(s["token"])) for s in sample
         }
-        by_order = [(s["token"], ego_pose_by_sample.get(s["token"])) for s in ordered]
-        return _SampleIndex(by_timestamp_us, by_order), lidar_channel
+        by_timestamp_us = {s["timestamp"]: entry_by_sample[s["token"]] for s in sample}
+        self._index_source_timestamps(
+            scene_dir,
+            sample_data,
+            channel_by_calib,
+            lidar_channel,
+            entry_by_sample,
+            by_timestamp_us,
+        )
+        return _SampleIndex(by_timestamp_us), lidar_channel
+
+    @staticmethod
+    def _index_source_timestamps(
+        scene_dir: Path,
+        sample_data: List[dict],
+        channel_by_calib: Dict[str, Optional[str]],
+        lidar_channel: str,
+        entry_by_sample: Dict[str, Tuple[str, Optional[dict]]],
+        by_timestamp_us: Dict[int, Tuple[str, Optional[dict]]],
+    ) -> None:
+        """Add each concat source's own capture stamp to the timestamp index.
+
+        ``extract_pointclouds`` names a per-sensor CSV after that sensor's
+        ``LIDAR_CONCAT_INFO`` stamp, which is offset from the fused sweep's
+        timestamp by up to a large fraction of the frame period. Mapping those
+        stamps back onto their concat sample keeps the match exact instead of
+        relying on a tolerance wide enough to hit a neighbouring sweep.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            sample_data (List[dict]): Sample-data table records.
+            channel_by_calib (Dict[str, Optional[str]]): Calibrated-sensor token
+                to channel mapping.
+            lidar_channel (str): Fused lidar channel carrying the concat info.
+            entry_by_sample (Dict[str, Tuple[str, Optional[dict]]]): Index entry
+                keyed by sample token.
+            by_timestamp_us (Dict[int, Tuple[str, Optional[dict]]]): Timestamp
+                index updated in place.
+
+        Returns:
+            None
+        """
+        for record in sample_data:
+            if channel_by_calib.get(record["calibrated_sensor_token"]) != lidar_channel:
+                continue
+            info_filename = record.get("info_filename")
+            entry = entry_by_sample.get(record["sample_token"])
+            if not info_filename or entry is None:
+                continue
+            info_path = scene_dir / info_filename
+            if not info_path.exists():
+                logger.warning(f"LIDAR_CONCAT_INFO is missing: {info_path}")
+                continue
+            with open(info_path) as f:
+                sources = json.load(f).get("sources", [])
+            for source in sources:
+                ts_ns = stamp_to_ns(source.get("stamp"))
+                if not ts_ns:
+                    continue
+                # setdefault: a real sample timestamp always wins a collision.
+                by_timestamp_us.setdefault(round(ts_ns / 1000), entry)
 
     # ------------------------------------------------------------------
     # Geometry
@@ -1098,7 +1157,6 @@ class _SampleIndex:
     """Resolve an OpenLABEL frame to its T4 (sample_token, ego_pose)."""
 
     by_timestamp_us: Dict[int, Tuple[str, Optional[dict]]]
-    by_order: List[Tuple[str, Optional[dict]]]
 
     # Max |Δ| (µs) between an OpenLABEL capture time and a T4 sample timestamp
     # still treated as the same frame. T4 sample timestamps are produced via a
@@ -1122,16 +1180,13 @@ class _SampleIndex:
         Returns:
             Optional[Tuple[str, dict]]: Sample token and ego pose, if matched.
         """
-        # The lidar uri timestamp is the ground truth: when present it is
-        # authoritative, so a frame whose capture time has no nearby sample is
-        # genuinely unmatched (e.g. annotation and point clouds from different
-        # recordings). Only fall back to the positional external_id when no
-        # usable timestamp is available, since that mapping is unreliable.
+        # The lidar uri timestamp is the only ground truth: a frame whose
+        # capture time has no nearby sample is genuinely unmatched (e.g.
+        # annotation and point clouds from different recordings).
         ts_ns = self._uri_timestamp_ns(frame, lidar_channel)
-        if ts_ns is not None:
-            candidate = self._nearest(round(ts_ns / 1000))
-        else:
-            candidate = self._by_external_id(frame)
+        if ts_ns is None:
+            return None
+        candidate = self._nearest(round(ts_ns / 1000))
         if candidate is None or candidate[1] is None:
             return None
         return candidate  # type: ignore[return-value]
@@ -1195,22 +1250,6 @@ class _SampleIndex:
         if best is None or abs(best - ts_us) > self._MATCH_TOLERANCE_US:
             return None
         return self.by_timestamp_us[best]
-
-    def _by_external_id(self, frame: dict) -> Optional[Tuple[str, Optional[dict]]]:
-        """Match a frame by its positional external ID.
-
-        Args:
-            frame (dict): OpenLABEL frame mapping.
-
-        Returns:
-            Optional[Tuple[str, Optional[dict]]]: Sample token and ego pose.
-        """
-        external_id = frame.get("frame_properties", {}).get("external_id")
-        try:
-            idx = int(external_id)
-        except (TypeError, ValueError):
-            return None
-        return self.by_order[idx] if 0 <= idx < len(self.by_order) else None
 
 
 def _parse_uri_timestamp_ns(uri: str) -> Optional[int]:
