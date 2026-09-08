@@ -1,0 +1,274 @@
+# syntax=docker/dockerfile:1.7
+ARG ROS_DISTRO=humble
+
+FROM ros:${ROS_DISTRO}-ros-base AS builder
+
+SHELL ["/bin/bash", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive
+ARG ROS_DISTRO
+ENV ROS_DISTRO=${ROS_DISTRO}
+ENV WORKSPACE=/opt/t4_ws
+ENV UV_PROJECT_ENVIRONMENT=/opt/t4_ws/.venv
+ENV UV_LINK_MODE=copy
+ENV UV_NO_SYNC=1
+
+ARG AUTOWARE_REPO
+ARG AUTOWARE_REF
+ARG AIP_LAUNCHER_REPO
+ARG AIP_LAUNCHER_REF
+ARG NEBULA_REPO
+ARG NEBULA_REF
+ARG INDIVIDUAL_PARAMS_REPO
+ARG INDIVIDUAL_PARAMS_REF
+ARG T4_DEVKIT_REPO
+ARG T4_DEVKIT_REF
+ARG TIER4_PERCEPTION_DATASET_REPO
+ARG TIER4_PERCEPTION_DATASET_REF
+ARG CONVERTER_REF=local
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    git \
+    libboost-dev \
+    libcgal-dev \
+    libeigen3-dev \
+    libopencv-dev \
+    libpcl-dev \
+    libpng-dev \
+    nlohmann-json3-dev \
+    openssh-client \
+    pybind11-dev \
+    python3-colcon-common-extensions \
+    python3-dev \
+    python3-pip \
+    python3-rosdep \
+    python3-vcstool \
+    python3-venv \
+    python3-yaml \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN <<'EOF'
+set -euo pipefail
+
+if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then
+  rosdep init
+fi
+
+for attempt in 1 2 3; do
+  if rosdep update --rosdistro "${ROS_DISTRO}"; then
+    exit 0
+  fi
+  echo "rosdep update failed on attempt ${attempt}; retrying..." >&2
+  sleep $((attempt * 5))
+done
+
+rosdep update --rosdistro "${ROS_DISTRO}" --verbose
+EOF
+
+RUN python3 -m pip install --no-cache-dir --break-system-packages uv || \
+    python3 -m pip install --no-cache-dir uv
+
+WORKDIR ${WORKSPACE}
+RUN mkdir -p src
+
+COPY pyproject.toml ./pyproject.toml
+COPY package.xml setup.py setup.cfg ./src/tier4_perception_dataset/rosbag_converter/
+COPY resource ./src/tier4_perception_dataset/rosbag_converter/resource
+COPY t4dataset_rosbag_converter ./src/tier4_perception_dataset/rosbag_converter/t4dataset_rosbag_converter
+COPY docs ./src/tier4_perception_dataset/rosbag_converter/docs
+COPY docker/runtime_python_requirements.txt /tmp/runtime_python_requirements.txt
+
+RUN --mount=type=ssh <<'EOF'
+set -euo pipefail
+
+mkdir -p "${HOME}/.ssh"
+chmod 700 "${HOME}/.ssh"
+ssh-keyscan github.com >> "${HOME}/.ssh/known_hosts"
+chmod 600 "${HOME}/.ssh/known_hosts"
+
+clone_checkout() {
+  local repo="$1"
+  local ref="$2"
+  local dest="$3"
+  git -c init.defaultBranch=main init "$dest"
+  git -C "$dest" remote add origin "$repo"
+  if ! git -C "$dest" fetch --depth 1 origin "$ref"; then
+    git -C "$dest" fetch --filter=blob:none origin "$ref" || git -C "$dest" fetch origin "$ref"
+  fi
+  git -C "$dest" -c advice.detachedHead=false checkout FETCH_HEAD
+}
+
+clone_checkout "${AUTOWARE_REPO}" "${AUTOWARE_REF}" src/autoware_universe
+if [[ -f src/autoware_universe/build_depends_stable.repos ]]; then
+  vcs import --skip-existing src < src/autoware_universe/build_depends_stable.repos
+fi
+clone_checkout "${AIP_LAUNCHER_REPO}" "${AIP_LAUNCHER_REF}" src/aip_launcher
+clone_checkout "${NEBULA_REPO}" "${NEBULA_REF}" src/nebula_lib
+clone_checkout "${INDIVIDUAL_PARAMS_REPO}" "${INDIVIDUAL_PARAMS_REF}" src/autoware_individual_params.j6_gen2
+rm -rf src/tier4_perception_dataset/rosbag_converter/*.egg-info
+EOF
+
+RUN <<'EOF'
+set -euo pipefail
+uv venv --python "$(which python3)" "${UV_PROJECT_ENVIRONMENT}"
+uv pip install --python "${UV_PROJECT_ENVIRONMENT}/bin/python" \
+  -r /tmp/runtime_python_requirements.txt \
+  "t4-devkit @ git+${T4_DEVKIT_REPO}@${T4_DEVKIT_REF}"
+uv pip uninstall --python "${UV_PROJECT_ENVIRONMENT}/bin/python" opencv-python || true
+uv pip install --python "${UV_PROJECT_ENVIRONMENT}/bin/python" --reinstall "opencv-python-headless>=4.6,<5"
+uv pip install --python "${UV_PROJECT_ENVIRONMENT}/bin/python" --no-deps \
+  "perception-dataset @ git+${TIER4_PERCEPTION_DATASET_REPO}@${TIER4_PERCEPTION_DATASET_REF}"
+uv pip install --python "${UV_PROJECT_ENVIRONMENT}/bin/python" --no-deps -e src/tier4_perception_dataset/rosbag_converter
+EOF
+
+RUN <<'EOF'
+set -euo pipefail
+set +u
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
+set -u
+
+mapfile -t ROSDEP_PATHS < <(
+  colcon list --paths-only \
+    --packages-up-to \
+      autoware_pcl_extensions \
+      autoware_pointcloud_preprocessor \
+      individual_params \
+      nebula_lib \
+      t4dataset_rosbag_converter
+)
+
+apt-get update
+rosdep install \
+  --from-paths "${ROSDEP_PATHS[@]}" \
+  --ignore-src \
+  --rosdistro "${ROS_DISTRO}" \
+  -y \
+  --skip-keys "ament_python cuda blackfly_camera_driver nebula_common nebula_decoders nebula_msgs"
+rm -rf /var/lib/apt/lists/*
+
+colcon --log-base /tmp/t4dataset_log build \
+  --merge-install \
+  --build-base /tmp/t4dataset_build \
+  --install-base "${WORKSPACE}/install" \
+  --packages-up-to \
+    autoware_pcl_extensions \
+    autoware_pointcloud_preprocessor \
+    individual_params \
+    nebula_lib \
+    t4dataset_rosbag_converter \
+  --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTING=OFF \
+    -DNEBULA_LIB_BUILD_PYTHON=ON
+EOF
+
+RUN <<'EOF'
+set -euo pipefail
+cat > "${WORKSPACE}/provenance.env" <<PROVENANCE
+ROS_DISTRO=${ROS_DISTRO}
+AUTOWARE_REPO=${AUTOWARE_REPO}
+AUTOWARE_REF_REQUESTED=${AUTOWARE_REF}
+AUTOWARE_REF_ACTUAL=$(git -C src/autoware_universe rev-parse HEAD)
+AIP_LAUNCHER_REPO=${AIP_LAUNCHER_REPO}
+AIP_LAUNCHER_REF_REQUESTED=${AIP_LAUNCHER_REF}
+AIP_LAUNCHER_REF_ACTUAL=$(git -C src/aip_launcher rev-parse HEAD)
+NEBULA_REPO=${NEBULA_REPO}
+NEBULA_REF_REQUESTED=${NEBULA_REF}
+NEBULA_REF_ACTUAL=$(git -C src/nebula_lib rev-parse HEAD)
+INDIVIDUAL_PARAMS_REPO=${INDIVIDUAL_PARAMS_REPO}
+INDIVIDUAL_PARAMS_REF_REQUESTED=${INDIVIDUAL_PARAMS_REF}
+INDIVIDUAL_PARAMS_REF_ACTUAL=$(git -C src/autoware_individual_params.j6_gen2 rev-parse HEAD)
+T4_DEVKIT_REPO=${T4_DEVKIT_REPO}
+T4_DEVKIT_REF_REQUESTED=${T4_DEVKIT_REF}
+T4_DEVKIT_REF_ACTUAL=${T4_DEVKIT_REF}
+TIER4_PERCEPTION_DATASET_REPO=${TIER4_PERCEPTION_DATASET_REPO}
+TIER4_PERCEPTION_DATASET_REF_REQUESTED=${TIER4_PERCEPTION_DATASET_REF}
+TIER4_PERCEPTION_DATASET_REF_ACTUAL=${TIER4_PERCEPTION_DATASET_REF}
+CONVERTER_REF=${CONVERTER_REF}
+PROVENANCE
+EOF
+
+RUN <<'EOF'
+set -euo pipefail
+set +u
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
+source "${WORKSPACE}/install/setup.bash"
+set -u
+ros2 run t4dataset_rosbag_converter smoke_imports
+"${WORKSPACE}/.venv/bin/python" -c "from t4dataset_rosbag_converter.writer import T4DatasetWriter"
+"${WORKSPACE}/.venv/bin/t4dataset-rosbag-converter" --help >/tmp/t4dataset_help.txt
+"${WORKSPACE}/.venv/bin/t4dataset-rosbag-converter" \
+  --config src/tier4_perception_dataset/rosbag_converter/docs/sample_config.yaml \
+  --input /tmp \
+  --output /tmp/t4dataset_dry_run \
+  --individual-params-root src/autoware_individual_params.j6_gen2 \
+  --vehicle-id j6_gen2_03 \
+  --sensor-model aip_x2_gen2 \
+  --dry-run
+EOF
+
+FROM ros:${ROS_DISTRO}-ros-base AS runtime
+
+SHELL ["/bin/bash", "-c"]
+ENV DEBIAN_FRONTEND=noninteractive
+ARG ROS_DISTRO
+ENV ROS_DISTRO=${ROS_DISTRO}
+ENV WORKSPACE=/opt/t4_ws
+ENV UV_PROJECT_ENVIRONMENT=/opt/t4_ws/.venv
+ENV UV_LINK_MODE=copy
+ENV UV_NO_SYNC=1
+
+RUN <<'EOF'
+set -euo pipefail
+apt-get update
+apt-get install -y --no-install-recommends \
+  "ros-${ROS_DISTRO}-geographic-msgs" \
+  "ros-${ROS_DISTRO}-pandar-msgs"
+rm -rf /var/lib/apt/lists/*
+EOF
+
+WORKDIR ${WORKSPACE}
+RUN mkdir -p src
+
+COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+COPY --from=builder /usr/local/bin/uvx /usr/local/bin/uvx
+COPY --from=builder ${WORKSPACE}/install ./install
+COPY --from=builder ${WORKSPACE}/.venv ./.venv
+COPY --from=builder ${WORKSPACE}/src/tier4_perception_dataset/rosbag_converter ./src/tier4_perception_dataset/rosbag_converter
+COPY --from=builder ${WORKSPACE}/src/aip_launcher ./src/aip_launcher
+COPY --from=builder ${WORKSPACE}/src/autoware_individual_params.j6_gen2 ./src/autoware_individual_params.j6_gen2
+COPY --from=builder ${WORKSPACE}/provenance.env ./provenance.env
+
+COPY docker/runtime_entrypoint.sh /usr/local/bin/t4dataset_runtime_entrypoint
+RUN chmod +x /usr/local/bin/t4dataset_runtime_entrypoint
+
+RUN <<'EOF'
+set -euo pipefail
+rm -rf \
+  "${WORKSPACE}/src/autoware_individual_params.j6_gen2/.git" \
+  "${WORKSPACE}/src/autoware_individual_params.j6_gen2/.github" \
+  "${WORKSPACE}/src/aip_launcher/.git" \
+  "${WORKSPACE}/src/aip_launcher/.github"
+find "${WORKSPACE}" -type d -name '__pycache__' -prune -exec rm -rf {} +
+find "${WORKSPACE}" -type f -name '*.pyc' -delete
+apt-get clean
+rm -rf /var/lib/apt/lists/* /root/.cache /root/.colcon /root/.ros/log
+EOF
+
+RUN <<'EOF'
+set -euo pipefail
+set +u
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
+source "${WORKSPACE}/install/setup.bash"
+set -u
+ros2 run t4dataset_rosbag_converter smoke_imports
+"${WORKSPACE}/.venv/bin/python" -c "from t4dataset_rosbag_converter.writer import T4DatasetWriter"
+"${WORKSPACE}/.venv/bin/t4dataset-rosbag-converter" --help >/tmp/t4dataset_runtime_help.txt
+rm -f /tmp/t4dataset_runtime_help.txt
+EOF
+
+ENTRYPOINT ["/usr/local/bin/t4dataset_runtime_entrypoint"]
+CMD ["t4dataset-rosbag-converter", "--help"]
