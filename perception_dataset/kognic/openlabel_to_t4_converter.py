@@ -54,7 +54,7 @@ from pathlib import Path
 import re
 import shutil
 import time
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 from t4_devkit.schema.tables import (
@@ -83,6 +83,13 @@ from perception_dataset.utils.t4_tables import (
 )
 
 logger = configure_logger(modname=__name__)
+
+# Points the annotator left unlabelled, plus any point a decoded RLE omits or
+# fails to map, are written as this class. Segmentation owns the low indices so
+# this stays 0 no matter which annotation is imported first.
+BACKGROUND_CATEGORY_NAME = "background"
+BACKGROUND_CATEGORY_INDEX = 0
+BACKGROUND_CATEGORY_DESCRIPTION = "unlabelled / background points"
 
 
 class OpenLabelToT4Converter(AbstractConverter[None]):
@@ -621,8 +628,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         )
         if not category_token:
             # max+1 rather than len(): the seeded table may hold semseg
-            # categories whose indices (ontology ids) are sparse, and a lidarseg
-            # index must never be shared by two categories.
+            # categories whose indices are sparse, and a lidarseg index must
+            # never be shared. A later segmentation import moves this category
+            # again if its ontology needs the index.
             next_index = (
                 max(
                     (r.index for r in tables["category"].to_records() if r.index is not None),
@@ -742,6 +750,108 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     # Point-cloud segmentation (3DPointCloudSegmentation -> T4 lidarseg)
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _assign_segmentation_categories(
+        category_table: TableHandler, ontology: Dict[int, str]
+    ) -> Dict[int, int]:
+        """Reserve the low category indices for segmentation and return the mapping.
+
+        Lidarseg ``.bin`` files store a category ``index`` per point, so those
+        indices must be stable and unique. ``background`` therefore always owns
+        index 0 and each ontology class keeps its ontology id as its index,
+        which holds whether this scene already carries bbox categories or is
+        annotated segmentation-first. Categories outside this ontology (bbox
+        classes, or classes from an earlier ontology) are renumbered above the
+        segmentation block; only ``category.json`` records their index, so
+        moving them cannot invalidate existing annotations.
+
+        Args:
+            category_table (TableHandler): Category table to reconcile in place.
+            ontology (Dict[int, str]): Class names keyed by ontology ID.
+
+        Returns:
+            Dict[int, int]: Ontology ID to assigned T4 category index.
+
+        Raises:
+            ValueError: If an assigned index does not fit in a uint8 label.
+        """
+        # An ontology id of 0 would collide with background, so park it above
+        # the ontology instead of shifting every other class.
+        ceiling = max(ontology)
+        index_by_class_id: Dict[int, int] = {}
+        for class_id in sorted(ontology):
+            if class_id == BACKGROUND_CATEGORY_INDEX:
+                ceiling += 1
+                index_by_class_id[class_id] = ceiling
+            else:
+                index_by_class_id[class_id] = class_id
+
+        reserved: Dict[int, str] = {BACKGROUND_CATEGORY_INDEX: BACKGROUND_CATEGORY_NAME}
+        for class_id, index in index_by_class_id.items():
+            reserved[index] = ontology[class_id]
+
+        if max(reserved) > np.iinfo(np.uint8).max:
+            raise ValueError(
+                f"Segmentation category index {max(reserved)} does not fit in uint8 "
+                f"lidarseg labels"
+            )
+
+        reserved_names = set(reserved.values())
+        existing = list(category_table.to_records())
+        next_free = (
+            max(
+                [max(reserved)] + [r.index for r in existing if r.index is not None],
+            )
+            + 1
+        )
+        for record in existing:
+            if record.name in reserved_names:
+                continue
+            if record.index is None or record.index in reserved:
+                category_table.update_record_from_token(record.token, index=next_free)
+                next_free += 1
+
+        for index, name in sorted(reserved.items()):
+            token = category_table.get_token_from_field("name", name)
+            description = (
+                BACKGROUND_CATEGORY_DESCRIPTION if name == BACKGROUND_CATEGORY_NAME else ""
+            )
+            if token is None:
+                category_table.insert_into_table(name=name, description=description, index=index)
+            else:
+                category_table.update_record_from_token(token, index=index)
+
+        return index_by_class_id
+
+    @staticmethod
+    def _verify_label_categories(category_table: TableHandler, emitted_labels: Set[int]) -> None:
+        """Check that every written lidarseg label resolves to one category.
+
+        Args:
+            category_table (TableHandler): Reconciled category table.
+            emitted_labels (Set[int]): Label values written to ``.bin`` files.
+
+        Returns:
+            None
+
+        Raises:
+            ValueError: If a label has no category, or its index is shared.
+        """
+        names_by_index: Dict[int, List[str]] = {}
+        for record in category_table.to_records():
+            names_by_index.setdefault(record.index, []).append(record.name)
+
+        duplicated = {i: n for i, n in names_by_index.items() if len(n) > 1}
+        if duplicated:
+            raise ValueError(f"category.json assigns one index to several categories: {duplicated}")
+
+        orphaned = sorted(label for label in emitted_labels if label not in names_by_index)
+        if orphaned:
+            raise ValueError(
+                f"lidarseg labels {orphaned} have no category.json entry; the segmentation "
+                f"ontology and the category indices disagree"
+            )
+
     def _convert_segmentation(
         self,
         scene_dir: Path,
@@ -750,7 +860,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         lidar_channel: str,
     ) -> None:
         """Convert OpenLABEL point-cloud segmentation into T4 lidarseg tables.
-
         Writes ``lidarseg.json`` plus one ``<token>.bin`` of per-point uint8
         class indices per frame under ``<scene>/lidarseg/<version>/``, and adds
         the ontology classes (with their ``index``) to ``category.json``. The
@@ -767,19 +876,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         """
         frames = openlabel.get("frames", {})
 
-        # Ontology id -> class name; the id doubles as the T4 category index and
-        # the per-point label value stored in the .bin file.
+        # Ontology id -> class name.
         ontology = _segmentation_ontology(openlabel)
         if not ontology:
             logger.warning(f"No segmentation ontology found in annotation; skipping {scene_dir}")
             return
-        if max(ontology) > np.iinfo(np.uint8).max:
-            raise ValueError(
-                f"Segmentation ontology id {max(ontology)} does not fit in uint8 lidarseg labels"
-            )
-        # RLE label value -> ontology id (countable objects are encoded as
-        # per-instance classification_ids rather than ontology ids).
-        value_map = _segmentation_value_map(openlabel, ontology)
 
         # Lidar sample_data record keyed by the sample it belongs to.
         lidar_sd_by_sample: Dict[str, dict] = {
@@ -789,15 +890,10 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         }
 
         category_table = self._load_category_table(scene_dir)
-        # Reserve index 0 for points the annotator left unlabelled. Skip names
-        # already present (seeded from a previous conversion / rerun).
-        if category_table.get_token_from_field("name", "background") is None:
-            category_table.insert_into_table(
-                name="background", description="unlabelled / background points", index=0
-            )
-        for index in sorted(ontology):
-            if category_table.get_token_from_field("name", ontology[index]) is None:
-                category_table.insert_into_table(name=ontology[index], description="", index=index)
+        index_by_class_id = self._assign_segmentation_categories(category_table, ontology)
+        # RLE label value -> T4 category index (countable objects are encoded as
+        # per-instance classification_ids rather than ontology ids).
+        value_map = _segmentation_value_map(openlabel, ontology, index_by_class_id)
 
         lidarseg_table = TableHandler(LidarSeg)
         anno_dir = scene_dir / "annotation"
@@ -815,6 +911,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         placed = 0
         skipped = 0
+        emitted_labels: Set[int] = set()
         for frame_key, frame in sorted(frames.items(), key=lambda kv: int(kv[0])):
             rles = _frame_segmentation_rles(frame)
             if not rles:
@@ -879,7 +976,10 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             lidarseg_table.update_record_from_token(
                 token, filename=str(lidarseg_relative / f"{token}.bin")
             )
+            emitted_labels.update(np.unique(labels).tolist())
             placed += 1
+
+        self._verify_label_categories(category_table, emitted_labels)
 
         category_table.save_json(str(anno_dir))
         lidarseg_table.save_json(str(anno_dir))
@@ -1313,8 +1413,10 @@ def _decode_rle_labels(val: str) -> np.ndarray:
     return np.repeat(classes, counts)
 
 
-def _segmentation_value_map(openlabel: dict, ontology: Dict[int, str]) -> Dict[int, int]:
-    """Map an RLE label value to its T4 category index (ontology id).
+def _segmentation_value_map(
+    openlabel: dict, ontology: Dict[int, str], index_by_class_id: Dict[int, int]
+) -> Dict[int, int]:
+    """Map an RLE label value to its assigned T4 category index.
 
     Kognic semseg RLEs mix two value spaces: stuff classes are encoded
     directly as ontology ids, while countable objects are encoded as the
@@ -1324,12 +1426,13 @@ def _segmentation_value_map(openlabel: dict, ontology: Dict[int, str]) -> Dict[i
     Args:
         openlabel (dict): Parsed OpenLABEL document body.
         ontology (Dict[int, str]): Class names keyed by ontology ID.
+        index_by_class_id (Dict[int, int]): Ontology ID to T4 category index.
 
     Returns:
         Dict[int, int]: Raw RLE values mapped to T4 category indices.
     """
     name_to_id = {name: class_id for class_id, name in ontology.items()}
-    value_map = {class_id: class_id for class_id in ontology}
+    value_map = {class_id: index_by_class_id[class_id] for class_id in ontology}
     for obj in openlabel.get("objects", {}).values():
         class_id = next(
             (
@@ -1341,14 +1444,14 @@ def _segmentation_value_map(openlabel: dict, ontology: Dict[int, str]) -> Dict[i
         )
         if class_id is None:
             continue
-        index = name_to_id.get(obj.get("type"))
-        if index is None:
+        ontology_id = name_to_id.get(obj.get("type"))
+        if ontology_id is None:
             logger.warning(
                 f"Object {obj.get('name')} has type '{obj.get('type')}' not present in the "
                 f"segmentation ontology; its points will be mapped to background"
             )
             continue
-        value_map[int(class_id)] = index
+        value_map[int(class_id)] = index_by_class_id[ontology_id]
     return value_map
 
 
