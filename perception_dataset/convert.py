@@ -71,14 +71,12 @@ def main():
         output_base = config_dict["conversion"]["output_base"]
         camera_sensors = config_dict["conversion"]["camera_sensors"]
         workers_number = config_dict["conversion"]["workers_number"]
-        drop_camera_token_not_found = config_dict["conversion"]["drop_camera_token_not_found"]
 
         converter = T4ToKognicConverter(
             input_base=input_base,
             output_base=output_base,
             camera_sensors=camera_sensors,
             workers_number=workers_number,
-            drop_camera_token_not_found=drop_camera_token_not_found,
             annotated=(task == "convert_annotated_t4_to_kognic"),
             annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
             lidar_point_stride=config_dict["conversion"].get("lidar_point_stride", 5),

@@ -69,7 +69,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
         output_base: str,
         camera_sensors: list,
         workers_number: int = 32,
-        drop_camera_token_not_found: bool = False,
         annotated: bool = True,
         annotation_hz: int = 10,
         lidar_point_stride: int | None = LIDAR_CONCAT_NUM_POINT_FEATURES,
@@ -82,8 +81,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             output_base (str): Destination staging directory.
             camera_sensors (list): Camera configuration records.
             workers_number (int): Number of image-copy worker threads.
-            drop_camera_token_not_found (bool): Whether to omit missing camera
-                frames instead of writing blank images.
             annotated (bool): Whether the source carries T4 annotations.
             annotation_hz (int): Keyframe frequency for non-annotated data, in
                 ``1..10``.
@@ -99,7 +96,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
         super().__init__(input_base, output_base)
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
         self._workers_number = workers_number
-        self._drop_camera_token_not_found = drop_camera_token_not_found
         self._annotated = annotated
         self._annotation_hz = validate_annotation_hz(annotation_hz)
         self._lidar_point_stride = lidar_point_stride
@@ -346,8 +342,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             return "configured camera is absent from the dataset; channel skipped"
         if not self._has_existing_channel_file(seq_path, camera_channel):
             return "camera has no existing source files; channel skipped"
-        if self._drop_camera_token_not_found:
-            return "camera frame dropped"
         return "blank image written"
 
     def _frame_identity(
@@ -671,10 +665,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 copies.append((src, dst))
                 continue
 
-            if self._drop_camera_token_not_found:
-                logger.warning(f"Camera {camera_channel} missing for selected frame; dropping")
-                continue
-
             # Kognic requires every calibrated camera to be present in every
             # frame; a gap fails scene validation ("Sensors: [...] not present in
             # frame: N"). Fill it with a blank black image so the frame validates.
@@ -737,7 +727,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         except ImportError as exc:
             raise RuntimeError(
                 f"Pillow is required to write a blank filler image for camera "
-                f"{camera_channel}; install it or set drop_camera_token_not_found."
+                f"{camera_channel}; install it to continue."
             ) from exc
 
         image = self._blank_image_cache.get(camera_channel)

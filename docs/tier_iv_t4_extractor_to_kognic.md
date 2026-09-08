@@ -300,7 +300,6 @@ conversion:
   workers_number: 12
   lidar_point_stride: 5
   generate_tsv_report: true
-  drop_camera_token_not_found: false
   camera_sensors:
     - channel: CAM_FRONT
     - channel: CAM_FRONT_RIGHT
@@ -318,7 +317,6 @@ conversion:
 | `workers_number`              | Yes      | `32`    | Size of the thread pool used to copy camera images in parallel.                                                                                                                                                                                        |
 | `lidar_point_stride`          | No       | `5`     | Floats per point for fused clouds without `LIDAR_CONCAT_INFO`. Metadata-backed clouds derive this value from their validated sensor point totals. Set this explicitly for another known schema, or `null` to accept only an unambiguous detected layout. |
 | `generate_tsv_report`         | No       | `false` | Write `<output_base>/conversion_report.tsv`. The `scene` column contains the complete nested path relative to `input_base`. The report contains a `successful` or `failed` row per attempted scene plus a row for every missing camera or LiDAR frame, including blank images and header-only point clouds generated as fallbacks. With reporting enabled, remaining scenes are attempted before a summary error is raised. |
-| `drop_camera_token_not_found` | Yes      | `false` | When a selected frame has no usable camera image: `false` writes a blank image so the frame remains valid in Kognic; `true` omits that camera frame. The report records the missing source in either mode. |
 
 For non-annotated T4 data, annotation tables (if present) are ignored.
 
