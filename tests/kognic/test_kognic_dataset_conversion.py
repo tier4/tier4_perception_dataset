@@ -15,7 +15,11 @@ TEST_SCENE_NAME = "sample_bag"
 
 @pytest.fixture(scope="module")
 def kognic_dataset_path():
-    # before test - convert non-annotated T4 to the Kognic staging layout
+    """Before test: convert a non-annotated T4 dataset to the Kognic staging layout.
+
+    Yields:
+        str: Path to the converted Kognic dataset scene.
+    """
     with open(TEST_CONFIG_ROOT_DIR / "convert_non_annotated_t4_to_kognic_test.yaml") as f:
         config_dict = yaml.safe_load(f)
 
@@ -44,7 +48,11 @@ def kognic_dataset_path():
 
 
 def test_kognic_dataset_diff(kognic_dataset_path):
-    """Test that generated Kognic dataset matches expected output."""
+    """Test that the generated Kognic dataset matches the expected output.
+
+    Args:
+        kognic_dataset_path (str): Path to the converted Kognic dataset scene.
+    """
     generated_path = Path(kognic_dataset_path)
     expected_path = Path(kognic_dataset_path.replace("_generated", ""))
 
