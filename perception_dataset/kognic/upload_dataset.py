@@ -132,6 +132,92 @@ class SceneUploadResult:
     error: Optional[BaseException] = None
 
 
+# Pre-annotation statuses that mean server-side processing has not finished
+# yet. Lifecycle: created -> processing -> indexed | failed ("Pre-annotations
+# can only be deleted from status=Indexed" pins indexed as the success state).
+_PRE_ANNOTATION_PENDING_STATUSES = {
+    "created",
+    "pending",
+    "pending_for_scene",
+    "processing",
+    "registered",
+    "importing",
+}
+_PRE_ANNOTATION_SUCCESS_STATUS = "indexed"
+
+
+def _wait_for_pre_annotation(
+    client: KognicIOClient,
+    pre_annotation_uuid: str,
+    timeout_s: float = 120.0,
+    poll_s: float = 5.0,
+    raise_on_timeout: bool = False,
+) -> dict:
+    """Poll until the pre-annotation leaves processing; return its final record.
+
+    Uploading a pre-annotation only queues it: Kognic processes it
+    asynchronously and an input created against one that later fails is
+    silently dropped, so a successful upload response alone cannot be treated
+    as final success. Any status outside the known pending/failed/success set
+    is treated as a processing failure rather than silently accepted, since the
+    documented lifecycle only has those three outcomes.
+
+    Args:
+        client (KognicIOClient): Authenticated Kognic client.
+        pre_annotation_uuid (str): Uploaded pre-annotation UUID.
+        timeout_s (float): Maximum polling duration in seconds.
+        poll_s (float): Delay between status requests in seconds.
+        raise_on_timeout (bool): Whether a still-pending status at the deadline
+            raises instead of returning the last observed (pending) record.
+
+    Returns:
+        dict: Final pre-annotation record (status ``indexed``), or the last
+            observed record on a non-raising timeout.
+
+    Raises:
+        RuntimeError: If the record is missing, processing fails, or an
+            unrecognized status is observed.
+        TimeoutError: If ``raise_on_timeout`` and processing does not finish
+            within ``timeout_s``.
+    """
+    deadline = time.time() + timeout_s
+    while True:
+        records = client.pre_annotation.list(ids=[pre_annotation_uuid])
+        if not records:
+            raise RuntimeError(f"pre-annotation {pre_annotation_uuid} not found")
+        record = records[0]
+        status = str(record.get("status", "")).lower()
+        if status == "failed":
+            raise RuntimeError(
+                f"pre-annotation {pre_annotation_uuid} failed server-side "
+                f"processing: {json.dumps(record, default=str)}"
+            )
+        if status == _PRE_ANNOTATION_SUCCESS_STATUS:
+            return record
+        if status not in _PRE_ANNOTATION_PENDING_STATUSES:
+            raise RuntimeError(
+                f"pre-annotation {pre_annotation_uuid} entered unrecognized status "
+                f"{status!r} (expected one of {sorted(_PRE_ANNOTATION_PENDING_STATUSES)} "
+                f"or {_PRE_ANNOTATION_SUCCESS_STATUS!r}): {json.dumps(record, default=str)}"
+            )
+        if time.time() >= deadline:
+            message = (
+                f"pre-annotation {pre_annotation_uuid} still {status} after {timeout_s:.0f}s"
+            )
+            if raise_on_timeout:
+                raise TimeoutError(
+                    f"{message}; not attaching it to an input: "
+                    f"{json.dumps(record, default=str)}"
+                )
+            logger.warning(
+                f"{message}; proceeding (input creation will surface the verdict): "
+                f"{json.dumps(record, default=str)}"
+            )
+            return record
+        logger.info(f"pre-annotation {pre_annotation_uuid}: status={status}; waiting")
+        time.sleep(poll_s)
+
+
 @dataclass(frozen=True)
 class KognicUploadConfig:
     """Configuration for uploading Kognic staging sequences.
@@ -149,6 +235,8 @@ class KognicUploadConfig:
         generate_tsv_report (bool): Whether to write an upload outcome report.
         scene_creation_timeout_s (int): Scene-processing timeout in seconds.
         scene_creation_poll_interval_s (int): Status polling interval in seconds.
+        pre_annotation_timeout_s (int): Pre-annotation-processing timeout in seconds.
+        pre_annotation_poll_interval_s (int): Pre-annotation status polling interval in seconds.
     """
 
     input_base: Path
@@ -165,6 +253,8 @@ class KognicUploadConfig:
     generate_tsv_report: bool = False
     scene_creation_timeout_s: int = 3600
     scene_creation_poll_interval_s: int = 10
+    pre_annotation_timeout_s: int = 120
+    pre_annotation_poll_interval_s: int = 5
 
     @property
     def project_external_id(self) -> Optional[str]:
@@ -426,6 +516,8 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         generate_tsv_report=conversion_config.get("generate_tsv_report", False),
         scene_creation_timeout_s=conversion_config.get("scene_creation_timeout_s", 1800),
         scene_creation_poll_interval_s=conversion_config.get("scene_creation_poll_interval_s", 10),
+        pre_annotation_timeout_s=conversion_config.get("pre_annotation_timeout_s", 120),
+        pre_annotation_poll_interval_s=conversion_config.get("pre_annotation_poll_interval_s", 5),
     )
 
 
@@ -727,7 +819,12 @@ class KognicDatasetUploader:
         external_id: str,
         pre_annotations: Dict[str, OpenLabelAnnotation],
     ) -> Dict[str, str]:
-        """Attach each distinct pre-annotation to a scene.
+        """Attach each distinct pre-annotation to a scene and wait for it to process.
+
+        An input created against a pre-annotation that later fails or is still
+        processing is silently dropped by Kognic, so each upload is confirmed
+        ``indexed`` here, before any input references it, rather than trusting
+        the create response alone.
 
         Args:
             scene_uuid (SceneUUID): Target scene UUID.
@@ -737,6 +834,11 @@ class KognicDatasetUploader:
 
         Returns:
             Dict[str, str]: Uploaded pre-annotation UUIDs keyed by filename.
+
+        Raises:
+            RuntimeError: If a pre-annotation fails or reaches an unrecognized status.
+            TimeoutError: If a pre-annotation is still processing after the
+                configured timeout.
         """
         pre_annotation_uuids: Dict[str, str] = {}
         for filename, pre_annotation in pre_annotations.items():
@@ -748,6 +850,13 @@ class KognicDatasetUploader:
                 pre_annotation=pre_annotation,
                 external_id=f"{external_id}-{Path(filename).stem}-pre-annotation",
                 dryrun=False,
+            )
+            _wait_for_pre_annotation(
+                self.kognic_io_client,
+                created.id,
+                timeout_s=self.config.pre_annotation_timeout_s,
+                poll_s=self.config.pre_annotation_poll_interval_s,
+                raise_on_timeout=True,
             )
             pre_annotation_uuids[filename] = created.id
         return pre_annotation_uuids
