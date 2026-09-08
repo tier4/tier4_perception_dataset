@@ -1,6 +1,7 @@
 """Convert T4 sensor data to the Kognic staging layout."""
 
 from concurrent.futures import ThreadPoolExecutor
+import csv
 import json
 from pathlib import Path
 import time
@@ -23,6 +24,17 @@ from perception_dataset.utils.pointcloud import (
 )
 
 logger = configure_logger(modname=__name__)
+
+_REPORT_FILENAME = "conversion_report.tsv"
+_REPORT_FIELDS = (
+    "scene",
+    "status",
+    "sensor_type",
+    "sensor",
+    "frame",
+    "timestamp_ns",
+    "details",
+)
 
 
 class T4ToKognicConverter(AbstractConverter[None]):
@@ -58,6 +70,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         drop_camera_token_not_found: bool = False,
         annotated: bool = True,
         annotation_hz: int = 10,
+        generate_tsv_report: bool = False,
     ):
         """Initialize the converter.
 
@@ -70,6 +83,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 frames instead of writing blank images.
             annotated (bool): Whether the source carries T4 annotations.
             annotation_hz (int): Keyframe frequency for non-annotated data.
+            generate_tsv_report (bool): Write ``conversion_report.tsv`` in
+                ``output_base`` with scene outcomes and missing sensor frames.
         """
         super().__init__(input_base, output_base)
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
@@ -77,6 +92,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._drop_camera_token_not_found = drop_camera_token_not_found
         self._annotated = annotated
         self._annotation_hz = annotation_hz
+        self._generate_tsv_report = generate_tsv_report
+        self._report_rows: List[Dict[str, str]] = []
         # Cache one blank black image per camera, sized to that camera's frames,
         # reused for every frame that is missing an image (see
         # ``_write_blank_image``).
@@ -90,12 +107,42 @@ class T4ToKognicConverter(AbstractConverter[None]):
         """
         start = time.time()
 
-        for seq_path, out_dir in iter_scene_pairs(Path(self._input_base), Path(self._output_base)):
-            logger.info(f"[BEGIN] {seq_path} -> {out_dir}")
-            self._convert_one_scene(seq_path, out_dir)
-            logger.info(f"[DONE]  {seq_path} -> {out_dir}")
+        self._report_rows = []
+        failed_scenes: List[Tuple[Path, Exception]] = []
+        try:
+            for seq_path, out_dir in iter_scene_pairs(
+                Path(self._input_base), Path(self._output_base)
+            ):
+                report_scene = self._report_scene_path(seq_path)
+                logger.info(f"[BEGIN] {seq_path} -> {out_dir}")
+                try:
+                    self._convert_one_scene(seq_path, out_dir)
+                except Exception as exc:
+                    self._append_report_row(
+                        scene=report_scene,
+                        status="failed",
+                        details=f"{type(exc).__name__}: {exc}",
+                    )
+                    if not self._generate_tsv_report:
+                        raise
+                    failed_scenes.append((seq_path, exc))
+                    logger.exception(f"[FAILED] {seq_path} -> {out_dir}")
+                else:
+                    self._append_report_row(scene=report_scene, status="successful")
+                    logger.info(f"[DONE]  {seq_path} -> {out_dir}")
 
-        logger.info(f"Elapsed: {time.time() - start:.1f}s")
+            if failed_scenes:
+                failed_names = ", ".join(
+                    self._report_scene_path(path) for path, _ in failed_scenes
+                )
+                raise RuntimeError(
+                    f"{len(failed_scenes)} scene conversion(s) failed: {failed_names}. "
+                    f"See {Path(self._output_base) / _REPORT_FILENAME} for details."
+                ) from failed_scenes[0][1]
+        finally:
+            if self._generate_tsv_report:
+                self._write_tsv_report()
+            logger.info(f"Elapsed: {time.time() - start:.1f}s")
 
     # ------------------------------------------------------------------
     # Scene conversion
@@ -119,6 +166,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._has_lidar_concat_info = (seq_path / "data" / "LIDAR_CONCAT_INFO").is_dir()
         self._lidar_channels = self._discover_lidar_channels()
         self._frame_records = self._build_frame_records()
+        self._record_missing_sensor_frames(seq_path)
         logger.info(f"Selected {len(self._frame_records)} frames")
         self._write_keyframes(out_dir)
 
@@ -164,6 +212,182 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 frame_records=self._frame_records,
                 channel_to_token=self._channel_to_token,
             )
+
+    # ------------------------------------------------------------------
+    # Conversion report
+    # ------------------------------------------------------------------
+
+    def _append_report_row(
+        self,
+        *,
+        scene: str,
+        status: str,
+        sensor_type: str = "",
+        sensor: str = "",
+        frame: str = "",
+        timestamp_ns: int | str = "",
+        details: str = "",
+    ) -> None:
+        """Append one normalized conversion-report row when reporting is enabled."""
+        if not self._generate_tsv_report:
+            return
+        self._report_rows.append(
+            {
+                "scene": scene,
+                "status": status,
+                "sensor_type": sensor_type,
+                "sensor": sensor,
+                "frame": frame,
+                "timestamp_ns": str(timestamp_ns),
+                "details": details,
+            }
+        )
+
+    def _write_tsv_report(self) -> None:
+        """Write the accumulated report to ``output_base/conversion_report.tsv``."""
+        output_base = Path(self._output_base)
+        output_base.mkdir(parents=True, exist_ok=True)
+        report_path = output_base / _REPORT_FILENAME
+        with open(report_path, "w", newline="", encoding="utf-8") as report_file:
+            writer = csv.DictWriter(report_file, fieldnames=_REPORT_FIELDS, dialect="excel-tab")
+            writer.writeheader()
+            writer.writerows(self._report_rows)
+        logger.info(f"Conversion report saved to {report_path}")
+
+    def _report_scene_path(self, seq_path: Path) -> str:
+        """Return the full nested scene path relative to ``input_base``."""
+        input_base = Path(self._input_base).resolve()
+        resolved_scene = Path(seq_path).resolve()
+        try:
+            relative_scene = resolved_scene.relative_to(input_base)
+        except ValueError:
+            return str(resolved_scene)
+
+        # When input_base points directly at a sequence root, retain its name
+        # instead of reporting the unhelpful relative path ".".
+        if relative_scene == Path("."):
+            return resolved_scene.name
+        return relative_scene.as_posix()
+
+    def _record_missing_sensor_frames(self, seq_path: Path) -> None:
+        """Record camera and LiDAR gaps, including gaps replaced by blank output files."""
+        if not self._generate_tsv_report:
+            return
+
+        scene = self._report_scene_path(seq_path)
+        camera_actions = {
+            channel: self._missing_camera_action(seq_path, channel)
+            for channel in self._camera_channels
+        }
+        for frame_index, frame_record in enumerate(self._frame_records):
+            frame, timestamp_ns = self._frame_identity(frame_index, frame_record)
+
+            for camera_channel in self._camera_channels:
+                sample_data = frame_record.get(camera_channel)
+                if sample_data is None:
+                    self._append_report_row(
+                        scene=scene,
+                        status="missing_camera_frame",
+                        sensor_type="camera",
+                        sensor=camera_channel,
+                        frame=frame,
+                        timestamp_ns=timestamp_ns,
+                        details=f"sample_data record is missing; "
+                        f"{camera_actions[camera_channel]}",
+                    )
+                    continue
+
+                image_path = seq_path / sample_data.filename
+                if not image_path.exists():
+                    self._append_report_row(
+                        scene=scene,
+                        status="missing_camera_frame",
+                        sensor_type="camera",
+                        sensor=camera_channel,
+                        frame=frame,
+                        timestamp_ns=timestamp_ns,
+                        details=f"source file is missing: {sample_data.filename}; "
+                        f"{camera_actions[camera_channel]}",
+                    )
+
+            for lidar_channel in self._lidar_channels:
+                reason = self._missing_lidar_reason(seq_path, frame_record, lidar_channel)
+                if reason:
+                    self._append_report_row(
+                        scene=scene,
+                        status="missing_lidar_frame",
+                        sensor_type="lidar",
+                        sensor=lidar_channel,
+                        frame=frame,
+                        timestamp_ns=timestamp_ns,
+                        details=reason,
+                    )
+
+    def _missing_camera_action(self, seq_path: Path, camera_channel: str) -> str:
+        """Describe what conversion does when this camera has a missing frame."""
+        if camera_channel not in self._channel_to_token:
+            return "configured camera is absent from the dataset; channel skipped"
+        if not self._has_existing_channel_file(seq_path, camera_channel):
+            return "camera has no existing source files; channel skipped"
+        if self._drop_camera_token_not_found:
+            return "camera frame dropped"
+        return "blank image written"
+
+    def _frame_identity(
+        self, frame_index: int, frame_record: Dict[str, object]
+    ) -> Tuple[str, int]:
+        """Return a stable source frame identifier and representative timestamp."""
+        anchor = frame_record.get(self._anchor_channel)
+        if anchor is not None:
+            frame = Path(anchor.filename).stem.split(".")[0]
+        else:
+            frame = str(frame_index)
+        return frame, self._frame_timestamp_ns(frame_record)
+
+    def _missing_lidar_reason(
+        self, seq_path: Path, frame_record: Dict[str, object], lidar_channel: str
+    ) -> str | None:
+        """Describe a missing LiDAR contribution for one output frame, if any."""
+        concat_sample_data = frame_record.get(LIDAR_CONCAT_CHANNEL)
+        if concat_sample_data is None:
+            return f"{LIDAR_CONCAT_CHANNEL} sample_data record is missing"
+
+        bin_path = seq_path / concat_sample_data.filename
+        if not bin_path.exists():
+            return f"source point cloud is missing: {concat_sample_data.filename}"
+        if bin_path.stat().st_size == 0:
+            return "source point cloud contains zero points"
+
+        if lidar_channel == LIDAR_CONCAT_CHANNEL:
+            return None
+
+        info_filename = concat_sample_data.info_filename
+        if not info_filename:
+            return "LIDAR_CONCAT_INFO filename is missing"
+        info_path = seq_path / info_filename
+        if not info_path.exists():
+            return f"LIDAR_CONCAT_INFO file is missing: {info_filename}"
+
+        try:
+            with open(info_path, encoding="utf-8") as info_file:
+                info = json.load(info_file)
+        except (OSError, ValueError) as exc:
+            return f"LIDAR_CONCAT_INFO cannot be read: {exc}"
+
+        sensor_token = self._channel_to_token.get(lidar_channel)
+        source = next(
+            (
+                source
+                for source in info.get("sources", [])
+                if source.get("sensor_token") == sensor_token
+            ),
+            None,
+        )
+        if source is None:
+            return "sensor contribution is absent from LIDAR_CONCAT_INFO; blank frame written"
+        if int(source.get("length", 0)) == 0:
+            return "sensor contributed zero points; header-only point cloud written"
+        return None
 
     def _build_lookup_maps(self, seq_path: Path) -> None:
         """Load T4 tables and build lookup mappings used during conversion.
