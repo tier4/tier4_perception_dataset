@@ -359,7 +359,7 @@ def _validate_sensor_timestamps(
 
     Raises:
         ValueError: If a channel's file deviates from its frame by more than
-            half the anchor frame interval, which indicates an off-by-N pairing.
+            90% of the anchor frame interval, which indicates an off-by-N pairing.
     """
     try:
         anchor_ts = [int(path.stem) for path in anchor_files]
@@ -370,9 +370,11 @@ def _validate_sensor_timestamps(
     if not intervals:
         return
 
-    # Half a frame interval: sensor sync jitter stays well inside it, while an
-    # off-by-one pairing lands a full interval away.
-    tolerance_ns = intervals[len(intervals) // 2] / 2
+    # 90% of a frame interval: observed sensor sync jitter (e.g. a camera vs.
+    # the lidar anchor) can approach half the interval, so a tighter bound
+    # flagged legitimate frames; an off-by-one pairing still lands a full
+    # interval away and stays well outside this bound.
+    tolerance_ns = intervals[len(intervals) // 2] * 0.9
     if tolerance_ns <= 0:
         raise ValueError(
             f"Anchor timestamps in {sequence_path} are not strictly increasing; "
