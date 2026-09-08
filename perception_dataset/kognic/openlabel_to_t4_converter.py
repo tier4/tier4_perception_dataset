@@ -1115,11 +1115,14 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 skipped += 1
                 continue
 
-            if len(rles) == 1:
-                # A single blob covers the whole (fused) cloud, whatever its
-                # stream tag; only per-source splits need LIDAR_CONCAT_INFO.
+            only_stream_tag = next(iter(rles)) if len(rles) == 1 else None
+            if len(rles) == 1 and only_stream_tag is None:
+                # A single untagged blob covers the whole (fused) cloud. A
+                # single *tagged* blob still names one source lidar and must
+                # go through its LIDAR_CONCAT_INFO slice, even when it is the
+                # only annotated stream this frame.
                 labels = self._single_stream_labels(
-                    next(iter(rles.values())),
+                    rles[only_stream_tag],
                     value_map,
                     num_points,
                     frame_key,
