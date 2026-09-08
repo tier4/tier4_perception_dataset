@@ -40,6 +40,7 @@ class TestLidarSensor:
             topic="task",
             channel="input_base",
             num_lidar_feats=7,
+            output_pointcloud_format="pcd",
         )
 
     def test_validation_pass_all_defined(self):
@@ -82,6 +83,17 @@ class TestLidarSensor:
                 topic="task",
                 channel="input_base",
                 num_lidar_feats=6,
+            )
+
+        assert len(e.value.errors()) == 1
+        assert e.value.errors()[0]["type"] == "value_error"
+
+    def test_validation_error_output_pointcloud_format(self):
+        with pytest.raises(ValidationError) as e:
+            LidarSensor(
+                topic="task",
+                channel="input_base",
+                output_pointcloud_format="ply",
             )
 
         assert len(e.value.errors()) == 1

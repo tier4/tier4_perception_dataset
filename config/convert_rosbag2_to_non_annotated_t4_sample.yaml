@@ -11,6 +11,7 @@ conversion:
   accept_frame_drop: True
   undistort_image: False
   lidar_sensor:
+    output_pointcloud_format: bin
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
     # lidar_info_topic: /sensing/lidar/concatenated/pointcloud_info # Do not set to disable saving lidar info

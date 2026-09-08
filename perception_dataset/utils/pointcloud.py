@@ -140,6 +140,7 @@ def extract_pointclouds(
     lidar_dir.mkdir(parents=True, exist_ok=True)
 
     count = 0
+    blank_count = 0
     for frame_record in frame_records:
         concat_sample_data = frame_record.get(LIDAR_CONCAT_CHANNEL)
         if concat_sample_data is None:
@@ -176,14 +177,25 @@ def extract_pointclouds(
             (src for src in info["sources"] if src["sensor_token"] == sensor_token),
             None,
         )
-        if source is None:
+        length = int(source["length"]) if source is not None else 0
+
+        # A zero-length source carries a zero stamp ({sec: 0, nanosec: 0}), so
+        # fall back to the concat sweep's timestamp; sweeps are ~1e8 ns apart,
+        # hence the file still sorts into its own frame position.
+        timestamp_ns = stamp_to_ns(source.get("stamp")) if source is not None else None
+        if not timestamp_ns:
+            timestamp_ns = int(concat_sample_data.timestamp) * 1000
+        csv_path = lidar_dir / f"{timestamp_ns}.csv"
+
+        if length == 0:
+            # The sensor contributed no points to this concat sweep (dropped
+            # out, or started after the recording began). Still write a
+            # header-only CSV: ensures the uploader still recognizes this frame even though it has no points.
+            save_pointcloud_csv(csv_path, timestamp_ns, np.empty((0, 4), dtype=np.float32))
+            blank_count += 1
             continue
 
         idx_begin = int(source["idx_begin"])
-        length = int(source["length"])
-        if length == 0:
-            continue
-
         total_points = sum(int(src["length"]) for src in info["sources"])
         stride = point_stride_from_info(bin_path, total_points)
         bytes_per_point = stride * 4
@@ -192,16 +204,13 @@ def extract_pointclouds(
             f.seek(idx_begin * bytes_per_point)
             raw = f.read(length * bytes_per_point)
 
-        timestamp_ns = stamp_to_ns(source.get("stamp"))
-        if timestamp_ns is None:
-            timestamp_ns = int(concat_sample_data.timestamp) * 1000
-
         points = np.frombuffer(raw, dtype=np.float32).reshape(-1, stride)
-        csv_path = lidar_dir / f"{timestamp_ns}.csv"
         save_pointcloud_csv(csv_path, timestamp_ns, points)
         count += 1
 
-    logger.info(f"{lidar_channel}: {count} point clouds extracted")
+    logger.info(
+        f"{lidar_channel}: {count} point clouds extracted, {blank_count} blank frames written"
+    )
 
 
 def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -> None:

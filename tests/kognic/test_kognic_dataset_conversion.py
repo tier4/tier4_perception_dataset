@@ -29,6 +29,8 @@ def kognic_dataset_path():
         camera_sensors=config_dict["conversion"]["camera_sensors"],
         workers_number=config_dict["conversion"]["workers_number"],
         drop_camera_token_not_found=config_dict["conversion"]["drop_camera_token_not_found"],
+        annotated=config_dict["task"] == "convert_annotated_t4_to_kognic",
+        annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
     )
     converter.convert()
 
