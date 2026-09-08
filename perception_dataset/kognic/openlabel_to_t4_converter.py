@@ -1181,18 +1181,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         Returns:
             Optional[np.ndarray]: One uint8 label per point, or ``None`` when
-                the annotation contains more labels than the cloud has points.
+                the RLE is malformed or declares more points than the cloud has.
         """
-        labels = _remap_labels(_decode_rle_labels(rle), value_map, frame_key)
-        if labels.shape[0] > num_points:
-            # More labels than points means the annotated cloud is not this
-            # extraction at all (a genuine data mismatch); aligning is unsafe.
-            logger.warning(
-                f"Segmentation has more labels than points for frame {frame_key} "
-                f"({filename}): {labels.shape[0]} labels vs {num_points} points. "
-                f"The annotated cloud differs from this T4 extraction; skipping this frame."
-            )
+        try:
+            decoded = _decode_rle_labels(rle, max_points=num_points, frame_key=frame_key)
+        except ValueError as exc:
+            # Either malformed content, or more labels than points, which means
+            # the annotated cloud is not this extraction at all (a genuine data
+            # mismatch); aligning either case is unsafe.
+            logger.warning(f"Frame {frame_key} ({filename}): {exc}; skipping this frame")
             return None
+        labels = _remap_labels(decoded, value_map, frame_key)
         if labels.shape[0] < num_points:
             # Kognic RLE encodes labels sequentially from point 0 and omits a
             # trailing run of unlabelled points; restore them as background (0).
@@ -1265,16 +1264,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                     f"cloud; skipping this frame"
                 )
                 return None
-            stream_labels = _remap_labels(
-                _decode_rle_labels(rle), value_map, f"{frame_key}/{channel}"
-            )
-            if stream_labels.shape[0] > length:
-                logger.warning(
-                    f"Frame {frame_key}: stream {channel} has {stream_labels.shape[0]} labels "
-                    f"for a {length}-point slice; the annotated cloud differs from this T4 "
-                    f"extraction; skipping this frame"
+            try:
+                decoded = _decode_rle_labels(
+                    rle, max_points=length, frame_key=f"{frame_key}/{channel}"
                 )
+            except ValueError as exc:
+                # Either malformed content, or more labels than the slice has
+                # points, which means the annotated cloud differs from this T4
+                # extraction; aligning either case is unsafe.
+                logger.warning(f"{exc}; skipping this frame")
                 return None
+            stream_labels = _remap_labels(decoded, value_map, f"{frame_key}/{channel}")
             if stream_labels.shape[0] < length:
                 pad = length - stream_labels.shape[0]
                 logger.warning(
@@ -1558,18 +1558,40 @@ def _frame_segmentation_rles(frame: dict) -> Dict[Optional[str], str]:
     return rles
 
 
-def _decode_rle_labels(val: str) -> np.ndarray:
+def _decode_rle_labels(val: str, max_points: int, frame_key: str) -> np.ndarray:
     """Expand a Kognic RLE string into per-point label values.
+
+    Requires ``val`` to be fully covered by ``#<count>V<class>`` tokens (no
+    interleaved or trailing garbage) and its declared point total to fit
+    within ``max_points`` before expanding, so a single malformed or
+    corrupted/adversarial count cannot force an oversized allocation.
 
     Args:
         val (str): Repeated ``#<count>V<class>`` tokens.
+        max_points (int): Upper bound on the decoded point count, normally the
+            target cloud's (or slice's) actual point count.
+        frame_key (str): Frame identifier used in diagnostics.
 
     Returns:
         np.ndarray: Decoded integer class values.
+
+    Raises:
+        ValueError: If ``val`` is not fully covered by the RLE grammar, or its
+            declared point total exceeds ``max_points``.
     """
-    pairs = _RLE_TOKEN.findall(val)
-    counts = np.fromiter((int(c) for c, _ in pairs), dtype=np.int64, count=len(pairs))
-    classes = np.fromiter((int(v) for _, v in pairs), dtype=np.int64, count=len(pairs))
+    matches = list(_RLE_TOKEN.finditer(val))
+    if not matches or "".join(match.group(0) for match in matches) != val:
+        raise ValueError(
+            f"Frame {frame_key}: RLE value is not fully covered by '#<count>V<class>' tokens"
+        )
+    counts = np.fromiter((int(m.group(1)) for m in matches), dtype=np.int64, count=len(matches))
+    total_points = int(counts.sum())
+    if total_points > max_points:
+        raise ValueError(
+            f"Frame {frame_key}: RLE declares {total_points} point(s), exceeding the "
+            f"{max_points}-point cloud; refusing to expand"
+        )
+    classes = np.fromiter((int(m.group(2)) for m in matches), dtype=np.int64, count=len(matches))
     return np.repeat(classes, counts)
 
 
@@ -1626,17 +1648,24 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
     Returns:
         np.ndarray: Remapped uint8 category indices.
     """
-    unmapped = sorted(set(np.unique(labels).tolist()) - set(value_map) - {0})
+    unique_labels = np.unique(labels)
+    unmapped = sorted(set(unique_labels.tolist()) - set(value_map) - {0})
     if unmapped:
         logger.warning(
             f"Frame {frame_key}: {len(unmapped)} RLE label value(s) have no ontology/object "
             f"mapping (e.g. {unmapped[:5]}); mapping them to background (0)"
         )
-    size = int(max(labels.max(initial=0), max(value_map, default=0))) + 1
-    lut = np.zeros(size, dtype=np.uint8)
-    for value, index in value_map.items():
-        lut[value] = index
-    return lut[labels]
+    # Remap by the labels actually present rather than a lookup table sized to
+    # the largest raw value: a raw class ID is attacker/corruption controlled
+    # and unbounded, while ``unique_labels`` is bounded by the point count.
+    output = np.zeros(labels.shape, dtype=np.uint8)
+    for raw_value in unique_labels:
+        if raw_value == 0:
+            continue
+        index = value_map.get(int(raw_value))
+        if index is not None:
+            output[labels == raw_value] = index
+    return output
 
 
 def _lidar_point_count(
