@@ -285,6 +285,89 @@ def _sensor_sort_key(sensor_name: str, preferred_order: List[str]) -> Tuple[int,
     return (len(preferred_order), sensor_name)
 
 
+def _validate_sensor_file_counts(
+    sequence_path: Path,
+    sensor_files: Dict[str, List[Path]],
+    anchor_sensor: str,
+    expected_count: int,
+) -> None:
+    """Require every sensor to contribute exactly one file per frame.
+
+    Args:
+        sequence_path (Path): Staging sequence directory.
+        sensor_files (Dict[str, List[Path]]): Sorted files keyed by sensor channel.
+        anchor_sensor (str): Channel used to define the frame count.
+        expected_count (int): Number of frames in the anchor channel.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If any channel has a different number of files.
+    """
+    mismatched = {
+        name: len(files) for name, files in sensor_files.items() if len(files) != expected_count
+    }
+    if mismatched:
+        raise ValueError(
+            f"Sensor file counts disagree in {sequence_path}: anchor {anchor_sensor} has "
+            f"{expected_count} files but {mismatched} differ. Frames are paired with files by "
+            "position, so re-convert the sequence instead of uploading a partial staging directory."
+        )
+
+
+def _validate_sensor_timestamps(
+    sequence_path: Path,
+    sensor_files: Dict[str, List[Path]],
+    anchor_files: List[Path],
+) -> None:
+    """Require each sensor's timestamps to track the anchor sensor's frames.
+
+    Args:
+        sequence_path (Path): Staging sequence directory.
+        sensor_files (Dict[str, List[Path]]): Sorted files keyed by sensor channel.
+        anchor_files (List[Path]): Anchor channel files in frame order.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If a channel's file deviates from its frame by more than
+            half the anchor frame interval, which indicates an off-by-N pairing.
+    """
+    try:
+        anchor_ts = [int(path.stem) for path in anchor_files]
+    except ValueError:
+        return
+
+    intervals = sorted(b - a for a, b in zip(anchor_ts, anchor_ts[1:]))
+    if not intervals:
+        return
+
+    # Half a frame interval: sensor sync jitter stays well inside it, while an
+    # off-by-one pairing lands a full interval away.
+    tolerance_ns = intervals[len(intervals) // 2] / 2
+    if tolerance_ns <= 0:
+        raise ValueError(
+            f"Anchor timestamps in {sequence_path} are not strictly increasing; "
+            "frame ordering cannot be trusted."
+        )
+
+    for name, files in sensor_files.items():
+        for frame_idx, (path, expected_ns) in enumerate(zip(files, anchor_ts)):
+            try:
+                actual_ns = int(path.stem)
+            except ValueError:
+                break
+            if abs(actual_ns - expected_ns) > tolerance_ns:
+                raise ValueError(
+                    f"Sensor {name} in {sequence_path} is misaligned at frame {frame_idx}: "
+                    f"file {path.name} is {abs(actual_ns - expected_ns)}ns from the anchor "
+                    f"timestamp {expected_ns} (tolerance {tolerance_ns:.0f}ns). The staging "
+                    "directory likely mixes files from different conversion runs."
+                )
+
+
 def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     """Load uploader configuration from parsed YAML.
 
@@ -877,6 +960,8 @@ class KognicDatasetUploader:
 
         Raises:
             FileNotFoundError: If the sequence contains no supported sensor files.
+            ValueError: If sensor file counts differ or a sensor's file
+                timestamps do not line up with the anchor sensor's frames.
         """
         lidar_files = self._collect_sensor_files(sequence_path, "lidar", ".csv")
         camera_files = self._collect_sensor_files(sequence_path, "cameras", ".jpg")
@@ -897,17 +982,15 @@ class KognicDatasetUploader:
             )
             anchor_files = camera_files[anchor_sensors[0]]
 
+        all_files = {**lidar_files, **camera_files}
+        _validate_sensor_file_counts(sequence_path, all_files, anchor_sensors[0], len(anchor_files))
+        _validate_sensor_timestamps(sequence_path, all_files, anchor_files)
+
         for frame_idx, anchor_file in enumerate(anchor_files):
             timestamp_ns = int(anchor_file.stem)
-            sensor_files: Dict[str, Path] = {}
-
-            for lidar_name, files in lidar_files.items():
-                if frame_idx < len(files):
-                    sensor_files[lidar_name] = files[frame_idx]
-
-            for camera_name, files in camera_files.items():
-                if frame_idx < len(files):
-                    sensor_files[camera_name] = files[frame_idx]
+            sensor_files: Dict[str, Path] = {
+                name: files[frame_idx] for name, files in all_files.items()
+            }
 
             yield str(frame_idx), timestamp_ns, sensor_files
 

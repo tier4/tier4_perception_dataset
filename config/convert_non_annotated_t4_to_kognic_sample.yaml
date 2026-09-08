@@ -11,3 +11,5 @@ conversion:
     - channel: CAM_BACK
     - channel: CAM_BACK_LEFT
     - channel: CAM_FRONT_LEFT
+  annotation_hz: 1
+  # lidar_point_stride: 5 # optional: the stride of the lidar points to be used. Any columns greater than this stride will be skipped.

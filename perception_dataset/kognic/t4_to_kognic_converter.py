@@ -3,13 +3,14 @@
 from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
+import shutil
 import time
 from typing import Dict, List, Set, Tuple
 
 from t4_devkit import Tier4
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, LIDAR_CONCAT_NUM_POINT_FEATURES
 from perception_dataset.kognic.utils import (
     extract_calibration,
     extract_ego_poses,
@@ -59,6 +60,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         drop_camera_token_not_found: bool = False,
         annotated: bool = True,
         annotation_hz: int = 10,
+        lidar_point_stride: int | None = LIDAR_CONCAT_NUM_POINT_FEATURES,
     ):
         """Initialize the converter.
 
@@ -72,6 +74,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
             annotated (bool): Whether the source carries T4 annotations.
             annotation_hz (int): Keyframe frequency for non-annotated data, in
                 ``1..10``.
+            lidar_point_stride (int | None): Explicit floats per point for
+                fused clouds without ``LIDAR_CONCAT_INFO``. Set to ``None`` to
+                require unambiguous automatic detection.
 
         Raises:
             ValueError: If ``annotation_hz`` is outside ``1..10``.
@@ -82,6 +87,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._drop_camera_token_not_found = drop_camera_token_not_found
         self._annotated = annotated
         self._annotation_hz = validate_annotation_hz(annotation_hz)
+        self._lidar_point_stride = lidar_point_stride
         # Cache one blank black image per camera, sized to that camera's frames,
         # reused for every frame that is missing an image (see
         # ``_write_blank_image``).
@@ -119,6 +125,11 @@ class T4ToKognicConverter(AbstractConverter[None]):
         seq_path = Path(input_dir)
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
+
+        # The uploader pairs sensor files with frames by sorted position, so any
+        # file left over from a previous generation would shift that pairing.
+        for stale_dir in (out_dir / "cameras", out_dir / "lidar"):
+            shutil.rmtree(stale_dir, ignore_errors=True)
 
         self._build_lookup_maps(seq_path)
         self._has_lidar_concat_info = (seq_path / "data" / "LIDAR_CONCAT_INFO").is_dir()
@@ -168,6 +179,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 lidar_channel=lidar_channel,
                 frame_records=self._frame_records,
                 channel_to_token=self._channel_to_token,
+                point_stride=self._lidar_point_stride,
             )
 
     def _build_lookup_maps(self, seq_path: Path) -> None:
@@ -430,8 +442,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             used_timestamps_ns.add(timestamp_ns)
 
             dst = camera_dir / f"{timestamp_ns}.jpg"
-            if dst.exists():
-                continue
 
             if src is not None:
                 copies.append((src, dst))

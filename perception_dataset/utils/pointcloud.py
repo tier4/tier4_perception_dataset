@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 import shutil
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -58,6 +58,10 @@ def point_stride_from_info(bin_path: Path, total_points: int) -> int:
         ValueError: If the file size is inconsistent with ``total_points`` or
             the derived stride contains fewer than four floats.
     """
+    if total_points <= 0:
+        raise ValueError(
+            f"{bin_path}: cannot derive a point stride from {total_points} declared points"
+        )
     size_bytes = bin_path.stat().st_size
     if size_bytes % 4 != 0:
         raise ValueError(f"{bin_path}: file size {size_bytes} bytes is not divisible by 4 (float32)")
@@ -71,37 +75,153 @@ def point_stride_from_info(bin_path: Path, total_points: int) -> int:
     return stride
 
 
-def detect_point_stride(floats: np.ndarray, bin_path: Path) -> int:
+def validate_concat_point_layout(info: dict, bin_path: Path) -> Tuple[int, Optional[int]]:
+    """Validate that concat-info slices exactly partition a point-cloud binary.
+
+    Zero-length sensor contributions are valid and do not participate in the
+    partition. If every contribution is empty, the binary must also be empty
+    and no point stride is needed.
+
+    Args:
+        info (dict): Parsed ``LIDAR_CONCAT_INFO`` document.
+        bin_path (Path): Corresponding concatenated point-cloud binary.
+
+    Returns:
+        Tuple[int, Optional[int]]: Declared total point count and floats per
+            point. The stride is ``None`` for a valid empty concat frame.
+
+    Raises:
+        ValueError: If source ranges are malformed, overlap, leave gaps, extend
+            beyond the declared total, or disagree with the binary size.
+    """
+    sources = info.get("sources")
+    if not isinstance(sources, list):
+        raise ValueError(f"{bin_path}: LIDAR_CONCAT_INFO.sources must be a list")
+
+    positive_ranges = []
+    total_points = 0
+    for source_index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            raise ValueError(
+                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} must be an object"
+            )
+        try:
+            idx_begin = int(source["idx_begin"])
+            length = int(source["length"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} has invalid "
+                "idx_begin or length"
+            ) from exc
+        if idx_begin < 0 or length < 0:
+            raise ValueError(
+                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} has negative "
+                f"range values: idx_begin={idx_begin}, length={length}"
+            )
+        total_points += length
+        if length > 0:
+            positive_ranges.append((idx_begin, idx_begin + length, source_index))
+
+    cursor = 0
+    for start, end, source_index in sorted(positive_ranges):
+        if start < cursor:
+            raise ValueError(
+                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} starts at {start}, "
+                f"overlapping a previous source range ending at {cursor}"
+            )
+        if start > cursor:
+            raise ValueError(
+                f"{bin_path}: LIDAR_CONCAT_INFO has a gap [{cursor}, {start}) before "
+                f"source {source_index}"
+            )
+        cursor = end
+
+    if cursor != total_points:
+        raise ValueError(
+            f"{bin_path}: LIDAR_CONCAT_INFO ranges end at point {cursor}, but sensor "
+            f"lengths declare {total_points} total points"
+        )
+
+    if total_points == 0:
+        size_bytes = bin_path.stat().st_size
+        if size_bytes != 0:
+            raise ValueError(
+                f"{bin_path}: LIDAR_CONCAT_INFO declares an empty cloud, but the binary "
+                f"contains {size_bytes} bytes"
+            )
+        return 0, None
+
+    return total_points, point_stride_from_info(bin_path, total_points)
+
+
+def detect_point_stride(
+    floats: np.ndarray, bin_path: Path, expected_stride: Optional[int] = None
+) -> int:
     """Guess the floats-per-point stride when no LIDAR_CONCAT_INFO is available.
 
-    Tries ``LIDAR_CONCAT_NUM_POINT_FEATURES`` first, then other strides,
-    accepting the first one that yields finite, plausibly-sized coordinates.
+    Tries ``LIDAR_CONCAT_NUM_POINT_FEATURES`` and other supported strides. The
+    layout is accepted only when exactly one candidate yields finite,
+    plausibly-sized coordinates; ambiguous binaries require an explicit schema
+    or ``LIDAR_CONCAT_INFO``.
 
     Args:
         floats (np.ndarray): Flat array of point-cloud values.
         bin_path (Path): Source path included in diagnostics.
+        expected_stride (Optional[int]): Explicit floats-per-point schema. When
+            set, validate and use it instead of guessing.
 
     Returns:
         int: Detected number of floats in each point record.
 
     Raises:
-        ValueError: If no plausible point stride can be detected.
+        ValueError: If no unique plausible point stride can be detected.
     """
     candidates = [LIDAR_CONCAT_NUM_POINT_FEATURES] + [
         stride for stride in range(4, 17) if stride != LIDAR_CONCAT_NUM_POINT_FEATURES
     ]
+    if len(floats) == 0:
+        raise ValueError(f"{bin_path}: an empty cloud has no detectable point stride")
+
+    if expected_stride is not None:
+        if expected_stride < 4:
+            raise ValueError(
+                f"{bin_path}: explicit point stride must be at least 4, got "
+                f"{expected_stride}"
+            )
+        if len(floats) % expected_stride != 0:
+            raise ValueError(
+                f"{bin_path}: {len(floats)} floats is not divisible by the explicit "
+                f"point stride {expected_stride}"
+            )
+        points = floats.reshape(-1, expected_stride)
+        if not valid_point_mask(points).all():
+            raise ValueError(
+                f"{bin_path}: data does not match the explicit point stride "
+                f"{expected_stride}; coordinates or intensity are invalid"
+            )
+        return expected_stride
+
+    plausible = []
     for stride in candidates:
-        if len(floats) == 0 or len(floats) % stride != 0:
+        if len(floats) % stride != 0:
             continue
         xyz = floats.reshape(-1, stride)[:, :3]
         if np.isfinite(xyz).all() and np.abs(xyz).max() < _MAX_REASONABLE_COORDINATE_M:
-            if stride != LIDAR_CONCAT_NUM_POINT_FEATURES:
-                logger.warning(
-                    f"{bin_path}: detected {stride} floats per point "
-                    f"(expected {LIDAR_CONCAT_NUM_POINT_FEATURES})"
-                )
-            return stride
-    raise ValueError(f"{bin_path}: could not determine the point stride")
+            plausible.append(stride)
+    if not plausible:
+        raise ValueError(f"{bin_path}: could not determine the point stride")
+    if len(plausible) > 1:
+        raise ValueError(
+            f"{bin_path}: point stride is ambiguous; plausible values are {plausible}. "
+            "Provide LIDAR_CONCAT_INFO or an explicit point schema."
+        )
+    stride = plausible[0]
+    if stride != LIDAR_CONCAT_NUM_POINT_FEATURES:
+        logger.warning(
+            f"{bin_path}: detected {stride} floats per point "
+            f"(expected {LIDAR_CONCAT_NUM_POINT_FEATURES})"
+        )
+    return stride
 
 
 def extract_pointclouds(
@@ -110,6 +230,7 @@ def extract_pointclouds(
     lidar_channel: str,
     frame_records: List[Dict[str, dict]],
     channel_to_token: Dict[str, str],
+    point_stride: Optional[int] = LIDAR_CONCAT_NUM_POINT_FEATURES,
 ) -> None:
     """Write per-frame CSV point clouds for a lidar channel.
 
@@ -122,6 +243,9 @@ def extract_pointclouds(
             channel names to sample-data records.
         channel_to_token (Dict[str, str]): Mapping from channel names to sensor
             tokens.
+        point_stride (Optional[int]): Explicit point stride used only when
+            ``LIDAR_CONCAT_INFO`` is unavailable. Set to ``None`` to require
+            unambiguous automatic detection.
 
     Returns:
         None
@@ -153,7 +277,12 @@ def extract_pointclouds(
         if lidar_channel == LIDAR_CONCAT_CHANNEL:
             timestamp_ns = int(concat_sample_data.timestamp) * 1000
             floats = np.fromfile(bin_path, dtype=np.float32)
-            points = floats.reshape(-1, detect_point_stride(floats, bin_path))
+            if floats.size == 0:
+                points = np.empty((0, 4), dtype=np.float32)
+            else:
+                points = floats.reshape(
+                    -1, detect_point_stride(floats, bin_path, expected_stride=point_stride)
+                )
             csv_path = lidar_dir / f"{timestamp_ns}.csv"
             save_pointcloud_csv(csv_path, timestamp_ns, points)
             count += 1
@@ -172,6 +301,8 @@ def extract_pointclouds(
 
         with open(info_path) as f:
             info = json.load(f)
+
+        _, stride = validate_concat_point_layout(info, bin_path)
 
         source = next(
             (src for src in info["sources"] if src["sensor_token"] == sensor_token),
@@ -196,15 +327,24 @@ def extract_pointclouds(
             continue
 
         idx_begin = int(source["idx_begin"])
-        total_points = sum(int(src["length"]) for src in info["sources"])
-        stride = point_stride_from_info(bin_path, total_points)
+        if stride is None:
+            raise ValueError(
+                f"{bin_path}: source {sensor_token} declares {length} points in an empty cloud"
+            )
         bytes_per_point = stride * 4
+        expected_bytes = length * bytes_per_point
 
         with open(bin_path, "rb") as f:
             f.seek(idx_begin * bytes_per_point)
-            raw = f.read(length * bytes_per_point)
+            raw = f.read(expected_bytes)
 
-        points = np.frombuffer(raw, dtype=np.float32).reshape(-1, stride)
+        if len(raw) != expected_bytes:
+            raise ValueError(
+                f"{bin_path}: source {sensor_token} declares {length} points "
+                f"({expected_bytes} bytes), but only {len(raw)} bytes could be read"
+            )
+
+        points = np.frombuffer(raw, dtype=np.float32).reshape(length, stride)
         save_pointcloud_csv(csv_path, timestamp_ns, points)
         count += 1
 

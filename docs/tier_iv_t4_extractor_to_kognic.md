@@ -286,7 +286,7 @@ flowchart LR
   Range --> Read --> Parse --> Csv
 ```
 
-Each T4 point has five `float32` values (`x, y, z, intensity, ring_idx`); the extractor preserves only `ts_gps,x,y,z,intensity`. Kognic's CSV format requires exact column names, comma separation, and a timestamp column (the full documented header is `ts_gps,x,y,z,intensity,rgb,red,green,blue`; the RGB columns are optional and not written here). No point filtering, deduplication, or coordinate transformation is performed; the only change is formatting numeric fields to six decimal places.
+T4 point records begin with `x, y, z, intensity` but may contain additional fields. With `LIDAR_CONCAT_INFO`, the extractor derives the stride from the validated total sensor contribution; without it, `lidar_point_stride` declares the layout and defaults to the standard five values (`x, y, z, intensity, ring_idx`). The extractor preserves only `ts_gps,x,y,z,intensity`. Kognic's CSV format requires exact column names, comma separation, and a timestamp column (the full documented header is `ts_gps,x,y,z,intensity,rgb,red,green,blue`; the RGB columns are optional and not written here). No point filtering, deduplication, or coordinate transformation is performed; the only change is formatting numeric fields to six decimal places.
 
 ### Stage 1 Config Parameters
 
@@ -298,6 +298,7 @@ conversion:
   input_base: ./data/non_annotated_t4_format
   output_base: ./data/kognic_format
   workers_number: 12
+  lidar_point_stride: 5
   drop_camera_token_not_found: false
   camera_sensors:
     - channel: CAM_FRONT
@@ -314,6 +315,7 @@ conversion:
 | `output_base`                 | Yes      | —       | Directory where each scene's staging folder `<output_base>/<scene>/` is written.                                                                                                                                                                       |
 | `camera_sensors`              | Yes      | —       | List of `{channel: <name>}` entries naming the T4 camera channels to copy. Channels absent from the dataset, or present but with no image files, are skipped with a warning, allowing LiDAR-only conversion.                                           |
 | `workers_number`              | Yes      | `32`    | Size of the thread pool used to copy camera images in parallel.                                                                                                                                                                                        |
+| `lidar_point_stride`          | No       | `5`     | Floats per point for fused clouds without `LIDAR_CONCAT_INFO`. Metadata-backed clouds derive this value from their validated sensor point totals. Set this explicitly for another known schema, or `null` to accept only an unambiguous detected layout. |
 | `drop_camera_token_not_found` | Yes      | `false` | When a selected frame has no `sample_data` for a camera: `false` keeps the frame (that camera is simply absent for it); `true` logs and skips that camera for the frame. The frame's LiDAR and other cameras are exported either way.                  |
 
 For non-annotated T4 data, annotation tables (if present) are ignored.
