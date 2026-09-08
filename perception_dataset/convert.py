@@ -82,6 +82,7 @@ def main():
             annotated=(task == "convert_annotated_t4_to_kognic"),
             annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
             lidar_point_stride=config_dict["conversion"].get("lidar_point_stride", 5),
+            generate_tsv_report=config_dict["conversion"].get("generate_tsv_report", False),
         )
 
         logger.info(

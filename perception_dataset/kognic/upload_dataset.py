@@ -1,10 +1,10 @@
 """Upload converted T4 staging sequences to Kognic."""
 
 import argparse
+import csv
 from dataclasses import dataclass, field
 import hashlib
 import json
-import os.path as osp
 from pathlib import Path
 import time
 from typing import Dict, Generator, List, Optional, Tuple
@@ -38,6 +38,22 @@ logger = configure_logger(modname=__name__)
 
 SceneUUID = str
 
+_UPLOAD_REPORT_FILENAME = "upload_report.tsv"
+_UPLOAD_REPORT_FIELDS = (
+    "scene",
+    "status",
+    "stage",
+    "project",
+    "batch",
+    "scene_uuid",
+    "input_id",
+    "invalidated",
+    "error_code",
+    "error_type",
+    "error_message",
+    "duration_seconds",
+)
+
 
 class SceneInputError(RuntimeError):
     """A scene was created on Kognic but a later step failed.
@@ -56,6 +72,7 @@ class SceneInputError(RuntimeError):
         stage: str,
         cause: BaseException,
         invalidated: bool = False,
+        failed_input_errors: Optional[List[Tuple["ProjectTarget", BaseException]]] = None,
     ):
         """Initialize an error for a failed post-creation stage.
 
@@ -65,6 +82,8 @@ class SceneInputError(RuntimeError):
             stage (str): Post-creation stage that failed.
             cause (BaseException): Original failure.
             invalidated (bool): Whether orphan cleanup succeeded.
+            failed_input_errors: Original per-project input failures, when the
+                scene failed because every input creation failed.
         """
         super().__init__(f"{external_id}: scene {scene_uuid} created but {stage} failed: {cause}")
         self.external_id = external_id
@@ -74,6 +93,7 @@ class SceneInputError(RuntimeError):
         # Whether the orphaned scene was successfully invalidated during cleanup.
         # If False the scene remains on Kognic and needs manual invalidation.
         self.invalidated = invalidated
+        self.failed_input_errors = failed_input_errors or []
 
 
 @dataclass(frozen=True)
@@ -104,9 +124,12 @@ class SceneUploadResult:
     inputs: List[Dict[str, Optional[str]]] = field(default_factory=list)
     # ``project/batch`` of inputs that failed while the scene itself succeeded.
     failed_inputs: List[str] = field(default_factory=list)
+    # Project/batch target and the original exception for each failed input.
+    failed_input_errors: List[Tuple[ProjectTarget, BaseException]] = field(default_factory=list)
     failed: bool = False
     # When ``failed``: whether the orphaned scene was successfully invalidated.
     invalidated: bool = False
+    error: Optional[BaseException] = None
 
 
 @dataclass(frozen=True)
@@ -123,9 +146,11 @@ class KognicUploadConfig:
         motion_compensate (bool): Whether to enable motion compensation.
         include_imu_data (bool): Whether to derive dense IMU pose data.
         write_debug_frames (bool): Whether to save serialized frames locally.
+        generate_tsv_report (bool): Whether to write an upload outcome report.
         scene_creation_timeout_s (int): Scene-processing timeout in seconds.
         scene_creation_poll_interval_s (int): Status polling interval in seconds.
     """
+
     input_base: Path
     # Both optional: Kognic derives the organization from the auth credentials
     # and infers the write workspace when not provided.
@@ -137,6 +162,7 @@ class KognicUploadConfig:
     motion_compensate: bool = False
     include_imu_data: bool = True
     write_debug_frames: bool = False
+    generate_tsv_report: bool = False
     scene_creation_timeout_s: int = 3600
     scene_creation_poll_interval_s: int = 10
 
@@ -395,6 +421,7 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         motion_compensate=conversion_config.get("motion_compensate", False),
         include_imu_data=conversion_config.get("include_imu_data", True),
         write_debug_frames=conversion_config.get("write_debug_frames", False),
+        generate_tsv_report=conversion_config.get("generate_tsv_report", False),
         scene_creation_timeout_s=conversion_config.get("scene_creation_timeout_s", 1800),
         scene_creation_poll_interval_s=conversion_config.get("scene_creation_poll_interval_s", 10),
     )
@@ -550,12 +577,16 @@ class KognicDatasetUploader:
         )
 
         try:
-            scene_uuid, inputs, failed_inputs = self._upload_scene(
+            scene_uuid, inputs, failed_inputs, failed_input_errors = self._upload_scene(
                 scene, external_id, pre_annotations, self.config.project_targets, feature_flags
             )
             return [
                 SceneUploadResult(
-                    external_id, scene_uuid, inputs=inputs, failed_inputs=failed_inputs
+                    external_id,
+                    scene_uuid,
+                    inputs=inputs,
+                    failed_inputs=failed_inputs,
+                    failed_input_errors=failed_input_errors,
                 )
             ]
         except SceneInputError as exc:
@@ -571,7 +602,12 @@ class KognicDatasetUploader:
                 )
             return [
                 SceneUploadResult(
-                    external_id, exc.scene_uuid, failed=True, invalidated=exc.invalidated
+                    external_id,
+                    exc.scene_uuid,
+                    failed=True,
+                    invalidated=exc.invalidated,
+                    error=exc,
+                    failed_input_errors=exc.failed_input_errors,
                 )
             ]
 
@@ -582,13 +618,19 @@ class KognicDatasetUploader:
         pre_annotations: Dict[str, OpenLabelAnnotation],
         targets: List[ProjectTarget],
         feature_flags: Optional[FeatureFlags],
-    ) -> Tuple[SceneUUID, List[Dict[str, Optional[str]]], List[str]]:
+    ) -> Tuple[
+        SceneUUID,
+        List[Dict[str, Optional[str]]],
+        List[str],
+        List[Tuple[ProjectTarget, BaseException]],
+    ]:
         """Create the scene, attach pre-annotations, and create one input/project.
 
-        Returns ``(scene_uuid, input_records, failed_inputs)``. Each input record
-        is ``{"project_name", "batch_name", "input_id"}``; ``failed_inputs`` lists
-        ``project/batch`` for projects whose input creation failed while others
-        succeeded. On dryrun the scene_uuid is ``"dryrun"`` and both lists empty.
+        Returns ``(scene_uuid, input_records, failed_inputs, failed_input_errors)``.
+        Each input record is ``{"project_name", "batch_name", "input_id"}``;
+        ``failed_inputs`` lists ``project/batch`` labels and
+        ``failed_input_errors`` retains their original exceptions for reporting.
+        On dryrun the scene_uuid is ``"dryrun"`` and all three lists are empty.
 
         Steps: create the scene (no project) and wait for Created; attach each
         distinct pre-annotation (capturing its uuid); then create one input per
@@ -606,8 +648,8 @@ class KognicDatasetUploader:
             feature_flags (Optional[FeatureFlags]): Kognic scene feature flags.
 
         Returns:
-            Tuple[SceneUUID, List[Dict[str, Optional[str]]], List[str]]: Scene
-                UUID, successful input records, and failed project/batch labels.
+            Tuple: Scene UUID, successful input records, failed project/batch
+                labels, and failed target/exception pairs.
         """
         logger.info(
             f"Uploading {external_id} as scene without input (dryrun={self.config.dryrun})"
@@ -622,7 +664,7 @@ class KognicDatasetUploader:
                 f"{external_id}: dryrun OK; scene validated locally, "
                 "pre-annotation upload and input creation skipped"
             )
-            return "dryrun", [], []
+            return "dryrun", [], [], []
 
         scene_uuid = response.scene_uuid
 
@@ -652,9 +694,9 @@ class KognicDatasetUploader:
                 f"{external_id}: no project configured; scene uploaded but no input "
                 "created. Create one later with client.input.create_from_scene()."
             )
-            return scene_uuid, [], []
+            return scene_uuid, [], [], []
 
-        inputs, failed_inputs = self._create_inputs_from_scene(
+        inputs, failed_inputs, failed_input_errors = self._create_inputs_from_scene(
             scene_uuid, external_id, targets, pre_annotation_uuids
         )
 
@@ -667,10 +709,15 @@ class KognicDatasetUploader:
             )
             invalidated = self._invalidate_scene(scene_uuid, external_id)
             raise SceneInputError(
-                external_id, scene_uuid, "input creation", exc, invalidated=invalidated
+                external_id,
+                scene_uuid,
+                "input creation",
+                exc,
+                invalidated=invalidated,
+                failed_input_errors=failed_input_errors,
             ) from exc
 
-        return scene_uuid, inputs, failed_inputs
+        return scene_uuid, inputs, failed_inputs, failed_input_errors
 
     def _upload_pre_annotations(
         self,
@@ -738,7 +785,11 @@ class KognicDatasetUploader:
         external_id: str,
         projects: List[ProjectTarget],
         pre_annotation_uuids: Dict[str, str],
-    ) -> Tuple[List[Dict[str, Optional[str]]], List[str]]:
+    ) -> Tuple[
+        List[Dict[str, Optional[str]]],
+        List[str],
+        List[Tuple[ProjectTarget, BaseException]],
+    ]:
         """Create one input per project from the shared scene.
 
         Each input references its project's pre-annotation (resolved from
@@ -748,9 +799,10 @@ class KognicDatasetUploader:
 
         Inputs are created independently: a failure on one project is recorded
         and the rest still proceed (the scene already exists and other inputs may
-        be valid). Returns ``(input_records, failed)`` where each record is
-        ``{"project_name", "batch_name", "input_id"}`` and ``failed`` lists the
-        ``project/batch`` of inputs that could not be created.
+        be valid). Returns ``(input_records, failed, failed_errors)`` where each
+        record is ``{"project_name", "batch_name", "input_id"}``, ``failed``
+        lists the ``project/batch`` of inputs that could not be created, and
+        ``failed_errors`` retains the target and original exception.
 
         Args:
             scene_uuid (SceneUUID): Source scene UUID.
@@ -760,11 +812,12 @@ class KognicDatasetUploader:
                 staged filename.
 
         Returns:
-            Tuple[List[Dict[str, Optional[str]]], List[str]]: Successful input
-                records and failed project/batch labels.
+            Tuple: Successful input records, failed project/batch labels, and
+                failed target/exception pairs.
         """
         records: List[Dict[str, Optional[str]]] = []
         failed: List[str] = []
+        failed_errors: List[Tuple[ProjectTarget, BaseException]] = []
         for target in projects:
             pre_annotation_uuid = pre_annotation_uuids.get(target.pre_annotation)
             logger.info(
@@ -792,7 +845,8 @@ class KognicDatasetUploader:
                     f"{target.external_id} (batch={target.batch}): {exc}"
                 )
                 failed.append(f"{target.external_id}/{target.batch}")
-        return records, failed
+                failed_errors.append((target, exc))
+        return records, failed, failed_errors
 
     def _load_pre_annotation(self, pre_annotation_path: Path) -> OpenLabelAnnotation:
         """Load and validate a configured pre-annotation OpenLabel file.
@@ -1239,6 +1293,189 @@ class KognicDatasetUploader:
             )
 
 
+def _scene_report_path(input_base: Path, sequence_path: Path) -> str:
+    """Return a complete nested scene path relative to the upload input base."""
+    resolved_base = input_base.resolve()
+    resolved_scene = sequence_path.resolve()
+    try:
+        relative_scene = resolved_scene.relative_to(resolved_base)
+    except ValueError:
+        return str(resolved_scene)
+    if relative_scene == Path("."):
+        return resolved_scene.name
+    return relative_scene.as_posix()
+
+
+def _exception_report_fields(exc: BaseException) -> Dict[str, str]:
+    """Extract a stable type, message, and HTTP/SDK error code from an exception."""
+    stage = "upload"
+    if isinstance(exc, SceneInputError):
+        stage = exc.stage
+
+    current: Optional[BaseException] = exc
+    visited: set = set()
+    error_code = ""
+    leaf: BaseException = exc
+    while current is not None and id(current) not in visited:
+        visited.add(id(current))
+        leaf = current
+        response = getattr(current, "response", None)
+        candidate = getattr(response, "status_code", None)
+        if candidate is None:
+            candidate = getattr(current, "status_code", None)
+        if candidate is None:
+            candidate = getattr(current, "code", None)
+        if candidate is not None and not callable(candidate):
+            error_code = str(candidate)
+            break
+        current = getattr(current, "cause", None) or current.__cause__
+
+    return {
+        "stage": stage,
+        "error_code": error_code,
+        "error_type": type(leaf).__name__,
+        "error_message": str(leaf),
+    }
+
+
+def _upload_report_row(
+    *,
+    scene: str,
+    status: str,
+    duration_seconds: float,
+    stage: str = "",
+    project: str = "",
+    batch: Optional[str] = None,
+    scene_uuid: Optional[str] = None,
+    input_id: Optional[str] = None,
+    invalidated: Optional[bool] = None,
+    error: Optional[BaseException] = None,
+) -> Dict[str, str]:
+    """Build one normalized upload report row."""
+    error_fields = _exception_report_fields(error) if error is not None else {}
+    return {
+        "scene": scene,
+        "status": status,
+        "stage": stage or error_fields.get("stage", ""),
+        "project": project,
+        "batch": batch or "",
+        "scene_uuid": scene_uuid or "",
+        "input_id": input_id or "",
+        "invalidated": "" if invalidated is None else str(invalidated).lower(),
+        "error_code": error_fields.get("error_code", ""),
+        "error_type": error_fields.get("error_type", ""),
+        "error_message": error_fields.get("error_message", ""),
+        "duration_seconds": f"{duration_seconds:.3f}",
+    }
+
+
+def _result_report_rows(
+    scene: str, result: SceneUploadResult, duration_seconds: float
+) -> List[Dict[str, str]]:
+    """Build the scene summary and per-input rows for an upload result."""
+    if result.failed:
+        status = "failed"
+    elif result.failed_inputs:
+        status = "partial_success"
+    elif result.scene_uuid == "dryrun":
+        status = "dryrun_successful"
+    else:
+        status = "successful"
+
+    rows = [
+        _upload_report_row(
+            scene=scene,
+            status=status,
+            duration_seconds=duration_seconds,
+            scene_uuid=result.scene_uuid,
+            invalidated=result.invalidated if result.failed else None,
+            error=result.error,
+        )
+    ]
+    rows.extend(
+        _upload_report_row(
+            scene=scene,
+            status="input_successful",
+            stage="input creation",
+            project=str(input_record.get("project_name") or ""),
+            batch=input_record.get("batch_name"),
+            scene_uuid=result.scene_uuid,
+            input_id=input_record.get("input_id"),
+            duration_seconds=duration_seconds,
+        )
+        for input_record in result.inputs
+    )
+    rows.extend(
+        _upload_report_row(
+            scene=scene,
+            status="input_failed",
+            stage="input creation",
+            project=target.external_id,
+            batch=target.batch,
+            scene_uuid=result.scene_uuid,
+            duration_seconds=duration_seconds,
+            error=error,
+        )
+        for target, error in result.failed_input_errors
+    )
+    return rows
+
+
+def _write_upload_report(input_base: Path, rows: List[Dict[str, str]]) -> Path:
+    """Write upload report rows below the staging input base."""
+    input_base.mkdir(parents=True, exist_ok=True)
+    report_path = input_base / _UPLOAD_REPORT_FILENAME
+    with open(report_path, "w", newline="", encoding="utf-8") as report_file:
+        writer = csv.DictWriter(report_file, fieldnames=_UPLOAD_REPORT_FIELDS, dialect="excel-tab")
+        writer.writeheader()
+        writer.writerows(rows)
+    logger.info(f"Upload report saved to {report_path}")
+    return report_path
+
+
+def read_upload_report_scene_uuids(
+    report_path: Path, statuses: set[str]
+) -> List[str]:
+    """Read unique, non-dry-run scene UUIDs for selected summary statuses.
+
+    Args:
+        report_path (Path): Uploader-generated ``upload_report.tsv``.
+        statuses (set[str]): Scene-summary statuses to include.
+
+    Returns:
+        List[str]: Unique scene UUIDs in report order.
+
+    Raises:
+        FileNotFoundError: If the report does not exist.
+        ValueError: If required report columns are missing.
+    """
+    if not report_path.exists():
+        raise FileNotFoundError(f"upload report not found: {report_path}")
+
+    scene_uuids: List[str] = []
+    seen: set[str] = set()
+    with open(report_path, newline="", encoding="utf-8") as report_file:
+        reader = csv.DictReader(report_file, dialect="excel-tab")
+        required_columns = {"status", "scene_uuid"}
+        missing_columns = required_columns.difference(reader.fieldnames or [])
+        if missing_columns:
+            raise ValueError(
+                f"{report_path}: upload report is missing required column(s): "
+                f"{', '.join(sorted(missing_columns))}"
+            )
+        for row in reader:
+            scene_uuid = (row.get("scene_uuid") or "").strip()
+            if (
+                row.get("status") in statuses
+                and scene_uuid
+                and scene_uuid != "dryrun"
+                and scene_uuid not in seen
+            ):
+                seen.add(scene_uuid)
+                scene_uuids.append(scene_uuid)
+    return scene_uuids
+
+
 def main():
     """Run the dataset-upload command-line interface.
 
@@ -1262,58 +1499,72 @@ def main():
 
     upload_config = _load_upload_config(config_dict)
     uploader = KognicDatasetUploader(upload_config)
-    sequence_paths = find_sequence_paths(upload_config.input_base)
 
-    dataset_name_id_dict = {}
-
-    def _persist_dataset_ids() -> None:
-        """Persist successful scene and input IDs after each upload.
-
-        Returns:
-            None
-        """
-        with open(osp.join(upload_config.input_base, "dataset_id.json"), "w") as f:
-            json.dump(dataset_name_id_dict, f)
+    report_rows: List[Dict[str, str]] = []
 
     failures: List[str] = []
+    pre_creation_failures: List[str] = []
     orphans: List[str] = []  # failed AND not invalidated -> need manual cleanup
     partial: List[str] = []  # scene OK but some project inputs failed
-    for sequence_path in sequence_paths:
-        dataset_name = sequence_path.name
-        time_start = time.time()
-        logger.info(f"Uploading dataset {dataset_name} from {sequence_path}")
-        results = uploader.upload_one(sequence_path, external_id=dataset_name)
-        for result in results:
-            if result.failed:
-                # Scene was created but ended up with no input. If invalidation
-                # also failed the scene is left behind and needs manual cleanup.
-                failures.append(result.external_id)
-                if not result.invalidated:
-                    orphans.append(f"{result.external_id}={result.scene_uuid}")
-                continue
-            logger.info(
-                f"dataset_id ({result.external_id}): scene {result.scene_uuid}, "
-                f"{len(result.inputs)} input(s)"
-            )
-            dataset_name_id_dict[result.external_id] = {
-                "scene_id": result.scene_uuid,
-                "inputs": result.inputs,
-            }
-            if result.failed_inputs:
-                partial.append(
-                    f"{result.external_id} (scene kept): {', '.join(result.failed_inputs)}"
+    try:
+        sequence_paths = find_sequence_paths(upload_config.input_base)
+        for sequence_path in sequence_paths:
+            dataset_name = sequence_path.name
+            report_scene = _scene_report_path(upload_config.input_base, sequence_path)
+            time_start = time.time()
+            logger.info(f"Uploading dataset {dataset_name} from {sequence_path}")
+            try:
+                results = uploader.upload_one(sequence_path, external_id=dataset_name)
+            except Exception as exc:
+                if not upload_config.generate_tsv_report:
+                    raise
+                duration = time.time() - time_start
+                logger.exception(f"Failed to upload dataset {dataset_name}")
+                failures.append(dataset_name)
+                pre_creation_failures.append(dataset_name)
+                report_rows.append(
+                    _upload_report_row(
+                        scene=report_scene,
+                        status="failed",
+                        duration_seconds=duration,
+                        error=exc,
+                    )
                 )
-        _persist_dataset_ids()
-        time_end = time.time()
-        logger.info(f"Time taken to upload {dataset_name}: {time_end - time_start} seconds")
+                continue
+
+            duration = time.time() - time_start
+            for result in results:
+                report_rows.extend(_result_report_rows(report_scene, result, duration))
+                if result.failed:
+                    # Scene was created but ended up with no input. If invalidation
+                    # also failed the scene is left behind and needs manual cleanup.
+                    failures.append(result.external_id)
+                    if not result.invalidated:
+                        orphans.append(f"{result.external_id}={result.scene_uuid}")
+                    continue
+                logger.info(
+                    f"dataset_id ({result.external_id}): scene {result.scene_uuid}, "
+                    f"{len(result.inputs)} input(s)"
+                )
+                if result.failed_inputs:
+                    partial.append(
+                        f"{result.external_id} (scene kept): {', '.join(result.failed_inputs)}"
+                    )
+            logger.info(f"Time taken to upload {dataset_name}: {duration} seconds")
+    finally:
+        if upload_config.generate_tsv_report:
+            _write_upload_report(upload_config.input_base, report_rows)
 
     if failures or partial:
         parts: List[str] = []
         if failures:
-            msg = (
-                f"{len(failures)} scene(s) created without an input: "
-                f"{', '.join(failures)}. Re-upload to retry."
-            )
+            msg = f"{len(failures)} scene upload(s) failed: {', '.join(failures)}."
+            if pre_creation_failures:
+                msg += (
+                    f" {len(pre_creation_failures)} failed before scene/input completion: "
+                    f"{', '.join(pre_creation_failures)}."
+                )
+            msg += " Re-upload to retry."
             if orphans:
                 msg += (
                     f" {len(orphans)} could NOT be invalidated and remain orphaned on "

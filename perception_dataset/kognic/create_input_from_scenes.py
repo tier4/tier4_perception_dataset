@@ -14,7 +14,8 @@ first and the resulting uuid is attached to that scene's input.
 Candidate scene uuids are taken from a source you provide:
 
 * ``--scene-uuids`` — an explicit comma/space separated list, or
-* ``--dataset-id-json`` — a ``dataset_id.json`` as written by the uploader.
+* ``--upload-report-tsv`` — the ``upload_report.tsv`` written by the uploader
+  (defaults to ``<input_base>/upload_report.tsv`` from the upload config).
 
 Scenes that are failed/invalidated, or that already have an input in the
 target project/batch, are skipped; inputs in other project/batch
@@ -34,18 +35,23 @@ from kognic.io.model.scene.scene_entry import Scene, SceneStatus
 from kognic.openlabel.models import OpenLabelAnnotation
 import yaml
 
-from perception_dataset.kognic.upload_dataset import _load_upload_config
+from perception_dataset.kognic.upload_dataset import (
+    _load_upload_config,
+    read_upload_report_scene_uuids,
+)
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
 
 
-def _collect_scene_uuids(explicit: Optional[str], dataset_id_json: Optional[Path]) -> List[str]:
+def _collect_scene_uuids(
+    explicit: Optional[str], upload_report_tsv: Optional[Path]
+) -> List[str]:
     """Gather candidate scene UUIDs from command-line sources.
 
     Args:
         explicit (Optional[str]): Comma- or space-separated scene UUIDs.
-        dataset_id_json (Optional[Path]): Uploader-generated dataset ID file.
+        upload_report_tsv (Optional[Path]): Uploader-generated TSV report.
 
     Returns:
         List[str]: Unique scene UUIDs in discovery order.
@@ -71,20 +77,11 @@ def _collect_scene_uuids(explicit: Optional[str], dataset_id_json: Optional[Path
         for token in explicit.replace(",", " ").split():
             _add(token)
 
-    if dataset_id_json is not None:
-        if not dataset_id_json.exists():
-            raise FileNotFoundError(f"dataset id file not found: {dataset_id_json}")
-        with open(dataset_id_json) as f:
-            data = json.load(f)
-        # Current form: {external_id: {"scene_id": ..., "inputs": [...]}}.
-        # Legacy form:  {dataset_name: scene_uuid}.
-        for value in data.values():
-            if isinstance(value, dict):
-                scene_uuid = value.get("scene_id")
-                if isinstance(scene_uuid, str):
-                    _add(scene_uuid)
-            elif isinstance(value, str):
-                _add(value)
+    if upload_report_tsv is not None:
+        for scene_uuid in read_upload_report_scene_uuids(
+            upload_report_tsv, {"successful", "partial_success"}
+        ):
+            _add(scene_uuid)
 
     return uuids
 
@@ -371,10 +368,10 @@ def main():
         help="Explicit comma/space separated scene uuids to create inputs for.",
     )
     parser.add_argument(
-        "--dataset-id-json",
+        "--upload-report-tsv",
         type=str,
         default=None,
-        help="Path to a dataset_id.json as written by the uploader.",
+        help="Path to upload_report.tsv. Defaults to <input_base>/upload_report.tsv.",
     )
     parser.add_argument(
         "--project",
@@ -416,14 +413,17 @@ def main():
         config_dict = yaml.safe_load(f)
     upload_config = _load_upload_config(config_dict)
 
-    dataset_id_json: Optional[Path] = None
-    if args.dataset_id_json:
-        dataset_id_json = Path(args.dataset_id_json)
+    upload_report_tsv: Optional[Path]
+    if args.upload_report_tsv:
+        upload_report_tsv = Path(args.upload_report_tsv)
+    else:
+        default_report = upload_config.input_base / "upload_report.tsv"
+        upload_report_tsv = default_report if default_report.exists() else None
 
-    scene_uuids = _collect_scene_uuids(args.scene_uuids, dataset_id_json)
+    scene_uuids = _collect_scene_uuids(args.scene_uuids, upload_report_tsv)
     if not scene_uuids:
         logger.warning(
-            "No candidate scene uuids found. Provide --scene-uuids or a dataset_id.json."
+            "No candidate scene uuids found. Provide --scene-uuids or an upload_report.tsv."
         )
         return
 

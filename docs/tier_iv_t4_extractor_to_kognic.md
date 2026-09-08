@@ -299,6 +299,7 @@ conversion:
   output_base: ./data/kognic_format
   workers_number: 12
   lidar_point_stride: 5
+  generate_tsv_report: true
   drop_camera_token_not_found: false
   camera_sensors:
     - channel: CAM_FRONT
@@ -316,7 +317,8 @@ conversion:
 | `camera_sensors`              | Yes      | —       | List of `{channel: <name>}` entries naming the T4 camera channels to copy. Channels absent from the dataset, or present but with no image files, are skipped with a warning, allowing LiDAR-only conversion.                                           |
 | `workers_number`              | Yes      | `32`    | Size of the thread pool used to copy camera images in parallel.                                                                                                                                                                                        |
 | `lidar_point_stride`          | No       | `5`     | Floats per point for fused clouds without `LIDAR_CONCAT_INFO`. Metadata-backed clouds derive this value from their validated sensor point totals. Set this explicitly for another known schema, or `null` to accept only an unambiguous detected layout. |
-| `drop_camera_token_not_found` | Yes      | `false` | When a selected frame has no `sample_data` for a camera: `false` keeps the frame (that camera is simply absent for it); `true` logs and skips that camera for the frame. The frame's LiDAR and other cameras are exported either way.                  |
+| `generate_tsv_report`         | No       | `false` | Write `<output_base>/conversion_report.tsv`. The `scene` column contains the complete nested path relative to `input_base`. The report contains a `successful` or `failed` row per attempted scene plus a row for every missing camera or LiDAR frame, including blank images and header-only point clouds generated as fallbacks. With reporting enabled, remaining scenes are attempted before a summary error is raised. |
+| `drop_camera_token_not_found` | Yes      | `false` | When a selected frame has no usable camera image: `false` writes a blank image so the frame remains valid in Kognic; `true` omits that camera frame. The report records the missing source in either mode. |
 
 For non-annotated T4 data, annotation tables (if present) are ignored.
 
@@ -474,6 +476,7 @@ conversion:
   motion_compensate: false
   include_imu_data: true
   write_debug_frames: false
+  generate_tsv_report: true # writes <input_base>/upload_report.tsv
   # scene_creation_timeout_s: 1800          # optional; max wait for a scene to reach Created
   # scene_creation_poll_interval_s: 10      # optional; poll cadence while waiting
 ```
@@ -490,6 +493,7 @@ conversion:
 | `motion_compensate`               | No       | `false` | When `false`, sends `FeatureFlags()` disabling server-side motion compensation. When `true`, no feature flags are sent and Kognic applies its default motion compensation. Requires accurate IMU or ego-pose data.                                                                                                                                                                  |
 | `include_imu_data`                | No       | `true`  | When `true`, generates a 200 Hz IMU-like stream by interpolating `ego_poses.json` and attaches it. Requires at least two ego-pose entries; otherwise no IMU data is attached.                                                                                                                                                                                                       |
 | `write_debug_frames`              | No       | `false` | When `true`, writes a `frames_debug.json` next to each staged sequence after building the frame list — the full Kognic model dump, useful for inspecting what was sent without checking the platform UI.                                                                                                                                                                            |
+| `generate_tsv_report`             | No       | `false` | When `true`, writes `<input_base>/upload_report.tsv` after the run. It records full nested scene paths, scene and per-input outcomes, remote scene/input IDs, orphan invalidation state, upload stage and duration, plus exception type, HTTP/SDK error code, and message. Remaining scenes are attempted after a failure so the report covers the complete batch. |
 | `scene_creation_timeout_s`        | No       | `1800`  | Maximum time to wait for a created scene to reach `Created` before raising `TimeoutError`.                                                                                                                                                                                                                                                                                          |
 | `scene_creation_poll_interval_s`  | No       | `10`    | How often to poll the scene status while waiting for `Created`.                                                                                                                                                                                                                                                                                                                     |
 

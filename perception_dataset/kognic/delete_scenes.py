@@ -17,8 +17,8 @@ a source you provide:
   External ids are resolved to scene uuids via ``input.query_inputs``, so this
   only works for scenes that have an input (orphan scenes must be addressed by
   uuid), or
-* ``--dataset-id-json`` — a ``dataset_id.json`` as written by the uploader
-  (defaults to ``<input_base>/dataset_id.json`` from the upload config).
+* ``--upload-report-tsv`` — the ``upload_report.tsv`` written by the uploader
+  (defaults to ``<input_base>/upload_report.tsv`` from the upload config).
 
 A scene is considered to have *no input* when ``input.query_inputs`` returns
 nothing for it. Already-invalidated or non-existent scenes are skipped.
@@ -36,7 +36,6 @@ actually invalidate.
 import argparse
 from collections import OrderedDict
 import csv
-import json
 from pathlib import Path
 from typing import List, Optional, Set
 
@@ -46,7 +45,10 @@ from kognic.io.model.scene.scene_entry import SceneStatus
 from requests.exceptions import HTTPError
 import yaml
 
-from perception_dataset.kognic.upload_dataset import _load_upload_config
+from perception_dataset.kognic.upload_dataset import (
+    _load_upload_config,
+    read_upload_report_scene_uuids,
+)
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -83,13 +85,13 @@ def _collect_values(explicit: str, csv_column: str) -> List[str]:
 
 
 def _collect_scene_uuids(
-    explicit: Optional[str], dataset_id_json: Optional[Path]
+    explicit: Optional[str], upload_report_tsv: Optional[Path]
 ) -> List[str]:
     """Gather candidate scene UUIDs from command-line sources.
 
     Args:
         explicit (Optional[str]): Scene UUID text or CSV path.
-        dataset_id_json (Optional[Path]): Uploader-generated dataset ID file.
+        upload_report_tsv (Optional[Path]): Uploader-generated TSV report.
 
     Returns:
         List[str]: Unique scene UUIDs in discovery order.
@@ -115,20 +117,11 @@ def _collect_scene_uuids(
         for value in _collect_values(explicit, csv_column="scene_uuid"):
             _add(value)
 
-    if dataset_id_json is not None:
-        if not dataset_id_json.exists():
-            raise FileNotFoundError(f"dataset id file not found: {dataset_id_json}")
-        with open(dataset_id_json) as f:
-            data = json.load(f)
-        # Current form: {external_id: {"scene_id": ..., "inputs": [...]}}.
-        # Legacy form:  {dataset_name: scene_uuid}.
-        for value in data.values():
-            if isinstance(value, dict):
-                scene_uuid = value.get("scene_id")
-                if isinstance(scene_uuid, str):
-                    _add(scene_uuid)
-            elif isinstance(value, str):
-                _add(value)
+    if upload_report_tsv is not None:
+        for scene_uuid in read_upload_report_scene_uuids(
+            upload_report_tsv, {"successful", "partial_success", "failed"}
+        ):
+            _add(scene_uuid)
 
     return uuids
 
@@ -301,10 +294,10 @@ def main():
         "be found this way.",
     )
     parser.add_argument(
-        "--dataset-id-json",
+        "--upload-report-tsv",
         type=str,
         default=None,
-        help="Path to a dataset_id.json. Defaults to <input_base>/dataset_id.json. "
+        help="Path to upload_report.tsv. Defaults to <input_base>/upload_report.tsv.",
     )
     parser.add_argument(
         "--reason",
@@ -330,11 +323,14 @@ def main():
         config_dict = yaml.safe_load(f)
     upload_config = _load_upload_config(config_dict)
 
-    dataset_id_json: Optional[Path] = None
-    if args.dataset_id_json:
-        dataset_id_json = Path(args.dataset_id_json)
+    upload_report_tsv: Optional[Path]
+    if args.upload_report_tsv:
+        upload_report_tsv = Path(args.upload_report_tsv)
+    else:
+        default_report = upload_config.input_base / "upload_report.tsv"
+        upload_report_tsv = default_report if default_report.exists() else None
 
-    scene_uuids = _collect_scene_uuids(args.scene_uuids, dataset_id_json)
+    scene_uuids = _collect_scene_uuids(args.scene_uuids, upload_report_tsv)
 
     external_ids: List[str] = []
     if args.scene_external_ids:
@@ -348,7 +344,7 @@ def main():
     if not scene_uuids and not external_ids:
         logger.warning(
             "No candidate scenes found. Provide --scene-uuids, --scene-external-ids "
-            "or a dataset_id.json."
+            "or an upload_report.tsv."
         )
         return
 
