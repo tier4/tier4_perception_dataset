@@ -70,12 +70,12 @@ def test_scene_conversion_removes_stale_sensor_directories_before_generation(tmp
     assert not (output_dir / "lidar").exists()
 
 
-def test_duplicate_camera_timestamps_keep_one_file_per_frame(tmp_path: Path):
-    """Test that repeated camera timestamps still create distinct destinations.
+def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
+    """Test that repeated camera timestamps fail before overwriting a destination.
 
     Three frame records share the same source timestamp, as can happen around
-    dropped camera frames. The converter must add one-nanosecond offsets so the
-    files remain ordered and no frame overwrites another on disk.
+    dropped camera frames. Timestamp-based Kognic filenames cannot represent
+    those frames uniquely, so conversion must fail explicitly.
 
     Args:
         tmp_path (Path): Pytest directory used for the temporary image and
@@ -98,12 +98,5 @@ def test_duplicate_camera_timestamps_keep_one_file_per_frame(tmp_path: Path):
     converter._sample_data_by_channel = {"CAM_FRONT": records}
     converter._frame_records = [{"CAM_FRONT": record} for record in records]
 
-    copies = converter._collect_image_copies(
-        tmp_path / "input", output, "CAM_FRONT"
-    )
-
-    assert [destination.name for _, destination in copies] == [
-        "123000.jpg",
-        "123001.jpg",
-        "123002.jpg",
-    ]
+    with pytest.raises(ValueError, match="CAM_FRONT.*duplicate timestamp 123000 ns"):
+        converter._collect_image_copies(tmp_path / "input", output, "CAM_FRONT")
