@@ -84,9 +84,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
             annotated (bool): Whether the source carries T4 annotations.
             annotation_hz (int): Keyframe frequency for non-annotated data, in
                 ``1..10``.
-            lidar_point_stride (int | None): Explicit floats per point for
-                fused clouds without ``LIDAR_CONCAT_INFO``. Set to ``None`` to
-                require unambiguous automatic detection.
+            lidar_point_stride (int | None): Explicit floats per point for the
+                fused ``LIDAR_CONCAT`` stream when ``LIDAR_CONCAT_INFO`` is
+                unavailable. Per-sensor streams derive their stride from the
+                concat info.
             generate_tsv_report (bool): Write ``conversion_report.tsv`` in
                 ``output_base`` with scene outcomes and missing sensor frames.
 

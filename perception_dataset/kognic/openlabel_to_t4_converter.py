@@ -79,7 +79,6 @@ from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.pointcloud import (
-    detect_point_stride,
     stamp_to_ns,
     validate_concat_point_layout,
 )
@@ -128,8 +127,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             category_map (Optional[Dict[str, str]]): Kognic-to-T4 category map.
             include_attributes (bool): Whether to import object attributes.
             lidar_point_stride (Optional[int]): Explicit floats per point for
-                clouds without ``LIDAR_CONCAT_INFO``. Set to ``None`` to require
-                unambiguous automatic detection.
+                clouds without ``LIDAR_CONCAT_INFO``. Per-sensor point strides
+                are derived from the concat info.
         """
         super().__init__(input_base, output_base)
         self._annotation_base = Path(annotation_base)
@@ -1695,9 +1694,17 @@ def _lidar_point_count(
             info = json.load(f)
         total_points, _ = validate_concat_point_layout(info, bin_path)
         return total_points
+    if point_stride is None:
+        raise ValueError(
+            f"{bin_path}: an explicit point stride is required when "
+            "LIDAR_CONCAT_INFO is unavailable"
+        )
     floats = np.fromfile(bin_path, dtype=np.float32)
     if floats.size == 0:
         return 0
-    return floats.size // detect_point_stride(
-        floats, bin_path, expected_stride=point_stride
-    )
+    if point_stride < 4 or floats.size % point_stride != 0:
+        raise ValueError(
+            f"{bin_path}: {floats.size} floats are incompatible with the explicit "
+            f"point stride {point_stride}"
+        )
+    return floats.size // point_stride

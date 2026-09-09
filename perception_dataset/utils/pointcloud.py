@@ -154,76 +154,6 @@ def validate_concat_point_layout(info: dict, bin_path: Path) -> Tuple[int, Optio
     return total_points, point_stride_from_info(bin_path, total_points)
 
 
-def detect_point_stride(
-    floats: np.ndarray, bin_path: Path, expected_stride: Optional[int] = None
-) -> int:
-    """Guess the floats-per-point stride when no LIDAR_CONCAT_INFO is available.
-
-    Tries ``LIDAR_CONCAT_NUM_POINT_FEATURES`` and other supported strides. The
-    layout is accepted only when exactly one candidate yields finite,
-    plausibly-sized coordinates; ambiguous binaries require an explicit schema
-    or ``LIDAR_CONCAT_INFO``.
-
-    Args:
-        floats (np.ndarray): Flat array of point-cloud values.
-        bin_path (Path): Source path included in diagnostics.
-        expected_stride (Optional[int]): Explicit floats-per-point schema. When
-            set, validate and use it instead of guessing.
-
-    Returns:
-        int: Detected number of floats in each point record.
-
-    Raises:
-        ValueError: If no unique plausible point stride can be detected.
-    """
-    candidates = [LIDAR_CONCAT_NUM_POINT_FEATURES] + [
-        stride for stride in range(4, 17) if stride != LIDAR_CONCAT_NUM_POINT_FEATURES
-    ]
-    if len(floats) == 0:
-        raise ValueError(f"{bin_path}: an empty cloud has no detectable point stride")
-
-    if expected_stride is not None:
-        if expected_stride < 4:
-            raise ValueError(
-                f"{bin_path}: explicit point stride must be at least 4, got "
-                f"{expected_stride}"
-            )
-        if len(floats) % expected_stride != 0:
-            raise ValueError(
-                f"{bin_path}: {len(floats)} floats is not divisible by the explicit "
-                f"point stride {expected_stride}"
-            )
-        points = floats.reshape(-1, expected_stride)
-        if not valid_point_mask(points).all():
-            raise ValueError(
-                f"{bin_path}: data does not match the explicit point stride "
-                f"{expected_stride}; coordinates or intensity are invalid"
-            )
-        return expected_stride
-
-    plausible = []
-    for stride in candidates:
-        if len(floats) % stride != 0:
-            continue
-        xyz = floats.reshape(-1, stride)[:, :3]
-        if np.isfinite(xyz).all() and np.abs(xyz).max() < _MAX_REASONABLE_COORDINATE_M:
-            plausible.append(stride)
-    if not plausible:
-        raise ValueError(f"{bin_path}: could not determine the point stride")
-    if len(plausible) > 1:
-        raise ValueError(
-            f"{bin_path}: point stride is ambiguous; plausible values are {plausible}. "
-            "Provide LIDAR_CONCAT_INFO or an explicit point schema."
-        )
-    stride = plausible[0]
-    if stride != LIDAR_CONCAT_NUM_POINT_FEATURES:
-        logger.warning(
-            f"{bin_path}: detected {stride} floats per point "
-            f"(expected {LIDAR_CONCAT_NUM_POINT_FEATURES})"
-        )
-    return stride
-
-
 def extract_pointclouds(
     seq_path: Path,
     out_dir: Path,
@@ -243,9 +173,9 @@ def extract_pointclouds(
             channel names to sample-data records.
         channel_to_token (Dict[str, str]): Mapping from channel names to sensor
             tokens.
-        point_stride (Optional[int]): Explicit point stride used only when
-            ``LIDAR_CONCAT_INFO`` is unavailable. Set to ``None`` to require
-            unambiguous automatic detection.
+        point_stride (Optional[int]): Explicit point stride for the fused
+            ``LIDAR_CONCAT`` stream when ``LIDAR_CONCAT_INFO`` is unavailable.
+            Per-sensor streams derive their stride from concat info.
 
     Returns:
         None
@@ -253,7 +183,8 @@ def extract_pointclouds(
     Raises:
         FileNotFoundError: If required point-cloud or concat-info data is
             missing.
-        ValueError: If a point-record stride cannot be derived or detected.
+        ValueError: If the fused stream has no explicit point stride or its
+            binary layout is inconsistent.
     """
     sensor_token = channel_to_token.get(lidar_channel)
     if sensor_token is None:
@@ -280,9 +211,17 @@ def extract_pointclouds(
             if floats.size == 0:
                 points = np.empty((0, 4), dtype=np.float32)
             else:
-                points = floats.reshape(
-                    -1, detect_point_stride(floats, bin_path, expected_stride=point_stride)
-                )
+                if point_stride is None:
+                    raise ValueError(
+                        f"{bin_path}: an explicit point stride is required to export "
+                        "the concatenated cloud without LIDAR_CONCAT_INFO"
+                    )
+                if point_stride < 4 or floats.size % point_stride != 0:
+                    raise ValueError(
+                        f"{bin_path}: {floats.size} floats are incompatible with "
+                        f"the explicit point stride {point_stride}"
+                    )
+                points = floats.reshape(-1, point_stride)
             csv_path = lidar_dir / f"{timestamp_ns}.csv"
             save_pointcloud_csv(csv_path, timestamp_ns, points)
             count += 1
