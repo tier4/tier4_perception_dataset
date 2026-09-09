@@ -227,7 +227,6 @@ class KognicUploadConfig:
         organization_id (Optional[str]): Kognic organization identifier.
         workspace_id (Optional[str]): Kognic write-workspace identifier.
         project_targets (List[ProjectTarget]): Projects and batches to receive inputs.
-        target_hz (Optional[int]): Fallback annotation-frame frequency.
         dryrun (bool): Whether Kognic should validate without persisting scenes.
         motion_compensate (bool): Whether to enable motion compensation.
         include_imu_data (bool): Whether to derive dense IMU pose data.
@@ -245,7 +244,6 @@ class KognicUploadConfig:
     organization_id: Optional[str] = None
     workspace_id: Optional[str] = None
     project_targets: List[ProjectTarget] = field(default_factory=list)
-    target_hz: Optional[int] = None
     dryrun: bool = False
     motion_compensate: bool = False
     include_imu_data: bool = True
@@ -327,48 +325,6 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
         seen.add(combination)
         targets.append(target)
     return targets
-
-
-def select_annotate_indices(
-    timestamps_ns: List[int],
-    target_hz: Optional[int],
-) -> List[int]:
-    """Indices of the frames marked ``annotate=True`` by the ``target_hz`` walk.
-
-    Fallback for scenes without a ``keyframes.json`` (non-annotated data or
-    staging dirs produced before it existed): walks *timestamps_ns* and selects
-    the first frame at least ``1/target_hz`` seconds after the previously
-    selected one. Without ``target_hz`` every frame is selected.
-
-    T4 source frames are not spaced at exactly 1/source_hz: a small per-frame
-    drift (e.g. ~0.09997s instead of 0.1s) accumulates, so the frame at a
-    nominal 1.0s boundary can actually land at ~0.99999s. Half of the median
-    frame interval is used as tolerance on the interval check.
-
-    Args:
-        timestamps_ns (List[int]): Ordered frame timestamps in nanoseconds.
-        target_hz (Optional[int]): Desired annotation frequency, or ``None``
-            to annotate every frame.
-
-    Returns:
-        List[int]: Indices of frames to mark for annotation.
-    """
-    if not target_hz:
-        return list(range(len(timestamps_ns)))
-
-    min_interval_ns = int(1e9 / target_hz)
-    deltas = sorted(b - a for a, b in zip(timestamps_ns, timestamps_ns[1:]) if b > a)
-    tolerance_ns = deltas[len(deltas) // 2] // 2 if deltas else 0
-
-    indices: List[int] = []
-    last_annotated_ts: Optional[int] = None
-    for idx, timestamp_ns in enumerate(timestamps_ns):
-        if last_annotated_ts is None or (timestamp_ns - last_annotated_ts) >= (
-            min_interval_ns - tolerance_ns
-        ):
-            indices.append(idx)
-            last_annotated_ts = timestamp_ns
-    return indices
 
 
 def _sort_key(path: Path) -> Tuple[int, str]:
@@ -508,7 +464,6 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         organization_id=organization_id,
         workspace_id=workspace_id,
         project_targets=_parse_project_targets(conversion_config),
-        target_hz=conversion_config.get("target_hz"),
         dryrun=conversion_config.get("dryrun", False),
         motion_compensate=conversion_config.get("motion_compensate", False),
         include_imu_data=conversion_config.get("include_imu_data", True),
@@ -624,18 +579,10 @@ class KognicDatasetUploader:
         Returns:
             List[SceneUploadResult]: Upload outcomes for the sequence.
         """
-        # create calibration first since the frames reference the calibration_id
-        start_time = time.time()
-        logger.info(f"Uploading calibration for {external_id}")
-        calibration_id = self._get_or_upload_calibration(sequence_path, external_id)
-        logger.info(
-            f"Time taken to upload calibration for {external_id}: "
-            f"{time.time() - start_time} seconds"
-        )
-
         logger.info(f"Loading ego poses for {external_id}")
         ego_poses = self._load_ego_poses(sequence_path)
 
+        # Validate and build the staging data before creating any remote resource.
         logger.info(f"Building frames and IMU data for {external_id}")
         frames = self._build_frames(sequence_path, ego_poses)
         imu_data = self._build_imu_data(sequence_path, ego_poses)
@@ -647,6 +594,14 @@ class KognicDatasetUploader:
 
         if self.config.write_debug_frames:
             self._write_debug_frames(sequence_path, external_id, frames)
+
+        start_time = time.time()
+        logger.info(f"Uploading calibration for {external_id}")
+        calibration_id = self._get_or_upload_calibration(sequence_path, external_id)
+        logger.info(
+            f"Time taken to upload calibration for {external_id}: "
+            f"{time.time() - start_time} seconds"
+        )
 
         feature_flags = FeatureFlags() if not self.config.motion_compensate else None
 
@@ -1179,15 +1134,7 @@ class KognicDatasetUploader:
 
         frame_records = list(self.iterate_frames(sequence_path))
         keyframe_indices = self._load_keyframe_indices(sequence_path, len(frame_records))
-        if keyframe_indices is not None:
-            annotate_indices = set(keyframe_indices)
-        else:
-            annotate_indices = set(
-                select_annotate_indices(
-                    [timestamp_ns for _, timestamp_ns, _ in frame_records],
-                    self.config.target_hz,
-                )
-            )
+        annotate_indices = set(keyframe_indices)
 
         for frame_idx, (frame_id, timestamp_ns, sensor_files) in enumerate(frame_records):
             if reference_timestamp is None:
@@ -1228,45 +1175,60 @@ class KognicDatasetUploader:
         return frames
 
     @staticmethod
-    def _load_keyframe_indices(sequence_path: Path, frame_count: int) -> Optional[List[int]]:
-        """T4 keyframe positions exported by the T4-to-Kognic converters, if any.
+    def _load_keyframe_indices(sequence_path: Path, frame_count: int) -> List[int]:
+        """Load T4 keyframe positions exported by the T4-to-Kognic converters.
 
         ``keyframes.json`` holds the staging frame indices whose source T4
         ``sample_data`` records have ``is_key_frame`` set. When present, exactly
         those frames are marked ``annotate=True`` so the annotatable frames
         coincide with the T4 keyframes (and, for annotated scenes, with the
-        pre-annotation frames), and ``target_hz`` is ignored. Returns ``None``
-        (fall back to the ``target_hz`` walk) when the file is missing or was
-        generated for a different frame count.
+        pre-annotation frames). The file is required, and its recorded frame
+        count must match the current staging data to prevent stale annotation
+        flags from being applied to changed sensor files.
 
         Args:
             sequence_path (Path): Staging sequence directory.
             frame_count (int): Current number of staging frames.
 
         Returns:
-            Optional[List[int]]: Keyframe indices, or ``None`` to use the
-                frequency-based fallback.
+            List[int]: Staging frame indices to mark for annotation.
+
+        Raises:
+            FileNotFoundError: If ``keyframes.json`` is missing.
+            ValueError: If the file's frame count or keyframe indices are invalid.
         """
         keyframes_path = sequence_path / "keyframes.json"
         if not keyframes_path.exists():
-            return None
+            raise FileNotFoundError(
+                f"Required keyframe metadata is missing: {keyframes_path}. "
+                "Re-run the T4-to-Kognic converter before uploading."
+            )
 
         with open(keyframes_path) as f:
             data = json.load(f)
 
         if data.get("frame_count") != frame_count:
-            logger.warning(
+            raise ValueError(
                 f"{keyframes_path} was generated for {data.get('frame_count')} frames but "
-                f"the scene has {frame_count}; ignoring it and selecting annotate frames "
-                "by target_hz instead"
+                f"the current staging data has {frame_count}. Re-run the T4-to-Kognic "
+                "converter before uploading."
             )
-            return None
+
+        keyframe_indices = data.get("keyframe_indices")
+        if not isinstance(keyframe_indices, list) or any(
+            not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < frame_count
+            for index in keyframe_indices
+        ):
+            raise ValueError(
+                f"{keyframes_path} contains invalid keyframe_indices for {frame_count} frames. "
+                "Re-run the T4-to-Kognic converter before uploading."
+            )
 
         logger.info(
-            f"Marking the {len(data['keyframe_indices'])} T4 keyframes from "
+            f"Marking the {len(keyframe_indices)} T4 keyframes from "
             f"{keyframes_path.name} as annotate=True"
         )
-        return data["keyframe_indices"]
+        return keyframe_indices
 
     def _build_imu_data(
         self,

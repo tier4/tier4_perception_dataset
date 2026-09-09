@@ -55,8 +55,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
             lidar/<lidar_name>/<timestamp_ns>.csv
 
     ``keyframes.json`` holds the staging frame indices of the keyframes; the
-    uploader marks exactly those frames ``annotate=True`` instead of walking a
-    fixed ``target_hz`` grid. For annotated datasets (``annotated=True``) the
+    uploader requires this file and marks exactly those frames ``annotate=True``.
+    For annotated datasets (``annotated=True``) the
     keyframes are the frames whose sample carries at least one
     ``sample_annotation``. Non-annotated datasets have no annotations, so their
     keyframes are instead selected by sample index at ``annotation_hz``,

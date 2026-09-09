@@ -1,4 +1,5 @@
 import csv
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -93,6 +94,62 @@ def test_iterate_frames_requires_every_sensor_in_every_frame(tmp_path: Path):
 
     with pytest.raises(ValueError, match="Sensor file counts disagree"):
         list(uploader.iterate_frames(tmp_path))
+
+
+def test_keyframe_metadata_is_required(tmp_path: Path):
+    """Test that upload staging without keyframe metadata is rejected.
+
+    The uploader must not silently mark every frame for annotation when a
+    staging directory was produced without ``keyframes.json``. Requiring the
+    file keeps annotation flags aligned with the source T4 keyframes.
+
+    Args:
+        tmp_path (Path): Pytest directory representing a staging sequence
+            without keyframe metadata.
+    """
+    with pytest.raises(FileNotFoundError, match="Required keyframe metadata is missing"):
+        KognicDatasetUploader._load_keyframe_indices(tmp_path, frame_count=2)
+
+
+def test_keyframe_metadata_must_match_staging_frame_count(tmp_path: Path):
+    """Test that stale keyframe metadata cannot annotate changed staging data.
+
+    The metadata claims it was generated from three frames while the caller
+    has discovered two current staging frames. Accepting it could mark the
+    wrong sensor data for annotation, so the uploader must fail instead.
+
+    Args:
+        tmp_path (Path): Pytest directory used to hold deliberately stale
+            ``keyframes.json`` metadata.
+    """
+    (tmp_path / "keyframes.json").write_text(
+        json.dumps({"frame_count": 3, "keyframe_indices": [0, 2]})
+    )
+
+    with pytest.raises(ValueError, match="generated for 3 frames.*has 2"):
+        KognicDatasetUploader._load_keyframe_indices(tmp_path, frame_count=2)
+
+
+def test_upload_validates_frames_before_uploading_calibration(tmp_path: Path):
+    """Test that invalid staging creates no remote calibration resource.
+
+    Frame construction raises the same missing-metadata error that a real
+    staging sequence would produce. The calibration uploader must remain
+    uncalled, proving local staging validation completes before any remote
+    resource can be created.
+
+    Args:
+        tmp_path (Path): Pytest directory used as the uploader input base.
+    """
+    uploader = KognicDatasetUploader(KognicUploadConfig(input_base=tmp_path))
+    uploader._load_ego_poses = Mock(return_value=None)
+    uploader._build_frames = Mock(side_effect=FileNotFoundError("missing keyframes.json"))
+    uploader._get_or_upload_calibration = Mock()
+
+    with pytest.raises(FileNotFoundError, match="missing keyframes.json"):
+        uploader.upload_one(tmp_path, "scene")
+
+    uploader._get_or_upload_calibration.assert_not_called()
 
 
 def test_wait_for_pre_annotation_reaches_indexed(monkeypatch: pytest.MonkeyPatch):

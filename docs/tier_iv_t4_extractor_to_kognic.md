@@ -64,13 +64,14 @@ The extractor creates a Kognic-ready local staging format for the Kognic IO uplo
 <output_base>/<sequence_name>/
   calibration.json
   ego_poses.json
+  keyframes.json
   cameras/<camera_name>/<timestamp_ns>.jpg
   lidar/<lidar_name>/<timestamp_ns>.csv
 ```
 
 An uploader then reads this folder, creates a Kognic sensor calibration, builds a `LidarsAndCamerasSequence`, attaches per-frame images and point clouds, and uploads the scene.
 
-The converter always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found). There is no sample-level (key-frame-only) export mode; annotation frequency is decided at upload time via `target_hz` (see [Annotation Interval Selection](#annotation-interval-selection)).
+The converter always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found). `keyframes.json` records the staging indices of source T4 keyframes; the uploader uses exactly those indices for `annotate=True`.
 
 ### High-Level Flow
 
@@ -249,7 +250,7 @@ T_rel(frame_i) = inverse(T_ego_frame_0_to_world) * T_ego_frame_i_to_world
 
 Frame 0 therefore becomes position `(0, 0, 0)` with identity rotation. Later frames describe ego motion relative to that first frame. The uploader passes these poses into each `LidarsAndCamerasSequenceFrame` as `ego_vehicle_pose`, and can upsample them to IMU-like 200 Hz samples when configured.
 
-> The converter does not resample the raw T4 ego-pose stream. It loads `sample.json`, finds each sample's `LIDAR_CONCAT` `sample_data` record, reads that record's `ego_pose_token`, and converts only those selected poses. In the sample dataset the raw T4 ego poses are ~10 Hz while `sample.json` frames are ~1 Hz, so the intermediate poses exist but are not written. To exclude them from annotation, set `target_hz` at upload time.
+> The converter does not resample the raw T4 ego-pose stream. It loads `sample.json`, finds each sample's `LIDAR_CONCAT` `sample_data` record, reads that record's `ego_pose_token`, and converts only those selected poses. In the sample dataset the raw T4 ego poses are ~10 Hz while `sample.json` frames are ~1 Hz, so the intermediate poses exist but are not written. Frames eligible for annotation are recorded by the converter in `keyframes.json`.
 
 ### Image Extraction
 
@@ -404,7 +405,7 @@ export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
 python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
 ```
 
-All staged frames are uploaded. Annotation frequency is controlled at upload time via `target_hz`: frames at that interval are marked `annotate=True`, and the rest are uploaded as context with `annotate=False`. When `target_hz` is omitted, every frame is marked `annotate=True`.
+All staged frames are uploaded. `keyframes.json` is required and determines which frames are marked `annotate=True`; its recorded `frame_count` must match the current staged frame count. Re-run the T4-to-Kognic converter after changing staged sensor data.
 
 Each sequence is uploaded **once** as a single scene. The uploader then creates **one input per configured project** from that scene, so the same sensor data can feed several projects/batches without re-uploading it. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations).
 
@@ -468,8 +469,6 @@ conversion:
       batch_external_id: my_cuboid_batch # optional; omit -> latest open batch
       pre_annotation: pre_annotation.json # optional; omit -> no pre-annotation
     - project_external_id: my_semseg_project # second input from the same scene
-  target_hz: 1 # optional
-  # annotation_interval_tolerance_s: 0.05  # optional; leniency (+/-) when matching target_hz
   dryrun: false
   motion_compensate: false
   include_imu_data: true
@@ -485,8 +484,6 @@ conversion:
 | `organization_id`                 | Yes      | —       | Your Kognic organization ID (also accepted as `client_organization_id`).                                                                                                                                                                                                                                                                                                            |
 | `workspace_id`                    | Yes      | —       | The Kognic workspace UUID to write scenes into (also accepted as `write_workspace_id`).                                                                                                                                                                                                                                                                                             |
 | `projects`                        | No       | `[]`    | List of projects to create inputs in from the shared scene. Each entry has `project_external_id` (required) plus optional `batch_external_id` and `pre_annotation`. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations). If omitted/empty, the scene is created with no input. Each `(project_external_id, batch_external_id)` pair must be unique. |
-| `target_hz`                       | No       | `None`  | Controls which frames are marked `annotate=True`. All staged frames are uploaded regardless, but only frames at least `1 / target_hz` seconds apart are flagged for annotation. Omit to annotate every frame. See [Annotation Interval Selection](#annotation-interval-selection).                                                                                                  |
-| `annotation_interval_tolerance_s` | No       | —       | (Not currently supported.) Annotate-frame tolerance is derived automatically from the median source frame interval.                                                                                                                                                                                                                                                             |
 | `dryrun`                          | No       | `false` | When `true`, validates the scene structure against the Kognic API but does not create a scene, upload sensor files, attach pre-annotations, or create inputs. The calibration **is** uploaded for real even in dryrun mode. The scene id is recorded as `"dryrun"` in `dataset_id.json`.                                                                                            |
 | `motion_compensate`               | No       | `false` | When `false`, sends `FeatureFlags()` disabling server-side motion compensation. When `true`, no feature flags are sent and Kognic applies its default motion compensation. Requires accurate IMU or ego-pose data.                                                                                                                                                                  |
 | `include_imu_data`                | No       | `true`  | When `true`, generates a 200 Hz IMU-like stream by interpolating `ego_poses.json` and attaches it. Requires at least two ego-pose entries; otherwise no IMU data is attached.                                                                                                                                                                                                       |
@@ -509,25 +506,6 @@ The uploader anchors frames on the first available LiDAR stream, preferring the 
 | `images`             | JPG files under `cameras/<sensor>/`, with shutter start/end set to the image filename timestamp. |
 
 **Calibration deduplication:** within a single run, if multiple sequences share a byte-for-byte identical `calibration.json`, only the first calibration upload is sent; later sequences reuse the returned `calibration_id`.
-
-### Annotation Interval Selection
-
-When `target_hz` is set, the uploader walks frames in timestamp order and flags a frame whenever enough time has elapsed since the last flagged frame:
-
-```text
-annotate frame if (timestamp_ns - last_annotated_ts) >= (min_interval_ns - tolerance_ns)
-min_interval_ns = 1e9 / target_hz
-```
-
-The tolerance exists because **T4 frames are rarely spaced at exactly `1 / source_hz`** — each step is slightly short of the nominal interval (e.g. `0.09997s` instead of `0.1s`). That deficit accumulates, so a frame at a nominal boundary lands just below the target:
-
-| Frame  | Nominal time | Actual elapsed since reference | Strict `>= 1.0s`?              |
-| ------ | ------------ | ------------------------------ | ------------------------------ |
-| idx 9  | 0.9s         | 0.899995s                      | skip (correct)                 |
-| idx 10 | 1.0s         | 0.999994s                      | **skipped** — only ~6 µs short |
-| idx 11 | 1.1s         | 1.099991s                      | annotated                      |
-
-With a strict check the `1.0s` frame is dropped and the cadence drifts to `0.0, 1.1, 2.1, 3.2, ...`. The tolerance is applied **only to the comparison**; the frame's original timestamp is still stored as `last_annotated_ts`, so leniency never accumulates. When omitted, it defaults to **half the median source frame interval**. With the default, `target_hz: 1` correctly selects `0.0, 1.0, 2.0, 3.0, ...`.
 
 ### Stage 3 Output
 
