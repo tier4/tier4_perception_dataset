@@ -21,7 +21,7 @@ def validate_annotation_hz(annotation_hz: int) -> int:
     Raises:
         ValueError: If the frequency is not an integer in ``1..10``.
     """
-    if not isinstance(annotation_hz, int) or not 1 <= annotation_hz <= MAX_ANNOTATION_HZ:
+    if type(annotation_hz) is not int or not 1 <= annotation_hz <= MAX_ANNOTATION_HZ:
         raise ValueError(
             f"annotation_hz must be an integer between 1 and {MAX_ANNOTATION_HZ} "
             f"(the T4 sample rate), got {annotation_hz!r}"
