@@ -60,6 +60,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 from t4_devkit import Tier4
 from t4_devkit.common.serialize import serialize_dataclass
+from t4_devkit.dataclass import LidarPointCloud
 from t4_devkit.schema.tables import (
     Attribute,
     Category,
@@ -70,7 +71,6 @@ from t4_devkit.schema.tables import (
 )
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LIDAR_CONCAT_NUM_POINT_FEATURES
 from perception_dataset.kognic.openlabel import (
     cuboid_val_to_t4_box,
     occlusion_to_visibility_level,
@@ -113,7 +113,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         iso_rotated_cuboids: bool = False,
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = True,
-        lidar_point_stride: Optional[int] = LIDAR_CONCAT_NUM_POINT_FEATURES,
     ):
         """Initialize the converter.
 
@@ -128,9 +127,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             iso_rotated_cuboids (bool): Whether cuboids use the T4 forward axis.
             category_map (Optional[Dict[str, str]]): Kognic-to-T4 category map.
             include_attributes (bool): Whether to import object attributes.
-            lidar_point_stride (Optional[int]): Explicit floats per point for
-                clouds without ``LIDAR_CONCAT_INFO``. Per-sensor point strides
-                are derived from the concat info.
         """
         super().__init__(input_base, output_base)
         self._annotation_base = Path(annotation_base)
@@ -140,7 +136,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         self._iso_rotated_cuboids = iso_rotated_cuboids
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
-        self._lidar_point_stride = lidar_point_stride
         self._t4_table_cache: Dict[Tuple[Path, str], list] = {}
 
     # ------------------------------------------------------------------
@@ -1105,7 +1100,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             num_points = _lidar_point_count(
                 scene_dir / sample_data["filename"],
                 info_path=info_path,
-                point_stride=self._lidar_point_stride,
             )
             if num_points is None:
                 logger.warning(
@@ -1692,17 +1686,13 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
 def _lidar_point_count(
     bin_path: Path,
     info_path: Optional[Path] = None,
-    point_stride: Optional[int] = None,
 ) -> Optional[int]:
     """Count points in a fused-lidar binary file.
 
     Args:
         bin_path (Path): Path to a ``.pcd.bin`` file.
         info_path (Optional[Path]): Corresponding ``LIDAR_CONCAT_INFO`` file.
-            When present, its validated sensor slices determine the point count
-            and point stride without guessing.
-        point_stride (Optional[int]): Explicit floats-per-point schema used
-            when concat metadata is unavailable.
+            When present, it is supplied to the t4-devkit loader.
 
     Returns:
         Optional[int]: Point count, or ``None`` when the file is missing.
@@ -1716,17 +1706,6 @@ def _lidar_point_count(
             info = json.load(f)
         total_points, _ = validate_concat_point_layout(info, bin_path)
         return total_points
-    if point_stride is None:
-        raise ValueError(
-            f"{bin_path}: an explicit point stride is required when "
-            "LIDAR_CONCAT_INFO is unavailable"
-        )
-    floats = np.fromfile(bin_path, dtype=np.float32)
-    if floats.size == 0:
+    if bin_path.stat().st_size == 0:
         return 0
-    if point_stride < 4 or floats.size % point_stride != 0:
-        raise ValueError(
-            f"{bin_path}: {floats.size} floats are incompatible with the explicit "
-            f"point stride {point_stride}"
-        )
-    return floats.size // point_stride
+    return LidarPointCloud.from_file(str(bin_path)).points.shape[1]

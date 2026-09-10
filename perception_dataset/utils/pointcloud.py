@@ -10,7 +10,6 @@ from t4_devkit.dataclass import LidarPointCloud
 
 from perception_dataset.constants import (
     LIDAR_CONCAT_CHANNEL,
-    LIDAR_CONCAT_NUM_POINT_FEATURES,
 )
 from perception_dataset.utils.logger import configure_logger
 
@@ -161,7 +160,6 @@ def extract_pointclouds(
     lidar_channel: str,
     frame_records: List[Dict[str, dict]],
     channel_to_token: Dict[str, str],
-    point_stride: Optional[int] = LIDAR_CONCAT_NUM_POINT_FEATURES,
 ) -> None:
     """Write per-frame CSV point clouds for a lidar channel.
 
@@ -174,9 +172,6 @@ def extract_pointclouds(
             channel names to sample-data records.
         channel_to_token (Dict[str, str]): Mapping from channel names to sensor
             tokens.
-        point_stride (Optional[int]): Explicit point stride for the fused
-            ``LIDAR_CONCAT`` stream when ``LIDAR_CONCAT_INFO`` is unavailable.
-            Per-sensor streams derive their stride from concat info.
 
     Returns:
         None
@@ -184,8 +179,7 @@ def extract_pointclouds(
     Raises:
         FileNotFoundError: If required point-cloud or concat-info data is
             missing.
-        ValueError: If the fused stream has no explicit point stride or its
-            binary layout is inconsistent.
+        ValueError: If a point-cloud binary layout is inconsistent.
     """
     sensor_token = channel_to_token.get(lidar_channel)
     if sensor_token is None:
@@ -208,14 +202,9 @@ def extract_pointclouds(
 
         if lidar_channel == LIDAR_CONCAT_CHANNEL:
             timestamp_ns = int(concat_sample_data.timestamp) * 1000
-            if point_stride is None:
-                raise ValueError(
-                    f"{bin_path}: an explicit point stride is required to export "
-                    "the concatenated cloud without LIDAR_CONCAT_INFO"
-                )
             if bin_path.stat().st_size == 0:
                 points = np.empty((0, 4), dtype=np.float32)
-            elif point_stride == LIDAR_CONCAT_NUM_POINT_FEATURES:
+            else:
                 metainfo_path = (
                     seq_path / concat_sample_data.info_filename
                     if concat_sample_data.info_filename
@@ -225,14 +214,6 @@ def extract_pointclouds(
                     str(bin_path),
                     metainfo_filepath=str(metainfo_path) if metainfo_path else None,
                 ).points.T
-            else:
-                floats = np.fromfile(bin_path, dtype=np.float32)
-                if point_stride < 4 or floats.size % point_stride != 0:
-                    raise ValueError(
-                        f"{bin_path}: {floats.size} floats are incompatible with "
-                        f"the explicit point stride {point_stride}"
-                    )
-                points = floats.reshape(-1, point_stride)
             csv_path = lidar_dir / f"{timestamp_ns}.csv"
             save_pointcloud_csv(csv_path, timestamp_ns, points)
             count += 1
