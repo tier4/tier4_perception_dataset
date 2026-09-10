@@ -58,6 +58,8 @@ import time
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
+from t4_devkit import Tier4
+from t4_devkit.common.serialize import serialize_dataclass
 from t4_devkit.schema.tables import (
     Attribute,
     Category,
@@ -139,6 +141,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
         self._lidar_point_stride = lidar_point_stride
+        self._t4_table_cache: Dict[Tuple[Path, str], list] = {}
 
     # ------------------------------------------------------------------
     # AbstractConverter contract
@@ -266,8 +269,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Returns:
             Tuple[float, float]: Unix start and end times with two-second margins.
         """
-        from t4_devkit import Tier4
-
         t4_dataset = Tier4(data_root=str(t4_dataset_dir), verbose=False)
         timestamps = [sample.timestamp for sample in t4_dataset.sample]
         start_sec = misc_utils.nusc_timestamp_to_unix_timestamp(min(timestamps)) - 2.0
@@ -1297,9 +1298,13 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     # IO
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _load_table(scene_dir: Path, name: str) -> list:
-        """Load an optional T4 annotation table.
+    def _load_table(self, scene_dir: Path, name: str) -> list:
+        """Load a T4 table, using the devkit for core dataset tables.
+
+        The converter keeps dictionaries internally because OpenLABEL and
+        concat metadata are handled as JSON, but the core T4 sensor tables are
+        decoded by ``Tier4`` first so their schema and field interpretation
+        stay centralized in t4-devkit.
 
         Args:
             scene_dir (Path): T4 scene directory.
@@ -1308,6 +1313,23 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Returns:
             list: Parsed records, or an empty list when the file is absent.
         """
+        core_tables = {
+            "sample.json",
+            "sample_data.json",
+            "sensor.json",
+            "calibrated_sensor.json",
+            "ego_pose.json",
+        }
+        cache_key = (scene_dir.resolve(), name)
+        if name in core_tables:
+            if cache_key not in self._t4_table_cache:
+                t4_dataset = Tier4(data_root=str(scene_dir), verbose=False)
+                table_name = Path(name).stem
+                self._t4_table_cache[cache_key] = [
+                    serialize_dataclass(record) for record in t4_dataset.get_table(table_name)
+                ]
+            return self._t4_table_cache[cache_key]
+
         path = scene_dir / "annotation" / name
         if not path.exists():
             return []
