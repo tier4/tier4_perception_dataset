@@ -71,11 +71,11 @@ uv sync --python "$(which python3)"
 - [GitHub CLI](https://github.com/cli/cli#installation)
 
 ```shell
-gh release download t4-sample-0-2026-04-22 -D tests/data/t4_sample_0
+gh release download t4-sample-0-2026-06-30 -D tests/data/t4_sample_0
 unzip 'tests/data/t4_sample_0/*.zip' -d tests/data/t4_sample_0/
 ```
 
-or manually download zipped data from [the release page](https://github.com/tier4/tier4_perception_dataset/releases/tag/t4-sample-0-2026-04-22) to a `test/data` directory
+or manually download zipped data from [the release page](https://github.com/tier4/tier4_perception_dataset/releases/tag/t4-sample-0-2026-06-30) to a `test/data` directory
 
 #### Run tests
 
