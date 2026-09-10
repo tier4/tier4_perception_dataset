@@ -6,6 +6,7 @@ import shutil
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+from t4_devkit.dataclass import LidarPointCloud
 
 from perception_dataset.constants import (
     LIDAR_CONCAT_CHANNEL,
@@ -207,15 +208,25 @@ def extract_pointclouds(
 
         if lidar_channel == LIDAR_CONCAT_CHANNEL:
             timestamp_ns = int(concat_sample_data.timestamp) * 1000
-            floats = np.fromfile(bin_path, dtype=np.float32)
-            if floats.size == 0:
+            if point_stride is None:
+                raise ValueError(
+                    f"{bin_path}: an explicit point stride is required to export "
+                    "the concatenated cloud without LIDAR_CONCAT_INFO"
+                )
+            if bin_path.stat().st_size == 0:
                 points = np.empty((0, 4), dtype=np.float32)
+            elif point_stride == LIDAR_CONCAT_NUM_POINT_FEATURES:
+                metainfo_path = (
+                    seq_path / concat_sample_data.info_filename
+                    if concat_sample_data.info_filename
+                    else None
+                )
+                points = LidarPointCloud.from_file(
+                    str(bin_path),
+                    metainfo_filepath=str(metainfo_path) if metainfo_path else None,
+                ).points.T
             else:
-                if point_stride is None:
-                    raise ValueError(
-                        f"{bin_path}: an explicit point stride is required to export "
-                        "the concatenated cloud without LIDAR_CONCAT_INFO"
-                    )
+                floats = np.fromfile(bin_path, dtype=np.float32)
                 if point_stride < 4 or floats.size % point_stride != 0:
                     raise ValueError(
                         f"{bin_path}: {floats.size} floats are incompatible with "
@@ -241,7 +252,7 @@ def extract_pointclouds(
         with open(info_path) as f:
             info = json.load(f)
 
-        _, stride = validate_concat_point_layout(info, bin_path)
+        total_points, _ = validate_concat_point_layout(info, bin_path)
 
         source = next(
             (src for src in info["sources"] if src["sensor_token"] == sensor_token),
@@ -266,24 +277,18 @@ def extract_pointclouds(
             continue
 
         idx_begin = int(source["idx_begin"])
-        if stride is None:
+        pointcloud = LidarPointCloud.from_file(
+            str(bin_path),
+            metainfo_filepath=str(info_path),
+        )
+        if pointcloud.points.shape[1] != total_points:
             raise ValueError(
-                f"{bin_path}: source {sensor_token} declares {length} points in an empty cloud"
-            )
-        bytes_per_point = stride * 4
-        expected_bytes = length * bytes_per_point
-
-        with open(bin_path, "rb") as f:
-            f.seek(idx_begin * bytes_per_point)
-            raw = f.read(expected_bytes)
-
-        if len(raw) != expected_bytes:
-            raise ValueError(
-                f"{bin_path}: source {sensor_token} declares {length} points "
-                f"({expected_bytes} bytes), but only {len(raw)} bytes could be read"
+                f"{bin_path}: LIDAR_CONCAT_INFO declares "
+                f"{total_points} "
+                f"points, but t4-devkit loaded {pointcloud.points.shape[1]} points"
             )
 
-        points = np.frombuffer(raw, dtype=np.float32).reshape(length, stride)
+        points = pointcloud.points.T[idx_begin : idx_begin + length]
         save_pointcloud_csv(csv_path, timestamp_ns, points)
         count += 1
 
