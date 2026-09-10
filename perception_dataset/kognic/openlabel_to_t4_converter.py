@@ -24,9 +24,10 @@ Point-cloud segmentation (``3DPointCloudSegmentation`` / ``semseg``)
     (``#<count>V<class_id>``); a trailing run of unlabelled points omitted by the
     RLE is restored as ``background`` (0) and appended at the end.
 
-OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp
-(authoritative when present; the frame ``external_id`` is a positional fallback
-only when no timestamp is available).
+OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp.
+Uploads that split ``LIDAR_CONCAT`` into per-sensor streams name their files
+with each source sensor's own capture stamp, so those stamps are indexed from
+``LIDAR_CONCAT_INFO`` alongside the sample timestamps.
 
 Like ``DeepenToT4Converter``, each scene is first copied from the
 non-annotated dataset (``input_base``) into ``output_base`` and the
@@ -67,6 +68,7 @@ from t4_devkit.schema.tables import (
 )
 
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.constants import LIDAR_CONCAT_NUM_POINT_FEATURES
 from perception_dataset.kognic.openlabel import (
     cuboid_val_to_t4_box,
     occlusion_to_visibility_level,
@@ -76,7 +78,10 @@ from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
-from perception_dataset.utils.pointcloud import detect_point_stride
+from perception_dataset.utils.pointcloud import (
+    stamp_to_ns,
+    validate_concat_point_layout,
+)
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     select_lidar_channel,
@@ -106,6 +111,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         iso_rotated_cuboids: bool = False,
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = True,
+        lidar_point_stride: Optional[int] = LIDAR_CONCAT_NUM_POINT_FEATURES,
     ):
         """Initialize the converter.
 
@@ -120,6 +126,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             iso_rotated_cuboids (bool): Whether cuboids use the T4 forward axis.
             category_map (Optional[Dict[str, str]]): Kognic-to-T4 category map.
             include_attributes (bool): Whether to import object attributes.
+            lidar_point_stride (Optional[int]): Explicit floats per point for
+                clouds without ``LIDAR_CONCAT_INFO``. Per-sensor point strides
+                are derived from the concat info.
         """
         super().__init__(input_base, output_base)
         self._annotation_base = Path(annotation_base)
@@ -129,6 +138,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         self._iso_rotated_cuboids = iso_rotated_cuboids
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
+        self._lidar_point_stride = lidar_point_stride
 
     # ------------------------------------------------------------------
     # AbstractConverter contract
@@ -154,15 +164,16 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             return
 
         for scene_dir in scenes:
-            openlabel_path = self._match_openlabel(scene_dir, openlabels)
-            if openlabel_path is None:
+            annotation_paths = self._match_openlabels(scene_dir, openlabels)
+            if not annotation_paths:
                 logger.warning(
                     f"No matching OpenLABEL annotation for scene {scene_dir.name}; skipping"
                 )
                 continue
 
             output_dir = self._prepare_output_scene(scene_dir)
-            self._convert_one_scene(output_dir, openlabel_path)
+            for openlabel_path in annotation_paths:
+                self._convert_one_scene(output_dir, openlabel_path)
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
 
@@ -330,15 +341,24 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         }
         return sorted(scenes)
 
-    def _index_openlabels(self) -> Dict[str, Path]:
+    def _index_openlabels(self) -> Dict[str, List[Path]]:
         """Index OpenLABEL files by plausible scene identifiers.
 
+        A scene sometimes has several annotations (e.g. one cuboid and one
+        semseg request), so each identifier maps to every file claiming it
+        rather than to the first one seen.
+
         Returns:
-            Dict[str, Path]: Annotation paths keyed by file and metadata IDs.
+            Dict[str, List[Path]]: Annotation paths keyed by file and metadata IDs.
         """
-        index: Dict[str, Path] = {}
+        index: Dict[str, List[Path]] = {}
         if not self._annotation_base.exists():
             return index
+
+        def add(key: str, path: Path) -> None:
+            paths = index.setdefault(key, [])
+            if path not in paths:
+                paths.append(path)
 
         files = (
             [self._annotation_base]
@@ -346,17 +366,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             else sorted(self._annotation_base.rglob("*.json"))
         )
         for path in files:
-            index.setdefault(path.stem, path)
+            add(path.stem, path)
             metadata = self._read_metadata(path)
             for key in ("dataset_id", "source_filename", "scene_uuid", "input_external_id"):
                 value = metadata.get(key)
                 if value:
-                    index.setdefault(str(value), path)
+                    add(str(value), path)
             scene_metadata = metadata.get("scene_metadata") or {}
             for key in ("dataset_id", "source_filename", "inner_uuid"):
                 value = scene_metadata.get(key)
                 if value:
-                    index.setdefault(str(value), path)
+                    add(str(value), path)
         return index
 
     @staticmethod
@@ -375,8 +395,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         except (json.JSONDecodeError, OSError):
             return {}
 
-    def _match_openlabel(self, scene_dir: Path, openlabels: Dict[str, Path]) -> Optional[Path]:
-        """Match a scene to its OpenLABEL file by the scene dir name or any of
+    def _match_openlabels(self, scene_dir: Path, openlabels: Dict[str, List[Path]]) -> List[Path]:
+        """Match a scene to its OpenLABEL files by the scene dir name or any of
         its ancestor dir names up to the dataset root.
 
         T4 datasets are commonly nested as ``<root>/<scene_id>/<version>/``,
@@ -385,19 +405,68 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         Args:
             scene_dir (Path): T4 scene directory.
-            openlabels (Dict[str, Path]): Indexed OpenLABEL paths.
+            openlabels (Dict[str, List[Path]]): Indexed OpenLABEL paths.
 
         Returns:
-            Optional[Path]: Matching OpenLABEL path, if found.
+            List[Path]: One annotation per type, boxes first.
         """
         root = Path(self._input_base).resolve()
         current = scene_dir.resolve()
         while True:
             if current.name in openlabels:
-                return openlabels[current.name]
+                return self._select_by_type(scene_dir, openlabels[current.name])
             if current == root or current.parent == current:
-                return None
+                return []
             current = current.parent
+
+    def _select_by_type(self, scene_dir: Path, candidates: List[Path]) -> List[Path]:
+        """Reduce candidate annotations to one per annotation type.
+
+        Boxes are applied before segmentation so the box categories seed
+        ``category.json`` before the ontology classes extend it. Competing
+        files of the same type have no defined precedence, so that type is
+        skipped and the caller is told to name one explicitly.
+
+        Args:
+            scene_dir (Path): T4 scene the candidates were matched to.
+            candidates (List[Path]): Annotation paths claiming this scene.
+
+        Returns:
+            List[Path]: Selected annotation paths in application order.
+        """
+        by_type: Dict[str, List[Path]] = {}
+        for path in candidates:
+            by_type.setdefault(self._annotation_type(path), []).append(path)
+
+        selected: List[Path] = []
+        for annotation_type in ("boxes", "segmentation"):
+            paths = by_type.get(annotation_type, [])
+            if len(paths) > 1:
+                logger.error(
+                    f"Scene {scene_dir.name} matches {len(paths)} {annotation_type} "
+                    f"annotations ({', '.join(p.name for p in paths)}); skipping this type. "
+                    f"Point annotation_base at a single file to choose one."
+                )
+                continue
+            selected.extend(paths)
+        return selected
+
+    @staticmethod
+    def _annotation_type(path: Path) -> str:
+        """Classify an OpenLABEL file as boxes or segmentation.
+
+        Args:
+            path (Path): OpenLABEL JSON path.
+
+        Returns:
+            str: ``"segmentation"`` or ``"boxes"``.
+        """
+        try:
+            with open(path) as f:
+                openlabel = json.load(f).get("openlabel", {})
+        except (json.JSONDecodeError, OSError):
+            return "boxes"
+        return "segmentation" if _is_segmentation(openlabel) else "boxes"
 
     # ------------------------------------------------------------------
     # Scene conversion
@@ -501,11 +570,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     def _build_sample_index(self, scene_dir: Path) -> Tuple["_SampleIndex", str]:
         """Index T4 samples by lidar timestamp so OpenLABEL frames can be matched.
 
-        OpenLABEL frames carry their lidar stream ``uri`` (the absolute-ns
-        capture timestamp) and an ``external_id`` (original scene frame index).
-        Annotation requests often cover only a subsampled set of scene frames,
-        so a positional ``frame k -> sample k`` mapping is unsafe; matching by
-        timestamp (with external-id as a fallback) is exact.
+        OpenLABEL frames carry their lidar stream ``uri``, whose stem is the
+        absolute-ns capture timestamp of the exported cloud. For a fused
+        ``LIDAR_CONCAT`` upload that is the ``sample_data`` timestamp, but a
+        per-sensor split upload uses each source's own stamp, which can sit tens
+        of milliseconds away; both are therefore indexed onto the same sample.
 
         Args:
             scene_dir (Path): T4 scene directory.
@@ -524,19 +593,118 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         lidar_channel = select_lidar_channel(sensor, channel_by_calib, sample_data)
         ego_pose_by_token = {ep["token"]: ep for ep in ego_pose}
 
-        ego_pose_by_sample: Dict[str, dict] = {}
+        lidar_sd_by_sample = self._select_lidar_sample_data(
+            sample, sample_data, channel_by_calib, lidar_channel
+        )
+        entry_by_sample = {
+            sample_token: (sample_token, ego_pose_by_token.get(record["ego_pose_token"]))
+            for sample_token, record in lidar_sd_by_sample.items()
+        }
+        # ``extract_pointclouds`` names the exported cloud after
+        # ``sample_data.timestamp``, so keying on that record makes the match
+        # bit-exact; ``sample.timestamp`` is only an alias for it.
+        by_timestamp_us = {
+            record["timestamp"]: entry_by_sample[sample_token]
+            for sample_token, record in lidar_sd_by_sample.items()
+        }
+        for s in sample:
+            if s["token"] in entry_by_sample:
+                by_timestamp_us.setdefault(s["timestamp"], entry_by_sample[s["token"]])
+        self._index_source_timestamps(
+            scene_dir, lidar_sd_by_sample, entry_by_sample, by_timestamp_us
+        )
+        return _SampleIndex(by_timestamp_us, lidar_sd_by_sample), lidar_channel
+
+    @staticmethod
+    def _select_lidar_sample_data(
+        sample: List[dict],
+        sample_data: List[dict],
+        channel_by_calib: Dict[str, Optional[str]],
+        lidar_channel: str,
+    ) -> Dict[str, dict]:
+        """Resolve the one lidar ``sample_data`` record backing each sample.
+
+        A sample owns its keyframe record *and* the intermediate sweeps that
+        follow it, all sharing its ``sample_token``. The keyframe is the record
+        whose timestamp is the sample's; ``is_key_frame`` breaks the tie when no
+        timestamp matches. A sample whose record cannot be pinned down is left
+        out of the index rather than resolved by table order, since the sweeps
+        of one sample can be metres apart.
+
+        Args:
+            sample (List[dict]): Sample table records.
+            sample_data (List[dict]): Sample-data table records.
+            channel_by_calib (Dict[str, Optional[str]]): Calibrated-sensor token
+                to channel mapping.
+            lidar_channel (str): Lidar channel to resolve.
+
+        Returns:
+            Dict[str, dict]: Lidar sample-data record keyed by sample token.
+        """
+        records_by_sample: Dict[str, List[dict]] = {}
         for record in sample_data:
             if channel_by_calib.get(record["calibrated_sensor_token"]) == lidar_channel:
-                ego_pose_by_sample[record["sample_token"]] = ego_pose_by_token.get(
-                    record["ego_pose_token"]
-                )
+                records_by_sample.setdefault(record["sample_token"], []).append(record)
 
-        ordered = sorted(sample, key=lambda s: s["timestamp"])
-        by_timestamp_us = {
-            s["timestamp"]: (s["token"], ego_pose_by_sample.get(s["token"])) for s in ordered
-        }
-        by_order = [(s["token"], ego_pose_by_sample.get(s["token"])) for s in ordered]
-        return _SampleIndex(by_timestamp_us, by_order), lidar_channel
+        selected: Dict[str, dict] = {}
+        for s in sample:
+            candidates = records_by_sample.get(s["token"], [])
+            exact = [r for r in candidates if r["timestamp"] == s["timestamp"]]
+            if len(exact) != 1:
+                exact = [r for r in candidates if r.get("is_key_frame")]
+            if len(exact) != 1:
+                logger.warning(
+                    f"Sample {s['token']} has {len(candidates)} {lidar_channel} sample_data "
+                    f"record(s) and no unambiguous keyframe; excluding it from the frame index"
+                )
+                continue
+            selected[s["token"]] = exact[0]
+        return selected
+
+    @staticmethod
+    def _index_source_timestamps(
+        scene_dir: Path,
+        lidar_sd_by_sample: Dict[str, dict],
+        entry_by_sample: Dict[str, Tuple[str, Optional[dict]]],
+        by_timestamp_us: Dict[int, Tuple[str, Optional[dict]]],
+    ) -> None:
+        """Add each concat source's own capture stamp to the timestamp index.
+
+        ``extract_pointclouds`` names a per-sensor CSV after that sensor's
+        ``LIDAR_CONCAT_INFO`` stamp, which is offset from the fused sweep's
+        timestamp by up to a large fraction of the frame period. Mapping those
+        stamps back onto their concat sample keeps the match exact instead of
+        relying on a tolerance wide enough to hit a neighbouring sweep.
+
+        Args:
+            scene_dir (Path): T4 scene directory.
+            lidar_sd_by_sample (Dict[str, dict]): Selected lidar sample-data
+                record keyed by sample token.
+            entry_by_sample (Dict[str, Tuple[str, Optional[dict]]]): Index entry
+                keyed by sample token.
+            by_timestamp_us (Dict[int, Tuple[str, Optional[dict]]]): Timestamp
+                index updated in place.
+
+        Returns:
+            None
+        """
+        for sample_token, record in lidar_sd_by_sample.items():
+            info_filename = record.get("info_filename")
+            entry = entry_by_sample.get(sample_token)
+            if not info_filename or entry is None:
+                continue
+            info_path = scene_dir / info_filename
+            if not info_path.exists():
+                logger.warning(f"LIDAR_CONCAT_INFO is missing: {info_path}")
+                continue
+            with open(info_path) as f:
+                sources = json.load(f).get("sources", [])
+            for source in sources:
+                ts_ns = stamp_to_ns(source.get("stamp"))
+                if not ts_ns:
+                    continue
+                # setdefault: a real sample timestamp always wins a collision.
+                by_timestamp_us.setdefault(round(ts_ns / 1000), entry)
 
     # ------------------------------------------------------------------
     # Geometry
@@ -882,12 +1050,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             logger.warning(f"No segmentation ontology found in annotation; skipping {scene_dir}")
             return
 
-        # Lidar sample_data record keyed by the sample it belongs to.
-        lidar_sd_by_sample: Dict[str, dict] = {
-            sd["sample_token"]: sd
-            for sd in self._load_table(scene_dir, "sample_data.json")
-            if lidar_channel in sd["filename"]
-        }
+        lidar_sd_by_sample = sample_index.sample_data_by_sample
 
         category_table = self._load_category_table(scene_dir)
         index_by_class_id = self._assign_segmentation_categories(category_table, ontology)
@@ -936,7 +1099,13 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 skipped += 1
                 continue
 
-            num_points = _lidar_point_count(scene_dir / sample_data["filename"])
+            info_filename = sample_data.get("info_filename")
+            info_path = scene_dir / info_filename if info_filename else None
+            num_points = _lidar_point_count(
+                scene_dir / sample_data["filename"],
+                info_path=info_path,
+                point_stride=self._lidar_point_stride,
+            )
             if num_points is None:
                 logger.warning(
                     f"Could not read {sample_data['filename']} for frame {frame_key}; "
@@ -945,11 +1114,14 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 skipped += 1
                 continue
 
-            if len(rles) == 1:
-                # A single blob covers the whole (fused) cloud, whatever its
-                # stream tag; only per-source splits need LIDAR_CONCAT_INFO.
+            only_stream_tag = next(iter(rles)) if len(rles) == 1 else None
+            if len(rles) == 1 and only_stream_tag is None:
+                # A single untagged blob covers the whole (fused) cloud. A
+                # single *tagged* blob still names one source lidar and must
+                # go through its LIDAR_CONCAT_INFO slice, even when it is the
+                # only annotated stream this frame.
                 labels = self._single_stream_labels(
-                    next(iter(rles.values())),
+                    rles[only_stream_tag],
                     value_map,
                     num_points,
                     frame_key,
@@ -1008,18 +1180,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         Returns:
             Optional[np.ndarray]: One uint8 label per point, or ``None`` when
-                the annotation contains more labels than the cloud has points.
+                the RLE is malformed or declares more points than the cloud has.
         """
-        labels = _remap_labels(_decode_rle_labels(rle), value_map, frame_key)
-        if labels.shape[0] > num_points:
-            # More labels than points means the annotated cloud is not this
-            # extraction at all (a genuine data mismatch); aligning is unsafe.
-            logger.warning(
-                f"Segmentation has more labels than points for frame {frame_key} "
-                f"({filename}): {labels.shape[0]} labels vs {num_points} points. "
-                f"The annotated cloud differs from this T4 extraction; skipping this frame."
-            )
+        try:
+            decoded = _decode_rle_labels(rle, max_points=num_points, frame_key=frame_key)
+        except ValueError as exc:
+            # Either malformed content, or more labels than points, which means
+            # the annotated cloud is not this extraction at all (a genuine data
+            # mismatch); aligning either case is unsafe.
+            logger.warning(f"Frame {frame_key} ({filename}): {exc}; skipping this frame")
             return None
+        labels = _remap_labels(decoded, value_map, frame_key)
         if labels.shape[0] < num_points:
             # Kognic RLE encodes labels sequentially from point 0 and omits a
             # trailing run of unlabelled points; restore them as background (0).
@@ -1092,16 +1263,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                     f"cloud; skipping this frame"
                 )
                 return None
-            stream_labels = _remap_labels(
-                _decode_rle_labels(rle), value_map, f"{frame_key}/{channel}"
-            )
-            if stream_labels.shape[0] > length:
-                logger.warning(
-                    f"Frame {frame_key}: stream {channel} has {stream_labels.shape[0]} labels "
-                    f"for a {length}-point slice; the annotated cloud differs from this T4 "
-                    f"extraction; skipping this frame"
+            try:
+                decoded = _decode_rle_labels(
+                    rle, max_points=length, frame_key=f"{frame_key}/{channel}"
                 )
+            except ValueError as exc:
+                # Either malformed content, or more labels than the slice has
+                # points, which means the annotated cloud differs from this T4
+                # extraction; aligning either case is unsafe.
+                logger.warning(f"{exc}; skipping this frame")
                 return None
+            stream_labels = _remap_labels(decoded, value_map, f"{frame_key}/{channel}")
             if stream_labels.shape[0] < length:
                 pad = length - stream_labels.shape[0]
                 logger.warning(
@@ -1195,15 +1367,21 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
 @dataclass
 class _SampleIndex:
-    """Resolve an OpenLABEL frame to its T4 (sample_token, ego_pose)."""
+    """Resolve an OpenLABEL frame to its T4 (sample_token, ego_pose).
+
+    Both the ego pose and ``sample_data_by_sample`` are derived from the same
+    resolved lidar record, so poses and point clouds cannot disagree.
+    """
 
     by_timestamp_us: Dict[int, Tuple[str, Optional[dict]]]
-    by_order: List[Tuple[str, Optional[dict]]]
+    sample_data_by_sample: Dict[str, dict]
 
-    # Max |Δ| (µs) between an OpenLABEL capture time and a T4 sample timestamp
-    # still treated as the same frame. T4 sample timestamps are produced via a
-    # lossy float64 path (``int((sec + nanosec * 1e-9) * 1e6)``), so the µs value
-    # can differ from a direct ns->µs conversion by ~1; 1 ms is far below the
+    # Max |Δ| (µs) between an OpenLABEL capture time and an indexed timestamp
+    # still treated as the same frame. A fused-upload uri matches its
+    # ``sample_data`` key exactly, but per-source stamps are converted from
+    # ``{sec, nanosec}`` and T4 timestamps come from a lossy float64 path
+    # (``int((sec + nanosec * 1e-9) * 1e6)``), so the µs value can differ by ~1;
+    # 1 ms is far below the
     # ~100 ms frame period yet absorbs that rounding error.
     _MATCH_TOLERANCE_US = 1000
 
@@ -1222,16 +1400,13 @@ class _SampleIndex:
         Returns:
             Optional[Tuple[str, dict]]: Sample token and ego pose, if matched.
         """
-        # The lidar uri timestamp is the ground truth: when present it is
-        # authoritative, so a frame whose capture time has no nearby sample is
-        # genuinely unmatched (e.g. annotation and point clouds from different
-        # recordings). Only fall back to the positional external_id when no
-        # usable timestamp is available, since that mapping is unreliable.
+        # The lidar uri timestamp is the only ground truth: a frame whose
+        # capture time has no nearby sample is genuinely unmatched (e.g.
+        # annotation and point clouds from different recordings).
         ts_ns = self._uri_timestamp_ns(frame, lidar_channel)
-        if ts_ns is not None:
-            candidate = self._nearest(round(ts_ns / 1000))
-        else:
-            candidate = self._by_external_id(frame)
+        if ts_ns is None:
+            return None
+        candidate = self._nearest(round(ts_ns / 1000))
         if candidate is None or candidate[1] is None:
             return None
         return candidate  # type: ignore[return-value]
@@ -1295,22 +1470,6 @@ class _SampleIndex:
         if best is None or abs(best - ts_us) > self._MATCH_TOLERANCE_US:
             return None
         return self.by_timestamp_us[best]
-
-    def _by_external_id(self, frame: dict) -> Optional[Tuple[str, Optional[dict]]]:
-        """Match a frame by its positional external ID.
-
-        Args:
-            frame (dict): OpenLABEL frame mapping.
-
-        Returns:
-            Optional[Tuple[str, Optional[dict]]]: Sample token and ego pose.
-        """
-        external_id = frame.get("frame_properties", {}).get("external_id")
-        try:
-            idx = int(external_id)
-        except (TypeError, ValueError):
-            return None
-        return self.by_order[idx] if 0 <= idx < len(self.by_order) else None
 
 
 def _parse_uri_timestamp_ns(uri: str) -> Optional[int]:
@@ -1398,18 +1557,40 @@ def _frame_segmentation_rles(frame: dict) -> Dict[Optional[str], str]:
     return rles
 
 
-def _decode_rle_labels(val: str) -> np.ndarray:
+def _decode_rle_labels(val: str, max_points: int, frame_key: str) -> np.ndarray:
     """Expand a Kognic RLE string into per-point label values.
+
+    Requires ``val`` to be fully covered by ``#<count>V<class>`` tokens (no
+    interleaved or trailing garbage) and its declared point total to fit
+    within ``max_points`` before expanding, so a single malformed or
+    corrupted/adversarial count cannot force an oversized allocation.
 
     Args:
         val (str): Repeated ``#<count>V<class>`` tokens.
+        max_points (int): Upper bound on the decoded point count, normally the
+            target cloud's (or slice's) actual point count.
+        frame_key (str): Frame identifier used in diagnostics.
 
     Returns:
         np.ndarray: Decoded integer class values.
+
+    Raises:
+        ValueError: If ``val`` is not fully covered by the RLE grammar, or its
+            declared point total exceeds ``max_points``.
     """
-    pairs = _RLE_TOKEN.findall(val)
-    counts = np.fromiter((int(c) for c, _ in pairs), dtype=np.int64, count=len(pairs))
-    classes = np.fromiter((int(v) for _, v in pairs), dtype=np.int64, count=len(pairs))
+    matches = list(_RLE_TOKEN.finditer(val))
+    if not matches or "".join(match.group(0) for match in matches) != val:
+        raise ValueError(
+            f"Frame {frame_key}: RLE value is not fully covered by '#<count>V<class>' tokens"
+        )
+    counts = np.fromiter((int(m.group(1)) for m in matches), dtype=np.int64, count=len(matches))
+    total_points = int(counts.sum())
+    if total_points > max_points:
+        raise ValueError(
+            f"Frame {frame_key}: RLE declares {total_points} point(s), exceeding the "
+            f"{max_points}-point cloud; refusing to expand"
+        )
+    classes = np.fromiter((int(m.group(2)) for m in matches), dtype=np.int64, count=len(matches))
     return np.repeat(classes, counts)
 
 
@@ -1466,31 +1647,64 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
     Returns:
         np.ndarray: Remapped uint8 category indices.
     """
-    unmapped = sorted(set(np.unique(labels).tolist()) - set(value_map) - {0})
+    unique_labels = np.unique(labels)
+    unmapped = sorted(set(unique_labels.tolist()) - set(value_map) - {0})
     if unmapped:
         logger.warning(
             f"Frame {frame_key}: {len(unmapped)} RLE label value(s) have no ontology/object "
             f"mapping (e.g. {unmapped[:5]}); mapping them to background (0)"
         )
-    size = int(max(labels.max(initial=0), max(value_map, default=0))) + 1
-    lut = np.zeros(size, dtype=np.uint8)
-    for value, index in value_map.items():
-        lut[value] = index
-    return lut[labels]
+    # Remap by the labels actually present rather than a lookup table sized to
+    # the largest raw value: a raw class ID is attacker/corruption controlled
+    # and unbounded, while ``unique_labels`` is bounded by the point count.
+    output = np.zeros(labels.shape, dtype=np.uint8)
+    for raw_value in unique_labels:
+        if raw_value == 0:
+            continue
+        index = value_map.get(int(raw_value))
+        if index is not None:
+            output[labels == raw_value] = index
+    return output
 
 
-def _lidar_point_count(bin_path: Path) -> Optional[int]:
+def _lidar_point_count(
+    bin_path: Path,
+    info_path: Optional[Path] = None,
+    point_stride: Optional[int] = None,
+) -> Optional[int]:
     """Count points in a fused-lidar binary file.
 
     Args:
         bin_path (Path): Path to a ``.pcd.bin`` file.
+        info_path (Optional[Path]): Corresponding ``LIDAR_CONCAT_INFO`` file.
+            When present, its validated sensor slices determine the point count
+            and point stride without guessing.
+        point_stride (Optional[int]): Explicit floats-per-point schema used
+            when concat metadata is unavailable.
 
     Returns:
         Optional[int]: Point count, or ``None`` when the file is missing.
     """
     if not bin_path.exists():
         return None
+    if info_path is not None:
+        if not info_path.exists():
+            raise FileNotFoundError(f"Required LIDAR_CONCAT_INFO is missing: {info_path}")
+        with open(info_path) as f:
+            info = json.load(f)
+        total_points, _ = validate_concat_point_layout(info, bin_path)
+        return total_points
+    if point_stride is None:
+        raise ValueError(
+            f"{bin_path}: an explicit point stride is required when "
+            "LIDAR_CONCAT_INFO is unavailable"
+        )
     floats = np.fromfile(bin_path, dtype=np.float32)
     if floats.size == 0:
         return 0
-    return floats.size // detect_point_stride(floats, bin_path)
+    if point_stride < 4 or floats.size % point_stride != 0:
+        raise ValueError(
+            f"{bin_path}: {floats.size} floats are incompatible with the explicit "
+            f"point stride {point_stride}"
+        )
+    return floats.size // point_stride

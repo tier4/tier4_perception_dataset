@@ -132,6 +132,92 @@ class SceneUploadResult:
     error: Optional[BaseException] = None
 
 
+# Pre-annotation statuses that mean server-side processing has not finished
+# yet. Lifecycle: created -> processing -> indexed | failed ("Pre-annotations
+# can only be deleted from status=Indexed" pins indexed as the success state).
+_PRE_ANNOTATION_PENDING_STATUSES = {
+    "created",
+    "pending",
+    "pending_for_scene",
+    "processing",
+    "registered",
+    "importing",
+}
+_PRE_ANNOTATION_SUCCESS_STATUS = "indexed"
+
+
+def _wait_for_pre_annotation(
+    client: KognicIOClient,
+    pre_annotation_uuid: str,
+    timeout_s: float = 120.0,
+    poll_s: float = 5.0,
+    raise_on_timeout: bool = False,
+) -> dict:
+    """Poll until the pre-annotation leaves processing; return its final record.
+
+    Uploading a pre-annotation only queues it: Kognic processes it
+    asynchronously and an input created against one that later fails is
+    silently dropped, so a successful upload response alone cannot be treated
+    as final success. Any status outside the known pending/failed/success set
+    is treated as a processing failure rather than silently accepted, since the
+    documented lifecycle only has those three outcomes.
+
+    Args:
+        client (KognicIOClient): Authenticated Kognic client.
+        pre_annotation_uuid (str): Uploaded pre-annotation UUID.
+        timeout_s (float): Maximum polling duration in seconds.
+        poll_s (float): Delay between status requests in seconds.
+        raise_on_timeout (bool): Whether a still-pending status at the deadline
+            raises instead of returning the last observed (pending) record.
+
+    Returns:
+        dict: Final pre-annotation record (status ``indexed``), or the last
+            observed record on a non-raising timeout.
+
+    Raises:
+        RuntimeError: If the record is missing, processing fails, or an
+            unrecognized status is observed.
+        TimeoutError: If ``raise_on_timeout`` and processing does not finish
+            within ``timeout_s``.
+    """
+    deadline = time.time() + timeout_s
+    while True:
+        records = client.pre_annotation.list(ids=[pre_annotation_uuid])
+        if not records:
+            raise RuntimeError(f"pre-annotation {pre_annotation_uuid} not found")
+        record = records[0]
+        status = str(record.get("status", "")).lower()
+        if status == "failed":
+            raise RuntimeError(
+                f"pre-annotation {pre_annotation_uuid} failed server-side "
+                f"processing: {json.dumps(record, default=str)}"
+            )
+        if status == _PRE_ANNOTATION_SUCCESS_STATUS:
+            return record
+        if status not in _PRE_ANNOTATION_PENDING_STATUSES:
+            raise RuntimeError(
+                f"pre-annotation {pre_annotation_uuid} entered unrecognized status "
+                f"{status!r} (expected one of {sorted(_PRE_ANNOTATION_PENDING_STATUSES)} "
+                f"or {_PRE_ANNOTATION_SUCCESS_STATUS!r}): {json.dumps(record, default=str)}"
+            )
+        if time.time() >= deadline:
+            message = (
+                f"pre-annotation {pre_annotation_uuid} still {status} after {timeout_s:.0f}s"
+            )
+            if raise_on_timeout:
+                raise TimeoutError(
+                    f"{message}; not attaching it to an input: "
+                    f"{json.dumps(record, default=str)}"
+                )
+            logger.warning(
+                f"{message}; proceeding (input creation will surface the verdict): "
+                f"{json.dumps(record, default=str)}"
+            )
+            return record
+        logger.info(f"pre-annotation {pre_annotation_uuid}: status={status}; waiting")
+        time.sleep(poll_s)
+
+
 @dataclass(frozen=True)
 class KognicUploadConfig:
     """Configuration for uploading Kognic staging sequences.
@@ -141,7 +227,6 @@ class KognicUploadConfig:
         organization_id (Optional[str]): Kognic organization identifier.
         workspace_id (Optional[str]): Kognic write-workspace identifier.
         project_targets (List[ProjectTarget]): Projects and batches to receive inputs.
-        target_hz (Optional[int]): Fallback annotation-frame frequency.
         dryrun (bool): Whether Kognic should validate without persisting scenes.
         motion_compensate (bool): Whether to enable motion compensation.
         include_imu_data (bool): Whether to derive dense IMU pose data.
@@ -149,6 +234,8 @@ class KognicUploadConfig:
         generate_tsv_report (bool): Whether to write an upload outcome report.
         scene_creation_timeout_s (int): Scene-processing timeout in seconds.
         scene_creation_poll_interval_s (int): Status polling interval in seconds.
+        pre_annotation_timeout_s (int): Pre-annotation-processing timeout in seconds.
+        pre_annotation_poll_interval_s (int): Pre-annotation status polling interval in seconds.
     """
 
     input_base: Path
@@ -157,7 +244,6 @@ class KognicUploadConfig:
     organization_id: Optional[str] = None
     workspace_id: Optional[str] = None
     project_targets: List[ProjectTarget] = field(default_factory=list)
-    target_hz: Optional[int] = None
     dryrun: bool = False
     motion_compensate: bool = False
     include_imu_data: bool = True
@@ -165,6 +251,8 @@ class KognicUploadConfig:
     generate_tsv_report: bool = False
     scene_creation_timeout_s: int = 3600
     scene_creation_poll_interval_s: int = 10
+    pre_annotation_timeout_s: int = 120
+    pre_annotation_poll_interval_s: int = 5
 
     @property
     def project_external_id(self) -> Optional[str]:
@@ -239,48 +327,6 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
     return targets
 
 
-def select_annotate_indices(
-    timestamps_ns: List[int],
-    target_hz: Optional[int],
-) -> List[int]:
-    """Indices of the frames marked ``annotate=True`` by the ``target_hz`` walk.
-
-    Fallback for scenes without a ``keyframes.json`` (non-annotated data or
-    staging dirs produced before it existed): walks *timestamps_ns* and selects
-    the first frame at least ``1/target_hz`` seconds after the previously
-    selected one. Without ``target_hz`` every frame is selected.
-
-    T4 source frames are not spaced at exactly 1/source_hz: a small per-frame
-    drift (e.g. ~0.09997s instead of 0.1s) accumulates, so the frame at a
-    nominal 1.0s boundary can actually land at ~0.99999s. Half of the median
-    frame interval is used as tolerance on the interval check.
-
-    Args:
-        timestamps_ns (List[int]): Ordered frame timestamps in nanoseconds.
-        target_hz (Optional[int]): Desired annotation frequency, or ``None``
-            to annotate every frame.
-
-    Returns:
-        List[int]: Indices of frames to mark for annotation.
-    """
-    if not target_hz:
-        return list(range(len(timestamps_ns)))
-
-    min_interval_ns = int(1e9 / target_hz)
-    deltas = sorted(b - a for a, b in zip(timestamps_ns, timestamps_ns[1:]) if b > a)
-    tolerance_ns = deltas[len(deltas) // 2] // 2 if deltas else 0
-
-    indices: List[int] = []
-    last_annotated_ts: Optional[int] = None
-    for idx, timestamp_ns in enumerate(timestamps_ns):
-        if last_annotated_ts is None or (timestamp_ns - last_annotated_ts) >= (
-            min_interval_ns - tolerance_ns
-        ):
-            indices.append(idx)
-            last_annotated_ts = timestamp_ns
-    return indices
-
-
 def _sort_key(path: Path) -> Tuple[int, str]:
     """Build a stable sort key for timestamp-named sensor files.
 
@@ -311,6 +357,91 @@ def _sensor_sort_key(sensor_name: str, preferred_order: List[str]) -> Tuple[int,
     return (len(preferred_order), sensor_name)
 
 
+def _validate_sensor_file_counts(
+    sequence_path: Path,
+    sensor_files: Dict[str, List[Path]],
+    anchor_sensor: str,
+    expected_count: int,
+) -> None:
+    """Require every sensor to contribute exactly one file per frame.
+
+    Args:
+        sequence_path (Path): Staging sequence directory.
+        sensor_files (Dict[str, List[Path]]): Sorted files keyed by sensor channel.
+        anchor_sensor (str): Channel used to define the frame count.
+        expected_count (int): Number of frames in the anchor channel.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If any channel has a different number of files.
+    """
+    mismatched = {
+        name: len(files) for name, files in sensor_files.items() if len(files) != expected_count
+    }
+    if mismatched:
+        raise ValueError(
+            f"Sensor file counts disagree in {sequence_path}: anchor {anchor_sensor} has "
+            f"{expected_count} files but {mismatched} differ. Frames are paired with files by "
+            "position, so re-convert the sequence instead of uploading a partial staging directory."
+        )
+
+
+def _validate_sensor_timestamps(
+    sequence_path: Path,
+    sensor_files: Dict[str, List[Path]],
+    anchor_files: List[Path],
+) -> None:
+    """Require each sensor's timestamps to track the anchor sensor's frames.
+
+    Args:
+        sequence_path (Path): Staging sequence directory.
+        sensor_files (Dict[str, List[Path]]): Sorted files keyed by sensor channel.
+        anchor_files (List[Path]): Anchor channel files in frame order.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If a channel's file deviates from its frame by more than
+            90% of the anchor frame interval, which indicates an off-by-N pairing.
+    """
+    try:
+        anchor_ts = [int(path.stem) for path in anchor_files]
+    except ValueError:
+        return
+
+    intervals = sorted(b - a for a, b in zip(anchor_ts, anchor_ts[1:]))
+    if not intervals:
+        return
+
+    # 90% of a frame interval: observed sensor sync jitter (e.g. a camera vs.
+    # the lidar anchor) can approach half the interval, so a tighter bound
+    # flagged legitimate frames; an off-by-one pairing still lands a full
+    # interval away and stays well outside this bound.
+    tolerance_ns = intervals[len(intervals) // 2] * 0.9
+    if tolerance_ns <= 0:
+        raise ValueError(
+            f"Anchor timestamps in {sequence_path} are not strictly increasing; "
+            "frame ordering cannot be trusted."
+        )
+
+    for name, files in sensor_files.items():
+        for frame_idx, (path, expected_ns) in enumerate(zip(files, anchor_ts)):
+            try:
+                actual_ns = int(path.stem)
+            except ValueError:
+                break
+            if abs(actual_ns - expected_ns) > tolerance_ns:
+                raise ValueError(
+                    f"Sensor {name} in {sequence_path} is misaligned at frame {frame_idx}: "
+                    f"file {path.name} is {abs(actual_ns - expected_ns)}ns from the anchor "
+                    f"timestamp {expected_ns} (tolerance {tolerance_ns:.0f}ns). The staging "
+                    "directory likely mixes files from different conversion runs."
+                )
+
+
 def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     """Load uploader configuration from parsed YAML.
 
@@ -333,7 +464,6 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         organization_id=organization_id,
         workspace_id=workspace_id,
         project_targets=_parse_project_targets(conversion_config),
-        target_hz=conversion_config.get("target_hz"),
         dryrun=conversion_config.get("dryrun", False),
         motion_compensate=conversion_config.get("motion_compensate", False),
         include_imu_data=conversion_config.get("include_imu_data", True),
@@ -341,6 +471,8 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         generate_tsv_report=conversion_config.get("generate_tsv_report", False),
         scene_creation_timeout_s=conversion_config.get("scene_creation_timeout_s", 1800),
         scene_creation_poll_interval_s=conversion_config.get("scene_creation_poll_interval_s", 10),
+        pre_annotation_timeout_s=conversion_config.get("pre_annotation_timeout_s", 120),
+        pre_annotation_poll_interval_s=conversion_config.get("pre_annotation_poll_interval_s", 5),
     )
 
 
@@ -447,18 +579,10 @@ class KognicDatasetUploader:
         Returns:
             List[SceneUploadResult]: Upload outcomes for the sequence.
         """
-        # create calibration first since the frames reference the calibration_id
-        start_time = time.time()
-        logger.info(f"Uploading calibration for {external_id}")
-        calibration_id = self._get_or_upload_calibration(sequence_path, external_id)
-        logger.info(
-            f"Time taken to upload calibration for {external_id}: "
-            f"{time.time() - start_time} seconds"
-        )
-
         logger.info(f"Loading ego poses for {external_id}")
         ego_poses = self._load_ego_poses(sequence_path)
 
+        # Validate and build the staging data before creating any remote resource.
         logger.info(f"Building frames and IMU data for {external_id}")
         frames = self._build_frames(sequence_path, ego_poses)
         imu_data = self._build_imu_data(sequence_path, ego_poses)
@@ -470,6 +594,14 @@ class KognicDatasetUploader:
 
         if self.config.write_debug_frames:
             self._write_debug_frames(sequence_path, external_id, frames)
+
+        start_time = time.time()
+        logger.info(f"Uploading calibration for {external_id}")
+        calibration_id = self._get_or_upload_calibration(sequence_path, external_id)
+        logger.info(
+            f"Time taken to upload calibration for {external_id}: "
+            f"{time.time() - start_time} seconds"
+        )
 
         feature_flags = FeatureFlags() if not self.config.motion_compensate else None
 
@@ -642,7 +774,12 @@ class KognicDatasetUploader:
         external_id: str,
         pre_annotations: Dict[str, OpenLabelAnnotation],
     ) -> Dict[str, str]:
-        """Attach each distinct pre-annotation to a scene.
+        """Attach each distinct pre-annotation to a scene and wait for it to process.
+
+        An input created against a pre-annotation that later fails or is still
+        processing is silently dropped by Kognic, so each upload is confirmed
+        ``indexed`` here, before any input references it, rather than trusting
+        the create response alone.
 
         Args:
             scene_uuid (SceneUUID): Target scene UUID.
@@ -652,6 +789,11 @@ class KognicDatasetUploader:
 
         Returns:
             Dict[str, str]: Uploaded pre-annotation UUIDs keyed by filename.
+
+        Raises:
+            RuntimeError: If a pre-annotation fails or reaches an unrecognized status.
+            TimeoutError: If a pre-annotation is still processing after the
+                configured timeout.
         """
         pre_annotation_uuids: Dict[str, str] = {}
         for filename, pre_annotation in pre_annotations.items():
@@ -663,6 +805,13 @@ class KognicDatasetUploader:
                 pre_annotation=pre_annotation,
                 external_id=f"{external_id}-{Path(filename).stem}-pre-annotation",
                 dryrun=False,
+            )
+            _wait_for_pre_annotation(
+                self.kognic_io_client,
+                created.id,
+                timeout_s=self.config.pre_annotation_timeout_s,
+                poll_s=self.config.pre_annotation_poll_interval_s,
+                raise_on_timeout=True,
             )
             pre_annotation_uuids[filename] = created.id
         return pre_annotation_uuids
@@ -931,6 +1080,8 @@ class KognicDatasetUploader:
 
         Raises:
             FileNotFoundError: If the sequence contains no supported sensor files.
+            ValueError: If sensor file counts differ or a sensor's file
+                timestamps do not line up with the anchor sensor's frames.
         """
         lidar_files = self._collect_sensor_files(sequence_path, "lidar", ".csv")
         camera_files = self._collect_sensor_files(sequence_path, "cameras", ".jpg")
@@ -951,17 +1102,15 @@ class KognicDatasetUploader:
             )
             anchor_files = camera_files[anchor_sensors[0]]
 
+        all_files = {**lidar_files, **camera_files}
+        _validate_sensor_file_counts(sequence_path, all_files, anchor_sensors[0], len(anchor_files))
+        _validate_sensor_timestamps(sequence_path, all_files, anchor_files)
+
         for frame_idx, anchor_file in enumerate(anchor_files):
             timestamp_ns = int(anchor_file.stem)
-            sensor_files: Dict[str, Path] = {}
-
-            for lidar_name, files in lidar_files.items():
-                if frame_idx < len(files):
-                    sensor_files[lidar_name] = files[frame_idx]
-
-            for camera_name, files in camera_files.items():
-                if frame_idx < len(files):
-                    sensor_files[camera_name] = files[frame_idx]
+            sensor_files: Dict[str, Path] = {
+                name: files[frame_idx] for name, files in all_files.items()
+            }
 
             yield str(frame_idx), timestamp_ns, sensor_files
 
@@ -985,15 +1134,7 @@ class KognicDatasetUploader:
 
         frame_records = list(self.iterate_frames(sequence_path))
         keyframe_indices = self._load_keyframe_indices(sequence_path, len(frame_records))
-        if keyframe_indices is not None:
-            annotate_indices = set(keyframe_indices)
-        else:
-            annotate_indices = set(
-                select_annotate_indices(
-                    [timestamp_ns for _, timestamp_ns, _ in frame_records],
-                    self.config.target_hz,
-                )
-            )
+        annotate_indices = set(keyframe_indices)
 
         for frame_idx, (frame_id, timestamp_ns, sensor_files) in enumerate(frame_records):
             if reference_timestamp is None:
@@ -1034,45 +1175,60 @@ class KognicDatasetUploader:
         return frames
 
     @staticmethod
-    def _load_keyframe_indices(sequence_path: Path, frame_count: int) -> Optional[List[int]]:
-        """T4 keyframe positions exported by the T4-to-Kognic converters, if any.
+    def _load_keyframe_indices(sequence_path: Path, frame_count: int) -> List[int]:
+        """Load T4 keyframe positions exported by the T4-to-Kognic converters.
 
         ``keyframes.json`` holds the staging frame indices whose source T4
         ``sample_data`` records have ``is_key_frame`` set. When present, exactly
         those frames are marked ``annotate=True`` so the annotatable frames
         coincide with the T4 keyframes (and, for annotated scenes, with the
-        pre-annotation frames), and ``target_hz`` is ignored. Returns ``None``
-        (fall back to the ``target_hz`` walk) when the file is missing or was
-        generated for a different frame count.
+        pre-annotation frames). The file is required, and its recorded frame
+        count must match the current staging data to prevent stale annotation
+        flags from being applied to changed sensor files.
 
         Args:
             sequence_path (Path): Staging sequence directory.
             frame_count (int): Current number of staging frames.
 
         Returns:
-            Optional[List[int]]: Keyframe indices, or ``None`` to use the
-                frequency-based fallback.
+            List[int]: Staging frame indices to mark for annotation.
+
+        Raises:
+            FileNotFoundError: If ``keyframes.json`` is missing.
+            ValueError: If the file's frame count or keyframe indices are invalid.
         """
         keyframes_path = sequence_path / "keyframes.json"
         if not keyframes_path.exists():
-            return None
+            raise FileNotFoundError(
+                f"Required keyframe metadata is missing: {keyframes_path}. "
+                "Re-run the T4-to-Kognic converter before uploading."
+            )
 
         with open(keyframes_path) as f:
             data = json.load(f)
 
         if data.get("frame_count") != frame_count:
-            logger.warning(
+            raise ValueError(
                 f"{keyframes_path} was generated for {data.get('frame_count')} frames but "
-                f"the scene has {frame_count}; ignoring it and selecting annotate frames "
-                "by target_hz instead"
+                f"the current staging data has {frame_count}. Re-run the T4-to-Kognic "
+                "converter before uploading."
             )
-            return None
+
+        keyframe_indices = data.get("keyframe_indices")
+        if not isinstance(keyframe_indices, list) or any(
+            not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < frame_count
+            for index in keyframe_indices
+        ):
+            raise ValueError(
+                f"{keyframes_path} contains invalid keyframe_indices for {frame_count} frames. "
+                "Re-run the T4-to-Kognic converter before uploading."
+            )
 
         logger.info(
-            f"Marking the {len(data['keyframe_indices'])} T4 keyframes from "
+            f"Marking the {len(keyframe_indices)} T4 keyframes from "
             f"{keyframes_path.name} as annotate=True"
         )
-        return data["keyframe_indices"]
+        return keyframe_indices
 
     def _build_imu_data(
         self,

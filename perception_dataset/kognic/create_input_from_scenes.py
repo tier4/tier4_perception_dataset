@@ -27,7 +27,6 @@ to actually create the inputs.
 import argparse
 import json
 from pathlib import Path
-import time
 from typing import List, Optional, Set
 
 from kognic.io.client import KognicIOClient
@@ -37,6 +36,7 @@ import yaml
 
 from perception_dataset.kognic.upload_dataset import (
     _load_upload_config,
+    _wait_for_pre_annotation,
     read_upload_report_scene_uuids,
 )
 from perception_dataset.utils.logger import configure_logger
@@ -167,71 +167,6 @@ def load_pre_annotation(pre_annotation_path: Path) -> OpenLabelAnnotation:
     objects = pre_annotation.openlabel.objects or {}
     logger.info(f"Loaded {pre_annotation_path}: {len(objects)} objects over {len(frames)} frames")
     return pre_annotation
-
-
-# Pre-annotation statuses that mean server-side processing has not finished
-# yet. Lifecycle: created -> processing -> indexed | failed ("Pre-annotations
-# can only be deleted from status=Indexed" pins indexed as the success state).
-_PRE_ANNOTATION_PENDING_STATUSES = {
-    "created",
-    "pending",
-    "pending_for_scene",
-    "processing",
-    "registered",
-    "importing",
-}
-
-
-def _wait_for_pre_annotation(
-    client: KognicIOClient,
-    pre_annotation_uuid: str,
-    timeout_s: float = 120.0,
-    poll_s: float = 5.0,
-) -> dict:
-    """Poll until the pre-annotation leaves processing; return its final record.
-
-    Uploading a pre-annotation only queues it: Kognic processes it
-    asynchronously (sometimes only once an input references it) and an input
-    created against one that later flips to ``failed`` is silently dropped.
-    Raises ``RuntimeError`` on failure, with the full record in the message
-    since it may carry the server's error details. On timeout the last record
-    is returned with a warning — input creation will then surface the verdict.
-
-    Args:
-        client (KognicIOClient): Authenticated Kognic client.
-        pre_annotation_uuid (str): Uploaded pre-annotation UUID.
-        timeout_s (float): Maximum polling duration in seconds.
-        poll_s (float): Delay between status requests in seconds.
-
-    Returns:
-        dict: Final or last observed pre-annotation record.
-
-    Raises:
-        RuntimeError: If the record is missing or processing fails.
-    """
-    deadline = time.time() + timeout_s
-    while True:
-        records = client.pre_annotation.list(ids=[pre_annotation_uuid])
-        if not records:
-            raise RuntimeError(f"pre-annotation {pre_annotation_uuid} not found")
-        record = records[0]
-        status = str(record.get("status", "")).lower()
-        if status == "failed":
-            raise RuntimeError(
-                f"pre-annotation {pre_annotation_uuid} failed server-side "
-                f"processing: {json.dumps(record, default=str)}"
-            )
-        if status not in _PRE_ANNOTATION_PENDING_STATUSES:
-            return record
-        if time.time() >= deadline:
-            logger.warning(
-                f"pre-annotation {pre_annotation_uuid} still {status} after "
-                f"{timeout_s:.0f}s; proceeding (input creation will surface the "
-                f"verdict): {json.dumps(record, default=str)}"
-            )
-            return record
-        logger.info(f"pre-annotation {pre_annotation_uuid}: status={status}; waiting")
-        time.sleep(poll_s)
 
 
 def create_inputs_from_scenes(

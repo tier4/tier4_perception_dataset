@@ -148,9 +148,9 @@ export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
 python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
 ```
 
-All staged frames are uploaded. Annotation frequency is controlled by `conversion.target_hz`: frames at that interval are marked `annotate=True` and the rest are uploaded as context with `annotate=False` (omit `target_hz` to annotate every frame). Because T4 frames are not spaced at exactly `1 / target_hz` (e.g. `0.09997s` instead of `0.1s`), the interval check applies a small leniency so boundary frames such as the `1.0s` frame are not skipped. The leniency defaults to half the typical source frame interval.
+All staged frames are uploaded. The converter-generated `keyframes.json` determines which frames are marked `annotate=True`; it is required, and its `frame_count` must match the current staged frame count. Re-run the T4-to-Kognic converter after changing staged sensor data.
 
-See [Stage 3](tier_iv_t4_extractor_to_kognic.md#stage-3--upload-staging-format-to-kognic) for all config parameters and [Annotation Interval Selection](tier_iv_t4_extractor_to_kognic.md#annotation-interval-selection) for the interval/tolerance details.
+See [Stage 3](tier_iv_t4_extractor_to_kognic.md#stage-3--upload-staging-format-to-kognic) for all config parameters.
 
 ### Download annotations from Kognic
 

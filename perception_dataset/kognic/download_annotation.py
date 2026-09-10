@@ -1,6 +1,7 @@
 """Download OpenLABEL annotations from Kognic."""
 
 import argparse
+from collections import Counter
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -270,16 +271,18 @@ class KognicAnnotationDownloader:
 
         logger.info(f"Found {len(annotations)} annotation(s)")
 
-        (self.config.output_base / self.config.project_external_id).mkdir(
-            parents=True, exist_ok=True
-        )
+        out_dir = self.config.output_base / self.config.project_external_id
+        out_dir.mkdir(parents=True, exist_ok=True)
 
+        # A scene may carry several annotations (e.g. one cuboid and one semseg
+        # request); suffix those with request_uid so they don't overwrite each
+        # other, matching ``download_scene``.
+        per_scene = Counter(annotation.scene_uuid for annotation in annotations)
         for annotation in annotations:
-            out_path = (
-                self.config.output_base
-                / self.config.project_external_id
-                / f"{annotation.scene_uuid}.json"
-            )
+            stem = annotation.scene_uuid
+            if per_scene[annotation.scene_uuid] > 1:
+                stem = f"{stem}_{annotation.request_uid}"
+            out_path = out_dir / f"{stem}.json"
             with open(out_path, "w") as f:
                 json.dump(annotation.content, f, indent=2)
             logger.info(f"  Saved {out_path}")

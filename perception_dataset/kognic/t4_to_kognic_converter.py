@@ -4,13 +4,14 @@ from concurrent.futures import ThreadPoolExecutor
 import csv
 import json
 from pathlib import Path
+import shutil
 import time
 from typing import Dict, List, Set, Tuple
 
 from t4_devkit import Tier4
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, LIDAR_CONCAT_NUM_POINT_FEATURES
 from perception_dataset.kognic.utils import (
     extract_calibration,
     extract_ego_poses,
@@ -18,6 +19,7 @@ from perception_dataset.kognic.utils import (
     read_image_dims,
 )
 from perception_dataset.utils.logger import configure_logger
+from perception_dataset.utils.misc import MAX_ANNOTATION_HZ, validate_annotation_hz
 from perception_dataset.utils.pointcloud import (
     copy_file,
     extract_pointclouds,
@@ -53,8 +55,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
             lidar/<lidar_name>/<timestamp_ns>.csv
 
     ``keyframes.json`` holds the staging frame indices of the keyframes; the
-    uploader marks exactly those frames ``annotate=True`` instead of walking a
-    fixed ``target_hz`` grid. For annotated datasets (``annotated=True``) the
+    uploader requires this file and marks exactly those frames ``annotate=True``.
+    For annotated datasets (``annotated=True``) the
     keyframes are the frames whose sample carries at least one
     ``sample_annotation``. Non-annotated datasets have no annotations, so their
     keyframes are instead selected by sample index at ``annotation_hz``,
@@ -67,9 +69,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
         output_base: str,
         camera_sensors: list,
         workers_number: int = 32,
-        drop_camera_token_not_found: bool = False,
         annotated: bool = True,
         annotation_hz: int = 10,
+        lidar_point_stride: int | None = LIDAR_CONCAT_NUM_POINT_FEATURES,
         generate_tsv_report: bool = False,
     ):
         """Initialize the converter.
@@ -79,19 +81,25 @@ class T4ToKognicConverter(AbstractConverter[None]):
             output_base (str): Destination staging directory.
             camera_sensors (list): Camera configuration records.
             workers_number (int): Number of image-copy worker threads.
-            drop_camera_token_not_found (bool): Whether to omit missing camera
-                frames instead of writing blank images.
             annotated (bool): Whether the source carries T4 annotations.
-            annotation_hz (int): Keyframe frequency for non-annotated data.
+            annotation_hz (int): Keyframe frequency for non-annotated data, in
+                ``1..10``.
+            lidar_point_stride (int | None): Explicit floats per point for the
+                fused ``LIDAR_CONCAT`` stream when ``LIDAR_CONCAT_INFO`` is
+                unavailable. Per-sensor streams derive their stride from the
+                concat info.
             generate_tsv_report (bool): Write ``conversion_report.tsv`` in
                 ``output_base`` with scene outcomes and missing sensor frames.
+
+        Raises:
+            ValueError: If ``annotation_hz`` is outside ``1..10``.
         """
         super().__init__(input_base, output_base)
         self._camera_channels: List[str] = [cam["channel"] for cam in camera_sensors]
         self._workers_number = workers_number
-        self._drop_camera_token_not_found = drop_camera_token_not_found
         self._annotated = annotated
-        self._annotation_hz = annotation_hz
+        self._annotation_hz = validate_annotation_hz(annotation_hz)
+        self._lidar_point_stride = lidar_point_stride
         self._generate_tsv_report = generate_tsv_report
         self._report_rows: List[Dict[str, str]] = []
         # Cache one blank black image per camera, sized to that camera's frames,
@@ -162,6 +170,11 @@ class T4ToKognicConverter(AbstractConverter[None]):
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
+        # The uploader pairs sensor files with frames by sorted position, so any
+        # file left over from a previous generation would shift that pairing.
+        for stale_dir in (out_dir / "cameras", out_dir / "lidar"):
+            shutil.rmtree(stale_dir, ignore_errors=True)
+
         self._build_lookup_maps(seq_path)
         self._has_lidar_concat_info = (seq_path / "data" / "LIDAR_CONCAT_INFO").is_dir()
         self._lidar_channels = self._discover_lidar_channels()
@@ -211,6 +224,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 lidar_channel=lidar_channel,
                 frame_records=self._frame_records,
                 channel_to_token=self._channel_to_token,
+                point_stride=self._lidar_point_stride,
             )
 
     # ------------------------------------------------------------------
@@ -329,8 +343,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             return "configured camera is absent from the dataset; channel skipped"
         if not self._has_existing_channel_file(seq_path, camera_channel):
             return "camera has no existing source files; channel skipped"
-        if self._drop_camera_token_not_found:
-            return "camera frame dropped"
         return "blank image written"
 
     def _frame_identity(
@@ -500,7 +512,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 in self._annotated_sample_tokens
             ]
         else:
-            step = max(1, int(10 / self._annotation_hz))
+            step = int(MAX_ANNOTATION_HZ / self._annotation_hz)
             selected_samples = {
                 sample.token
                 for sample_index, sample in enumerate(self._samples)
@@ -613,7 +625,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
         copies: List[Tuple[Path, Path]] = []
         blanks_written = 0
         used_timestamps_ns: Set[int] = set()
-        collisions = 0
         for frame_record in self._frame_records:
             sample_data = frame_record.get(camera_channel)
 
@@ -635,29 +646,17 @@ class T4ToKognicConverter(AbstractConverter[None]):
             # leaves the last frame without one, failing Kognic scene validation
             # with "Sensors: [...] not present in frame: N".
             #
-            # T4 can repeat a timestamp across frames: when a camera drops out,
-            # upstream extraction writes a black image but reuses the previous
-            # capture's timestamp, so a run of dropped frames shares one
-            # timestamp. Naming files by timestamp alone would collapse the run
-            # into a single file, so nudge each duplicate forward by 1ns. Source
-            # frame intervals are ~1e8 ns, hence the nudged file still sorts into
-            # its own frame position.
             if timestamp_ns in used_timestamps_ns:
-                collisions += 1
-                while timestamp_ns in used_timestamps_ns:
-                    timestamp_ns += 1
+                raise ValueError(
+                    f"Camera {camera_channel} has duplicate timestamp {timestamp_ns} ns; "
+                    "cannot create unique Kognic staging filenames"
+                )
             used_timestamps_ns.add(timestamp_ns)
 
             dst = camera_dir / f"{timestamp_ns}.jpg"
-            if dst.exists():
-                continue
 
             if src is not None:
                 copies.append((src, dst))
-                continue
-
-            if self._drop_camera_token_not_found:
-                logger.warning(f"Camera {camera_channel} missing for selected frame; dropping")
                 continue
 
             # Kognic requires every calibrated camera to be present in every
@@ -670,15 +669,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
             self._write_blank_image(seq_path, camera_channel, dst)
             blanks_written += 1
 
-        if collisions:
-            logger.warning(
-                f"{camera_channel}: {collisions} frame(s) shared a timestamp with an "
-                "earlier frame and were renamed with a 1ns offset to keep one file "
-                "per frame; upstream T4 likely reused a timestamp for dropped frames"
-            )
         logger.info(
             f"{camera_channel}: {len(copies)} image copies queued, "
-            f"{blanks_written} blank images written, {collisions} timestamp collisions"
+            f"{blanks_written} blank images written"
         )
         return copies
 
@@ -722,7 +715,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         except ImportError as exc:
             raise RuntimeError(
                 f"Pillow is required to write a blank filler image for camera "
-                f"{camera_channel}; install it or set drop_camera_token_not_found."
+                f"{camera_channel}; install it to continue."
             ) from exc
 
         image = self._blank_image_cache.get(camera_channel)

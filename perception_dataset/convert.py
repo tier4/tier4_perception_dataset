@@ -71,16 +71,15 @@ def main():
         output_base = config_dict["conversion"]["output_base"]
         camera_sensors = config_dict["conversion"]["camera_sensors"]
         workers_number = config_dict["conversion"]["workers_number"]
-        drop_camera_token_not_found = config_dict["conversion"]["drop_camera_token_not_found"]
 
         converter = T4ToKognicConverter(
             input_base=input_base,
             output_base=output_base,
             camera_sensors=camera_sensors,
             workers_number=workers_number,
-            drop_camera_token_not_found=drop_camera_token_not_found,
             annotated=(task == "convert_annotated_t4_to_kognic"),
             annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
+            lidar_point_stride=config_dict["conversion"].get("lidar_point_stride", 5),
             generate_tsv_report=config_dict["conversion"].get("generate_tsv_report", False),
         )
 
@@ -143,6 +142,7 @@ def main():
             iso_rotated_cuboids=config_dict["conversion"].get("iso_rotated_cuboids", False),
             category_map=config_dict["conversion"].get("category_map"),
             include_attributes=config_dict["conversion"].get("include_attributes", True),
+            lidar_point_stride=config_dict["conversion"].get("lidar_point_stride", 5),
         )
 
         logger.info(
