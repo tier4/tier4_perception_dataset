@@ -66,7 +66,9 @@ from t4_devkit.schema.tables import (
     Category,
     Instance,
     LidarSeg,
+    Sample,
     SampleAnnotation,
+    SampleData,
     Visibility,
 )
 
@@ -80,10 +82,6 @@ from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
-from perception_dataset.utils.t4_tables import (
-    channel_by_calibrated_sensor,
-    select_lidar_channel,
-)
 
 logger = configure_logger(modname=__name__)
 
@@ -575,33 +573,44 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             Tuple[_SampleIndex, str]: Sample lookup index and selected lidar
                 channel.
         """
-        sample = self._load_table(scene_dir, "sample.json")
-        sample_data = self._load_table(scene_dir, "sample_data.json")
-        sensor = self._load_table(scene_dir, "sensor.json")
-        calibrated_sensor = self._load_table(scene_dir, "calibrated_sensor.json")
-        ego_pose = self._load_table(scene_dir, "ego_pose.json")
+        t4_dataset = Tier4(data_root=str(scene_dir), verbose=False)
+        samples = t4_dataset.get_table("sample")
+        sample_data = t4_dataset.get_table("sample_data")
+        channels = {record.channel for record in sample_data}
+        if LIDAR_CONCAT_CHANNEL in channels:
+            lidar_channel = LIDAR_CONCAT_CHANNEL
+        else:
+            lidar_channels = sorted(
+                sensor.channel
+                for sensor in t4_dataset.get_table("sensor")
+                if sensor.modality.value == "lidar"
+            )
+            lidar_channel = lidar_channels[0] if lidar_channels else LIDAR_CONCAT_CHANNEL
 
-        channel_by_calib = channel_by_calibrated_sensor(sensor, calibrated_sensor)
-        lidar_channel = select_lidar_channel(sensor, channel_by_calib, sample_data)
-        ego_pose_by_token = {ep["token"]: ep for ep in ego_pose}
-
-        lidar_sd_by_sample = self._select_lidar_sample_data(
-            sample, sample_data, channel_by_calib, lidar_channel
+        ego_pose_by_token = {
+            pose.token: serialize_dataclass(pose) for pose in t4_dataset.get_table("ego_pose")
+        }
+        selected_lidar_sd_by_sample = self._select_lidar_sample_data(
+            samples, sample_data, lidar_channel
         )
+        lidar_sd_by_sample = {
+            sample_token: serialize_dataclass(record)
+            for sample_token, record in selected_lidar_sd_by_sample.items()
+        }
         entry_by_sample = {
-            sample_token: (sample_token, ego_pose_by_token.get(record["ego_pose_token"]))
-            for sample_token, record in lidar_sd_by_sample.items()
+            sample_token: (sample_token, ego_pose_by_token.get(record.ego_pose_token))
+            for sample_token, record in selected_lidar_sd_by_sample.items()
         }
         # ``extract_pointclouds`` names the exported cloud after
         # ``sample_data.timestamp``, so keying on that record makes the match
         # bit-exact; ``sample.timestamp`` is only an alias for it.
         by_timestamp_us = {
-            record["timestamp"]: entry_by_sample[sample_token]
-            for sample_token, record in lidar_sd_by_sample.items()
+            record.timestamp: entry_by_sample[sample_token]
+            for sample_token, record in selected_lidar_sd_by_sample.items()
         }
-        for s in sample:
-            if s["token"] in entry_by_sample:
-                by_timestamp_us.setdefault(s["timestamp"], entry_by_sample[s["token"]])
+        for sample in samples:
+            if sample.token in entry_by_sample:
+                by_timestamp_us.setdefault(sample.timestamp, entry_by_sample[sample.token])
         self._index_source_timestamps(
             scene_dir, lidar_sd_by_sample, entry_by_sample, by_timestamp_us
         )
@@ -609,11 +618,10 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @staticmethod
     def _select_lidar_sample_data(
-        sample: List[dict],
-        sample_data: List[dict],
-        channel_by_calib: Dict[str, Optional[str]],
+        sample: List[Sample],
+        sample_data: List[SampleData],
         lidar_channel: str,
-    ) -> Dict[str, dict]:
+    ) -> Dict[str, SampleData]:
         """Resolve the one lidar ``sample_data`` record backing each sample.
 
         A sample owns its keyframe record *and* the intermediate sweeps that
@@ -624,33 +632,34 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         of one sample can be metres apart.
 
         Args:
-            sample (List[dict]): Sample table records.
-            sample_data (List[dict]): Sample-data table records.
-            channel_by_calib (Dict[str, Optional[str]]): Calibrated-sensor token
-                to channel mapping.
+            sample (List[Sample]): Sample table records.
+            sample_data (List[SampleData]): Sample-data table records.
             lidar_channel (str): Lidar channel to resolve.
 
         Returns:
-            Dict[str, dict]: Lidar sample-data record keyed by sample token.
+            Dict[str, SampleData]: Lidar sample-data record keyed by sample token.
         """
-        records_by_sample: Dict[str, List[dict]] = {}
+        records_by_sample: Dict[str, List[SampleData]] = {}
         for record in sample_data:
-            if channel_by_calib.get(record["calibrated_sensor_token"]) == lidar_channel:
-                records_by_sample.setdefault(record["sample_token"], []).append(record)
+            if record.channel == lidar_channel:
+                records_by_sample.setdefault(record.sample_token, []).append(record)
 
-        selected: Dict[str, dict] = {}
-        for s in sample:
-            candidates = records_by_sample.get(s["token"], [])
-            exact = [r for r in candidates if r["timestamp"] == s["timestamp"]]
+        selected: Dict[str, SampleData] = {}
+        for sample_record in sample:
+            candidates = records_by_sample.get(sample_record.token, [])
+            exact = [
+                record for record in candidates if record.timestamp == sample_record.timestamp
+            ]
             if len(exact) != 1:
-                exact = [r for r in candidates if r.get("is_key_frame")]
+                exact = [record for record in candidates if record.is_key_frame]
             if len(exact) != 1:
                 logger.warning(
-                    f"Sample {s['token']} has {len(candidates)} {lidar_channel} sample_data "
+                    f"Sample {sample_record.token} has {len(candidates)} "
+                    f"{lidar_channel} sample_data "
                     f"record(s) and no unambiguous keyframe; excluding it from the frame index"
                 )
                 continue
-            selected[s["token"]] = exact[0]
+            selected[sample_record.token] = exact[0]
         return selected
 
     @staticmethod
