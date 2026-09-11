@@ -165,6 +165,7 @@ def test_source_lidar_timestamp_maps_to_its_concat_sample(tmp_path: Path):
     info_path.write_text(
         json.dumps(
             {
+                "stamp": {"sec": 2, "nanosec": 0},
                 "sources": [
                     {
                         "sensor_token": "front",
