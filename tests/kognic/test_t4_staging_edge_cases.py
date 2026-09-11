@@ -2,10 +2,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 
 from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
 from perception_dataset.utils.misc import validate_annotation_hz
+from perception_dataset.utils.pointcloud import save_pointcloud_csv
 
 
 @pytest.mark.parametrize("value", [0, -1, 11, 1.0, "1", None, True])
@@ -100,3 +102,25 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
 
     with pytest.raises(ValueError, match="CAM_FRONT.*duplicate timestamp 123000 ns"):
         converter._collect_image_copies(tmp_path / "input", output, "CAM_FRONT")
+
+
+def test_save_pointcloud_csv_writes_timestamp_and_first_four_features(tmp_path: Path):
+    """Test point-cloud CSV formatting and omission of extra point features."""
+    csv_path = tmp_path / "points.csv"
+    points = np.array([[1.25, -2.0, 3.125, 4.5, 99.0]], dtype=np.float32)
+
+    save_pointcloud_csv(csv_path, 123456789, points)
+
+    assert csv_path.read_text() == (
+        "ts_gps,x,y,z,intensity\n"
+        "123456789,1.250000,-2.000000,3.125000,4.500000\n"
+    )
+
+
+def test_save_pointcloud_csv_writes_header_for_empty_cloud(tmp_path: Path):
+    """Test that an empty point cloud still produces a valid CSV header."""
+    csv_path = tmp_path / "points.csv"
+
+    save_pointcloud_csv(csv_path, 123456789, np.empty((0, 4), dtype=np.float32))
+
+    assert csv_path.read_text() == "ts_gps,x,y,z,intensity\n"
