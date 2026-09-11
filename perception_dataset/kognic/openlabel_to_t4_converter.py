@@ -534,6 +534,10 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
                 attribute_tokens = self._collect_attribute_tokens(tables, object_data)
                 visibility_token = self._visibility_token(tables, object_data)
+                if len(cuboids) > 1:
+                    logger.warning(
+                        f"Frame {frame_key}, object {object_uuid}: multiple cuboids found; using the first one"
+                    )
                 translation, size, rotation = self._cuboid_to_t4_box(cuboids[0]["val"], ego_pose)
 
                 annotation_token = tables["sample_annotation"].insert_into_table(
