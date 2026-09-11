@@ -11,7 +11,14 @@ PENDING_CALIBRATION_ID = "pending-calibration-upload"
 
 
 def _iter_resources(payload: dict) -> Generator[dict, None, None]:
-    """Yield file-backed resources from a serialized sequence."""
+    """Yield file-backed resources from a serialized sequence.
+
+    Args:
+        payload (dict): The serialized sequence payload.
+
+    Yields:
+        Generator[dict, None, None]: Each file-backed resource dictionary.
+    """
     frames = payload.get("frames", [])
     if not isinstance(frames, list):
         return
@@ -28,7 +35,26 @@ def save_sequence_artifact(
     sequence_path: Path,
     sequence: KognicModel.LidarsAndCamerasSequence,
 ) -> Path:
-    """Persist a validated sequence with relocatable resource paths."""
+    """Persist a validated sequence with relocatable resource paths.
+
+    Resource filenames, client filenames, and resource IDs are stored relative
+    to the scene directory so the complete staging directory can be moved
+    without invalidating the artifact.
+
+    Args:
+        sequence_path (Path): Staging directory that owns the sequence artifact
+            and all referenced sensor files.
+        sequence (KognicModel.LidarsAndCamerasSequence): Validated sequence
+            model to serialize.
+
+    Returns:
+        Path: Path to the written ``lidars_and_cameras_sequence.json`` artifact.
+
+    Raises:
+        ValueError: If a referenced sensor resource is outside
+            ``sequence_path`` and therefore cannot be stored as a relocatable
+            path.
+    """
     payload = sequence.model_dump(mode="json")
     sequence_root = sequence_path.resolve()
     for resource in _iter_resources(payload):
@@ -49,7 +75,27 @@ def save_sequence_artifact(
 
 
 def load_sequence_artifact(sequence_path: Path) -> KognicModel.LidarsAndCamerasSequence:
-    """Resolve resource paths and Pydantically reload a converted sequence."""
+    """Resolve resource paths and Pydantically reload a converted sequence.
+
+    Relative resource filenames are resolved against the staging directory
+    before the payload is passed to the Kognic Pydantic model. This lets the
+    model validate both the JSON structure and the referenced local files.
+
+    Args:
+        sequence_path (Path): Staging directory containing
+            ``lidars_and_cameras_sequence.json`` and its sensor resources.
+
+    Returns:
+        KognicModel.LidarsAndCamerasSequence: Fully validated sequence ready
+            for calibration binding and upload.
+
+    Raises:
+        FileNotFoundError: If the sequence artifact or a referenced resource
+            does not exist.
+        json.JSONDecodeError: If the artifact is not valid JSON.
+        pydantic.ValidationError: If the artifact does not satisfy the Kognic
+            sequence schema.
+    """
     payload = json.loads((sequence_path / SEQUENCE_ARTIFACT_FILENAME).read_text())
     for resource in _iter_resources(payload):
         resource_path = Path(resource["filename"])

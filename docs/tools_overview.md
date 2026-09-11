@@ -109,6 +109,8 @@ References:
 ### T4 format to Kognic format
 
 Converts T4 format data to the local Kognic staging format used by the Kognic uploader.
+The converter builds and validates `lidars_and_cameras_sequence.json`; the
+uploader reloads that Pydantic model without reconstructing frames.
 
 input: T4 format data  
 output: Kognic staging format data
@@ -148,7 +150,9 @@ export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
 python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
 ```
 
-All staged frames are uploaded. The converter-generated `keyframes.json` determines which frames are marked `annotate=True`; it is required, and its `frame_count` must match the current staged frame count. Re-run the T4-to-Kognic converter after changing staged sensor data.
+All staged frames are uploaded from the converter-generated
+`lidars_and_cameras_sequence.json`. Re-run the T4-to-Kognic converter after
+changing sensor data, ego poses, or keyframes.
 
 See [Stage 3](tier_iv_t4_extractor_to_kognic.md#stage-3--upload-staging-format-to-kognic) for all config parameters.
 
