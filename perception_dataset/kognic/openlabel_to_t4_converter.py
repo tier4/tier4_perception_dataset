@@ -60,7 +60,7 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 from t4_devkit import Tier4
 from t4_devkit.common.serialize import serialize_dataclass
-from t4_devkit.dataclass import LidarPointCloud
+from t4_devkit.dataclass import LidarPointCloud, PointCloudMetainfo
 from t4_devkit.schema.tables import (
     Attribute,
     Category,
@@ -80,10 +80,6 @@ from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
-from perception_dataset.utils.pointcloud import (
-    stamp_to_ns,
-    validate_concat_point_layout,
-)
 from perception_dataset.utils.t4_tables import (
     channel_by_calibrated_sensor,
     select_lidar_channel,
@@ -693,10 +689,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             if not info_path.exists():
                 logger.warning(f"LIDAR_CONCAT_INFO is missing: {info_path}")
                 continue
-            with open(info_path) as f:
-                sources = json.load(f).get("sources", [])
-            for source in sources:
-                ts_ns = stamp_to_ns(source.get("stamp"))
+            metainfo = PointCloudMetainfo.from_file(str(info_path))
+            for source in metainfo.sources:
+                ts_ns = source.stamp.sec * 1_000_000_000 + source.stamp.nanosec
                 if not ts_ns:
                     continue
                 # setdefault: a real sample timestamp always wins a collision.
@@ -1699,13 +1694,10 @@ def _lidar_point_count(
     """
     if not bin_path.exists():
         return None
-    if info_path is not None:
-        if not info_path.exists():
-            raise FileNotFoundError(f"Required LIDAR_CONCAT_INFO is missing: {info_path}")
-        with open(info_path) as f:
-            info = json.load(f)
-        total_points, _ = validate_concat_point_layout(info, bin_path)
-        return total_points
-    if bin_path.stat().st_size == 0:
-        return 0
-    return LidarPointCloud.from_file(str(bin_path)).points.shape[1]
+    if info_path is not None and not info_path.exists():
+        raise FileNotFoundError(f"Required LIDAR_CONCAT_INFO is missing: {info_path}")
+    # Loading validates source coverage against the actual number of points.
+    return LidarPointCloud.from_file(
+        str(bin_path),
+        metainfo_filepath=str(info_path) if info_path is not None else None,
+    ).num_points()
