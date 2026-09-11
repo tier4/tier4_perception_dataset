@@ -8,6 +8,9 @@ import uuid
 
 from kognic.openlabel.models import models as openlabel
 import numpy as np
+from t4_devkit import Tier4
+from t4_devkit.common.serialize import serialize_dataclass
+from t4_devkit.schema.tables import Instance, SampleAnnotation, SampleData
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, PREFERRED_LIDAR_SENSORS
@@ -15,10 +18,6 @@ from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cub
 from perception_dataset.kognic.upload_dataset import _sensor_sort_key, _sort_key
 from perception_dataset.kognic.utils import iter_scene_pairs
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.t4_tables import (
-    channel_by_calibrated_sensor,
-    records_for_channel,
-)
 
 logger = configure_logger(modname=__name__)
 
@@ -122,26 +121,14 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         Returns:
             None
         """
-        tables = {
-            name: self._load_annotation(seq_path, f"{name}.json")
-            for name in (
-                "sensor",
-                "calibrated_sensor",
-                "sample",
-                "sample_data",
-                "sample_annotation",
-                "instance",
-                "category",
-                "attribute",
-                "ego_pose",
-            )
-        }
+        t4 = Tier4(data_root=str(seq_path), verbose=False)
+        sample_annotations = t4.get_table("sample_annotation")
 
-        if not tables["sample_annotation"]:
+        if not sample_annotations:
             logger.warning(f"No annotations in {seq_path}; skipping")
             return
 
-        concat_records = self._collect_concat_records(tables)
+        concat_records = self._collect_concat_records(t4)
         if not concat_records:
             logger.warning(f"No {LIDAR_CONCAT_CHANNEL} sample_data in {seq_path}; skipping")
             return
@@ -151,19 +138,19 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         stream_name = self._lidar_stream or anchor_stream
 
         concat_idx_by_sample = {
-            record["sample_token"]: idx
+            record.sample_token: idx
             for idx, record in enumerate(concat_records)
-            if record.get("is_key_frame")
+            if record.is_key_frame
         }
 
-        categories = {c["token"]: c["name"] for c in tables["category"]}
-        instances = {i["token"]: i for i in tables["instance"]}
-        attributes = {a["token"]: a["name"] for a in tables["attribute"]}
-        ego_pose_by_token = {ep["token"]: ep for ep in tables["ego_pose"]}
+        categories = {category.token: category.name for category in t4.get_table("category")}
+        instances = {instance.token: instance for instance in t4.get_table("instance")}
+        attributes = {attribute.token: attribute.name for attribute in t4.get_table("attribute")}
+        ego_pose_by_token = {pose.token: pose for pose in t4.get_table("ego_pose")}
 
-        annotations_by_sample: Dict[str, List[dict]] = {}
-        for annotation in tables["sample_annotation"]:
-            annotations_by_sample.setdefault(annotation["sample_token"], []).append(annotation)
+        annotations_by_sample: Dict[str, List[SampleAnnotation]] = {}
+        for annotation in sample_annotations:
+            annotations_by_sample.setdefault(annotation.sample_token, []).append(annotation)
 
         self._write_keyframes(staging_dir, concat_records, concat_to_frame, len(anchor_ts_ns))
 
@@ -171,28 +158,28 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         frames: Dict[str, openlabel.Frame] = {}
         skipped = 0
 
-        for sample in sorted(tables["sample"], key=lambda s: s["timestamp"]):
-            sample_annotations = annotations_by_sample.get(sample["token"])
-            if not sample_annotations:
+        for sample in sorted(t4.get_table("sample"), key=lambda record: record.timestamp):
+            annotations = annotations_by_sample.get(sample.token)
+            if not annotations:
                 continue
 
-            concat_idx = concat_idx_by_sample.get(sample["token"])
+            concat_idx = concat_idx_by_sample.get(sample.token)
             frame_idx = concat_to_frame.get(concat_idx) if concat_idx is not None else None
             if frame_idx is None:
                 logger.warning(
-                    f"Sample {sample['token']} could not be matched to a staging frame; "
-                    f"dropping {len(sample_annotations)} annotation(s)"
+                    f"Sample {sample.token} could not be matched to a staging frame; "
+                    f"dropping {len(annotations)} annotation(s)"
                 )
-                skipped += len(sample_annotations)
+                skipped += len(annotations)
                 continue
 
-            ego_pose = ego_pose_by_token[concat_records[concat_idx]["ego_pose_token"]]
+            ego_pose = ego_pose_by_token[concat_records[concat_idx].ego_pose_token]
             frame_objects: Dict[str, openlabel.Objects] = {}
 
-            for annotation in sample_annotations:
-                instance = instances[annotation["instance_token"]]
-                category_name = categories.get(instance["category_token"], "unknown")
-                object_uuid = _token_to_uuid(annotation["instance_token"])
+            for annotation in annotations:
+                instance = instances[annotation.instance_token]
+                category_name = categories.get(instance.category_token, "unknown")
+                object_uuid = _token_to_uuid(annotation.instance_token)
 
                 objects.setdefault(
                     object_uuid,
@@ -211,7 +198,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                 if self._include_attributes:
                     class_properties = [
                         attribute_to_text(attributes[token])
-                        for token in annotation.get("attribute_tokens", [])
+                        for token in annotation.attribute_tokens
                         if token in attributes
                         and attributes[token].rpartition(".")[0] not in self._exclude_attributes
                     ]
@@ -221,7 +208,10 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                         cuboid=[
                             openlabel.Cuboid(
                                 name=f"cuboid-{object_uuid[:8]}",
-                                val=t4_box_to_cuboid_val(annotation, ego_pose),
+                                val=t4_box_to_cuboid_val(
+                                    serialize_dataclass(annotation),
+                                    serialize_dataclass(ego_pose),
+                                ),
                                 attributes=openlabel.Attributes(
                                     text=[openlabel.Text(name="stream", val=stream_name)]
                                 ),
@@ -275,7 +265,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
     @staticmethod
     def _write_keyframes(
         staging_dir: Path,
-        concat_records: List[dict],
+        concat_records: List[SampleData],
         concat_to_frame: Dict[int, int],
         frame_count: int,
     ) -> None:
@@ -294,7 +284,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
         Args:
             staging_dir (Path): Destination staging directory.
-            concat_records (List[dict]): Ordered fused-lidar sample data.
+            concat_records (List[SampleData]): Ordered fused-lidar sample data.
             concat_to_frame (Dict[int, int]): Concat-record to frame mapping.
             frame_count (int): Number of staging frames.
 
@@ -304,7 +294,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         keyframe_indices = sorted(
             concat_to_frame[idx]
             for idx, record in enumerate(concat_records)
-            if record.get("is_key_frame") and idx in concat_to_frame
+            if record.is_key_frame and idx in concat_to_frame
         )
         out_path = staging_dir / "keyframes.json"
         with open(out_path, "w") as f:
@@ -312,33 +302,23 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         logger.info(f"{out_path}: {len(keyframe_indices)} keyframes over {frame_count} frames")
 
     @staticmethod
-    def _load_annotation(seq_path: Path, name: str) -> list:
-        """Load a T4 annotation table.
-
-        Args:
-            seq_path (Path): T4 sequence root.
-            name (str): Annotation-table filename.
-
-        Returns:
-            list: Parsed table records.
-        """
-        with open(seq_path / "annotation" / name) as f:
-            return json.load(f)
-
-    @staticmethod
-    def _collect_concat_records(tables: dict) -> List[dict]:
+    def _collect_concat_records(t4: Tier4) -> List[SampleData]:
         """Collect fused-lidar sample-data records in timestamp order.
 
         Args:
-            tables (dict): Loaded T4 tables.
+            t4 (Tier4): Loaded T4 dataset.
 
         Returns:
-            List[dict]: Ordered ``LIDAR_CONCAT`` records.
+            List[SampleData]: Ordered ``LIDAR_CONCAT`` records.
         """
-        channel_by_calib = channel_by_calibrated_sensor(
-            tables["sensor"], tables["calibrated_sensor"]
+        return sorted(
+            (
+                record
+                for record in t4.get_table("sample_data")
+                if record.channel == LIDAR_CONCAT_CHANNEL
+            ),
+            key=lambda record: record.timestamp,
         )
-        return records_for_channel(tables["sample_data"], channel_by_calib, LIDAR_CONCAT_CHANNEL)
 
     @staticmethod
     def _load_staging_frames(staging_dir: Path) -> Tuple[List[int], List[int], str]:
@@ -370,7 +350,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         return timestamps_ns, relative_ms, anchor
 
     def _map_concat_to_frames(
-        self, concat_records: List[dict], anchor_ts_ns: List[int]
+        self, concat_records: List[SampleData], anchor_ts_ns: List[int]
     ) -> Dict[int, int]:
         """Map LIDAR_CONCAT record index -> staging frame index.
 
@@ -381,7 +361,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         fraction of the sweep period).
 
         Args:
-            concat_records (List[dict]): Ordered fused-lidar sample data.
+            concat_records (List[SampleData]): Ordered fused-lidar sample data.
             anchor_ts_ns (List[int]): Staging anchor timestamps in nanoseconds.
 
         Returns:
@@ -397,7 +377,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         anchor = np.asarray(anchor_ts_ns, dtype=np.int64)
         mapping: Dict[int, int] = {}
         for idx, record in enumerate(concat_records):
-            ts_ns = int(record["timestamp"]) * 1000
+            ts_ns = int(record.timestamp) * 1000
             frame_idx = int(np.argmin(np.abs(anchor - ts_ns)))
             diff_ms = abs(int(anchor[frame_idx]) - ts_ns) / 1e6
             if diff_ms <= self._frame_match_tolerance_ms:
@@ -446,17 +426,17 @@ def _token_to_uuid(token: str) -> str:
         return str(uuid.uuid5(uuid.NAMESPACE_OID, token))
 
 
-def _object_name(instance: dict, object_uuid: str) -> str:
+def _object_name(instance: Instance, object_uuid: str) -> str:
     """Choose an OpenLABEL object name for a T4 instance.
 
     Args:
-        instance (dict): T4 instance record.
+        instance (Instance): T4 instance record.
         object_uuid (str): Fallback object UUID.
 
     Returns:
         str: Instance-name suffix when available, otherwise ``object_uuid``.
     """
-    instance_name = instance.get("instance_name", "")
+    instance_name = instance.instance_name
     if instance_name:
         return instance_name.split("::")[-1]
     return object_uuid

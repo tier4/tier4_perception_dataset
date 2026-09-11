@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -95,29 +96,29 @@ def test_lidar_sample_selection_prefers_exact_sample_timestamp():
     case ensures the record captured at the sample timestamp wins, preventing
     annotations from being attached to a neighbouring sweep.
     """
-    sample = [{"token": "sample", "timestamp": 100}]
+    sample = [SimpleNamespace(token="sample", timestamp=100)]
     sample_data = [
-        {
-            "token": "sweep",
-            "sample_token": "sample",
-            "calibrated_sensor_token": "calibration",
-            "timestamp": 101,
-            "is_key_frame": False,
-        },
-        {
-            "token": "keyframe",
-            "sample_token": "sample",
-            "calibrated_sensor_token": "calibration",
-            "timestamp": 100,
-            "is_key_frame": True,
-        },
+        SimpleNamespace(
+            token="sweep",
+            sample_token="sample",
+            channel="LIDAR_CONCAT",
+            timestamp=101,
+            is_key_frame=False,
+        ),
+        SimpleNamespace(
+            token="keyframe",
+            sample_token="sample",
+            channel="LIDAR_CONCAT",
+            timestamp=100,
+            is_key_frame=True,
+        ),
     ]
 
     selected = OpenLabelToT4Converter._select_lidar_sample_data(
-        sample, sample_data, {"calibration": "LIDAR_CONCAT"}, "LIDAR_CONCAT"
+        sample, sample_data, "LIDAR_CONCAT"
     )
 
-    assert selected["sample"]["token"] == "keyframe"
+    assert selected["sample"].token == "keyframe"
 
 
 def test_lidar_sample_selection_rejects_ambiguous_keyframes():
@@ -128,20 +129,20 @@ def test_lidar_sample_selection_rejects_ambiguous_keyframes():
     no safe way to choose between them, so the sample must be excluded instead
     of relying on table order.
     """
-    sample = [{"token": "sample", "timestamp": 100}]
+    sample = [SimpleNamespace(token="sample", timestamp=100)]
     sample_data = [
-        {
-            "token": token,
-            "sample_token": "sample",
-            "calibrated_sensor_token": "calibration",
-            "timestamp": timestamp,
-            "is_key_frame": True,
-        }
+        SimpleNamespace(
+            token=token,
+            sample_token="sample",
+            channel="LIDAR_CONCAT",
+            timestamp=timestamp,
+            is_key_frame=True,
+        )
         for token, timestamp in (("first", 99), ("second", 101))
     ]
 
     selected = OpenLabelToT4Converter._select_lidar_sample_data(
-        sample, sample_data, {"calibration": "LIDAR_CONCAT"}, "LIDAR_CONCAT"
+        sample, sample_data, "LIDAR_CONCAT"
     )
 
     assert selected == {}
@@ -165,6 +166,7 @@ def test_source_lidar_timestamp_maps_to_its_concat_sample(tmp_path: Path):
     info_path.write_text(
         json.dumps(
             {
+                "stamp": {"sec": 2, "nanosec": 0},
                 "sources": [
                     {
                         "sensor_token": "front",
