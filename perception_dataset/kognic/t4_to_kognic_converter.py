@@ -170,7 +170,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             shutil.rmtree(stale_dir, ignore_errors=True)
 
         self._build_lookup_maps(seq_path)
-        self._has_lidar_concat_info = (seq_path / "data" / "LIDAR_CONCAT_INFO").is_dir()
         self._lidar_channels = self._discover_lidar_channels()
         self._frame_records = self._build_frame_records()
         self._record_missing_sensor_frames(seq_path)
@@ -441,6 +440,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 key=lambda sample_data_record: sample_data_record.timestamp,
             )
 
+        self._has_lidar_concat_info = any(
+            sample_data.info_filename
+            for sample_data in self._sample_data_by_channel.get(LIDAR_CONCAT_CHANNEL, [])
+        )
         self._ego_pose_by_token = {ep.token: ep for ep in t4.get_table("ego_pose")}
 
     def _discover_lidar_channels(self) -> List[str]:
