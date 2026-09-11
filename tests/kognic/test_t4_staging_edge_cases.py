@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -100,3 +101,19 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
 
     with pytest.raises(ValueError, match="CAM_FRONT.*duplicate timestamp 123000 ns"):
         converter._collect_image_copies(tmp_path / "input", output, "CAM_FRONT")
+
+
+def test_annotated_keyframes_do_not_require_objects(tmp_path: Path):
+    """Test that empty source keyframes remain annotatable."""
+    converter = object.__new__(T4ToKognicConverter)
+    converter._annotated = True
+    converter._anchor_channel = "LIDAR_TOP"
+    converter._frame_records = [
+        {"LIDAR_TOP": SimpleNamespace(is_key_frame=True)},
+        {"LIDAR_TOP": SimpleNamespace(is_key_frame=False)},
+    ]
+
+    converter._write_keyframes(tmp_path)
+    payload = json.loads((tmp_path / "keyframes.json").read_text())
+
+    assert payload["keyframe_indices"] == [0]

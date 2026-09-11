@@ -13,9 +13,12 @@ from t4_devkit.common.serialize import serialize_dataclass
 from t4_devkit.schema.tables import Instance, SampleAnnotation, SampleData
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, PREFERRED_LIDAR_SENSORS
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cuboid_val
-from perception_dataset.kognic.upload_dataset import _sensor_sort_key, _sort_key
+from perception_dataset.kognic.sequence_artifact import (
+    SEQUENCE_ARTIFACT_FILENAME,
+    load_sequence_artifact,
+)
 from perception_dataset.kognic.utils import iter_scene_pairs
 from perception_dataset.utils.logger import configure_logger
 
@@ -48,11 +51,10 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
     - Pre-annotation frames are matched to scene frames by timestamp, so
       ``frame_properties.timestamp`` mirrors the uploader's
       ``relative_timestamp`` (milliseconds since the first anchor frame).
-    - A ``keyframes.json`` (staging frame indices of the T4 keyframes, from
-      ``sample_data.is_key_frame``) is written next to the pre-annotation.
-      The uploader marks exactly those frames ``annotate=True`` so the
-      annotatable frames always line up with the pre-annotation frames:
-      Kognic only surfaces pre-annotations on annotatable frames.
+    - The converter-generated sequence artifact already marks source T4
+      keyframes ``annotate=True``, so annotatable frames line up with the
+      pre-annotation frames: Kognic only surfaces pre-annotations on
+      annotatable frames.
     """
 
     def __init__(
@@ -95,9 +97,9 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         for seq_path, staging_dir in iter_scene_pairs(
             Path(self._input_base), Path(self._output_base)
         ):
-            if not (staging_dir / "lidar").is_dir():
+            if not (staging_dir / SEQUENCE_ARTIFACT_FILENAME).is_file():
                 logger.warning(
-                    f"No Kognic staging directory with lidar data at {staging_dir}; "
+                    f"No {SEQUENCE_ARTIFACT_FILENAME} at {staging_dir}; "
                     f"run convert_t4_to_kognic first. Skipping {seq_path}"
                 )
                 continue
@@ -151,8 +153,6 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         annotations_by_sample: Dict[str, List[SampleAnnotation]] = {}
         for annotation in sample_annotations:
             annotations_by_sample.setdefault(annotation.sample_token, []).append(annotation)
-
-        self._write_keyframes(staging_dir, concat_records, concat_to_frame, len(anchor_ts_ns))
 
         objects: Dict[str, openlabel.Object] = {}
         frames: Dict[str, openlabel.Frame] = {}
@@ -263,45 +263,6 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         )
 
     @staticmethod
-    def _write_keyframes(
-        staging_dir: Path,
-        concat_records: List[SampleData],
-        concat_to_frame: Dict[int, int],
-        frame_count: int,
-    ) -> None:
-        """Write the T4 keyframe positions for the uploader to ``keyframes.json``.
-
-        The staging frame indices of the ``sample_data`` records with
-        ``is_key_frame`` set. The uploader requires this file and marks exactly
-        those frames ``annotate=True``, so
-        the annotatable frames always coincide with the pre-annotation frames
-        even when the source keyframe cadence skips a sweep. ``frame_count``
-        lets the uploader detect a stale file after the staging data changed.
-
-        ``T4ToKognicConverter`` writes the same file for every scene (including
-        non-annotated ones); this refresh keeps re-running only the
-        pre-annotation step on an older staging dir sufficient.
-
-        Args:
-            staging_dir (Path): Destination staging directory.
-            concat_records (List[SampleData]): Ordered fused-lidar sample data.
-            concat_to_frame (Dict[int, int]): Concat-record to frame mapping.
-            frame_count (int): Number of staging frames.
-
-        Returns:
-            None
-        """
-        keyframe_indices = sorted(
-            concat_to_frame[idx]
-            for idx, record in enumerate(concat_records)
-            if record.is_key_frame and idx in concat_to_frame
-        )
-        out_path = staging_dir / "keyframes.json"
-        with open(out_path, "w") as f:
-            json.dump({"frame_count": frame_count, "keyframe_indices": keyframe_indices}, f)
-        logger.info(f"{out_path}: {len(keyframe_indices)} keyframes over {frame_count} frames")
-
-    @staticmethod
     def _collect_concat_records(t4: Tier4) -> List[SampleData]:
         """Collect fused-lidar sample-data records in timestamp order.
 
@@ -322,7 +283,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
 
     @staticmethod
     def _load_staging_frames(staging_dir: Path) -> Tuple[List[int], List[int], str]:
-        """Enumerate staging frames using the uploader's ordering.
+        """Load staging frame timing from the validated sequence artifact.
 
         Args:
             staging_dir (Path): Kognic staging directory.
@@ -332,21 +293,21 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                 timestamps in milliseconds, and anchor lidar channel.
 
         Raises:
-            FileNotFoundError: If the anchor lidar directory contains no CSVs.
+            FileNotFoundError: If the artifact contains no lidar resources.
         """
-        lidar_root = staging_dir / "lidar"
-        sensor_names = sorted(
-            (p.name for p in lidar_root.iterdir() if p.is_dir()),
-            key=lambda name: _sensor_sort_key(name, PREFERRED_LIDAR_SENSORS),
-        )
-        anchor = sensor_names[0]
-        files = sorted((lidar_root / anchor).glob("*.csv"), key=_sort_key)
-        if not files:
-            raise FileNotFoundError(f"No lidar CSVs found in {lidar_root / anchor}")
-
-        timestamps_ns = [int(path.stem) for path in files]
-        reference = timestamps_ns[0]
-        relative_ms = [int((ts - reference) / 1e6) for ts in timestamps_ns]
+        sequence = load_sequence_artifact(staging_dir)
+        if not sequence.frames or not sequence.frames[0].point_clouds:
+            raise FileNotFoundError(
+                f"No lidar resources found in {staging_dir}"
+            )
+        anchor = sequence.frames[0].point_clouds[0].sensor_name
+        timestamps_ns = []
+        relative_ms = []
+        for frame in sequence.frames:
+            if frame.unix_timestamp is None:
+                raise ValueError(f"Frame {frame.frame_id} is missing unix_timestamp")
+            timestamps_ns.append(int(frame.unix_timestamp))
+            relative_ms.append(int(frame.relative_timestamp))
         return timestamps_ns, relative_ms, anchor
 
     def _map_concat_to_frames(

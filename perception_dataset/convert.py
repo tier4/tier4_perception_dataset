@@ -79,6 +79,7 @@ def main():
             workers_number=workers_number,
             annotated=(task == "convert_annotated_t4_to_kognic"),
             annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
+            include_imu_data=config_dict["conversion"].get("include_imu_data", True),
             generate_tsv_report=config_dict["conversion"].get("generate_tsv_report", False),
         )
 

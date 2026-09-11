@@ -7,30 +7,22 @@ import hashlib
 import json
 from pathlib import Path
 import time
-from typing import Dict, Generator, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import uuid
 
 from kognic.io.client import KognicIOClient
 import kognic.io.model as KognicModel
-from kognic.io.model.ego.imu_data import IMUData
 from kognic.io.model.scene.feature_flags import FeatureFlags
 from kognic.io.model.scene.invalidated_reason import SceneInvalidatedReason
-from kognic.io.model.scene.lidars_and_cameras_sequence.frame import (
-    Frame as LidarsAndCamerasSequenceFrame,
-)
-from kognic.io.model.scene.metadata.metadata import FrameMetaData, MetaData
-from kognic.io.model.scene.resources.image import ImageMetadata
 from kognic.io.model.scene.scene_entry import SceneStatus
 from kognic.openlabel.models.models import OpenLabelAnnotation
-import numpy as np
 from requests.exceptions import HTTPError
 import yaml
 
-from perception_dataset.constants import (
-    IMU_EXTRAPOLATE_S,
-    IMU_TARGET_HZ,
-    PREFERRED_CAMERA_SENSORS,
-    PREFERRED_LIDAR_SENSORS,
+from perception_dataset.kognic.sequence_artifact import (
+    PENDING_CALIBRATION_ID,
+    SEQUENCE_ARTIFACT_FILENAME,
+    load_sequence_artifact,
 )
 from perception_dataset.utils.logger import configure_logger
 
@@ -229,8 +221,6 @@ class KognicUploadConfig:
         project_targets (List[ProjectTarget]): Projects and batches to receive inputs.
         dryrun (bool): Whether Kognic should validate without persisting scenes.
         motion_compensate (bool): Whether to enable motion compensation.
-        include_imu_data (bool): Whether to derive dense IMU pose data.
-        write_debug_frames (bool): Whether to save serialized frames locally.
         generate_tsv_report (bool): Whether to write an upload outcome report.
         scene_creation_timeout_s (int): Scene-processing timeout in seconds.
         scene_creation_poll_interval_s (int): Status polling interval in seconds.
@@ -246,8 +236,6 @@ class KognicUploadConfig:
     project_targets: List[ProjectTarget] = field(default_factory=list)
     dryrun: bool = False
     motion_compensate: bool = False
-    include_imu_data: bool = True
-    write_debug_frames: bool = False
     generate_tsv_report: bool = False
     scene_creation_timeout_s: int = 3600
     scene_creation_poll_interval_s: int = 10
@@ -327,121 +315,6 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
     return targets
 
 
-def _sort_key(path: Path) -> Tuple[int, str]:
-    """Build a stable sort key for timestamp-named sensor files.
-
-    Args:
-        path (Path): Sensor file path.
-
-    Returns:
-        Tuple[int, str]: Numeric-first filename sort key.
-    """
-    try:
-        return (0, f"{int(path.stem):030d}")
-    except ValueError:
-        return (1, path.stem)
-
-
-def _sensor_sort_key(sensor_name: str, preferred_order: List[str]) -> Tuple[int, str]:
-    """Build a sort key that prioritizes preferred sensors.
-
-    Args:
-        sensor_name (str): Sensor channel name.
-        preferred_order (List[str]): Channel names in preferred order.
-
-    Returns:
-        Tuple[int, str]: Preference rank and channel name.
-    """
-    if sensor_name in preferred_order:
-        return (preferred_order.index(sensor_name), sensor_name)
-    return (len(preferred_order), sensor_name)
-
-
-def _validate_sensor_file_counts(
-    sequence_path: Path,
-    sensor_files: Dict[str, List[Path]],
-    anchor_sensor: str,
-    expected_count: int,
-) -> None:
-    """Require every sensor to contribute exactly one file per frame.
-
-    Args:
-        sequence_path (Path): Staging sequence directory.
-        sensor_files (Dict[str, List[Path]]): Sorted files keyed by sensor channel.
-        anchor_sensor (str): Channel used to define the frame count.
-        expected_count (int): Number of frames in the anchor channel.
-
-    Returns:
-        None
-
-    Raises:
-        ValueError: If any channel has a different number of files.
-    """
-    mismatched = {
-        name: len(files) for name, files in sensor_files.items() if len(files) != expected_count
-    }
-    if mismatched:
-        raise ValueError(
-            f"Sensor file counts disagree in {sequence_path}: anchor {anchor_sensor} has "
-            f"{expected_count} files but {mismatched} differ. Frames are paired with files by "
-            "position, so re-convert the sequence instead of uploading a partial staging directory."
-        )
-
-
-def _validate_sensor_timestamps(
-    sequence_path: Path,
-    sensor_files: Dict[str, List[Path]],
-    anchor_files: List[Path],
-) -> None:
-    """Require each sensor's timestamps to track the anchor sensor's frames.
-
-    Args:
-        sequence_path (Path): Staging sequence directory.
-        sensor_files (Dict[str, List[Path]]): Sorted files keyed by sensor channel.
-        anchor_files (List[Path]): Anchor channel files in frame order.
-
-    Returns:
-        None
-
-    Raises:
-        ValueError: If a channel's file deviates from its frame by more than
-            90% of the anchor frame interval, which indicates an off-by-N pairing.
-    """
-    try:
-        anchor_ts = [int(path.stem) for path in anchor_files]
-    except ValueError:
-        return
-
-    intervals = sorted(b - a for a, b in zip(anchor_ts, anchor_ts[1:]))
-    if not intervals:
-        return
-
-    # 90% of a frame interval: observed sensor sync jitter (e.g. a camera vs.
-    # the lidar anchor) can approach half the interval, so a tighter bound
-    # flagged legitimate frames; an off-by-one pairing still lands a full
-    # interval away and stays well outside this bound.
-    tolerance_ns = intervals[len(intervals) // 2] * 0.9
-    if tolerance_ns <= 0:
-        raise ValueError(
-            f"Anchor timestamps in {sequence_path} are not strictly increasing; "
-            "frame ordering cannot be trusted."
-        )
-
-    for name, files in sensor_files.items():
-        for frame_idx, (path, expected_ns) in enumerate(zip(files, anchor_ts)):
-            try:
-                actual_ns = int(path.stem)
-            except ValueError:
-                break
-            if abs(actual_ns - expected_ns) > tolerance_ns:
-                raise ValueError(
-                    f"Sensor {name} in {sequence_path} is misaligned at frame {frame_idx}: "
-                    f"file {path.name} is {abs(actual_ns - expected_ns)}ns from the anchor "
-                    f"timestamp {expected_ns} (tolerance {tolerance_ns:.0f}ns). The staging "
-                    "directory likely mixes files from different conversion runs."
-                )
-
-
 def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     """Load uploader configuration from parsed YAML.
 
@@ -466,8 +339,6 @@ def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         project_targets=_parse_project_targets(conversion_config),
         dryrun=conversion_config.get("dryrun", False),
         motion_compensate=conversion_config.get("motion_compensate", False),
-        include_imu_data=conversion_config.get("include_imu_data", True),
-        write_debug_frames=conversion_config.get("write_debug_frames", False),
         generate_tsv_report=conversion_config.get("generate_tsv_report", False),
         scene_creation_timeout_s=conversion_config.get("scene_creation_timeout_s", 1800),
         scene_creation_poll_interval_s=conversion_config.get("scene_creation_poll_interval_s", 10),
@@ -483,29 +354,29 @@ def find_sequence_paths(input_base: Path) -> List[Path]:
         input_base (Path): Staging sequence or parent directory.
 
     Returns:
-        List[Path]: Sequence directories containing ``calibration.json``.
+        List[Path]: Sequence directories containing a validated sequence artifact.
 
     Raises:
         FileNotFoundError: If no staging sequences are found.
     """
-    if (input_base / "calibration.json").exists():
+    if (input_base / SEQUENCE_ARTIFACT_FILENAME).exists():
         return [input_base]
 
     sequence_paths = [
         path
         for path in sorted(input_base.iterdir())
-        if path.is_dir() and (path / "calibration.json").exists()
+        if path.is_dir() and (path / SEQUENCE_ARTIFACT_FILENAME).exists()
     ]
     if not sequence_paths:
         raise FileNotFoundError(
             f"No Kognic staging sequences found under {input_base}. "
-            "Expected calibration.json in input_base or in its child directories."
+            f"Expected {SEQUENCE_ARTIFACT_FILENAME} in input_base or in its child directories."
         )
     return sequence_paths
 
 
 class KognicDatasetUploader:
-    """Build and upload Kognic scenes from local staging sequences."""
+    """Load and upload validated Kognic scenes from local staging sequences."""
 
     def __init__(self, config: KognicUploadConfig):
         """Initialize the uploader.
@@ -579,21 +450,12 @@ class KognicDatasetUploader:
         Returns:
             List[SceneUploadResult]: Upload outcomes for the sequence.
         """
-        logger.info(f"Loading ego poses for {external_id}")
-        ego_poses = self._load_ego_poses(sequence_path)
-
-        # Validate and build the staging data before creating any remote resource.
-        logger.info(f"Building frames and IMU data for {external_id}")
-        frames = self._build_frames(sequence_path, ego_poses)
-        imu_data = self._build_imu_data(sequence_path, ego_poses)
-        annotated = sum(1 for f in frames if f.metadata.annotate)
-        logger.info(
-            f"{external_id}: {len(frames)} frames ({annotated} annotate=True), "
-            f"{len(imu_data)} IMU samples"
-        )
-
-        if self.config.write_debug_frames:
-            self._write_debug_frames(sequence_path, external_id, frames)
+        scene = load_sequence_artifact(sequence_path)
+        if scene.calibration_id != PENDING_CALIBRATION_ID:
+            raise ValueError(
+                f"{sequence_path / SEQUENCE_ARTIFACT_FILENAME} has unexpected "
+                f"calibration_id {scene.calibration_id!r}"
+            )
 
         start_time = time.time()
         logger.info(f"Uploading calibration for {external_id}")
@@ -613,17 +475,7 @@ class KognicDatasetUploader:
                     sequence_path / target.pre_annotation
                 )
 
-        scene = KognicModel.LidarsAndCamerasSequence(
-            external_id=external_id,
-            frames=frames,
-            calibration_id=calibration_id,
-            imu_data=imu_data,
-            metadata=MetaData(
-                source_filename=sequence_path.name,
-                dataset_id=sequence_path.name,
-                inner_uuid=str(uuid.uuid4()),
-            ),
-        )
+        scene = scene.model_copy(update={"calibration_id": calibration_id})
 
         try:
             scene_uuid, inputs, failed_inputs, failed_input_errors = self._upload_scene(
@@ -1017,353 +869,6 @@ class KognicDatasetUploader:
                 for sensor_name, calib in json_calibration.items()
             },
         )
-
-    def _load_ego_poses(
-        self, sequence_path: Path
-    ) -> Optional[Dict[str, KognicModel.EgoVehiclePose]]:
-        """Load optional staged ego poses.
-
-        Args:
-            sequence_path (Path): Staging sequence directory.
-
-        Returns:
-            Optional[Dict[str, KognicModel.EgoVehiclePose]]: Poses keyed by
-                frame ID, or ``None`` when the file is absent.
-        """
-        poses_file = sequence_path / "ego_poses.json"
-        if not poses_file.exists():
-            return None
-
-        with open(poses_file) as f:
-            poses_data = json.load(f)
-
-        return {
-            frame_id: KognicModel.EgoVehiclePose.from_json(pose_data)
-            for frame_id, pose_data in poses_data.items()
-        }
-
-    def _collect_sensor_files(
-        self, sequence_path: Path, root_name: str, suffix: str
-    ) -> Dict[str, List[Path]]:
-        """Collect staged files grouped by sensor channel.
-
-        Args:
-            sequence_path (Path): Staging sequence directory.
-            root_name (str): Sensor root such as ``lidar`` or ``cameras``.
-            suffix (str): File suffix to include.
-
-        Returns:
-            Dict[str, List[Path]]: Sorted files keyed by sensor channel.
-        """
-        root = sequence_path / root_name
-        if not root.exists():
-            return {}
-
-        sensor_files = {}
-        for sensor_dir in sorted(path for path in root.iterdir() if path.is_dir()):
-            files = sorted(sensor_dir.glob(f"*{suffix}"), key=_sort_key)
-            if files:
-                sensor_files[sensor_dir.name] = files
-        return sensor_files
-
-    def iterate_frames(
-        self, sequence_path: Path
-    ) -> Generator[Tuple[str, int, Dict[str, Path]], None, None]:
-        """Yield synchronized staging frames in anchor-sensor order.
-
-        Args:
-            sequence_path (Path): Staging sequence directory.
-
-        Yields:
-            Tuple[str, int, Dict[str, Path]]: Frame ID, timestamp in
-                nanoseconds, and sensor files keyed by channel.
-
-        Raises:
-            FileNotFoundError: If the sequence contains no supported sensor files.
-            ValueError: If sensor file counts differ or a sensor's file
-                timestamps do not line up with the anchor sensor's frames.
-        """
-        lidar_files = self._collect_sensor_files(sequence_path, "lidar", ".csv")
-        camera_files = self._collect_sensor_files(sequence_path, "cameras", ".jpg")
-
-        if not lidar_files and not camera_files:
-            raise FileNotFoundError(f"No lidar CSVs or camera JPGs found in {sequence_path}")
-
-        if lidar_files:
-            anchor_sensors = sorted(
-                lidar_files,
-                key=lambda name: _sensor_sort_key(name, PREFERRED_LIDAR_SENSORS),
-            )
-            anchor_files = lidar_files[anchor_sensors[0]]
-        else:
-            anchor_sensors = sorted(
-                camera_files,
-                key=lambda name: _sensor_sort_key(name, PREFERRED_CAMERA_SENSORS),
-            )
-            anchor_files = camera_files[anchor_sensors[0]]
-
-        all_files = {**lidar_files, **camera_files}
-        _validate_sensor_file_counts(sequence_path, all_files, anchor_sensors[0], len(anchor_files))
-        _validate_sensor_timestamps(sequence_path, all_files, anchor_files)
-
-        for frame_idx, anchor_file in enumerate(anchor_files):
-            timestamp_ns = int(anchor_file.stem)
-            sensor_files: Dict[str, Path] = {
-                name: files[frame_idx] for name, files in all_files.items()
-            }
-
-            yield str(frame_idx), timestamp_ns, sensor_files
-
-    def _build_frames(
-        self,
-        sequence_path: Path,
-        ego_poses: Optional[Dict[str, KognicModel.EgoVehiclePose]],
-    ) -> List[LidarsAndCamerasSequenceFrame]:
-        """Build Kognic frame models for a staging sequence.
-
-        Args:
-            sequence_path (Path): Staging sequence directory.
-            ego_poses (Optional[Dict[str, KognicModel.EgoVehiclePose]]): Optional
-                poses keyed by frame ID.
-
-        Returns:
-            List[LidarsAndCamerasSequenceFrame]: Ordered Kognic scene frames.
-        """
-        frames = []
-        reference_timestamp = None
-
-        frame_records = list(self.iterate_frames(sequence_path))
-        keyframe_indices = self._load_keyframe_indices(sequence_path, len(frame_records))
-        annotate_indices = set(keyframe_indices)
-
-        for frame_idx, (frame_id, timestamp_ns, sensor_files) in enumerate(frame_records):
-            if reference_timestamp is None:
-                reference_timestamp = timestamp_ns
-
-            annotate = frame_idx in annotate_indices
-            relative_timestamp = int((timestamp_ns - reference_timestamp) / 1e6)
-            point_clouds = [
-                KognicModel.PointCloud(sensor_name=name, filename=str(path))
-                for name, path in sensor_files.items()
-                if path.suffix == ".csv"
-            ]
-            images = [
-                KognicModel.Image(
-                    sensor_name=name,
-                    filename=str(path),
-                    metadata=ImageMetadata(
-                        shutter_time_start_ns=int(path.stem),
-                        shutter_time_end_ns=int(path.stem),
-                    ),
-                )
-                for name, path in sensor_files.items()
-                if path.suffix == ".jpg"
-            ]
-
-            frames.append(
-                LidarsAndCamerasSequenceFrame(
-                    frame_id=frame_id,
-                    relative_timestamp=relative_timestamp,
-                    unix_timestamp=timestamp_ns,
-                    ego_vehicle_pose=ego_poses.get(frame_id) if ego_poses else None,
-                    point_clouds=point_clouds,
-                    images=images,
-                    metadata=FrameMetaData(annotate=annotate),
-                )
-            )
-
-        return frames
-
-    @staticmethod
-    def _load_keyframe_indices(sequence_path: Path, frame_count: int) -> List[int]:
-        """Load T4 keyframe positions exported by the T4-to-Kognic converters.
-
-        ``keyframes.json`` holds the staging frame indices whose source T4
-        ``sample_data`` records have ``is_key_frame`` set. When present, exactly
-        those frames are marked ``annotate=True`` so the annotatable frames
-        coincide with the T4 keyframes (and, for annotated scenes, with the
-        pre-annotation frames). The file is required, and its recorded frame
-        count must match the current staging data to prevent stale annotation
-        flags from being applied to changed sensor files.
-
-        Args:
-            sequence_path (Path): Staging sequence directory.
-            frame_count (int): Current number of staging frames.
-
-        Returns:
-            List[int]: Staging frame indices to mark for annotation.
-
-        Raises:
-            FileNotFoundError: If ``keyframes.json`` is missing.
-            ValueError: If the file's frame count or keyframe indices are invalid.
-        """
-        keyframes_path = sequence_path / "keyframes.json"
-        if not keyframes_path.exists():
-            raise FileNotFoundError(
-                f"Required keyframe metadata is missing: {keyframes_path}. "
-                "Re-run the T4-to-Kognic converter before uploading."
-            )
-
-        with open(keyframes_path) as f:
-            data = json.load(f)
-
-        if data.get("frame_count") != frame_count:
-            raise ValueError(
-                f"{keyframes_path} was generated for {data.get('frame_count')} frames but "
-                f"the current staging data has {frame_count}. Re-run the T4-to-Kognic "
-                "converter before uploading."
-            )
-
-        keyframe_indices = data.get("keyframe_indices")
-        if not isinstance(keyframe_indices, list) or any(
-            not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < frame_count
-            for index in keyframe_indices
-        ):
-            raise ValueError(
-                f"{keyframes_path} contains invalid keyframe_indices for {frame_count} frames. "
-                "Re-run the T4-to-Kognic converter before uploading."
-            )
-
-        logger.info(
-            f"Marking the {len(keyframe_indices)} T4 keyframes from "
-            f"{keyframes_path.name} as annotate=True"
-        )
-        return keyframe_indices
-
-    def _build_imu_data(
-        self,
-        sequence_path: Path,
-        ego_poses: Optional[Dict[str, KognicModel.EgoVehiclePose]],
-    ) -> List[IMUData]:
-        """Interpolate ego poses into dense Kognic IMU data.
-
-        Args:
-            sequence_path (Path): Staging sequence directory.
-            ego_poses (Optional[Dict[str, KognicModel.EgoVehiclePose]]): Sparse
-                poses keyed by frame ID.
-
-        Returns:
-            List[IMUData]: Dense pose samples, or an empty list when disabled
-                or insufficient data is available.
-        """
-        if not self.config.include_imu_data or not ego_poses:
-            logger.info("Skipping building the IMU data...")
-            return []
-
-        try:
-            from scipy.interpolate import interp1d
-            from scipy.spatial.transform import Rotation, Slerp
-        except ModuleNotFoundError:
-            logger.warning("scipy is not installed; skipping optional IMU data generation")
-            return []
-
-        logger.info("Building IMU data for (this may take a while if there are many frames)")
-
-        sparse: List[Tuple[int, KognicModel.EgoVehiclePose]] = []
-        for frame_id, timestamp_ns, _ in self.iterate_frames(sequence_path):
-            pose = ego_poses.get(frame_id)
-            if pose is not None:
-                sparse.append((timestamp_ns, pose))
-        if len(sparse) < 2:
-            return []
-
-        sparse.sort(key=lambda x: x[0])
-        ts_sparse = np.array([s[0] for s in sparse], dtype=np.float64)
-        pos_sparse = np.array(
-            [[s[1].position.x, s[1].position.y, s[1].position.z] for s in sparse],
-            dtype=np.float64,
-        )
-        rot_sparse = Rotation.concatenate(
-            [
-                Rotation.from_quat(
-                    [
-                        s[1].rotation.x,
-                        s[1].rotation.y,
-                        s[1].rotation.z,
-                        s[1].rotation.w,
-                    ]
-                )
-                for s in sparse
-            ]
-        )
-
-        dense_dt_ns = int(1e9 / IMU_TARGET_HZ)
-        extrap_ns = IMU_EXTRAPOLATE_S * 1e9
-        t0 = ts_sparse[0] - extrap_ns
-        t1 = ts_sparse[-1] + extrap_ns
-        ts_dense = np.arange(t0, t1 + dense_dt_ns, dense_dt_ns)
-
-        pos_interp = interp1d(
-            ts_sparse,
-            pos_sparse,
-            axis=0,
-            fill_value="extrapolate",
-            bounds_error=False,
-        )
-        pos_dense = pos_interp(ts_dense)
-
-        slerp = Slerp(ts_sparse, rot_sparse)
-        rot_dense_list = []
-        for t in ts_dense:
-            if t <= ts_sparse[0]:
-                dt = ts_sparse[1] - ts_sparse[0]
-                diff = rot_sparse[0].inv() * rot_sparse[1]
-                scale = (ts_sparse[0] - t) / dt
-                rot_dense_list.append(rot_sparse[0] * (diff.inv() ** scale))
-            elif t >= ts_sparse[-1]:
-                dt = ts_sparse[-1] - ts_sparse[-2]
-                diff = rot_sparse[-2].inv() * rot_sparse[-1]
-                scale = (t - ts_sparse[-1]) / dt
-                rot_dense_list.append(rot_sparse[-1] * (diff**scale))
-            else:
-                rot_dense_list.append(slerp(t))
-
-        quats = Rotation.concatenate(rot_dense_list).as_quat()
-        return [
-            IMUData(
-                timestamp=float(ts_dense[i]),
-                position=KognicModel.Position(
-                    x=float(pos_dense[i, 0]),
-                    y=float(pos_dense[i, 1]),
-                    z=float(pos_dense[i, 2]),
-                ),
-                rotation_quaternion=KognicModel.RotationQuaternion(
-                    w=float(quats[i, 3]),
-                    x=float(quats[i, 0]),
-                    y=float(quats[i, 1]),
-                    z=float(quats[i, 2]),
-                ),
-            )
-            for i in range(len(ts_dense))
-        ]
-
-    def _write_debug_frames(
-        self,
-        sequence_path: Path,
-        external_id: str,
-        frames: List[LidarsAndCamerasSequenceFrame],
-    ) -> None:
-        """Write serialized frame models for local debugging.
-
-        Args:
-            sequence_path (Path): Staging sequence directory.
-            external_id (str): Scene external ID.
-            frames (List[LidarsAndCamerasSequenceFrame]): Frames to serialize.
-
-        Returns:
-            None
-        """
-        debug_path = sequence_path / "frames_debug.json"
-        with open(debug_path, "w") as f:
-            json.dump(
-                {
-                    "external_id": external_id,
-                    "frames": [frame.model_dump() for frame in frames],
-                },
-                f,
-                indent=2,
-                default=str,
-            )
 
 
 def _scene_report_path(input_base: Path, sequence_path: Path) -> str:
