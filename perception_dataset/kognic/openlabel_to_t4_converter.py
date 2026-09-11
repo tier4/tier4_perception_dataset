@@ -1663,8 +1663,6 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
     # and unbounded, while ``unique_labels`` is bounded by the point count.
     output = np.zeros(labels.shape, dtype=np.uint8)
     for raw_value in unique_labels:
-        if raw_value == 0:
-            continue
         index = value_map.get(int(raw_value))
         if index is not None:
             output[labels == raw_value] = index
