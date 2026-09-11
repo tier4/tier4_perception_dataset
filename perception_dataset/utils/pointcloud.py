@@ -322,7 +322,7 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
             f"first bad point at index {int(bad_indices[0])}: "
             f"{points[bad_indices[0], 0:4].tolist()}"
         )
-
+    # MEMO: The CSV format currently does not include point-level timestamps.
     np.savetxt(
         csv_path,
         points[:, :4],
