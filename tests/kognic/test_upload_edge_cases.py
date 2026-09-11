@@ -7,6 +7,7 @@ from unittest.mock import Mock
 from pydantic import ValidationError
 import pytest
 
+from perception_dataset.kognic.sequence_artifact import SEQUENCE_ARTIFACT_FILENAME
 from perception_dataset.kognic.t4_to_kognic_converter import (
     T4ToKognicConverter,
     _validate_sensor_file_counts,
@@ -24,26 +25,14 @@ from perception_dataset.kognic.upload_dataset import (
     _write_upload_report,
     read_upload_report_scene_uuids,
 )
-from perception_dataset.kognic.sequence_artifact import SEQUENCE_ARTIFACT_FILENAME
-
-
-def _touch_sensor_files(root: Path, relative_dir: str, timestamps: list[int]) -> list[Path]:
-    sensor_dir = root / relative_dir
-    sensor_dir.mkdir(parents=True)
-    files = []
-    for timestamp in timestamps:
-        path = sensor_dir / f"{timestamp}.csv"
-        path.touch()
-        files.append(path)
-    return files
 
 
 def test_sensor_count_validation_rejects_partial_staging(tmp_path: Path):
-    """Test that staging is rejected when sensor file counts disagree.
+    """Test that an incomplete in-memory resource manifest is rejected.
 
     LiDAR contains two frames while the camera contains only one. Since the
-    uploader pairs files by their sorted position, accepting this directory
-    would either omit the camera or shift later sensor data onto the wrong frame.
+    converter builds each frame by resource-list index, accepting this manifest
+    would omit the camera from the second frame.
 
     Args:
         tmp_path (Path): Pytest directory used as the sequence path in the
@@ -58,6 +47,15 @@ def test_sensor_count_validation_rejects_partial_staging(tmp_path: Path):
         _validate_sensor_file_counts(tmp_path, files, "LIDAR_FRONT", expected_count=2)
 
 
+def test_sensor_count_validation_rejects_duplicate_output_paths(tmp_path: Path):
+    """Test that two frames cannot reference one overwritten sensor resource."""
+    duplicate = Path("100.csv")
+    files = {"LIDAR_FRONT": [duplicate, duplicate]}
+
+    with pytest.raises(ValueError, match="duplicate paths"):
+        _validate_sensor_file_counts(tmp_path, files, "LIDAR_FRONT", expected_count=2)
+
+
 def test_sensor_timestamp_validation_rejects_shifted_stream(tmp_path: Path):
     """Test that a sensor file far from its anchor timestamp is rejected.
 
@@ -69,70 +67,14 @@ def test_sensor_timestamp_validation_rejects_shifted_stream(tmp_path: Path):
         tmp_path (Path): Pytest directory used as the sequence path in the
             validation error.
     """
-    anchor = [Path("100.csv"), Path("200.csv"), Path("300.csv")]
+    frame_timestamps_ns = [100, 200, 300]
     sensor_files = {
-        "LIDAR_FRONT": anchor,
+        "LIDAR_FRONT": [Path("100.csv"), Path("200.csv"), Path("300.csv")],
         "CAM_FRONT": [Path("100.jpg"), Path("291.jpg"), Path("300.jpg")],
     }
 
     with pytest.raises(ValueError, match="misaligned at frame 1"):
-        _validate_sensor_timestamps(tmp_path, sensor_files, anchor)
-
-
-def test_iterate_frames_requires_every_sensor_in_every_frame(tmp_path: Path):
-    """Test that frame iteration stops when one sensor has a missing frame.
-
-    The staged sequence has two LiDAR files and one camera file. The public
-    conversion path must run the count validation before creating the sequence
-    artifact so an incomplete scene is never staged for upload.
-
-    Args:
-        tmp_path (Path): Pytest directory used to build the incomplete staging
-            sequence.
-    """
-    _touch_sensor_files(tmp_path, "lidar/LIDAR_FRONT", [100, 200])
-    camera_dir = tmp_path / "cameras/CAM_FRONT"
-    camera_dir.mkdir(parents=True)
-    (camera_dir / "100.jpg").touch()
-
-    converter = T4ToKognicConverter(str(tmp_path), str(tmp_path), camera_sensors=[])
-
-    with pytest.raises(ValueError, match="Sensor file counts disagree"):
-        list(converter._iterate_frames(tmp_path))
-
-
-def test_keyframe_metadata_is_required(tmp_path: Path):
-    """Test that conversion staging without keyframe metadata is rejected.
-
-    The converter must not silently mark every frame for annotation when a
-    staging directory was produced without ``keyframes.json``. Requiring the
-    file keeps annotation flags aligned with the source T4 keyframes.
-
-    Args:
-        tmp_path (Path): Pytest directory representing a staging sequence
-            without keyframe metadata.
-    """
-    with pytest.raises(FileNotFoundError, match="Required keyframe metadata is missing"):
-        T4ToKognicConverter._load_keyframe_indices(tmp_path, frame_count=2)
-
-
-def test_keyframe_metadata_must_match_staging_frame_count(tmp_path: Path):
-    """Test that stale keyframe metadata cannot annotate changed staging data.
-
-    The metadata claims it was generated from three frames while the caller
-    has discovered two current staging frames. Accepting it could mark the
-    wrong sensor data for annotation, so the uploader must fail instead.
-
-    Args:
-        tmp_path (Path): Pytest directory used to hold deliberately stale
-            ``keyframes.json`` metadata.
-    """
-    (tmp_path / "keyframes.json").write_text(
-        json.dumps({"frame_count": 3, "keyframe_indices": [0, 2]})
-    )
-
-    with pytest.raises(ValueError, match="generated for 3 frames.*has 2"):
-        T4ToKognicConverter._load_keyframe_indices(tmp_path, frame_count=2)
+        _validate_sensor_timestamps(tmp_path, sensor_files, frame_timestamps_ns)
 
 
 def test_upload_validates_sequence_artifact_before_uploading_calibration(tmp_path: Path):
@@ -156,21 +98,23 @@ def test_upload_only_loads_sequence_built_during_conversion(tmp_path: Path):
     lidar_path = tmp_path / "lidar" / "LIDAR_FRONT" / "100.csv"
     lidar_path.parent.mkdir(parents=True)
     lidar_path.write_text("ts_gps,x,y,z,intensity\n100,0,0,0,1\n")
-    (tmp_path / "keyframes.json").write_text(
-        json.dumps({"frame_count": 1, "keyframe_indices": [0]})
-    )
     converter = T4ToKognicConverter(
         str(tmp_path),
         str(tmp_path),
         camera_sensors=[],
         include_imu_data=False,
     )
-    converter._write_sequence_artifact(tmp_path, {})
+    converter._lidar_channels = ["LIDAR_FRONT"]
+    converter._write_sequence_artifact(
+        tmp_path,
+        {},
+        {"LIDAR_FRONT": [lidar_path]},
+        [100],
+        [0],
+    )
 
     payload = json.loads((tmp_path / SEQUENCE_ARTIFACT_FILENAME).read_text())
-    assert payload["frames"][0]["point_clouds"][0]["filename"] == (
-        "lidar/LIDAR_FRONT/100.csv"
-    )
+    assert payload["frames"][0]["point_clouds"][0]["filename"] == ("lidar/LIDAR_FRONT/100.csv")
 
     uploader = KognicDatasetUploader(KognicUploadConfig(input_base=tmp_path))
     uploader._get_or_upload_calibration = Mock(return_value="calibration-id")
@@ -241,9 +185,7 @@ def test_wait_for_pre_annotation_does_not_attach_after_timeout():
     )
 
     with pytest.raises(TimeoutError, match="not attaching it to an input"):
-        _wait_for_pre_annotation(
-            client, "pre-1", timeout_s=0, poll_s=0, raise_on_timeout=True
-        )
+        _wait_for_pre_annotation(client, "pre-1", timeout_s=0, poll_s=0, raise_on_timeout=True)
 
 
 def test_upload_pre_annotations_waits_for_index_before_returning(tmp_path: Path):

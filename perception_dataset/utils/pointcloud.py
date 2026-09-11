@@ -7,9 +7,7 @@ from typing import Dict, List
 import numpy as np
 from t4_devkit.dataclass import LidarPointCloud
 
-from perception_dataset.constants import (
-    LIDAR_CONCAT_CHANNEL,
-)
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -45,7 +43,7 @@ def extract_pointclouds(
     lidar_channel: str,
     frame_records: List[Dict[str, dict]],
     channel_to_token: Dict[str, str],
-) -> None:
+) -> List[Path]:
     """Write per-frame CSV point clouds for a lidar channel.
 
     Args:
@@ -59,7 +57,8 @@ def extract_pointclouds(
             tokens.
 
     Returns:
-        None
+        List[Path]: Destination CSV paths in the same order as
+            ``frame_records``.
 
     Raises:
         FileNotFoundError: If required point-cloud or concat-info data is
@@ -69,13 +68,14 @@ def extract_pointclouds(
     sensor_token = channel_to_token.get(lidar_channel)
     if sensor_token is None:
         logger.warning(f"LiDAR {lidar_channel} not found in {seq_path}; skipping")
-        return
+        return []
 
     lidar_dir = out_dir / "lidar" / lidar_channel
     lidar_dir.mkdir(parents=True, exist_ok=True)
 
     count = 0
     blank_count = 0
+    output_paths: List[Path] = []
     for frame_record in frame_records:
         concat_sample_data = frame_record.get(LIDAR_CONCAT_CHANNEL)
         if concat_sample_data is None:
@@ -98,6 +98,7 @@ def extract_pointclouds(
             ).points.T
             csv_path = lidar_dir / f"{timestamp_ns}.csv"
             save_pointcloud_csv(csv_path, timestamp_ns, points)
+            output_paths.append(csv_path)
             count += 1
             continue
 
@@ -125,12 +126,10 @@ def extract_pointclouds(
         )
 
         # A zero-length source carries a zero stamp ({sec: 0, nanosec: 0}), so
-        # fall back to the concat sweep's timestamp; sweeps are ~1e8 ns apart,
-        # hence the file still sorts into its own frame position.
+        # fall back to the concat sweep's timestamp so the output remains
+        # aligned with its source frame record.
         timestamp_ns = (
-            source.stamp.sec * 1_000_000_000 + source.stamp.nanosec
-            if source is not None
-            else None
+            source.stamp.sec * 1_000_000_000 + source.stamp.nanosec if source is not None else None
         )
         if not timestamp_ns:
             timestamp_ns = int(concat_sample_data.timestamp) * 1000
@@ -139,17 +138,20 @@ def extract_pointclouds(
         if source_pointcloud is None or source_pointcloud.num_points() == 0:
             # The sensor contributed no points to this concat sweep (dropped
             # out, or started after the recording began). Still write a
-            # header-only CSV: ensures the uploader still recognizes this frame even though it has no points.
+            # header-only CSV so the frame retains a resource for this sensor.
             save_pointcloud_csv(csv_path, timestamp_ns, np.empty((0, 4), dtype=np.float32))
+            output_paths.append(csv_path)
             blank_count += 1
             continue
 
         save_pointcloud_csv(csv_path, timestamp_ns, source_pointcloud.points.T)
+        output_paths.append(csv_path)
         count += 1
 
     logger.info(
         f"{lidar_channel}: {count} point clouds extracted, {blank_count} blank frames written"
     )
+    return output_paths
 
 
 def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -> None:

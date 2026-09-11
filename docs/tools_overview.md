@@ -110,7 +110,9 @@ References:
 
 Converts T4 format data to the local Kognic staging format used by the Kognic uploader.
 The converter builds and validates `lidars_and_cameras_sequence.json`; the
-uploader reloads that Pydantic model without reconstructing frames.
+camera and LiDAR writers return their generated resource paths so frames are
+constructed directly from the converter's in-memory frame order. The uploader
+reloads that Pydantic model without reconstructing frames.
 
 input: T4 format data  
 output: Kognic staging format data

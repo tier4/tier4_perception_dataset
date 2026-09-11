@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import time
-from typing import Dict, Generator, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 import uuid
 
 import kognic.io.model as KognicModel
@@ -24,8 +24,6 @@ from perception_dataset.constants import (
     IMU_EXTRAPOLATE_S,
     IMU_TARGET_HZ,
     LIDAR_CONCAT_CHANNEL,
-    PREFERRED_CAMERA_SENSORS,
-    PREFERRED_LIDAR_SENSORS,
 )
 from perception_dataset.kognic.sequence_artifact import (
     PENDING_CALIBRATION_ID,
@@ -59,42 +57,6 @@ _REPORT_FIELDS = (
 )
 
 
-def _sort_key(path: Path) -> Tuple[int, str]:
-    """Build a deterministic key for ordering converted sensor files.
-
-    Numeric filename stems are zero-padded and sorted before non-numeric
-    stems, preserving chronological order for timestamp-named resources while
-    retaining deterministic behavior for unexpected filenames.
-
-    Args:
-        path (Path): Sensor resource path to order.
-
-    Returns:
-        Tuple[int, str]: Numeric-first sort group and normalized filename stem.
-    """
-    try:
-        return (0, f"{int(path.stem):030d}")
-    except ValueError:
-        return (1, path.stem)
-
-
-def _sensor_sort_key(sensor_name: str, preferred_order: List[str]) -> Tuple[int, str]:
-    """Build a deterministic key that prioritizes known sensor channels.
-
-    Args:
-        sensor_name (str): Sensor channel to rank.
-        preferred_order (List[str]): Channels ordered from highest to lowest
-            anchor preference.
-
-    Returns:
-        Tuple[int, str]: Preference index and sensor name. Unknown sensors sort
-            after preferred sensors in lexical order.
-    """
-    if sensor_name in preferred_order:
-        return (preferred_order.index(sensor_name), sensor_name)
-    return (len(preferred_order), sensor_name)
-
-
 def _validate_sensor_file_counts(
     sequence_path: Path,
     sensor_files: Dict[str, List[Path]],
@@ -124,53 +86,61 @@ def _validate_sensor_file_counts(
         raise ValueError(
             f"Sensor file counts disagree in {sequence_path}: anchor {anchor_sensor} has "
             f"{expected_count} files but {mismatched} differ. Frames are paired with files by "
-            "position, so re-convert the sequence instead of uploading a partial staging directory."
+            "position, so each converter must return exactly one path per frame."
+        )
+    duplicate_paths = {
+        name: len(files) - len(set(files))
+        for name, files in sensor_files.items()
+        if len(files) != len(set(files))
+    }
+    if duplicate_paths:
+        raise ValueError(
+            f"Sensor resources contain duplicate paths in {sequence_path}: {duplicate_paths}. "
+            "Each converted frame must have a unique output path."
         )
 
 
 def _validate_sensor_timestamps(
     sequence_path: Path,
     sensor_files: Dict[str, List[Path]],
-    anchor_files: List[Path],
+    frame_timestamps_ns: List[int],
 ) -> None:
-    """Require converted sensor timestamps to track the anchor frame sequence.
+    """Require converted sensor timestamps to track the in-memory frame sequence.
 
-    Each sensor resource is compared with the anchor resource at the same
-    frame index. A deviation greater than 90 percent of the median anchor
-    interval indicates stale or shifted staging data.
+    Each sensor resource is compared with the corresponding T4 frame record. A
+    deviation greater than 90 percent of the median frame interval indicates a
+    shifted conversion result.
 
     Args:
         sequence_path (Path): Scene staging directory used in error messages.
         sensor_files (Dict[str, List[Path]]): Ordered resource files keyed by
             sensor channel.
-        anchor_files (List[Path]): Ordered resources for the channel defining
-            the frame timeline.
+        frame_timestamps_ns (List[int]): Ordered timestamps from the converter's
+            in-memory frame records.
 
     Returns:
         None
 
     Raises:
-        ValueError: If anchor timestamps are not strictly increasing or a
+        ValueError: If frame timestamps are not strictly increasing or a
             sensor timestamp is too far from its corresponding anchor frame.
     """
-    try:
-        anchor_ts = [int(path.stem) for path in anchor_files]
-    except ValueError:
-        return
-
-    intervals = sorted(b - a for a, b in zip(anchor_ts, anchor_ts[1:]))
+    intervals = sorted(
+        current - previous
+        for previous, current in zip(frame_timestamps_ns, frame_timestamps_ns[1:])
+    )
     if not intervals:
         return
 
     tolerance_ns = intervals[len(intervals) // 2] * 0.9
     if tolerance_ns <= 0:
         raise ValueError(
-            f"Anchor timestamps in {sequence_path} are not strictly increasing; "
+            f"Frame timestamps in {sequence_path} are not strictly increasing; "
             "frame ordering cannot be trusted."
         )
 
     for name, files in sensor_files.items():
-        for frame_idx, (path, expected_ns) in enumerate(zip(files, anchor_ts)):
+        for frame_idx, (path, expected_ns) in enumerate(zip(files, frame_timestamps_ns)):
             try:
                 actual_ns = int(path.stem)
             except ValueError:
@@ -178,9 +148,8 @@ def _validate_sensor_timestamps(
             if abs(actual_ns - expected_ns) > tolerance_ns:
                 raise ValueError(
                     f"Sensor {name} in {sequence_path} is misaligned at frame {frame_idx}: "
-                    f"file {path.name} is {abs(actual_ns - expected_ns)}ns from the anchor "
-                    f"timestamp {expected_ns} (tolerance {tolerance_ns:.0f}ns). The staging "
-                    "directory likely mixes files from different conversion runs."
+                    f"file {path.name} is {abs(actual_ns - expected_ns)}ns from the frame "
+                    f"timestamp {expected_ns} (tolerance {tolerance_ns:.0f}ns)."
                 )
 
 
@@ -202,9 +171,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
 
     ``keyframes.json`` holds the staging frame indices of the keyframes; the
     uploader requires this file and marks exactly those frames ``annotate=True``.
-    For annotated datasets (``annotated=True``), source T4 keyframes remain
-    annotatable even when they contain no objects. Non-annotated datasets have
-    no source keyframes, so their keyframes are selected by sample index at
+    For annotated datasets (``annotated=True``), keyframes are the frames whose
+    samples contain at least one ``sample_annotation``. Non-annotated datasets
+    have no annotations, so their keyframes are selected by sample index at
     ``annotation_hz``, matching the non-annotated T4 -> Deepen converter.
     """
 
@@ -313,8 +282,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
         out_dir = Path(output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # Sequence construction pairs sensor files by sorted position, so any
-        # file left over from a previous generation would shift that pairing.
+        # Remove outputs from earlier conversions so the staging directory only
+        # contains resources referenced by the new in-memory manifest.
         for stale_dir in (out_dir / "cameras", out_dir / "lidar"):
             shutil.rmtree(stale_dir, ignore_errors=True)
         (out_dir / SEQUENCE_ARTIFACT_FILENAME).unlink(missing_ok=True)
@@ -328,7 +297,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._frame_records = self._build_frame_records()
         self._record_missing_sensor_frames(seq_path)
         logger.info(f"Selected {len(self._frame_records)} frames")
-        self._write_keyframes(out_dir)
+        keyframe_indices = self._write_keyframes(out_dir)
 
         if not self._has_lidar_concat_info and LIDAR_CONCAT_CHANNEL in self._lidar_channels:
             logger.warning(
@@ -357,23 +326,49 @@ class T4ToKognicConverter(AbstractConverter[None]):
             json.dump({k: v.model_dump() for k, v in ego_poses.items()}, f, indent=2)
         logger.info(f"Ego poses saved ({len(ego_poses)} frames)")
 
+        sensor_files: Dict[str, List[Path]] = {}
         pending_copies: List[Tuple[Path, Path]] = []
         for camera_channel in self._camera_channels:
-            pending_copies.extend(self._collect_image_copies(seq_path, out_dir, camera_channel))
+            copies, output_paths = self._collect_image_copies(
+                seq_path,
+                out_dir,
+                camera_channel,
+            )
+            pending_copies.extend(copies)
+            if output_paths:
+                sensor_files[camera_channel] = output_paths
 
         with ThreadPoolExecutor(max_workers=self._workers_number) as executor:
             list(executor.map(lambda args: copy_file(*args), pending_copies))
 
         for lidar_channel in self._lidar_channels:
-            extract_pointclouds(
+            output_paths = extract_pointclouds(
                 seq_path=seq_path,
                 out_dir=out_dir,
                 lidar_channel=lidar_channel,
                 frame_records=self._frame_records,
                 channel_to_token=self._channel_to_token,
             )
+            if output_paths:
+                sensor_files[lidar_channel] = output_paths
 
-        self._write_sequence_artifact(out_dir, ego_poses)
+        frame_timestamps_ns = [
+            self._frame_timestamp_ns(frame_record) for frame_record in self._frame_records
+        ]
+        _validate_sensor_file_counts(
+            out_dir,
+            sensor_files,
+            self._anchor_channel,
+            len(self._frame_records),
+        )
+        _validate_sensor_timestamps(out_dir, sensor_files, frame_timestamps_ns)
+        self._write_sequence_artifact(
+            out_dir,
+            ego_poses,
+            sensor_files,
+            frame_timestamps_ns,
+            keyframe_indices,
+        )
 
     # ------------------------------------------------------------------
     # Conversion report
@@ -572,6 +567,12 @@ class T4ToKognicConverter(AbstractConverter[None]):
         samples = t4.get_table("sample")
         self._samples = sorted(samples, key=lambda s: s.timestamp)
 
+        self._annotated_sample_tokens: Set[str] = set()
+        if self._annotated:
+            self._annotated_sample_tokens = {
+                annotation.sample_token for annotation in t4.get_table("sample_annotation")
+            }
+
         self._sample_data_by_channel: Dict[str, list] = {}
         self._sample_data_by_channel_and_frame_id: Dict[str, Dict[str, object]] = {}
         for sd in t4.get_table("sample_data"):
@@ -625,15 +626,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
             for sample_data in self._sample_data_by_channel.get(channel, [])
         )
 
-    def _write_keyframes(self, out_dir: Path) -> None:
+    def _write_keyframes(self, out_dir: Path) -> List[int]:
         """Write the staging frame indices of the keyframes to ``keyframes.json``.
 
         The uploader marks exactly those frames ``annotate=True``;
         ``frame_count`` lets it detect a stale file after the staging data
         changed.
 
-        Annotated datasets: source T4 keyframes remain annotatable, including
-        keyframes that contain no objects.
+        Annotated datasets: a frame is annotatable when its sample contains at
+        least one ``sample_annotation``.
 
         Non-annotated datasets: there are no annotations to key off, so
         keyframes are selected by sample index at ``annotation_hz``, with the
@@ -644,13 +645,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
             out_dir (Path): Destination staging directory.
 
         Returns:
-            None
+            List[int]: Frame indices written to ``keyframes.json`` and used
+                directly when constructing the sequence artifact.
         """
         if self._annotated:
             keyframe_indices = [
                 idx
                 for idx, frame_record in enumerate(self._frame_records)
-                if getattr(frame_record.get(self._anchor_channel), "is_key_frame", False)
+                if getattr(frame_record.get(self._anchor_channel), "sample_token", None)
+                in self._annotated_sample_tokens
             ]
         else:
             step = int(MAX_ANNOTATION_HZ / self._annotation_hz)
@@ -674,172 +677,48 @@ class T4ToKognicConverter(AbstractConverter[None]):
             f"keyframes.json: {len(keyframe_indices)} keyframes over "
             f"{len(self._frame_records)} frames"
         )
-
-    @staticmethod
-    def _collect_sensor_files(
-        sequence_path: Path, root_name: str, suffix: str
-    ) -> Dict[str, List[Path]]:
-        """Collect and order converted files by sensor channel.
-
-        Args:
-            sequence_path (Path): Scene staging directory.
-            root_name (str): Sensor directory name, such as ``lidar`` or
-                ``cameras``.
-            suffix (str): File extension to include, such as ``.csv`` or
-                ``.jpg``.
-
-        Returns:
-            Dict[str, List[Path]]: Timestamp-ordered files keyed by sensor
-                channel. Returns an empty dictionary when the sensor root is
-                absent or contains no matching files.
-        """
-        root = sequence_path / root_name
-        if not root.exists():
-            return {}
-
-        sensor_files = {}
-        for sensor_dir in sorted(path for path in root.iterdir() if path.is_dir()):
-            files = sorted(sensor_dir.glob(f"*{suffix}"), key=_sort_key)
-            if files:
-                sensor_files[sensor_dir.name] = files
-        return sensor_files
-
-    def _iterate_frames(
-        self, sequence_path: Path
-    ) -> Generator[Tuple[str, int, Dict[str, Path]], None, None]:
-        """Yield synchronized converted resources in anchor-frame order.
-
-        A preferred LiDAR channel defines the frame timeline when available;
-        otherwise a preferred camera channel is used. Before yielding, the
-        method verifies that every sensor has the same frame count and that its
-        timestamps remain aligned with the anchor.
-
-        Args:
-            sequence_path (Path): Scene staging directory containing converted
-                ``lidar`` and/or ``cameras`` subdirectories.
-
-        Yields:
-            Generator[Tuple[str, int, Dict[str, Path]], None, None]: Frame ID,
-                anchor timestamp in nanoseconds, and one resource path per
-                sensor channel.
-
-        Raises:
-            FileNotFoundError: If no converted LiDAR CSV or camera JPEG exists.
-            ValueError: If sensor counts differ, timestamps are misaligned, or
-                an anchor filename is not a numeric timestamp.
-        """
-        lidar_files = self._collect_sensor_files(sequence_path, "lidar", ".csv")
-        camera_files = self._collect_sensor_files(sequence_path, "cameras", ".jpg")
-        if not lidar_files and not camera_files:
-            raise FileNotFoundError(f"No lidar CSVs or camera JPGs found in {sequence_path}")
-
-        if lidar_files:
-            anchor_sensors = sorted(
-                lidar_files,
-                key=lambda name: _sensor_sort_key(name, PREFERRED_LIDAR_SENSORS),
-            )
-            anchor_files = lidar_files[anchor_sensors[0]]
-        else:
-            anchor_sensors = sorted(
-                camera_files,
-                key=lambda name: _sensor_sort_key(name, PREFERRED_CAMERA_SENSORS),
-            )
-            anchor_files = camera_files[anchor_sensors[0]]
-
-        combined_files = {**lidar_files, **camera_files}
-        all_files = {
-            name: combined_files[name]
-            for name in [
-                anchor_sensors[0],
-                *sorted(set(combined_files) - {anchor_sensors[0]}),
-            ]
-        }
-        _validate_sensor_file_counts(
-            sequence_path,
-            all_files,
-            anchor_sensors[0],
-            len(anchor_files),
-        )
-        _validate_sensor_timestamps(sequence_path, all_files, anchor_files)
-
-        for frame_idx, anchor_file in enumerate(anchor_files):
-            yield (
-                str(frame_idx),
-                int(anchor_file.stem),
-                {name: files[frame_idx] for name, files in all_files.items()},
-            )
-
-    @staticmethod
-    def _load_keyframe_indices(sequence_path: Path, frame_count: int) -> List[int]:
-        """Load and validate converted T4 keyframe positions.
-
-        Args:
-            sequence_path (Path): Scene staging directory containing
-                ``keyframes.json``.
-            frame_count (int): Number of frames in the converted sensor data.
-
-        Returns:
-            List[int]: Frame indices that must be marked ``annotate=True``.
-
-        Raises:
-            FileNotFoundError: If ``keyframes.json`` does not exist.
-            ValueError: If its recorded frame count differs from
-                ``frame_count`` or any keyframe index is invalid.
-        """
-        keyframes_path = sequence_path / "keyframes.json"
-        if not keyframes_path.exists():
-            raise FileNotFoundError(f"Required keyframe metadata is missing: {keyframes_path}")
-
-        with open(keyframes_path) as f:
-            data = json.load(f)
-        if data.get("frame_count") != frame_count:
-            raise ValueError(
-                f"{keyframes_path} was generated for {data.get('frame_count')} frames but "
-                f"the current staging data has {frame_count}."
-            )
-
-        keyframe_indices = data.get("keyframe_indices")
-        if not isinstance(keyframe_indices, list) or any(
-            not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < frame_count
-            for index in keyframe_indices
-        ):
-            raise ValueError(
-                f"{keyframes_path} contains invalid keyframe_indices for {frame_count} frames."
-            )
         return keyframe_indices
 
     def _build_sequence_frames(
         self,
-        sequence_path: Path,
         ego_poses: Dict[str, KognicModel.EgoVehiclePose],
+        sensor_files: Dict[str, List[Path]],
+        frame_timestamps_ns: List[int],
+        keyframe_indices: List[int],
     ) -> List[LidarsAndCamerasSequenceFrame]:
-        """Build validated Kognic frames from converted sensor resources.
+        """Build validated Kognic frames from in-memory conversion results.
 
         Args:
-            sequence_path (Path): Scene staging directory containing sensor
-                files and ``keyframes.json``.
             ego_poses (Dict[str, KognicModel.EgoVehiclePose]): Relative ego
                 poses keyed by converted frame ID.
+            sensor_files (Dict[str, List[Path]]): Generated resource paths by
+                sensor channel, each ordered like ``self._frame_records``.
+            frame_timestamps_ns (List[int]): Ordered timestamps derived from
+                ``self._frame_records``.
+            keyframe_indices (List[int]): Frame indices selected for
+                annotation while converting the scene.
 
         Returns:
             List[LidarsAndCamerasSequenceFrame]: Ordered frames containing
                 sensor resources, timestamps, poses, and annotation flags.
 
         Raises:
-            FileNotFoundError: If required sensor or keyframe data is missing.
-            ValueError: If sensor synchronization or keyframe metadata is
-                invalid.
+            ValueError: If no generated sensor resources are available.
         """
-        frames = []
-        frame_records = list(self._iterate_frames(sequence_path))
-        annotate_indices = set(
-            self._load_keyframe_indices(sequence_path, len(frame_records))
-        )
-        reference_timestamp: Optional[int] = None
+        if not sensor_files:
+            raise ValueError("Cannot build a Kognic sequence without generated sensor resources")
 
-        for frame_idx, (frame_id, timestamp_ns, sensor_files) in enumerate(frame_records):
-            if reference_timestamp is None:
-                reference_timestamp = timestamp_ns
+        frames = []
+        annotate_indices = set(keyframe_indices)
+        reference_timestamp = frame_timestamps_ns[0] if frame_timestamps_ns else 0
+        ordered_channels = [
+            channel
+            for channel in [*self._lidar_channels, *self._camera_channels]
+            if channel in sensor_files
+        ]
+
+        for frame_idx, timestamp_ns in enumerate(frame_timestamps_ns):
+            frame_id = str(frame_idx)
             frames.append(
                 LidarsAndCamerasSequenceFrame(
                     frame_id=frame_id,
@@ -847,21 +726,24 @@ class T4ToKognicConverter(AbstractConverter[None]):
                     unix_timestamp=timestamp_ns,
                     ego_vehicle_pose=ego_poses.get(frame_id),
                     point_clouds=[
-                        KognicModel.PointCloud(sensor_name=name, filename=str(path))
-                        for name, path in sensor_files.items()
-                        if path.suffix == ".csv"
+                        KognicModel.PointCloud(
+                            sensor_name=channel,
+                            filename=str(sensor_files[channel][frame_idx]),
+                        )
+                        for channel in ordered_channels
+                        if sensor_files[channel][frame_idx].suffix == ".csv"
                     ],
                     images=[
                         KognicModel.Image(
-                            sensor_name=name,
-                            filename=str(path),
+                            sensor_name=channel,
+                            filename=str(sensor_files[channel][frame_idx]),
                             metadata=ImageMetadata(
-                                shutter_time_start_ns=int(path.stem),
-                                shutter_time_end_ns=int(path.stem),
+                                shutter_time_start_ns=int(sensor_files[channel][frame_idx].stem),
+                                shutter_time_end_ns=int(sensor_files[channel][frame_idx].stem),
                             ),
                         )
-                        for name, path in sensor_files.items()
-                        if path.suffix == ".jpg"
+                        for channel in ordered_channels
+                        if sensor_files[channel][frame_idx].suffix == ".jpg"
                     ],
                     metadata=FrameMetaData(annotate=frame_idx in annotate_indices),
                 )
@@ -870,8 +752,8 @@ class T4ToKognicConverter(AbstractConverter[None]):
 
     def _build_imu_data(
         self,
-        sequence_path: Path,
         ego_poses: Dict[str, KognicModel.EgoVehiclePose],
+        frame_timestamps_ns: List[int],
     ) -> List[IMUData]:
         """Interpolate converted ego poses into dense Kognic IMU samples.
 
@@ -880,19 +762,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
         linear and rotational trends for bounded extrapolation.
 
         Args:
-            sequence_path (Path): Scene staging directory whose sensor frames
-                define the timestamps to interpolate.
             ego_poses (Dict[str, KognicModel.EgoVehiclePose]): Sparse relative
                 ego poses keyed by converted frame ID.
+            frame_timestamps_ns (List[int]): Ordered timestamps derived from
+                the converter's in-memory frame records.
 
         Returns:
             List[IMUData]: Dense IMU samples, or an empty list when IMU output
                 is disabled, fewer than two poses are available, or SciPy is
                 unavailable.
-
-        Raises:
-            ValueError: If converted sensor frames fail synchronization
-                validation.
         """
         if not self._include_imu_data or not ego_poses:
             return []
@@ -905,9 +783,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
             return []
 
         sparse = [
-            (timestamp_ns, ego_poses[frame_id])
-            for frame_id, timestamp_ns, _ in self._iterate_frames(sequence_path)
-            if frame_id in ego_poses
+            (timestamp_ns, ego_poses[str(frame_index)])
+            for frame_index, timestamp_ns in enumerate(frame_timestamps_ns)
+            if str(frame_index) in ego_poses
         ]
         if len(sparse) < 2:
             return []
@@ -915,10 +793,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         sparse.sort(key=lambda item: item[0])
         ts_sparse = np.array([item[0] for item in sparse], dtype=np.float64)
         pos_sparse = np.array(
-            [
-                [item[1].position.x, item[1].position.y, item[1].position.z]
-                for item in sparse
-            ],
+            [[item[1].position.x, item[1].position.y, item[1].position.z] for item in sparse],
             dtype=np.float64,
         )
         rot_sparse = Rotation.concatenate(
@@ -956,15 +831,13 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 delta = ts_sparse[1] - ts_sparse[0]
                 difference = rot_sparse[0].inv() * rot_sparse[1]
                 rot_dense_list.append(
-                    rot_sparse[0]
-                    * (difference.inv() ** ((ts_sparse[0] - timestamp) / delta))
+                    rot_sparse[0] * (difference.inv() ** ((ts_sparse[0] - timestamp) / delta))
                 )
             elif timestamp >= ts_sparse[-1]:
                 delta = ts_sparse[-1] - ts_sparse[-2]
                 difference = rot_sparse[-2].inv() * rot_sparse[-1]
                 rot_dense_list.append(
-                    rot_sparse[-1]
-                    * (difference ** ((timestamp - ts_sparse[-1]) / delta))
+                    rot_sparse[-1] * (difference ** ((timestamp - ts_sparse[-1]) / delta))
                 )
             else:
                 rot_dense_list.append(slerp(timestamp))
@@ -992,6 +865,9 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self,
         sequence_path: Path,
         ego_poses: Dict[str, KognicModel.EgoVehiclePose],
+        sensor_files: Dict[str, List[Path]],
+        frame_timestamps_ns: List[int],
+        keyframe_indices: List[int],
     ) -> None:
         """Build, validate, and persist the complete Kognic sequence artifact.
 
@@ -1000,18 +876,27 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 ``lidars_and_cameras_sequence.json``.
             ego_poses (Dict[str, KognicModel.EgoVehiclePose]): Relative ego
                 poses keyed by converted frame ID.
+            sensor_files (Dict[str, List[Path]]): Generated resource paths by
+                sensor channel, ordered like ``self._frame_records``.
+            frame_timestamps_ns (List[int]): Ordered timestamps derived from
+                ``self._frame_records``.
+            keyframe_indices (List[int]): Frame indices selected for
+                annotation while converting the scene.
 
         Returns:
             None
 
         Raises:
-            FileNotFoundError: If required converted resources or keyframe
-                metadata are missing.
-            ValueError: If sensor synchronization, keyframe metadata, or
-                artifact resource paths are invalid.
+            ValueError: If artifact resource paths or generated sequence data
+                are invalid.
         """
-        frames = self._build_sequence_frames(sequence_path, ego_poses)
-        imu_data = self._build_imu_data(sequence_path, ego_poses)
+        frames = self._build_sequence_frames(
+            ego_poses,
+            sensor_files,
+            frame_timestamps_ns,
+            keyframe_indices,
+        )
+        imu_data = self._build_imu_data(ego_poses, frame_timestamps_ns)
         sequence = KognicModel.LidarsAndCamerasSequence(
             external_id=sequence_path.name,
             frames=frames,
@@ -1025,8 +910,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         )
         save_sequence_artifact(sequence_path, sequence)
         logger.info(
-            f"{SEQUENCE_ARTIFACT_FILENAME}: {len(frames)} frames, "
-            f"{len(imu_data)} IMU samples"
+            f"{SEQUENCE_ARTIFACT_FILENAME}: {len(frames)} frames, " f"{len(imu_data)} IMU samples"
         )
 
     def _build_frame_records(self) -> List[Dict[str, object]]:
@@ -1095,7 +979,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
 
     def _collect_image_copies(
         self, seq_path: Path, out_dir: Path, camera_channel: str
-    ) -> List[Tuple[Path, Path]]:
+    ) -> Tuple[List[Tuple[Path, Path]], List[Path]]:
         """Prepare image-copy operations for a camera channel.
 
         Args:
@@ -1104,20 +988,23 @@ class T4ToKognicConverter(AbstractConverter[None]):
             camera_channel (str): Camera channel to export.
 
         Returns:
-            List[Tuple[Path, Path]]: Source and destination paths for images
-                that should be copied.
+            Tuple[List[Tuple[Path, Path]], List[Path]]: Source/destination
+                copy operations and all generated destination paths ordered
+                like ``self._frame_records``. The destination list includes
+                blank images written immediately for missing frames.
         """
         if camera_channel not in self._channel_to_token:
             logger.warning(f"Camera {camera_channel} not found in {seq_path}; skipping")
-            return []
+            return [], []
         if not self._has_existing_channel_file(seq_path, camera_channel):
             logger.warning(f"Camera {camera_channel} has no files in {seq_path}; skipping")
-            return []
+            return [], []
 
         camera_dir = out_dir / "cameras" / camera_channel
         camera_dir.mkdir(parents=True, exist_ok=True)
 
         copies: List[Tuple[Path, Path]] = []
+        output_paths: List[Path] = []
         blanks_written = 0
         used_timestamps_ns: Set[int] = set()
         for frame_record in self._frame_records:
@@ -1149,6 +1036,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
             used_timestamps_ns.add(timestamp_ns)
 
             dst = camera_dir / f"{timestamp_ns}.jpg"
+            output_paths.append(dst)
 
             if src is not None:
                 copies.append((src, dst))
@@ -1168,15 +1056,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
             f"{camera_channel}: {len(copies)} image copies queued, "
             f"{blanks_written} blank images written"
         )
-        return copies
+        return copies, output_paths
 
     def _frame_timestamp_ns(self, frame_record: Dict[str, object]) -> int:
         """Representative frame timestamp (ns) from any sensor present in it.
 
         Used to name a blank filler image when a camera has no sample_data for a
         frame. Sensors in one frame are time-synchronised, so a neighbour's
-        timestamp places the blank at the right sort position for the missing
-        camera. T4 timestamps are microseconds, hence ``* 1000``.
+        timestamp keeps the blank aligned with that frame. T4 timestamps are
+        microseconds, hence ``* 1000``.
 
         Args:
             frame_record (Dict[str, object]): Channel-to-sample-data mapping.

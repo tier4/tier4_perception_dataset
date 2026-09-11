@@ -75,7 +75,7 @@ The converter builds and Pydantically validates the complete
 optional IMU data. The uploader reloads that artifact and only binds the
 remote calibration ID before uploading it.
 
-The converter always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found). `keyframes.json` records the staging indices of source T4 keyframes; conversion uses exactly those indices for `annotate=True` in the sequence artifact.
+The converter always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found). `keyframes.json` records the staging indices of source T4 keyframes; conversion uses the same in-memory indices for `annotate=True` while building the sequence artifact. Camera-copy and point-cloud extraction helpers return their generated destination paths in frame order, so sequence construction does not rediscover or sort files from the staging directory.
 
 ### High-Level Flow
 
@@ -419,7 +419,7 @@ export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
 python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
 ```
 
-All staged frames are uploaded. `keyframes.json` is required and determines which frames are marked `annotate=True`; its recorded `frame_count` must match the current staged frame count. Re-run the T4-to-Kognic converter after changing staged sensor data.
+All frames serialized in `lidars_and_cameras_sequence.json` are uploaded. The uploader does not read `keyframes.json` or reconstruct frames from staged sensor directories; annotation flags were already validated and serialized during conversion. Re-run the T4-to-Kognic converter after changing staged sensor data.
 
 Each sequence is uploaded **once** as a single scene. The uploader then creates **one input per configured project** from that scene, so the same sensor data can feed several projects/batches without re-uploading it. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations).
 
@@ -504,18 +504,18 @@ conversion:
 
 ### Sequence Artifact and Calibration
 
-During conversion, frames are anchored on the first available LiDAR stream,
-preferring the normal Tier IV LiDAR order (`LIDAR_FRONT_UPPER`,
-`LIDAR_FRONT_LOWER`, ...) and falling back to `LIDAR_CONCAT` when the converter
-exported a fused concat-only cloud. Other LiDAR and camera streams are attached
-by frame order. Upload Pydantically reloads the resulting
-`lidars_and_cameras_sequence.json` without repeating this pairing.
+During conversion, frames retain the order and timestamps of the converter's
+in-memory T4 frame records. Camera and LiDAR writers return their generated
+resource paths in that same order, and the converter attaches those paths
+directly instead of scanning, sorting, or pairing staged files afterward.
+Upload Pydantically reloads the resulting
+`lidars_and_cameras_sequence.json` without reconstructing any frames.
 
 | Kognic frame field   | Source                                                                                           |
 | -------------------- | ------------------------------------------------------------------------------------------------ |
 | `frame_id`           | Sequential extracted frame index as a string.                                                    |
-| `unix_timestamp`     | Anchor LiDAR timestamp in nanoseconds.                                                           |
-| `relative_timestamp` | Milliseconds since the first anchor frame.                                                       |
+| `unix_timestamp`     | Timestamp of the ordered T4 frame record in nanoseconds (`LIDAR_CONCAT`, with camera fallback).  |
+| `relative_timestamp` | Milliseconds since the first converted frame record.                                             |
 | `ego_vehicle_pose`   | Matching entry from `ego_poses.json`.                                                            |
 | `point_clouds`       | CSV files under `lidar/<sensor>/`.                                                               |
 | `images`             | JPG files under `cameras/<sensor>/`, with shutter start/end set to the image filename timestamp. |

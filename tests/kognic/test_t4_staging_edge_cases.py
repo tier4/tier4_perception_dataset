@@ -87,8 +87,7 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
     source.touch()
     output = tmp_path / "output"
     records = [
-        SimpleNamespace(timestamp=123, filename="data/CAM_FRONT/image.jpg")
-        for _ in range(3)
+        SimpleNamespace(timestamp=123, filename="data/CAM_FRONT/image.jpg") for _ in range(3)
     ]
     converter = T4ToKognicConverter(
         input_base=str(tmp_path / "input"),
@@ -103,14 +102,15 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
         converter._collect_image_copies(tmp_path / "input", output, "CAM_FRONT")
 
 
-def test_annotated_keyframes_do_not_require_objects(tmp_path: Path):
-    """Test that empty source keyframes remain annotatable."""
+def test_annotated_keyframes_follow_samples_with_annotations(tmp_path: Path):
+    """Test that annotated conversion selects only samples containing objects."""
     converter = object.__new__(T4ToKognicConverter)
     converter._annotated = True
     converter._anchor_channel = "LIDAR_TOP"
+    converter._annotated_sample_tokens = {"annotated-sample"}
     converter._frame_records = [
-        {"LIDAR_TOP": SimpleNamespace(is_key_frame=True)},
-        {"LIDAR_TOP": SimpleNamespace(is_key_frame=False)},
+        {"LIDAR_TOP": SimpleNamespace(sample_token="annotated-sample")},
+        {"LIDAR_TOP": SimpleNamespace(sample_token="empty-sample")},
     ]
 
     converter._write_keyframes(tmp_path)
