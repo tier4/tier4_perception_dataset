@@ -4,8 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from pydantic import ValidationError
 import pytest
 
+from perception_dataset.kognic.t4_to_kognic_converter import (
+    T4ToKognicConverter,
+    _validate_sensor_file_counts,
+    _validate_sensor_timestamps,
+)
 from perception_dataset.kognic.upload_dataset import (
     KognicDatasetUploader,
     KognicUploadConfig,
@@ -14,12 +20,11 @@ from perception_dataset.kognic.upload_dataset import (
     SceneUploadResult,
     _exception_report_fields,
     _result_report_rows,
-    _validate_sensor_file_counts,
-    _validate_sensor_timestamps,
     _wait_for_pre_annotation,
     _write_upload_report,
     read_upload_report_scene_uuids,
 )
+from perception_dataset.kognic.sequence_artifact import SEQUENCE_ARTIFACT_FILENAME
 
 
 def _touch_sensor_files(root: Path, relative_dir: str, timestamps: list[int]) -> list[Path]:
@@ -78,8 +83,8 @@ def test_iterate_frames_requires_every_sensor_in_every_frame(tmp_path: Path):
     """Test that frame iteration stops when one sensor has a missing frame.
 
     The staged sequence has two LiDAR files and one camera file. The public
-    iteration path must run the count validation before yielding frames so an
-    incomplete scene is never sent to Kognic.
+    conversion path must run the count validation before creating the sequence
+    artifact so an incomplete scene is never staged for upload.
 
     Args:
         tmp_path (Path): Pytest directory used to build the incomplete staging
@@ -90,16 +95,16 @@ def test_iterate_frames_requires_every_sensor_in_every_frame(tmp_path: Path):
     camera_dir.mkdir(parents=True)
     (camera_dir / "100.jpg").touch()
 
-    uploader = KognicDatasetUploader(KognicUploadConfig(input_base=tmp_path))
+    converter = T4ToKognicConverter(str(tmp_path), str(tmp_path), camera_sensors=[])
 
     with pytest.raises(ValueError, match="Sensor file counts disagree"):
-        list(uploader.iterate_frames(tmp_path))
+        list(converter._iterate_frames(tmp_path))
 
 
 def test_keyframe_metadata_is_required(tmp_path: Path):
-    """Test that upload staging without keyframe metadata is rejected.
+    """Test that conversion staging without keyframe metadata is rejected.
 
-    The uploader must not silently mark every frame for annotation when a
+    The converter must not silently mark every frame for annotation when a
     staging directory was produced without ``keyframes.json``. Requiring the
     file keeps annotation flags aligned with the source T4 keyframes.
 
@@ -108,7 +113,7 @@ def test_keyframe_metadata_is_required(tmp_path: Path):
             without keyframe metadata.
     """
     with pytest.raises(FileNotFoundError, match="Required keyframe metadata is missing"):
-        KognicDatasetUploader._load_keyframe_indices(tmp_path, frame_count=2)
+        T4ToKognicConverter._load_keyframe_indices(tmp_path, frame_count=2)
 
 
 def test_keyframe_metadata_must_match_staging_frame_count(tmp_path: Path):
@@ -127,29 +132,56 @@ def test_keyframe_metadata_must_match_staging_frame_count(tmp_path: Path):
     )
 
     with pytest.raises(ValueError, match="generated for 3 frames.*has 2"):
-        KognicDatasetUploader._load_keyframe_indices(tmp_path, frame_count=2)
+        T4ToKognicConverter._load_keyframe_indices(tmp_path, frame_count=2)
 
 
-def test_upload_validates_frames_before_uploading_calibration(tmp_path: Path):
-    """Test that invalid staging creates no remote calibration resource.
-
-    Frame construction raises the same missing-metadata error that a real
-    staging sequence would produce. The calibration uploader must remain
-    uncalled, proving local staging validation completes before any remote
-    resource can be created.
+def test_upload_validates_sequence_artifact_before_uploading_calibration(tmp_path: Path):
+    """Test that invalid sequence JSON creates no remote calibration resource.
 
     Args:
         tmp_path (Path): Pytest directory used as the uploader input base.
     """
     uploader = KognicDatasetUploader(KognicUploadConfig(input_base=tmp_path))
-    uploader._load_ego_poses = Mock(return_value=None)
-    uploader._build_frames = Mock(side_effect=FileNotFoundError("missing keyframes.json"))
     uploader._get_or_upload_calibration = Mock()
+    (tmp_path / SEQUENCE_ARTIFACT_FILENAME).write_text("{}")
 
-    with pytest.raises(FileNotFoundError, match="missing keyframes.json"):
+    with pytest.raises(ValidationError):
         uploader.upload_one(tmp_path, "scene")
 
     uploader._get_or_upload_calibration.assert_not_called()
+
+
+def test_upload_only_loads_sequence_built_during_conversion(tmp_path: Path):
+    """Test that upload reuses the validated sequence artifact without rebuilding it."""
+    lidar_path = tmp_path / "lidar" / "LIDAR_FRONT" / "100.csv"
+    lidar_path.parent.mkdir(parents=True)
+    lidar_path.write_text("ts_gps,x,y,z,intensity\n100,0,0,0,1\n")
+    (tmp_path / "keyframes.json").write_text(
+        json.dumps({"frame_count": 1, "keyframe_indices": [0]})
+    )
+    converter = T4ToKognicConverter(
+        str(tmp_path),
+        str(tmp_path),
+        camera_sensors=[],
+        include_imu_data=False,
+    )
+    converter._write_sequence_artifact(tmp_path, {})
+
+    payload = json.loads((tmp_path / SEQUENCE_ARTIFACT_FILENAME).read_text())
+    assert payload["frames"][0]["point_clouds"][0]["filename"] == (
+        "lidar/LIDAR_FRONT/100.csv"
+    )
+
+    uploader = KognicDatasetUploader(KognicUploadConfig(input_base=tmp_path))
+    uploader._get_or_upload_calibration = Mock(return_value="calibration-id")
+    uploader._upload_scene = Mock(return_value=("scene-id", [], [], []))
+
+    result = uploader.upload_one(tmp_path, "scene")
+
+    uploaded_scene = uploader._upload_scene.call_args.args[0]
+    assert uploaded_scene.calibration_id == "calibration-id"
+    assert uploaded_scene.frames[0].metadata.annotate
+    assert result[0].scene_uuid == "scene-id"
 
 
 def test_wait_for_pre_annotation_reaches_indexed(monkeypatch: pytest.MonkeyPatch):
