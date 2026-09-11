@@ -117,12 +117,12 @@ def extract_pointclouds(
             str(bin_path),
             metainfo_filepath=str(info_path),
         )
+        source_pointcloud = pointcloud.split_by_sensor().get(sensor_token)
 
         source = next(
             (src for src in pointcloud.metainfo.sources if src.sensor_token == sensor_token),
             None,
         )
-        length = source.length if source is not None else 0
 
         # A zero-length source carries a zero stamp ({sec: 0, nanosec: 0}), so
         # fall back to the concat sweep's timestamp; sweeps are ~1e8 ns apart,
@@ -136,7 +136,7 @@ def extract_pointclouds(
             timestamp_ns = int(concat_sample_data.timestamp) * 1000
         csv_path = lidar_dir / f"{timestamp_ns}.csv"
 
-        if length == 0:
+        if source_pointcloud is None or source_pointcloud.num_points() == 0:
             # The sensor contributed no points to this concat sweep (dropped
             # out, or started after the recording began). Still write a
             # header-only CSV: ensures the uploader still recognizes this frame even though it has no points.
@@ -144,9 +144,7 @@ def extract_pointclouds(
             blank_count += 1
             continue
 
-        idx_begin = source.idx_begin
-        points = pointcloud.points.T[idx_begin : idx_begin + length]
-        save_pointcloud_csv(csv_path, timestamp_ns, points)
+        save_pointcloud_csv(csv_path, timestamp_ns, source_pointcloud.points.T)
         count += 1
 
     logger.info(
