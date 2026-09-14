@@ -144,7 +144,7 @@ If no sequence roots are found, extraction fails early with a `FileNotFoundError
 
 ### Lookup Maps
 
-Before extracting files, `_build_lookup_maps()` loads the annotation tables and builds fast joins:
+Before extracting files, `_build_lookup_maps()` loads the annotation tables and builds fast joins through `t4-devkit`'s `Tier4.get_table()` API:
 
 ```mermaid
 erDiagram
@@ -266,7 +266,7 @@ Frame 0 therefore becomes position `(0, 0, 0)` with identity rotation. Later fra
 
 ### LiDAR Extraction
 
-`_extract_pointclouds()` normally turns one T4 concatenated point-cloud file into one CSV per source LiDAR using `LIDAR_CONCAT_INFO`. It also supports a **concat-only fallback**: if the sequence has `data/LIDAR_CONCAT/*.pcd.bin` but no `data/LIDAR_CONCAT_INFO/`, it exports the whole fused cloud as `lidar/LIDAR_CONCAT/<timestamp_ns>.csv` with an identity `LIDAR_CONCAT` calibration (source-LiDAR partitions cannot be recovered in that mode).
+`_extract_pointclouds()` normally turns one T4 concatenated point-cloud file into one CSV per source LiDAR using `LIDAR_CONCAT_INFO`. It validates each fused `LIDAR_CONCAT` frame once via `t4-devkit` (`LidarPointCloud.from_file()` + the loaded `PointCloudMetainfo`), then reuses the validated split data for every sensor that needs a channel export. It also supports a **concat-only fallback**: if the sequence has `data/LIDAR_CONCAT/*.pcd.bin` but no `data/LIDAR_CONCAT_INFO/`, it exports the whole fused cloud as `lidar/LIDAR_CONCAT/<timestamp_ns>.csv` with an identity `LIDAR_CONCAT` calibration (source-LiDAR partitions cannot be recovered in that mode).
 
 ```mermaid
 flowchart LR
@@ -276,18 +276,17 @@ flowchart LR
   Source["source entry matching<br/>sensor_token"]
   Range["idx_begin + length"]
   Bin["LIDAR_CONCAT .pcd.bin"]
-  Read["seek idx_begin * 20 bytes<br/>read length * 20 bytes"]
-  Parse["reshape float32 as<br/>(N, 5)"]
+  Validate["t4-devkit metadata<br/>and point layout validation"]
+  Split["split_by_sensor() once<br/>reused for all outputs"]
   Csv["write CSV<br/>ts_gps,x,y,z,intensity"]
 
   Sample --> SD
   SD --> Info
   Info --> Source --> Range
-  SD --> Bin --> Read
-  Range --> Read --> Parse --> Csv
+  SD --> Bin --> Validate --> Split --> Csv
 ```
 
-T4 point records begin with `x, y, z, intensity` but may contain additional fields. With `LIDAR_CONCAT_INFO`, the extractor derives the stride from the validated total sensor contribution; without it, `lidar_point_stride` declares the layout and defaults to the standard five values (`x, y, z, intensity, ring_idx`). The extractor preserves only `ts_gps,x,y,z,intensity`. Kognic's CSV format requires exact column names, comma separation, and a timestamp column (the full documented header is `ts_gps,x,y,z,intensity,rgb,red,green,blue`; the RGB columns are optional and not written here). No point filtering, deduplication, or coordinate transformation is performed; the only change is formatting numeric fields to six decimal places.
+T4 point records begin with `x, y, z, intensity` but may contain additional fields. When `LIDAR_CONCAT_INFO` is present, the extractor derives the layout from the validated `t4-devkit` metadata (`PointCloudMetainfo.num_pts_feats` / `LidarPointCloud`) instead of any local stride constant. The extractor preserves only `ts_gps,x,y,z,intensity`. Kognic's CSV format requires exact column names, comma separation, and a timestamp column (the full documented header is `ts_gps,x,y,z,intensity,rgb,red,green,blue`; the RGB columns are optional and not written here). No point filtering, deduplication, or coordinate transformation is performed; the only change is formatting numeric fields to six decimal places.
 
 ### Stage 1 Config Parameters
 
@@ -299,7 +298,6 @@ conversion:
   input_base: ./data/non_annotated_t4_format
   output_base: ./data/kognic_format
   workers_number: 12
-  lidar_point_stride: 5
   generate_tsv_report: true
   camera_sensors:
     - channel: CAM_FRONT
@@ -316,7 +314,6 @@ conversion:
 | `output_base`                 | Yes      | —       | Directory where each scene's staging folder `<output_base>/<scene>/` is written.                                                                                                                                                                       |
 | `camera_sensors`              | Yes      | —       | List of `{channel: <name>}` entries naming the T4 camera channels to copy. Channels absent from the dataset, or present but with no image files, are skipped with a warning, allowing LiDAR-only conversion.                                           |
 | `workers_number`              | Yes      | `32`    | Size of the thread pool used to copy camera images in parallel.                                                                                                                                                                                        |
-| `lidar_point_stride`          | No       | `5`     | Floats per point for fused clouds without `LIDAR_CONCAT_INFO`. Metadata-backed clouds derive this value from their validated sensor point totals. Set this explicitly for another known schema, or `null` to accept only an unambiguous detected layout. |
 | `generate_tsv_report`         | No       | `false` | Write `<output_base>/conversion_report.tsv`. The `scene` column contains the complete nested path relative to `input_base`. The report contains a `successful` or `failed` row per attempted scene plus a row for every missing camera or LiDAR frame, including blank images and header-only point clouds generated as fallbacks. With reporting enabled, remaining scenes are attempted before a summary error is raised. |
 
 For non-annotated T4 data, annotation tables (if present) are ignored.

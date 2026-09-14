@@ -11,7 +11,7 @@ from typing import Dict, List, Set, Tuple
 from t4_devkit import Tier4
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LIDAR_CONCAT_CHANNEL, LIDAR_CONCAT_NUM_POINT_FEATURES
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.utils import (
     extract_calibration,
     extract_ego_poses,
@@ -71,7 +71,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
         workers_number: int = 32,
         annotated: bool = True,
         annotation_hz: int = 10,
-        lidar_point_stride: int | None = LIDAR_CONCAT_NUM_POINT_FEATURES,
         generate_tsv_report: bool = False,
     ):
         """Initialize the converter.
@@ -84,10 +83,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             annotated (bool): Whether the source carries T4 annotations.
             annotation_hz (int): Keyframe frequency for non-annotated data, in
                 ``1..10``.
-            lidar_point_stride (int | None): Explicit floats per point for the
-                fused ``LIDAR_CONCAT`` stream when ``LIDAR_CONCAT_INFO`` is
-                unavailable. Per-sensor streams derive their stride from the
-                concat info.
             generate_tsv_report (bool): Write ``conversion_report.tsv`` in
                 ``output_base`` with scene outcomes and missing sensor frames.
 
@@ -99,7 +94,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
         self._workers_number = workers_number
         self._annotated = annotated
         self._annotation_hz = validate_annotation_hz(annotation_hz)
-        self._lidar_point_stride = lidar_point_stride
         self._generate_tsv_report = generate_tsv_report
         self._report_rows: List[Dict[str, str]] = []
         # Cache one blank black image per camera, sized to that camera's frames,
@@ -176,7 +170,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
             shutil.rmtree(stale_dir, ignore_errors=True)
 
         self._build_lookup_maps(seq_path)
-        self._has_lidar_concat_info = (seq_path / "data" / "LIDAR_CONCAT_INFO").is_dir()
         self._lidar_channels = self._discover_lidar_channels()
         self._frame_records = self._build_frame_records()
         self._record_missing_sensor_frames(seq_path)
@@ -217,15 +210,13 @@ class T4ToKognicConverter(AbstractConverter[None]):
         with ThreadPoolExecutor(max_workers=self._workers_number) as executor:
             list(executor.map(lambda args: copy_file(*args), pending_copies))
 
-        for lidar_channel in self._lidar_channels:
-            extract_pointclouds(
-                seq_path=seq_path,
-                out_dir=out_dir,
-                lidar_channel=lidar_channel,
-                frame_records=self._frame_records,
-                channel_to_token=self._channel_to_token,
-                point_stride=self._lidar_point_stride,
-            )
+        extract_pointclouds(
+            seq_path=seq_path,
+            out_dir=out_dir,
+            lidar_channels=self._lidar_channels,
+            frame_records=self._frame_records,
+            channel_to_token=self._channel_to_token,
+        )
 
     # ------------------------------------------------------------------
     # Conversion report
@@ -448,6 +439,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 key=lambda sample_data_record: sample_data_record.timestamp,
             )
 
+        self._has_lidar_concat_info = any(
+            sample_data.info_filename
+            for sample_data in self._sample_data_by_channel.get(LIDAR_CONCAT_CHANNEL, [])
+        )
         self._ego_pose_by_token = {ep.token: ep for ep in t4.get_table("ego_pose")}
 
     def _discover_lidar_channels(self) -> List[str]:

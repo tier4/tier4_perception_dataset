@@ -79,7 +79,6 @@ def main():
             workers_number=workers_number,
             annotated=(task == "convert_annotated_t4_to_kognic"),
             annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
-            lidar_point_stride=config_dict["conversion"].get("lidar_point_stride", 5),
             generate_tsv_report=config_dict["conversion"].get("generate_tsv_report", False),
         )
 
@@ -142,7 +141,6 @@ def main():
             iso_rotated_cuboids=config_dict["conversion"].get("iso_rotated_cuboids", False),
             category_map=config_dict["conversion"].get("category_map"),
             include_attributes=config_dict["conversion"].get("include_attributes", True),
-            lidar_point_stride=config_dict["conversion"].get("lidar_point_stride", 5),
         )
 
         logger.info(

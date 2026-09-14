@@ -34,7 +34,6 @@ def kognic_dataset_path():
         workers_number=config_dict["conversion"]["workers_number"],
         annotated=config_dict["task"] == "convert_annotated_t4_to_kognic",
         annotation_hz=config_dict["conversion"].get("annotation_hz", 10),
-        lidar_point_stride=config_dict["conversion"].get("lidar_point_stride", 5),
     )
     converter.convert()
 

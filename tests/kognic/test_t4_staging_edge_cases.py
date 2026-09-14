@@ -1,10 +1,11 @@
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
 from perception_dataset.utils.misc import validate_annotation_hz
 from perception_dataset.utils.pointcloud import save_pointcloud_csv
@@ -70,6 +71,55 @@ def test_scene_conversion_removes_stale_sensor_directories_before_generation(tmp
 
     assert not (output_dir / "cameras").exists()
     assert not (output_dir / "lidar").exists()
+
+
+@pytest.mark.parametrize(
+    ("info_filename", "create_info_directory", "expected"),
+    [
+        ("metadata/concat.json", False, True),
+        (None, True, False),
+    ],
+)
+def test_lookup_maps_detect_lidar_concat_info_from_sample_data(
+    tmp_path: Path,
+    info_filename: str | None,
+    create_info_directory: bool,
+    expected: bool,
+):
+    """Test that concat metadata detection follows the loaded sample-data record."""
+    if create_info_directory:
+        (tmp_path / "data/LIDAR_CONCAT_INFO").mkdir(parents=True)
+
+    tables = {
+        "sensor": [SimpleNamespace(token="lidar-token", channel=LIDAR_CONCAT_CHANNEL)],
+        "calibrated_sensor": [],
+        "sample": [],
+        "sample_data": [
+            SimpleNamespace(
+                channel=LIDAR_CONCAT_CHANNEL,
+                filename="data/LIDAR_CONCAT/0.pcd.bin",
+                info_filename=info_filename,
+                timestamp=0,
+            )
+        ],
+        "ego_pose": [],
+    }
+    t4 = Mock()
+    t4.get_table.side_effect = tables.__getitem__
+    converter = T4ToKognicConverter(
+        input_base=str(tmp_path),
+        output_base=str(tmp_path / "output"),
+        camera_sensors=[],
+        annotated=False,
+    )
+
+    with patch(
+        "perception_dataset.kognic.t4_to_kognic_converter.Tier4",
+        return_value=t4,
+    ):
+        converter._build_lookup_maps(tmp_path)
+
+    assert converter._has_lidar_concat_info is expected
 
 
 def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):

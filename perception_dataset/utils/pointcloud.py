@@ -1,15 +1,14 @@
 """Point-cloud helpers for reading and exporting T4 LIDAR_CONCAT data."""
 
-import json
 from pathlib import Path
 import shutil
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 import numpy as np
+from t4_devkit.dataclass import LidarPointCloud
 
 from perception_dataset.constants import (
     LIDAR_CONCAT_CHANNEL,
-    LIDAR_CONCAT_NUM_POINT_FEATURES,
 )
 from perception_dataset.utils.logger import configure_logger
 
@@ -40,142 +39,24 @@ def valid_point_mask(points: np.ndarray) -> np.ndarray:
     ).all(axis=1)
 
 
-def point_stride_from_info(bin_path: Path, total_points: int) -> int:
-    """Derive the number of floats in each point record.
-
-    T4 datasets ship LIDAR_CONCAT ``.pcd.bin`` files with varying per-point
-    layouts (e.g. x,y,z,intensity,ring or x,y,z,intensity,ring,lidar_id,
-    time_offset), so the stride must be derived per file rather than assumed.
-
-    Args:
-        bin_path (Path): Path to the binary point-cloud file.
-        total_points (int): Number of points declared by ``LIDAR_CONCAT_INFO``.
-
-    Returns:
-        int: Number of 32-bit floats in each point record.
-
-    Raises:
-        ValueError: If the file size is inconsistent with ``total_points`` or
-            the derived stride contains fewer than four floats.
-    """
-    if total_points <= 0:
-        raise ValueError(
-            f"{bin_path}: cannot derive a point stride from {total_points} declared points"
-        )
-    size_bytes = bin_path.stat().st_size
-    if size_bytes % 4 != 0:
-        raise ValueError(f"{bin_path}: file size {size_bytes} bytes is not divisible by 4 (float32)")
-    n_floats = size_bytes // 4
-    stride, remainder = divmod(n_floats, total_points)
-    if remainder != 0 or stride < 4:
-        raise ValueError(
-            f"{bin_path}: {n_floats} floats is not an integer multiple (>=4) of the "
-            f"{total_points} points declared in LIDAR_CONCAT_INFO"
-        )
-    return stride
-
-
-def validate_concat_point_layout(info: dict, bin_path: Path) -> Tuple[int, Optional[int]]:
-    """Validate that concat-info slices exactly partition a point-cloud binary.
-
-    Zero-length sensor contributions are valid and do not participate in the
-    partition. If every contribution is empty, the binary must also be empty
-    and no point stride is needed.
-
-    Args:
-        info (dict): Parsed ``LIDAR_CONCAT_INFO`` document.
-        bin_path (Path): Corresponding concatenated point-cloud binary.
-
-    Returns:
-        Tuple[int, Optional[int]]: Declared total point count and floats per
-            point. The stride is ``None`` for a valid empty concat frame.
-
-    Raises:
-        ValueError: If source ranges are malformed, overlap, leave gaps, extend
-            beyond the declared total, or disagree with the binary size.
-    """
-    sources = info.get("sources")
-    if not isinstance(sources, list):
-        raise ValueError(f"{bin_path}: LIDAR_CONCAT_INFO.sources must be a list")
-
-    positive_ranges = []
-    total_points = 0
-    for source_index, source in enumerate(sources):
-        if not isinstance(source, dict):
-            raise ValueError(
-                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} must be an object"
-            )
-        try:
-            idx_begin = int(source["idx_begin"])
-            length = int(source["length"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(
-                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} has invalid "
-                "idx_begin or length"
-            ) from exc
-        if idx_begin < 0 or length < 0:
-            raise ValueError(
-                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} has negative "
-                f"range values: idx_begin={idx_begin}, length={length}"
-            )
-        total_points += length
-        if length > 0:
-            positive_ranges.append((idx_begin, idx_begin + length, source_index))
-
-    cursor = 0
-    for start, end, source_index in sorted(positive_ranges):
-        if start < cursor:
-            raise ValueError(
-                f"{bin_path}: LIDAR_CONCAT_INFO source {source_index} starts at {start}, "
-                f"overlapping a previous source range ending at {cursor}"
-            )
-        if start > cursor:
-            raise ValueError(
-                f"{bin_path}: LIDAR_CONCAT_INFO has a gap [{cursor}, {start}) before "
-                f"source {source_index}"
-            )
-        cursor = end
-
-    if cursor != total_points:
-        raise ValueError(
-            f"{bin_path}: LIDAR_CONCAT_INFO ranges end at point {cursor}, but sensor "
-            f"lengths declare {total_points} total points"
-        )
-
-    if total_points == 0:
-        size_bytes = bin_path.stat().st_size
-        if size_bytes != 0:
-            raise ValueError(
-                f"{bin_path}: LIDAR_CONCAT_INFO declares an empty cloud, but the binary "
-                f"contains {size_bytes} bytes"
-            )
-        return 0, None
-
-    return total_points, point_stride_from_info(bin_path, total_points)
-
-
 def extract_pointclouds(
     seq_path: Path,
     out_dir: Path,
-    lidar_channel: str,
+    lidar_channels: List[str],
     frame_records: List[Dict[str, dict]],
     channel_to_token: Dict[str, str],
-    point_stride: Optional[int] = LIDAR_CONCAT_NUM_POINT_FEATURES,
 ) -> None:
-    """Write per-frame CSV point clouds for a lidar channel.
+    """Write per-frame CSV point clouds for all requested lidar channels.
 
     Args:
         seq_path (Path): Root directory of the source T4 sequence.
         out_dir (Path): Destination root. Files are written below
             ``lidar/<lidar_channel>``.
-        lidar_channel (str): Lidar sensor channel to extract.
+        lidar_channels (List[str]): Lidar sensor channels to extract.
         frame_records (List[Dict[str, dict]]): Ordered frame mappings from
             channel names to sample-data records.
         channel_to_token (Dict[str, str]): Mapping from channel names to sensor
             tokens.
-        point_stride (Optional[int]): Explicit point stride for the fused
-            ``LIDAR_CONCAT`` stream when ``LIDAR_CONCAT_INFO`` is unavailable.
-            Per-sensor streams derive their stride from concat info.
 
     Returns:
         None
@@ -183,19 +64,22 @@ def extract_pointclouds(
     Raises:
         FileNotFoundError: If required point-cloud or concat-info data is
             missing.
-        ValueError: If the fused stream has no explicit point stride or its
-            binary layout is inconsistent.
+        ValueError: If a point-cloud binary layout is inconsistent.
     """
-    sensor_token = channel_to_token.get(lidar_channel)
-    if sensor_token is None:
-        logger.warning(f"LiDAR {lidar_channel} not found in {seq_path}; skipping")
+    stats: Dict[str, Dict[str, int]] = {}
+    sensor_token_by_channel: Dict[str, str] = {}
+    for lidar_channel in lidar_channels:
+        sensor_token = channel_to_token.get(lidar_channel)
+        if sensor_token is None:
+            logger.warning(f"LiDAR {lidar_channel} not found in {seq_path}; skipping")
+            continue
+        sensor_token_by_channel[lidar_channel] = sensor_token
+        stats[lidar_channel] = {"count": 0, "blank_count": 0}
+        (out_dir / "lidar" / lidar_channel).mkdir(parents=True, exist_ok=True)
+
+    if not sensor_token_by_channel:
         return
 
-    lidar_dir = out_dir / "lidar" / lidar_channel
-    lidar_dir.mkdir(parents=True, exist_ok=True)
-
-    count = 0
-    blank_count = 0
     for frame_record in frame_records:
         concat_sample_data = frame_record.get(LIDAR_CONCAT_CHANNEL)
         if concat_sample_data is None:
@@ -205,91 +89,69 @@ def extract_pointclouds(
         if not bin_path.exists():
             raise FileNotFoundError(f"Required LIDAR_CONCAT point cloud is missing: {bin_path}")
 
-        if lidar_channel == LIDAR_CONCAT_CHANNEL:
-            timestamp_ns = int(concat_sample_data.timestamp) * 1000
-            floats = np.fromfile(bin_path, dtype=np.float32)
-            if floats.size == 0:
-                points = np.empty((0, 4), dtype=np.float32)
-            else:
-                if point_stride is None:
-                    raise ValueError(
-                        f"{bin_path}: an explicit point stride is required to export "
-                        "the concatenated cloud without LIDAR_CONCAT_INFO"
-                    )
-                if point_stride < 4 or floats.size % point_stride != 0:
-                    raise ValueError(
-                        f"{bin_path}: {floats.size} floats are incompatible with "
-                        f"the explicit point stride {point_stride}"
-                    )
-                points = floats.reshape(-1, point_stride)
-            csv_path = lidar_dir / f"{timestamp_ns}.csv"
-            save_pointcloud_csv(csv_path, timestamp_ns, points)
-            count += 1
-            continue
-
         info_filename = concat_sample_data.info_filename
-        if not info_filename:
+        has_per_sensor_channel = any(
+            lidar_channel != LIDAR_CONCAT_CHANNEL for lidar_channel in sensor_token_by_channel
+        )
+        if has_per_sensor_channel and not info_filename:
             raise FileNotFoundError(
                 f"LIDAR_CONCAT_INFO is required but missing in sample_data for "
                 f"sample_data {concat_sample_data.token}"
             )
 
-        info_path = seq_path / info_filename
-        if not info_path.exists():
+        info_path = seq_path / info_filename if info_filename else None
+        if info_path is not None and not info_path.exists():
             raise FileNotFoundError(f"Required LIDAR_CONCAT_INFO file is missing: {info_path}")
 
-        with open(info_path) as f:
-            info = json.load(f)
-
-        _, stride = validate_concat_point_layout(info, bin_path)
-
-        source = next(
-            (src for src in info["sources"] if src["sensor_token"] == sensor_token),
-            None,
+        pointcloud = LidarPointCloud.from_file(
+            str(bin_path),
+            metainfo_filepath=str(info_path) if info_path is not None else None,
         )
-        length = int(source["length"]) if source is not None else 0
+        source_pointclouds = (
+            pointcloud.split_by_sensor() if info_path is not None and pointcloud.metainfo else {}
+        )
+        sources_by_token = (
+            {source.sensor_token: source for source in pointcloud.metainfo.sources}
+            if info_path is not None and pointcloud.metainfo
+            else {}
+        )
 
-        # A zero-length source carries a zero stamp ({sec: 0, nanosec: 0}), so
-        # fall back to the concat sweep's timestamp; sweeps are ~1e8 ns apart,
-        # hence the file still sorts into its own frame position.
-        timestamp_ns = stamp_to_ns(source.get("stamp")) if source is not None else None
-        if not timestamp_ns:
-            timestamp_ns = int(concat_sample_data.timestamp) * 1000
-        csv_path = lidar_dir / f"{timestamp_ns}.csv"
+        concat_timestamp_ns = int(concat_sample_data.timestamp) * 1000
+        for lidar_channel, sensor_token in sensor_token_by_channel.items():
+            lidar_dir = out_dir / "lidar" / lidar_channel
+            if lidar_channel == LIDAR_CONCAT_CHANNEL:
+                csv_path = lidar_dir / f"{concat_timestamp_ns}.csv"
+                save_pointcloud_csv(csv_path, concat_timestamp_ns, pointcloud.points.T)
+                stats[lidar_channel]["count"] += 1
+                continue
 
-        if length == 0:
-            # The sensor contributed no points to this concat sweep (dropped
-            # out, or started after the recording began). Still write a
-            # header-only CSV: ensures the uploader still recognizes this frame even though it has no points.
-            save_pointcloud_csv(csv_path, timestamp_ns, np.empty((0, 4), dtype=np.float32))
-            blank_count += 1
-            continue
-
-        idx_begin = int(source["idx_begin"])
-        if stride is None:
-            raise ValueError(
-                f"{bin_path}: source {sensor_token} declares {length} points in an empty cloud"
+            source = sources_by_token.get(sensor_token)
+            timestamp_ns = (
+                source.stamp.sec * 1_000_000_000 + source.stamp.nanosec
+                if source is not None
+                else None
             )
-        bytes_per_point = stride * 4
-        expected_bytes = length * bytes_per_point
+            if not timestamp_ns:
+                timestamp_ns = concat_timestamp_ns
+            csv_path = lidar_dir / f"{timestamp_ns}.csv"
 
-        with open(bin_path, "rb") as f:
-            f.seek(idx_begin * bytes_per_point)
-            raw = f.read(expected_bytes)
+            source_pointcloud = source_pointclouds.get(sensor_token)
+            if source_pointcloud is None or source_pointcloud.num_points() == 0:
+                # The sensor contributed no points to this concat sweep (dropped
+                # out, or started after the recording began). Still write a
+                # header-only CSV: ensures the uploader still recognizes this frame even though it has no points.
+                save_pointcloud_csv(csv_path, timestamp_ns, np.empty((0, 4), dtype=np.float32))
+                stats[lidar_channel]["blank_count"] += 1
+                continue
 
-        if len(raw) != expected_bytes:
-            raise ValueError(
-                f"{bin_path}: source {sensor_token} declares {length} points "
-                f"({expected_bytes} bytes), but only {len(raw)} bytes could be read"
-            )
+            save_pointcloud_csv(csv_path, timestamp_ns, source_pointcloud.points.T)
+            stats[lidar_channel]["count"] += 1
 
-        points = np.frombuffer(raw, dtype=np.float32).reshape(length, stride)
-        save_pointcloud_csv(csv_path, timestamp_ns, points)
-        count += 1
-
-    logger.info(
-        f"{lidar_channel}: {count} point clouds extracted, {blank_count} blank frames written"
-    )
+    for lidar_channel, channel_stats in stats.items():
+        logger.info(
+            f"{lidar_channel}: {channel_stats['count']} point clouds extracted, "
+            f"{channel_stats['blank_count']} blank frames written"
+        )
 
 
 def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -> None:
@@ -330,21 +192,6 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
         header="ts_gps,x,y,z,intensity",
         comments="",
     )
-
-
-def stamp_to_ns(stamp: Optional[dict]) -> Optional[int]:
-    """Convert a ROS-style timestamp to nanoseconds.
-
-    Args:
-        stamp (Optional[dict]): Mapping containing ``sec`` and ``nanosec``.
-
-    Returns:
-        Optional[int]: Timestamp in nanoseconds, or ``None`` when ``stamp`` is
-            empty.
-    """
-    if not stamp:
-        return None
-    return int(stamp["sec"]) * 1_000_000_000 + int(stamp["nanosec"])
 
 
 def copy_file(src: Path, dst: Path) -> None:
