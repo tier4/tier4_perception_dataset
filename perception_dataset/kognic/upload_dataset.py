@@ -25,6 +25,7 @@ from perception_dataset.kognic.sequence_artifact import (
     SEQUENCE_ARTIFACT_FILENAME,
     load_sequence_artifact,
 )
+from perception_dataset.kognic.utils.client import create_kognic_client
 from perception_dataset.kognic.utils.upload_config import (
     KognicUploadConfig,
     ProjectTarget,
@@ -220,9 +221,9 @@ class KognicDatasetUploader:
             KognicIOClient: Client configured for the requested workspace.
         """
         if self._kognic_io_client is None:
-            self._kognic_io_client = KognicIOClient(
-                client_organization_id=self.config.organization_id,
-                write_workspace_id=self.config.workspace_id,
+            self._kognic_io_client = create_kognic_client(
+                self.config.organization_id,
+                self.config.workspace_id,
             )
         return self._kognic_io_client
 

@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from perception_dataset.kognic.utils.client import get_kognic_credentials
+
 
 @dataclass(frozen=True)
 class ProjectTarget:
@@ -138,12 +140,7 @@ def load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         KognicUploadConfig: Normalized upload settings.
     """
     conversion_config = config_dict["conversion"]
-    organization_id = conversion_config.get("organization_id") or conversion_config.get(
-        "client_organization_id"
-    )
-    workspace_id = conversion_config.get("workspace_id") or conversion_config.get(
-        "write_workspace_id"
-    )
+    organization_id, workspace_id = get_kognic_credentials(config_dict)
 
     return KognicUploadConfig(
         input_base=Path(conversion_config["input_base"]),

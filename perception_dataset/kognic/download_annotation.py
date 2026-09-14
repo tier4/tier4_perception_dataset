@@ -11,6 +11,10 @@ from typing import Dict, Optional
 from kognic.io.client import KognicIOClient
 import yaml
 
+from perception_dataset.kognic.utils.client import (
+    create_kognic_client,
+    get_kognic_credentials,
+)
 from perception_dataset.kognic.utils.scene import resolve_scene_external_ids_to_uuids
 from perception_dataset.utils.logger import configure_logger
 
@@ -56,8 +60,7 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
         ValueError: If required settings are absent or scene selectors conflict.
     """
     conversion = config_dict["conversion"]
-    organization_id = conversion.get("organization_id") or conversion.get("client_organization_id")
-    workspace_id = conversion.get("workspace_id") or conversion.get("write_workspace_id")
+    organization_id, workspace_id = get_kognic_credentials(config_dict)
     scene_external_id = conversion.get("scene_external_id")
     scene_uuid = conversion.get("scene_id")
 
@@ -111,9 +114,9 @@ class KognicAnnotationDownloader:
             KognicIOClient: Client configured for the requested workspace.
         """
         if self._kognic_io_client is None:
-            self._kognic_io_client = KognicIOClient(
-                client_organization_id=self.config.organization_id,
-                write_workspace_id=self.config.workspace_id,
+            self._kognic_io_client = create_kognic_client(
+                self.config.organization_id,
+                self.config.workspace_id,
             )
         return self._kognic_io_client
 

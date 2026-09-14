@@ -27,6 +27,7 @@ from kognic.io.client import KognicIOClient
 from kognic.io.model.scene.scene_entry import Scene, SceneStatus
 import yaml
 
+from perception_dataset.kognic.utils.client import create_kognic_client
 from perception_dataset.kognic.utils.upload_config import load_upload_config
 from perception_dataset.utils.logger import configure_logger
 
@@ -181,9 +182,9 @@ def main():
         config_dict = yaml.safe_load(f)
     upload_config = load_upload_config(config_dict)
 
-    client = KognicIOClient(
-        client_organization_id=upload_config.organization_id,
-        write_workspace_id=upload_config.workspace_id,
+    client = create_kognic_client(
+        upload_config.organization_id,
+        upload_config.workspace_id,
     )
 
     logger.info(f"Checking {len(scene_uuids)} candidate scene(s)")
