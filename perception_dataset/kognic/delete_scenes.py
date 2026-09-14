@@ -8,17 +8,15 @@ equivalent is :meth:`scene.invalidate_scenes`, which this script applies to
 every orphaned scene it finds.
 
 There is no "list all scenes" endpoint, so candidate scene uuids are taken from
-a source you provide:
+the source you provide:
 
 * ``--scene-uuids`` — an explicit comma/space separated list, or a path to a
-  csv file with a ``scene_uuid`` column,
+    csv file with a ``scene_uuid`` column,
 * ``--scene-external-ids`` — an explicit comma/space separated list of scene
-  external ids, or a path to a csv file with a ``scene_external_id`` column.
-  External ids are resolved to scene uuids via ``input.query_inputs``, so this
-  only works for scenes that have an input (orphan scenes must be addressed by
-  uuid), or
-* ``--upload-report-tsv`` — the ``upload_report.tsv`` written by the uploader
-  (defaults to ``<input_base>/upload_report.tsv`` from the upload config).
+    external ids, or a path to a csv file with a ``scene_external_id`` column.
+    External ids are resolved to scene uuids via ``input.query_inputs``, so this
+    only works for scenes that have an input (orphan scenes must be addressed by
+    uuid).
 
 A scene is considered to have *no input* when ``input.query_inputs`` returns
 nothing for it. Already-invalidated or non-existent scenes are skipped.
@@ -45,10 +43,8 @@ from kognic.io.model.scene.scene_entry import SceneStatus
 from requests.exceptions import HTTPError
 import yaml
 
-from perception_dataset.kognic.upload_dataset import (
-    _load_upload_config,
-    read_upload_report_scene_uuids,
-)
+from perception_dataset.kognic.utils.upload_config import load_upload_config
+from perception_dataset.kognic.utils.scene import resolve_scene_external_ids_to_uuids
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -84,14 +80,11 @@ def _collect_values(explicit: str, csv_column: str) -> List[str]:
     return values
 
 
-def _collect_scene_uuids(
-    explicit: Optional[str], upload_report_tsv: Optional[Path]
-) -> List[str]:
-    """Gather candidate scene UUIDs from command-line sources.
+def _collect_scene_uuids(explicit: Optional[str]) -> List[str]:
+    """Gather candidate scene UUIDs from the command-line argument.
 
     Args:
         explicit (Optional[str]): Scene UUID text or CSV path.
-        upload_report_tsv (Optional[Path]): Uploader-generated TSV report.
 
     Returns:
         List[str]: Unique scene UUIDs in discovery order.
@@ -116,50 +109,6 @@ def _collect_scene_uuids(
     if explicit:
         for value in _collect_values(explicit, csv_column="scene_uuid"):
             _add(value)
-
-    if upload_report_tsv is not None:
-        for scene_uuid in read_upload_report_scene_uuids(
-            upload_report_tsv, {"successful", "partial_success", "failed"}
-        ):
-            _add(scene_uuid)
-
-    return uuids
-
-
-def _resolve_external_ids_to_scene_uuids(
-    client: KognicIOClient, external_ids: List[str]
-) -> List[str]:
-    """Resolve scene external ids to scene uuids via the inputs that reference them.
-
-    Kognic has no scene-by-external-id lookup, so scenes without any input
-    cannot be resolved this way; those external ids are skipped with a warning.
-
-    Args:
-        client (KognicIOClient): Authenticated Kognic client.
-        external_ids (List[str]): Scene external IDs to resolve.
-
-    Returns:
-        List[str]: Resolved scene UUIDs in input order.
-    """
-    if not external_ids:
-        return []
-
-    by_external_id: "OrderedDict[str, Set[str]]" = OrderedDict()
-    for input_ in client.input.query_inputs(external_ids=external_ids):
-        by_external_id.setdefault(input_.scene_external_id, set()).add(input_.scene_uuid)
-
-    uuids: List[str] = []
-    for external_id in external_ids:
-        scene_uuids = by_external_id.get(external_id)
-        if not scene_uuids:
-            logger.warning(
-                f"{external_id}: no input found with this external id; cannot "
-                "resolve to a scene uuid (orphan scenes must be given by uuid), skipping"
-            )
-            continue
-        for scene_uuid in sorted(scene_uuids):
-            logger.info(f"{external_id}: resolved to scene {scene_uuid}")
-            uuids.append(scene_uuid)
 
     return uuids
 
@@ -294,12 +243,6 @@ def main():
         "be found this way.",
     )
     parser.add_argument(
-        "--upload-report-tsv",
-        type=str,
-        default=None,
-        help="Path to upload_report.tsv. Defaults to <input_base>/upload_report.tsv.",
-    )
-    parser.add_argument(
         "--reason",
         type=str,
         default=SceneInvalidatedReason.INCORRECTLY_CREATED.value,
@@ -321,16 +264,9 @@ def main():
 
     with open(args.config) as f:
         config_dict = yaml.safe_load(f)
-    upload_config = _load_upload_config(config_dict)
+    upload_config = load_upload_config(config_dict)
 
-    upload_report_tsv: Optional[Path]
-    if args.upload_report_tsv:
-        upload_report_tsv = Path(args.upload_report_tsv)
-    else:
-        default_report = upload_config.input_base / "upload_report.tsv"
-        upload_report_tsv = default_report if default_report.exists() else None
-
-    scene_uuids = _collect_scene_uuids(args.scene_uuids, upload_report_tsv)
+    scene_uuids = _collect_scene_uuids(args.scene_uuids)
 
     external_ids: List[str] = []
     if args.scene_external_ids:
@@ -343,8 +279,7 @@ def main():
 
     if not scene_uuids and not external_ids:
         logger.warning(
-            "No candidate scenes found. Provide --scene-uuids, --scene-external-ids "
-            "or an upload_report.tsv."
+            "No candidate scenes found. Provide --scene-uuids or --scene-external-ids."
         )
         return
 
@@ -355,9 +290,19 @@ def main():
 
     if external_ids:
         logger.info(f"Resolving {len(external_ids)} scene external id(s) to scene uuids")
-        for scene_uuid in _resolve_external_ids_to_scene_uuids(client, external_ids):
-            if scene_uuid not in scene_uuids:
-                scene_uuids.append(scene_uuid)
+        resolved = resolve_scene_external_ids_to_uuids(client, external_ids)
+        for external_id in external_ids:
+            matching_uuids = resolved[external_id]
+            if not matching_uuids:
+                logger.warning(
+                    f"{external_id}: no input found with this external id; cannot "
+                    "resolve to a scene uuid (orphan scenes must be given by uuid), skipping"
+                )
+                continue
+            for scene_uuid in matching_uuids:
+                logger.info(f"{external_id}: resolved to scene {scene_uuid}")
+                if scene_uuid not in scene_uuids:
+                    scene_uuids.append(scene_uuid)
 
     if not scene_uuids:
         logger.warning("No scene uuids resolved; nothing to do.")
