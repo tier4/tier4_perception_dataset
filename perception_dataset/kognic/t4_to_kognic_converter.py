@@ -210,14 +210,13 @@ class T4ToKognicConverter(AbstractConverter[None]):
         with ThreadPoolExecutor(max_workers=self._workers_number) as executor:
             list(executor.map(lambda args: copy_file(*args), pending_copies))
 
-        for lidar_channel in self._lidar_channels:
-            extract_pointclouds(
-                seq_path=seq_path,
-                out_dir=out_dir,
-                lidar_channel=lidar_channel,
-                frame_records=self._frame_records,
-                channel_to_token=self._channel_to_token,
-            )
+        extract_pointclouds(
+            seq_path=seq_path,
+            out_dir=out_dir,
+            lidar_channels=self._lidar_channels,
+            frame_records=self._frame_records,
+            channel_to_token=self._channel_to_token,
+        )
 
     # ------------------------------------------------------------------
     # Conversion report
