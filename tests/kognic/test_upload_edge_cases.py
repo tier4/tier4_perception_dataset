@@ -23,6 +23,7 @@ from perception_dataset.kognic.upload_dataset import (
     _result_report_rows,
     _wait_for_pre_annotation,
     _write_upload_report,
+    main,
     read_upload_report_scene_uuids,
 )
 
@@ -126,6 +127,52 @@ def test_upload_only_loads_sequence_built_during_conversion(tmp_path: Path):
     assert uploaded_scene.calibration_id == "calibration-id"
     assert uploaded_scene.frames[0].metadata.annotate
     assert result[0].scene_uuid == "scene-id"
+
+
+def test_upload_main_skips_scene_with_missing_resource(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Test that batch upload logs and skips a scene with a missing resource."""
+    sequence_dir = tmp_path / "scene"
+    sequence_dir.mkdir()
+    lidar_path = sequence_dir / "lidar" / "LIDAR_FRONT" / "100.csv"
+    lidar_path.parent.mkdir(parents=True)
+    lidar_path.write_text("ts_gps,x,y,z,intensity\n100,0,0,0,1\n")
+
+    converter = T4ToKognicConverter(
+        str(sequence_dir),
+        str(sequence_dir),
+        camera_sensors=[],
+        include_imu_data=False,
+    )
+    converter._lidar_channels = ["LIDAR_FRONT"]
+    converter._write_sequence_artifact(
+        sequence_dir,
+        {},
+        {"LIDAR_FRONT": [lidar_path]},
+        [100],
+        [0],
+    )
+    lidar_path.unlink()
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "task: upload_kognic_dataset",
+                "conversion:",
+                f"  input_base: {tmp_path.as_posix()}",
+                "  projects: []",
+                "  dryrun: true",
+                "  generate_tsv_report: false",
+            ]
+        )
+    )
+
+    monkeypatch.setattr("sys.argv", ["upload_dataset", "--config", str(config_path)])
+
+    with pytest.raises(SystemExit, match="scene upload\\(s\\) failed"):
+        main()
 
 
 def test_wait_for_pre_annotation_reaches_indexed(monkeypatch: pytest.MonkeyPatch):
