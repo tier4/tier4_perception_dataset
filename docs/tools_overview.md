@@ -287,6 +287,20 @@ For T4 LidarSeg, please run the following:
 python -m perception_dataset.convert --config config/convert_deepen_to_t4_lidarseg_3d_painting_sample.yaml
 ```
 
+### Kognic annotations to Deepen annotations
+
+Converts downloaded Kognic OpenLABEL annotations directly to Deepen label files.
+Kognic cuboids and image bounding boxes are written to Deepen JSON labels. Point-cloud
+semantic segmentation RLE is decoded into Deepen paint-3D binaries and a
+`<scene>_lidarseg.json` metadata file.
+
+For multi-LiDAR segmentation, set `lidar_streams` in the configuration to the stream
+concatenation order used by the point cloud uploaded to Deepen.
+
+```bash
+python -m perception_dataset.convert --config config/convert_kognic_to_deepen_sample.yaml
+```
+
 ## FastLabel
 
 ### Conversion from FastLabel JSON Format to T4 Format
