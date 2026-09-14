@@ -405,17 +405,57 @@ def _delete_inputs_and_scenes(
         f"Deleting {total_inputs} input(s) and invalidating {len(targets)} scene(s) "
         f"with reason {reason.value}"
     )
+    deleted_inputs = 0
+    failed_inputs: List[str] = []
+    invalidated: List[str] = []
+    skipped_scenes: List[str] = []
+    failed_invalidations: List[str] = []
     for scene_uuid, input_uuids in targets.items():
+        input_delete_failed = False
         for input_uuid in input_uuids:
             logger.info(f"{scene_uuid}: deleting input {input_uuid}")
-            client.input.delete_input(input_uuid=input_uuid)
-        client.scene.invalidate_scenes(scene_uuids=[scene_uuid], reason=reason)
+            try:
+                client.input.delete_input(input_uuid=input_uuid)
+            except HTTPError as e:
+                logger.error(f"{scene_uuid}: delete input {input_uuid} failed ({e}); continuing")
+                failed_inputs.append(f"{scene_uuid}/{input_uuid}")
+                input_delete_failed = True
+                continue
+            deleted_inputs += 1
+
+        if input_delete_failed:
+            logger.warning(
+                f"{scene_uuid}: skipping invalidation because one or more input "
+                "deletions failed"
+            )
+            skipped_scenes.append(scene_uuid)
+            continue
+
+        try:
+            client.scene.invalidate_scenes(scene_uuids=[scene_uuid], reason=reason)
+        except HTTPError as e:
+            logger.error(f"{scene_uuid}: invalidate failed ({e}); continuing")
+            failed_invalidations.append(scene_uuid)
+            continue
         logger.info(f"{scene_uuid}: invalidated")
+        invalidated.append(scene_uuid)
 
     logger.info(
-        f"Deleted {total_inputs} input(s) and invalidated {len(targets)} scene(s): "
-        f"{', '.join(targets)}"
+        f"Deleted {deleted_inputs}/{total_inputs} input(s) and invalidated "
+        f"{len(invalidated)}/{len(targets)} scene(s)"
     )
+    if failed_inputs:
+        logger.warning(f"Failed to delete {len(failed_inputs)} input(s): {', '.join(failed_inputs)}")
+    if skipped_scenes:
+        logger.warning(
+            f"Skipped invalidation for {len(skipped_scenes)} scene(s): "
+            f"{', '.join(skipped_scenes)}"
+        )
+    if failed_invalidations:
+        logger.warning(
+            f"Failed to invalidate {len(failed_invalidations)} scene(s): "
+            f"{', '.join(failed_invalidations)}"
+        )
 
 
 if __name__ == "__main__":
