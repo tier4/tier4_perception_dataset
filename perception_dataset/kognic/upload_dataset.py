@@ -16,6 +16,7 @@ from kognic.io.model.scene.feature_flags import FeatureFlags
 from kognic.io.model.scene.invalidated_reason import SceneInvalidatedReason
 from kognic.io.model.scene.scene_entry import SceneStatus
 from kognic.openlabel.models.models import OpenLabelAnnotation
+from pydantic import ValidationError
 from requests.exceptions import HTTPError
 import yaml
 
@@ -193,9 +194,7 @@ def _wait_for_pre_annotation(
                 f"or {_PRE_ANNOTATION_SUCCESS_STATUS!r}): {json.dumps(record, default=str)}"
             )
         if time.time() >= deadline:
-            message = (
-                f"pre-annotation {pre_annotation_uuid} still {status} after {timeout_s:.0f}s"
-            )
+            message = f"pre-annotation {pre_annotation_uuid} still {status} after {timeout_s:.0f}s"
             if raise_on_timeout:
                 raise TimeoutError(
                     f"{message}; not attaching it to an input: "
@@ -1011,9 +1010,7 @@ def _write_upload_report(input_base: Path, rows: List[Dict[str, str]]) -> Path:
     return report_path
 
 
-def read_upload_report_scene_uuids(
-    report_path: Path, statuses: set[str]
-) -> List[str]:
+def read_upload_report_scene_uuids(report_path: Path, statuses: set[str]) -> List[str]:
     """Read unique, non-dry-run scene UUIDs for selected summary statuses.
 
     Args:
@@ -1093,7 +1090,7 @@ def main():
             logger.info(f"Uploading dataset {dataset_name} from {sequence_path}")
             try:
                 results = uploader.upload_one(sequence_path, external_id=dataset_name)
-            except FileNotFoundError as exc:
+            except (FileNotFoundError, ValidationError) as exc:
                 duration = time.time() - time_start
                 logger.error(f"Skipping dataset {dataset_name}: {exc}")
                 failures.append(dataset_name)
