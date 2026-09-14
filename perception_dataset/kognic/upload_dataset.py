@@ -1093,6 +1093,20 @@ def main():
             logger.info(f"Uploading dataset {dataset_name} from {sequence_path}")
             try:
                 results = uploader.upload_one(sequence_path, external_id=dataset_name)
+            except FileNotFoundError as exc:
+                duration = time.time() - time_start
+                logger.error(f"Skipping dataset {dataset_name}: {exc}")
+                failures.append(dataset_name)
+                pre_creation_failures.append(dataset_name)
+                report_rows.append(
+                    _upload_report_row(
+                        scene=report_scene,
+                        status="failed",
+                        duration_seconds=duration,
+                        error=exc,
+                    )
+                )
+                continue
             except Exception as exc:
                 if not upload_config.generate_tsv_report:
                     raise
