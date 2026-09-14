@@ -8,7 +8,7 @@ import pytest
 
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
-from perception_dataset.utils.misc import validate_annotation_hz
+from perception_dataset.utils.misc import get_annotation_step, validate_annotation_hz
 from perception_dataset.utils.pointcloud import save_pointcloud_csv
 
 
@@ -38,6 +38,11 @@ def test_annotation_hz_accepts_supported_integer_values(value: int):
         value (int): Supported frequency supplied by the parametrized test.
     """
     assert validate_annotation_hz(value) == value
+
+
+def test_annotation_step_rounds_non_divisor_frequency():
+    """Use a rounded stride consistently for Kognic and Deepen sampling."""
+    assert get_annotation_step(6) == 2
 
 
 def test_scene_conversion_removes_stale_sensor_directories_before_generation(tmp_path: Path):

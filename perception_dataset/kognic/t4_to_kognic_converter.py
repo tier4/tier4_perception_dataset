@@ -37,7 +37,7 @@ from perception_dataset.kognic.utils import (
     read_image_dims,
 )
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.misc import MAX_ANNOTATION_HZ, validate_annotation_hz
+from perception_dataset.utils.misc import get_annotation_step, validate_annotation_hz
 from perception_dataset.utils.pointcloud import (
     copy_file,
     extract_pointclouds,
@@ -637,7 +637,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
         Non-annotated datasets: there are no annotations to key off, so
         keyframes are selected by sample index at ``annotation_hz``, with the
         same logic as the non-annotated T4 -> Deepen converter (every
-        ``int(10 / annotation_hz)``-th sample).
+        every rounded ``10 / annotation_hz``-th sample.
 
         Args:
             out_dir (Path): Destination staging directory.
@@ -654,7 +654,7 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 in self._annotated_sample_tokens
             ]
         else:
-            step = int(MAX_ANNOTATION_HZ / self._annotation_hz)
+            step = get_annotation_step(self._annotation_hz)
             selected_samples = {
                 sample.token
                 for sample_index, sample in enumerate(self._samples)
