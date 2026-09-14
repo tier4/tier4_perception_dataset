@@ -18,7 +18,11 @@ from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import SENSOR_ENUM
 from perception_dataset.deepen.json_format import ConfigData, ImageData
 from perception_dataset.utils.logger import configure_logger
-from perception_dataset.utils.misc import get_frame_index_from_filename
+from perception_dataset.utils.misc import (
+    MAX_ANNOTATION_HZ,
+    get_frame_index_from_filename,
+    validate_annotation_hz,
+)
 from perception_dataset.utils.transform import transform_matrix
 
 logger = configure_logger(modname=__name__)
@@ -52,7 +56,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
         self._save_intensity = save_intensity
 
         self._camera_sensor_types = []
-        self._annotation_hz = annotation_hz
+        self._annotation_hz = validate_annotation_hz(annotation_hz)
         self._workers_number = workers_number
         self._drop_camera_token_not_found = drop_camera_token_not_found
         self._without_compress = without_compress
@@ -98,7 +102,7 @@ class NonAnnotatedT4ToDeepenConverter(AbstractConverter[NonAnnotatedT4ToDeepenCo
         with ProcessPoolExecutor(max_workers=self._workers_number) as executor:
             future_list = []
             for sample_index, _ in enumerate(t4_dataset.sample):
-                if sample_index % int(10 / self._annotation_hz) != 0:
+                if sample_index % int(MAX_ANNOTATION_HZ / self._annotation_hz) != 0:
                     continue
                 future = executor.submit(
                     self._convert_one_frame, input_dir, output_dir, sample_index

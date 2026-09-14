@@ -5,7 +5,6 @@ conversion:
   workers_number: 12
   annotation_hz: 1
   generate_tsv_report: true  # Write <output_base>/conversion_report.tsv after conversion.
-  drop_camera_token_not_found: false  # If true, the frame with missing camera token be dropped. If false, the frame will be kept despite missing camera data.
   camera_sensors:
     - channel: CAM_FRONT
     - channel: CAM_FRONT_RIGHT
@@ -13,3 +12,4 @@ conversion:
     - channel: CAM_BACK
     - channel: CAM_BACK_LEFT
     - channel: CAM_FRONT_LEFT
+  # lidar_point_stride: 5 # optional: the stride of the lidar points to be used. Any columns greater than this stride will be skipped.

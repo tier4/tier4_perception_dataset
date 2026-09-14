@@ -3,6 +3,31 @@ from typing import List, Optional, Tuple, Union
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 
+# T4 sample streams are 10 Hz and keyframes are picked as every
+# ``int(10 / annotation_hz)``-th sample, so a higher rate is unrepresentable and
+# anything <= 0 either divides by zero or selects an arbitrary subset.
+MAX_ANNOTATION_HZ = 10
+
+
+def validate_annotation_hz(annotation_hz: int) -> int:
+    """Check that an annotation frequency can be expressed as a sample stride.
+
+    Args:
+        annotation_hz (int): Requested annotation frequency in Hz.
+
+    Returns:
+        int: The validated frequency.
+
+    Raises:
+        ValueError: If the frequency is not an integer in ``1..10``.
+    """
+    if type(annotation_hz) is not int or not 1 <= annotation_hz <= MAX_ANNOTATION_HZ:
+        raise ValueError(
+            f"annotation_hz must be an integer between 1 and {MAX_ANNOTATION_HZ} "
+            f"(the T4 sample rate), got {annotation_hz!r}"
+        )
+    return annotation_hz
+
 
 def get_frame_index_from_filename(filename: str) -> int:
     """Extract the frame index from a given filename in the sample_data.json file in t4 dataset.

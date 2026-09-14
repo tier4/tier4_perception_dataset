@@ -1,0 +1,126 @@
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import numpy as np
+import pytest
+
+from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
+from perception_dataset.utils.misc import validate_annotation_hz
+from perception_dataset.utils.pointcloud import save_pointcloud_csv
+
+
+@pytest.mark.parametrize("value", [0, -1, 11, 1.0, "1", None, True])
+def test_annotation_hz_rejects_unrepresentable_values(value):
+    """Test that unsupported annotation frequencies are rejected.
+
+    The cases include values outside 1-10 Hz, non-integers, missing input, and
+    ``True`` (which Python otherwise treats as integer 1). Rejecting them keeps
+    keyframe selection from dividing by zero or using a misleading frame rate.
+
+    Args:
+        value: Invalid frequency supplied by the parametrized test.
+    """
+    with pytest.raises(ValueError, match="annotation_hz must be an integer"):
+        validate_annotation_hz(value)
+
+
+@pytest.mark.parametrize("value", [1, 2, 5, 10])
+def test_annotation_hz_accepts_supported_integer_values(value: int):
+    """Test that supported whole-number annotation frequencies are accepted.
+
+    These values fit within the 10 Hz T4 sample rate and can be represented by
+    the converter's frame-selection logic.
+
+    Args:
+        value (int): Supported frequency supplied by the parametrized test.
+    """
+    assert validate_annotation_hz(value) == value
+
+
+def test_scene_conversion_removes_stale_sensor_directories_before_generation(tmp_path: Path):
+    """Test that conversion removes stale camera and LiDAR output first.
+
+    The conversion is deliberately stopped immediately after cleanup. This
+    proves files left by an earlier run are deleted before new files are
+    generated, preventing sorted file positions from shifting frame pairing.
+
+    Args:
+        tmp_path (Path): Pytest directory used for the temporary source and
+            output scene.
+    """
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    stale_camera = output_dir / "cameras/CAM_FRONT/stale.jpg"
+    stale_lidar = output_dir / "lidar/LIDAR_FRONT/stale.csv"
+    stale_camera.parent.mkdir(parents=True)
+    stale_lidar.parent.mkdir(parents=True)
+    stale_camera.touch()
+    stale_lidar.touch()
+    converter = T4ToKognicConverter(
+        input_base=str(input_dir),
+        output_base=str(output_dir),
+        camera_sensors=[],
+    )
+    converter._build_lookup_maps = Mock(side_effect=RuntimeError("stop after cleanup"))
+
+    with pytest.raises(RuntimeError, match="stop after cleanup"):
+        converter._convert_one_scene(input_dir, output_dir)
+
+    assert not (output_dir / "cameras").exists()
+    assert not (output_dir / "lidar").exists()
+
+
+def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
+    """Test that repeated camera timestamps fail before overwriting a destination.
+
+    Three frame records share the same source timestamp, as can happen around
+    dropped camera frames. Timestamp-based Kognic filenames cannot represent
+    those frames uniquely, so conversion must fail explicitly.
+
+    Args:
+        tmp_path (Path): Pytest directory used for the temporary image and
+            staging output.
+    """
+    source = tmp_path / "input/data/CAM_FRONT/image.jpg"
+    source.parent.mkdir(parents=True)
+    source.touch()
+    output = tmp_path / "output"
+    records = [
+        SimpleNamespace(timestamp=123, filename="data/CAM_FRONT/image.jpg")
+        for _ in range(3)
+    ]
+    converter = T4ToKognicConverter(
+        input_base=str(tmp_path / "input"),
+        output_base=str(output),
+        camera_sensors=[{"channel": "CAM_FRONT"}],
+    )
+    converter._channel_to_token = {"CAM_FRONT": "camera-token"}
+    converter._sample_data_by_channel = {"CAM_FRONT": records}
+    converter._frame_records = [{"CAM_FRONT": record} for record in records]
+
+    with pytest.raises(ValueError, match="CAM_FRONT.*duplicate timestamp 123000 ns"):
+        converter._collect_image_copies(tmp_path / "input", output, "CAM_FRONT")
+
+
+def test_save_pointcloud_csv_writes_timestamp_and_first_four_features(tmp_path: Path):
+    """Test point-cloud CSV formatting and omission of extra point features."""
+    csv_path = tmp_path / "points.csv"
+    points = np.array([[1.25, -2.0, 3.125, 4.5, 99.0]], dtype=np.float32)
+
+    save_pointcloud_csv(csv_path, 123456789, points)
+
+    assert csv_path.read_text() == (
+        "ts_gps,x,y,z,intensity\n"
+        "123456789,1.250000,-2.000000,3.125000,4.500000\n"
+    )
+
+
+def test_save_pointcloud_csv_writes_header_for_empty_cloud(tmp_path: Path):
+    """Test that an empty point cloud still produces a valid CSV header."""
+    csv_path = tmp_path / "points.csv"
+
+    save_pointcloud_csv(csv_path, 123456789, np.empty((0, 4), dtype=np.float32))
+
+    assert csv_path.read_text() == "ts_gps,x,y,z,intensity\n"

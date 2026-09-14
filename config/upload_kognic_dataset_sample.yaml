@@ -21,8 +21,6 @@ conversion:
       pre_annotation: cuboid_pre_annotation.json   # cuboid input references this pre-annotation
     - project_external_id: test_upload_data
       batch_external_id: test-semseg-upload-batch  # no pre_annotation -> input created without one
-  target_hz: 1
-  # Note: annotate=True frame selection applies a built-in tolerance derived from the source frame cadence.
   dryrun: false
   motion_compensate: false
   include_imu_data: false

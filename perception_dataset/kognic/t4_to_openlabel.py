@@ -282,8 +282,8 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         """Write the T4 keyframe positions for the uploader to ``keyframes.json``.
 
         The staging frame indices of the ``sample_data`` records with
-        ``is_key_frame`` set. The uploader marks exactly those frames
-        ``annotate=True`` (instead of walking a fixed ``target_hz`` grid), so
+        ``is_key_frame`` set. The uploader requires this file and marks exactly
+        those frames ``annotate=True``, so
         the annotatable frames always coincide with the pre-annotation frames
         even when the source keyframe cadence skips a sweep. ``frame_count``
         lets the uploader detect a stale file after the staging data changed.
@@ -401,6 +401,8 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             frame_idx = int(np.argmin(np.abs(anchor - ts_ns)))
             diff_ms = abs(int(anchor[frame_idx]) - ts_ns) / 1e6
             if diff_ms <= self._frame_match_tolerance_ms:
+                # MEMO: If frame mapping stops being one-to-one, detect duplicate
+                # assignments and include them in the skipped-frame tally.
                 mapping[idx] = frame_idx
         return mapping
 

@@ -190,6 +190,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._scene_description: str = params.scene_description
         self._accept_frame_drop: bool = params.accept_frame_drop
         self._undistort_image: bool = params.undistort_image
+        self._jpeg_quality: int = params.jpeg_quality
+        self._jpeg_optimize: bool = params.jpeg_optimize
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = params.world_frame_id
@@ -466,6 +468,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             "--------------------------------------------------------------------------------------------------------------------------"
         )
 
+    def _write_jpeg(self, output_path: str, image: np.ndarray, *, legacy_no_params: bool) -> None:
+        if legacy_no_params and self._jpeg_quality == 95 and not self._jpeg_optimize:
+            cv2.imwrite(output_path, image)
+            return
+
+        params = [int(cv2.IMWRITE_JPEG_QUALITY), self._jpeg_quality]
+        if self._jpeg_optimize:
+            params.extend([int(cv2.IMWRITE_JPEG_OPTIMIZE), 1])
+        cv2.imwrite(output_path, image, params)
+
     def _save_config(self):
         config_data = {
             key: getattr(self, key)
@@ -479,6 +491,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 self.__dict__,
             )
         }
+        if self._jpeg_quality == 95 and not self._jpeg_optimize:
+            config_data.pop("_jpeg_quality", None)
+            config_data.pop("_jpeg_optimize", None)
         config_data = {"rosbag2_to_non_annotated_t4_converter": config_data}
         with open(osp.join(self._output_scene_dir, "status.json"), "w") as f:
             json.dump(
@@ -1245,10 +1260,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sample_data_token
         )
         if isinstance(image_arr, np.ndarray):
-            cv2.imwrite(
+            self._write_jpeg(
                 osp.join(self._output_scene_dir, sample_data_record.filename),
                 image_arr,
-                [int(cv2.IMWRITE_JPEG_QUALITY), 95],
+                legacy_no_params=False,
             )
         elif isinstance(image_arr, CompressedImage):
             output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
@@ -1262,7 +1277,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 image = cv2.remap(
                     image, self.undistort_map_x, self.undistort_map_y, cv2.INTER_LINEAR
                 )
-                cv2.imwrite(output_image_path, image)
+                self._write_jpeg(output_image_path, image, legacy_no_params=True)
 
         return sample_data_token
 
