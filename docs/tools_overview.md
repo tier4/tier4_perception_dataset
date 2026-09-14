@@ -158,6 +158,42 @@ changing sensor data, ego poses, or keyframes.
 
 See [Stage 3](tier_iv_t4_extractor_to_kognic.md#stage-3--upload-staging-format-to-kognic) for all config parameters.
 
+### Repair inputs and clean up scenes
+
+If a scene was uploaded but input creation was skipped or failed, create one
+input later with:
+
+```bash
+python -m perception_dataset.kognic.create_input_from_scenes \
+  --scene-uuid <scene_uuid> \
+  --project <project_external_id> \
+  [--batch <batch_external_id>] \
+  [--pre-annotation-uuid <pre_annotation_uuid>] \
+  [--apply]
+```
+
+Without `--apply`, the command is a dry run. Existing inputs in the selected
+project/batch and failed or invalidated scenes are skipped; inputs in other
+projects or batches do not prevent creation.
+
+To invalidate orphaned scenes, first provide explicit scene UUIDs or external
+IDs (a CSV with a `scene_uuid` or `scene_external_id` column is also accepted):
+
+```bash
+python -m perception_dataset.kognic.delete_scenes \
+  --scene-uuids <scene_uuid_1>,<scene_uuid_2> \
+  [--scene-external-ids <external_id>] \
+  [--delete-input] \
+  [--apply]
+```
+
+The cleanup command no longer reads `upload_report.tsv` and never discovers
+candidate scenes implicitly. External IDs are resolved through their inputs,
+so orphaned scenes must be supplied by UUID. Without `--delete-input`, only
+scenes with no inputs are invalidated; with it, inputs are deleted first and a
+scene is not invalidated if any input deletion fails. Both commands report
+remote API failures and continue across independent scenes where safe.
+
 ### Download annotations from Kognic
 
 Downloads completed annotations (OpenLABEL JSON) from the Kognic platform to local disk.
@@ -178,7 +214,7 @@ python -m perception_dataset.kognic.download_annotation --config config/download
 The download mode is auto-detected from the config:
 
 - **Project-wide** (`download_kognic_annotation_whole_project.yaml`): set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene.
-- **Single scene** (`download_kognic_annotation_per_dataset_sample.yaml`): set either `scene_external_id` or `scene_id` (the scene UUID) to download annotations for that one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. `annotation_type` is optional here: omit it to download every annotation type for the scene, or set it (optionally with `batch`) to download only that type — in which case the scene is filtered out of the project-wide query, since Kognic's per-scene endpoint carries no annotation-type field. Files are written as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations).
+- **Single scene** (`download_kognic_annotation_per_dataset_sample.yaml`): set either `scene_external_id` or `scene_id` (the scene UUID) to download annotations for that one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. `annotation_type` is optional here: omit it to download every annotation type for the scene, or set it (optionally with `batch`) to download only that type — in which case the scene is filtered out of the project-wide query, since Kognic's per-scene endpoint carries no annotation-type field. Files are written directly under `output_base` as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations).
 
 Both write to `output_base/<project_external_id>/`.
 
@@ -186,7 +222,7 @@ Config parameters (`conversion`):
 
 | key                   | required                                          | description                                                                                                                                         |
 | --------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `output_base`         | yes                                               | directory where annotation JSONs are written                                                                                                        |
+| `output_base`         | yes                                               | directory where annotation JSONs are written; project-wide downloads use `<output_base>/<project_external_id>/`, while single-scene downloads write directly under `output_base` |
 | `organization_id`     | yes                                               | Kognic client organization id (alias: `client_organization_id`)                                                                                     |
 | `workspace_id`        | yes                                               | Kognic workspace id (alias: `write_workspace_id`)                                                                                                   |
 | `project_external_id` | yes                                               | project to download from                                                                                                                            |
@@ -210,6 +246,10 @@ The converter handles two annotation types:
 
 - **3D cuboids (object detection)** — populates the otherwise-empty `instance`, `category`, `attribute`, `visibility` and `sample_annotation` tables.
 - **Point-cloud segmentation (`3DPointCloudSegmentation` / `semseg`)** — writes `lidarseg.json`, `lidarseg/<version>/<token>.bin` (per-point labels for the corresponding `LIDAR_CONCAT` `.pcd.bin`), and `category.json`.
+
+Cuboid downloads and imports use the fixed Kognic internal-frame convention;
+there is no user-facing ISO-rotated cuboid switch. The shared geometry helper
+applies the inverse `Rz(-90°)` conversion consistently.
 
 See [Stage 5](tier_iv_t4_extractor_to_kognic.md#stage-5--kognic-annotations--t4-annotation-tables) for the frame-matching logic, coordinate convention, RLE decoding, and config parameters.
 

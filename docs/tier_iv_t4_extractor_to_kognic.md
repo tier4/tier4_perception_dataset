@@ -536,7 +536,7 @@ After each sequence is uploaded, the script writes `dataset_id.json` under `inpu
 }
 ```
 
-`batch_name` is the configured batch (may be `null` when omitted, meaning the latest open batch was used). A project/batch with several annotation types yields one input record per type. Downstream cleanup tools (`delete_scenes.py`, `invalidate_unused_scenes.py`) read `scene_id` from this structure (and still accept the legacy flat `{name: scene_uuid}` form).
+`batch_name` is the configured batch (may be `null` when omitted, meaning the latest open batch was used). A project/batch with several annotation types yields one input record per type. The upload report and `dataset_id.json` preserve the scene and input IDs needed by the maintenance commands; `delete_scenes.py` accepts explicit UUIDs or external IDs, while `create_input_from_scenes.py` accepts one scene UUID and a target project/batch.
 
 #### Failure reporting
 
@@ -548,6 +548,44 @@ Once a scene exists server-side it must end up with at least one input, or it is
 - **Invalidation itself fails** (e.g. the scene is not yet queryable) → the scene is left on Kognic and reported as an orphan needing **manual** cleanup, rather than being silently reported as invalidated.
 
 At the end of the run the script exits non-zero with a summary listing scenes created without an input, orphans that could not be invalidated (as `external_id=scene_uuid`), and scenes kept with only partial inputs.
+
+### Post-upload maintenance
+
+The upload flow can be repaired without re-uploading sensor data. To create a
+missing input from an existing scene, use `create_input_from_scenes.py` with
+exactly one `--scene-uuid`, a target `--project`, and optionally `--batch` and
+`--pre-annotation-uuid`. The command is a dry run unless `--apply` is given.
+It skips failed or invalidated scenes and existing inputs in the selected
+project/batch, while allowing the same scene to receive inputs in other
+projects or batches.
+
+```bash
+python -m perception_dataset.kognic.create_input_from_scenes \
+  --scene-uuid <scene_uuid> \
+  --project <project_external_id> \
+  --batch <batch_external_id> \
+  [--pre-annotation-uuid <pre_annotation_uuid>] \
+  --apply
+```
+
+To invalidate orphaned or otherwise unwanted scenes, use `delete_scenes.py`:
+
+```bash
+python -m perception_dataset.kognic.delete_scenes \
+  --scene-uuids <scene_uuid_1>,<scene_uuid_2> \
+  [--scene-external-ids <external_id>] \
+  [--delete-input] \
+  [--apply]
+```
+
+The command accepts explicit UUID text, comma/space-separated UUIDs, or a CSV
+with a `scene_uuid` column. It also accepts external IDs or a CSV with a
+`scene_external_id` column; those IDs are resolved through Kognic inputs and
+therefore cannot find input-less orphan scenes. It no longer accepts or
+implicitly discovers `upload_report.tsv`. Without `--delete-input`, only
+input-less scenes are invalidated. With it, inputs are deleted first; if any
+input deletion fails, that scene is left uninvalidated for safe retry. Both
+commands default to dry-run behavior.
 
 ---
 
@@ -563,7 +601,12 @@ python -m perception_dataset.kognic.download_annotation --config config/download
 Output goes to `output_base/<project_external_id>/`. The download mode is **auto-detected** from the config:
 
 - **Project-wide** (default) — set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene. Config: `config/download_kognic_annotation_whole_project.yaml`.
-- **Single scene** — set either `scene_external_id` or `scene_id` (the scene UUID) to download annotations for one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. `annotation_type` is optional here: omit it to download every annotation type for the scene (via `get_annotations_for_scene`), or set it (optionally with `batch`) to download only that type — done by filtering the project-wide query to the scene, since Kognic's per-scene endpoint exposes no annotation-type field. Files are written as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations). Config: `config/download_kognic_annotation_per_dataset_sample.yaml`.
+- **Single scene** — set either `scene_external_id` or `scene_id` (the scene UUID) to download annotations for one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. `annotation_type` is optional here: omit it to download every annotation type for the scene (via `get_annotations_for_scene`), or set it (optionally with `batch`) to download only that type — done by filtering the project-wide query to the scene, since Kognic's per-scene endpoint exposes no annotation-type field. Files are written directly under `output_base` as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations). Config: `config/download_kognic_annotation_per_dataset_sample.yaml`.
+
+When resolving `scene_external_id`, the downloader filters by the configured
+project and optional batch. If multiple scene UUIDs still match, it raises an
+error rather than selecting arbitrarily; provide both project and batch to
+identify the intended input.
 
 ```mermaid
 flowchart TD
@@ -631,7 +674,7 @@ python -m perception_dataset.convert --config config/convert_kognic_annotation_t
 
 OpenLABEL files are indexed by filename stem and by OpenLABEL metadata (`dataset_id`, `source_filename`, `scene_uuid`, `input_external_id`, and nested `scene_metadata`). Each T4 scene is matched to a file by its directory name or any ancestor directory name up to the dataset root (T4 datasets are commonly nested as `<root>/<scene_id>/<version>/`, so the identifier is often an ancestor).
 
-OpenLABEL frames are matched to T4 samples by the **LiDAR stream's URI timestamp**: when a usable timestamp is present it is authoritative (matched to the nearest sample within a 1 ms tolerance), so a frame whose capture time has no corresponding sample is reported as unmatched rather than mis-paired. The frame `external_id` is used as a positional fallback only when no timestamp is available. This makes subsampled annotation requests (covering only some scene frames) safe. Set `output_base` equal to the dataset path to enrich it in place.
+OpenLABEL frames are matched to T4 samples by the **LiDAR stream's URI timestamp**: when a usable timestamp is present it is authoritative (matched to the nearest sample within a 1 ms tolerance), so a frame whose capture time has no corresponding sample is reported as unmatched rather than mis-paired. Frames without a usable LiDAR timestamp are not positionally guessed from `external_id`; their annotations are skipped. This makes subsampled annotation requests (covering only some scene frames) safe. Set `output_base` equal to the dataset path to enrich it in place.
 
 ### 3D Cuboids (Object Detection)
 
@@ -768,7 +811,7 @@ ts_gps,x,y,z,intensity
 | Orphan scene can't be invalidated during cleanup (Stage 3)                | Scene left on Kognic and reported as needing manual invalidation (not silently dropped).  |
 | OpenLABEL frame can't be matched to a T4 sample (Stage 5)                 | Drops that frame's objects/segmentation and logs the count.                               |
 | Segmentation has more labels than points (Stage 5)                        | Skips that frame (the annotated cloud differs from this T4 extraction).                   |
-| Segmentation RLE shorter than the cloud (Stage 5)                         | Pads trailing points as `background` (class 0); logs a warning per frame.                 |
+| Segmentation RLE shorter than the cloud (Stage 5)                         | Pads trailing points as `unpainted` (class 0); logs a warning per frame.                  |
 
 ---
 
