@@ -1,3 +1,5 @@
+"""Utilities for converting and composing three-dimensional transforms."""
+
 from typing import List
 
 import numpy as np
@@ -6,8 +8,7 @@ from scipy.spatial.transform import Rotation
 
 
 def rotation_to_quaternion(rotation: List[float]) -> List[float]:
-    """
-    Convert a rotation vector (in radians) to a quaternion.
+    """Convert Euler rotations in radians to a quaternion.
 
     Args:
         rotation (List[float]): A list of three floats [x, y, z] representing
@@ -21,8 +22,7 @@ def rotation_to_quaternion(rotation: List[float]) -> List[float]:
 
 
 def quaternion_to_rotation(quaternion: List[float]) -> List[float]:
-    """
-    Convert a quaternion to a rotation vector (in radians).
+    """Convert a quaternion to Euler rotations in radians.
 
     Args:
         quaternion (List[float]): A list of four floats [x, y, z, w] representing
@@ -37,10 +37,21 @@ def quaternion_to_rotation(quaternion: List[float]) -> List[float]:
 
 
 def compose_transform(trans1, rot1, trans2, rot2):
-    """
-    Compose two transforms: (trans1, rot1) followed by (trans2, rot2)
-    rot: [w, x, y, z] format
-    trans: [x, y, z]
+    """Compose two rigid transforms.
+
+    The transform ``(trans1, rot1)`` is applied first, followed by
+    ``(trans2, rot2)``. Translations use ``[x, y, z]`` order and rotations use
+    ``[w, x, y, z]`` quaternion order.
+
+    Args:
+        trans1 (Sequence[float]): Translation of the first transform.
+        rot1 (Sequence[float]): Quaternion of the first transform.
+        trans2 (Sequence[float]): Translation of the second transform.
+        rot2 (Sequence[float]): Quaternion of the second transform.
+
+    Returns:
+        Tuple[List[float], List[float]]: The composed translation and
+            quaternion in ``[w, x, y, z]`` order.
     """
     # Convert quaternions to Rotation objects (scipy expects [x, y, z, w])
     r1 = Rotation.from_quat([rot1[1], rot1[2], rot1[3], rot1[0]])
@@ -59,18 +70,40 @@ def compose_transform(trans1, rot1, trans2, rot2):
     return t.tolist(), quat
 
 
+def matrix_to_quaternion_wxyz(matrix: np.ndarray) -> np.ndarray:
+    """Convert a rotation matrix to a quaternion.
+
+    This is the inverse of the rotation handling in :func:`transform_matrix`.
+
+    Args:
+        matrix (np.ndarray): A 3-by-3 rotation matrix.
+
+    Returns:
+        np.ndarray: Quaternion values in ``[w, x, y, z]`` order.
+    """
+    quat_xyzw = Rotation.from_matrix(matrix).as_quat()
+    return np.array(
+        [quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]],
+        dtype=np.float64,
+    )
+
+
 def transform_matrix(
     translation: np.ndarray = np.array([0, 0, 0]),
     rotation: Quaternion = Quaternion([1, 0, 0, 0]),
     inverse: bool = False,
 ) -> np.ndarray:
-    """
-    Taken from https://github.com/nutonomy/nuscenes-devkit/blob/4fbb41a72b5a32c634dc7e3135975643237914a7/python-sdk/nuscenes/utils/geometry_utils.py
-    Convert pose to transformation matrix.
-    :param translation: <np.float32: 3>. Translation in x, y, z.
-    :param rotation: Rotation in quaternions (w ri rj rk).
-    :param inverse: Whether to compute inverse transform matrix.
-    :return: <np.float32: 4, 4>. Transformation matrix.
+    """Convert a pose to a homogeneous transformation matrix.
+
+    Adapted from the nuScenes devkit geometry utilities.
+
+    Args:
+        translation (np.ndarray): Translation in ``[x, y, z]`` order.
+        rotation (Quaternion): Rotation quaternion in ``[w, x, y, z]`` order.
+        inverse (bool): Whether to return the inverse transformation.
+
+    Returns:
+        np.ndarray: A 4-by-4 homogeneous transformation matrix.
     """
     tm = np.eye(4)
 

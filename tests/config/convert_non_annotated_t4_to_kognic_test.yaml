@@ -1,0 +1,12 @@
+task: convert_non_annotated_t4_to_kognic
+conversion:
+  input_base: ./data/t4_sample_0/non_annotated_dataset
+  output_base: ./data/t4_sample_0/kognic_format_from_non_annotated_t4_generated
+  workers_number: 12
+  camera_sensors:
+    - channel: CAM_FRONT
+    - channel: CAM_FRONT_RIGHT
+    - channel: CAM_BACK_RIGHT
+    - channel: CAM_BACK
+    - channel: CAM_BACK_LEFT
+    - channel: CAM_FRONT_LEFT
