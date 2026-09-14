@@ -73,6 +73,7 @@ from t4_devkit.schema.tables import (
 )
 
 from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.openlabel import (
     cuboid_val_to_t4_box,
     occlusion_to_visibility_level,
