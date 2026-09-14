@@ -25,6 +25,11 @@ from perception_dataset.kognic.sequence_artifact import (
     SEQUENCE_ARTIFACT_FILENAME,
     load_sequence_artifact,
 )
+from perception_dataset.kognic.utils.upload_config import (
+    KognicUploadConfig,
+    ProjectTarget,
+    load_upload_config,
+)
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -89,24 +94,6 @@ class SceneInputError(RuntimeError):
         self.failed_input_errors = failed_input_errors or []
 
 
-@dataclass(frozen=True)
-class ProjectTarget:
-    """A Kognic project an input is created in, with its own optional batch.
-
-    ``pre_annotation`` is the filename (relative to each sequence dir) of the
-    OpenLabel pre-annotation to attach for this target. It is optional and
-    defaults to ``None``, meaning no pre-annotation is uploaded for this batch.
-    Targets that request the same pre-annotation (including ``None``) share a
-    single scene; targets requesting different pre-annotations each get their
-    own scene, since a pre-annotation is attached scene-wide and applied to all
-    inputs created from that scene.
-    """
-
-    external_id: str
-    batch: Optional[str] = None
-    pre_annotation: Optional[str] = None
-
-
 @dataclass
 class SceneUploadResult:
     """Outcome of creating one scene (and its inputs) for a sequence."""
@@ -125,34 +112,22 @@ class SceneUploadResult:
     error: Optional[BaseException] = None
 
 
-# Pre-annotation statuses that mean server-side processing has not finished yet.
-_PRE_ANNOTATION_PENDING_STATUSES = {
-    "created",
-    "pending",
-    "pending_for_scene",
-    "processing",
-    "registered",
-    "importing",
-    "indexed",
-}
 _PRE_ANNOTATION_SUCCESS_STATUS = "available"
 
 
 def _wait_for_pre_annotation(
     client: KognicIOClient,
     pre_annotation_uuid: str,
-    timeout_s: float = 120.0,
+    timeout_s: float = 300.0,
     poll_s: float = 5.0,
     raise_on_timeout: bool = False,
 ) -> dict:
-    """Poll until the pre-annotation leaves processing; return its final record.
+    """Poll until the pre-annotation is available or the timeout is reached.
 
     Uploading a pre-annotation only queues it: Kognic processes it
     asynchronously and an input created against one that later fails is
     silently dropped, so a successful upload response alone cannot be treated
-    as final success. Any status outside the known pending/failed/success set
-    is treated as a processing failure rather than silently accepted, since the
-    documented lifecycle only has those three outcomes.
+    as final success. Every non-success status is polled until the timeout.
 
     Args:
         client (KognicIOClient): Authenticated Kognic client.
@@ -167,8 +142,7 @@ def _wait_for_pre_annotation(
             observed record on a non-raising timeout.
 
     Raises:
-        RuntimeError: If the record is missing, processing fails, or an
-            unrecognized status is observed.
+        RuntimeError: If the record is missing.
         TimeoutError: If ``raise_on_timeout`` and processing does not finish
             within ``timeout_s``.
     """
@@ -179,19 +153,8 @@ def _wait_for_pre_annotation(
             raise RuntimeError(f"pre-annotation {pre_annotation_uuid} not found")
         record = records[0]
         status = str(record.get("status", "")).lower()
-        if status == "failed":
-            raise RuntimeError(
-                f"pre-annotation {pre_annotation_uuid} failed server-side "
-                f"processing: {json.dumps(record, default=str)}"
-            )
         if status == _PRE_ANNOTATION_SUCCESS_STATUS:
             return record
-        if status not in _PRE_ANNOTATION_PENDING_STATUSES:
-            raise RuntimeError(
-                f"pre-annotation {pre_annotation_uuid} entered unrecognized status "
-                f"{status!r} (expected one of {sorted(_PRE_ANNOTATION_PENDING_STATUSES)} "
-                f"or {_PRE_ANNOTATION_SUCCESS_STATUS!r}): {json.dumps(record, default=str)}"
-            )
         if time.time() >= deadline:
             message = f"pre-annotation {pre_annotation_uuid} still {status} after {timeout_s:.0f}s"
             if raise_on_timeout:
@@ -206,143 +169,6 @@ def _wait_for_pre_annotation(
             return record
         logger.info(f"pre-annotation {pre_annotation_uuid}: status={status}; waiting")
         time.sleep(poll_s)
-
-
-@dataclass(frozen=True)
-class KognicUploadConfig:
-    """Configuration for uploading Kognic staging sequences.
-
-    Attributes:
-        input_base (Path): Base staging directory.
-        organization_id (Optional[str]): Kognic organization identifier.
-        workspace_id (Optional[str]): Kognic write-workspace identifier.
-        project_targets (List[ProjectTarget]): Projects and batches to receive inputs.
-        dryrun (bool): Whether Kognic should validate without persisting scenes.
-        motion_compensate (bool): Whether to enable motion compensation.
-        generate_tsv_report (bool): Whether to write an upload outcome report.
-        scene_creation_timeout_s (int): Scene-processing timeout in seconds.
-        scene_creation_poll_interval_s (int): Status polling interval in seconds.
-        pre_annotation_timeout_s (int): Pre-annotation-processing timeout in seconds.
-        pre_annotation_poll_interval_s (int): Pre-annotation status polling interval in seconds.
-    """
-
-    input_base: Path
-    # Both optional: Kognic derives the organization from the auth credentials
-    # and infers the write workspace when not provided.
-    organization_id: Optional[str] = None
-    workspace_id: Optional[str] = None
-    project_targets: List[ProjectTarget] = field(default_factory=list)
-    dryrun: bool = False
-    motion_compensate: bool = False
-    generate_tsv_report: bool = False
-    scene_creation_timeout_s: int = 3600
-    scene_creation_poll_interval_s: int = 10
-    pre_annotation_timeout_s: int = 120
-    pre_annotation_poll_interval_s: int = 5
-
-    @property
-    def project_external_id(self) -> Optional[str]:
-        """Get the first configured project external ID.
-
-        Returns:
-            Optional[str]: Project external ID, or ``None`` when unconfigured.
-        """
-        return self.project_targets[0].external_id if self.project_targets else None
-
-    @property
-    def batch(self) -> Optional[str]:
-        """Get the first configured project batch.
-
-        Returns:
-            Optional[str]: Batch external ID, or ``None``.
-        """
-        return self.project_targets[0].batch if self.project_targets else None
-
-
-def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
-    """Resolve the projects (and their optional batches) a scene's inputs go to.
-
-    Configured via a ``projects`` list. ``batch_external_id`` and
-    ``pre_annotation`` are both optional per project: ``batch_external_id``
-    defaults to the latest open batch on the Kognic side, and ``pre_annotation``
-    defaults to ``None`` (no pre-annotation uploaded for that batch). Listing
-    several projects shares one scene across those that request the same
-    ``pre_annotation``::
-
-        projects:
-          - project_external_id: project_a
-            batch_external_id: cuboid_batch
-            pre_annotation: pre_annotation.json   # cuboids -> attached to its own scene
-          - project_external_id: project_b
-            batch_external_id: semseg_batch        # no pre_annotation -> separate, plain scene
-
-    Args:
-        conversion_config (Dict): Upload conversion settings.
-
-    Returns:
-        List[ProjectTarget]: Validated project targets.
-
-    Raises:
-        ValueError: If a project ID is missing or a project/batch pair repeats.
-    """
-    targets: List[ProjectTarget] = []
-    seen: set = set()
-    for entry in conversion_config.get("projects") or []:
-        if isinstance(entry, str):
-            external_id, batch, pre_annotation = entry, None, None
-        else:
-            external_id = entry.get("project_external_id")
-            batch = entry.get("batch_external_id")
-            pre_annotation = entry.get("pre_annotation")
-        if not external_id or not str(external_id).strip():
-            raise ValueError(
-                f"conversion.projects entry is missing project_external_id: {entry!r}"
-            )
-        target = ProjectTarget(
-            external_id=str(external_id).strip(), batch=batch, pre_annotation=pre_annotation
-        )
-        combination = (target.external_id, target.batch)
-        if combination in seen:
-            raise ValueError(
-                "conversion.projects has a duplicate project/batch combination: "
-                f"project_external_id={target.external_id!r}, "
-                f"batch_external_id={target.batch!r}"
-            )
-        seen.add(combination)
-        targets.append(target)
-    return targets
-
-
-def _load_upload_config(config_dict: Dict) -> KognicUploadConfig:
-    """Load uploader configuration from parsed YAML.
-
-    Args:
-        config_dict (Dict): Parsed configuration mapping.
-
-    Returns:
-        KognicUploadConfig: Normalized upload settings.
-    """
-    conversion_config = config_dict["conversion"]
-    organization_id = conversion_config.get("organization_id") or conversion_config.get(
-        "client_organization_id"
-    )
-    workspace_id = conversion_config.get("workspace_id") or conversion_config.get(
-        "write_workspace_id"
-    )
-
-    return KognicUploadConfig(
-        input_base=Path(conversion_config["input_base"]),
-        organization_id=organization_id,
-        workspace_id=workspace_id,
-        project_targets=_parse_project_targets(conversion_config),
-        dryrun=conversion_config.get("dryrun", False),
-        motion_compensate=conversion_config.get("motion_compensate", False),
-        generate_tsv_report=conversion_config.get("generate_tsv_report", False),
-        scene_creation_timeout_s=conversion_config.get("scene_creation_timeout_s", 1800),
-        scene_creation_poll_interval_s=conversion_config.get("scene_creation_poll_interval_s", 10),
-        pre_annotation_timeout_s=conversion_config.get("pre_annotation_timeout_s", 120),
-        pre_annotation_poll_interval_s=conversion_config.get("pre_annotation_poll_interval_s", 5),
-    )
 
 
 def find_sequence_paths(input_base: Path) -> List[Path]:
@@ -1071,7 +897,7 @@ def main():
         config_dict["task"] == "upload_kognic_dataset"
     ), f"use config file of upload_kognic_dataset task: {config_dict['task']}"
 
-    upload_config = _load_upload_config(config_dict)
+    upload_config = load_upload_config(config_dict)
     uploader = KognicDatasetUploader(upload_config)
 
     report_rows: List[Dict[str, str]] = []

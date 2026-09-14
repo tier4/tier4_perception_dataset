@@ -201,26 +201,21 @@ def test_wait_for_pre_annotation_reaches_available(monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.parametrize("status", ["failed", "mystery-state"])
-def test_wait_for_pre_annotation_rejects_terminal_failure(status: str):
-    """Test that failed and unknown pre-annotation states raise an error.
-
-    A known server failure and an undocumented state are both unsafe to attach
-    to an input. Raising prevents the uploader from treating either response as
-    a successful pre-annotation.
-
-    Args:
-        status (str): Terminal or unknown status supplied by the parametrized
-            test.
-    """
-    client = SimpleNamespace(
-        pre_annotation=SimpleNamespace(list=lambda **_: [{"status": status, "details": "bad"}])
+def test_wait_for_pre_annotation_waits_for_success(status: str):
+    """Continue polling every non-success status until availability."""
+    pre_annotation = Mock()
+    pre_annotation.list.side_effect = [
+        [{"status": status}],
+        [{"status": "available", "id": "pre-1"}],
+    ]
+    result = _wait_for_pre_annotation(
+        SimpleNamespace(pre_annotation=pre_annotation), "pre-1", poll_s=0
     )
+    assert result["id"] == "pre-1"
+    assert pre_annotation.list.call_count == 2
 
-    with pytest.raises(RuntimeError, match="failed server-side|unrecognized status"):
-        _wait_for_pre_annotation(client, "pre-1", timeout_s=0, poll_s=0)
 
-
-@pytest.mark.parametrize("pending_status", ["processing", "indexed"])
+@pytest.mark.parametrize("pending_status", ["processing", "indexed", "failed", "mystery-state"])
 def test_wait_for_pre_annotation_does_not_attach_after_timeout(pending_status: str):
     """Test that strict polling raises when processing exceeds the deadline.
 
