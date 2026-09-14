@@ -4,6 +4,7 @@ conversion:
   output_base: ./data/kognic_format
   workers_number: 12
   annotation_hz: 1
+  include_imu_data: false
   generate_tsv_report: true  # Write <output_base>/conversion_report.tsv after conversion.
   camera_sensors:
     - channel: CAM_FRONT

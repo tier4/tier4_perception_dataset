@@ -7,9 +7,7 @@ from typing import Dict, List
 import numpy as np
 from t4_devkit.dataclass import LidarPointCloud
 
-from perception_dataset.constants import (
-    LIDAR_CONCAT_CHANNEL,
-)
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -45,7 +43,7 @@ def extract_pointclouds(
     lidar_channels: List[str],
     frame_records: List[Dict[str, dict]],
     channel_to_token: Dict[str, str],
-) -> None:
+) -> Dict[str, List[Path]]:
     """Write per-frame CSV point clouds for all requested lidar channels.
 
     Args:
@@ -59,7 +57,8 @@ def extract_pointclouds(
             tokens.
 
     Returns:
-        None
+        Dict[str, List[Path]]: Destination CSV paths keyed by lidar channel,
+            each ordered like ``frame_records``.
 
     Raises:
         FileNotFoundError: If required point-cloud or concat-info data is
@@ -68,17 +67,19 @@ def extract_pointclouds(
     """
     stats: Dict[str, Dict[str, int]] = {}
     sensor_token_by_channel: Dict[str, str] = {}
+    output_paths_by_channel: Dict[str, List[Path]] = {}
     for lidar_channel in lidar_channels:
         sensor_token = channel_to_token.get(lidar_channel)
         if sensor_token is None:
             logger.warning(f"LiDAR {lidar_channel} not found in {seq_path}; skipping")
             continue
         sensor_token_by_channel[lidar_channel] = sensor_token
+        output_paths_by_channel[lidar_channel] = []
         stats[lidar_channel] = {"count": 0, "blank_count": 0}
         (out_dir / "lidar" / lidar_channel).mkdir(parents=True, exist_ok=True)
 
     if not sensor_token_by_channel:
-        return
+        return {}
 
     for frame_record in frame_records:
         concat_sample_data = frame_record.get(LIDAR_CONCAT_CHANNEL)
@@ -88,7 +89,6 @@ def extract_pointclouds(
         bin_path = seq_path / concat_sample_data.filename
         if not bin_path.exists():
             raise FileNotFoundError(f"Required LIDAR_CONCAT point cloud is missing: {bin_path}")
-
         info_filename = concat_sample_data.info_filename
         has_per_sensor_channel = any(
             lidar_channel != LIDAR_CONCAT_CHANNEL for lidar_channel in sensor_token_by_channel
@@ -115,13 +115,13 @@ def extract_pointclouds(
             if info_path is not None and pointcloud.metainfo
             else {}
         )
-
         concat_timestamp_ns = int(concat_sample_data.timestamp) * 1000
         for lidar_channel, sensor_token in sensor_token_by_channel.items():
             lidar_dir = out_dir / "lidar" / lidar_channel
             if lidar_channel == LIDAR_CONCAT_CHANNEL:
                 csv_path = lidar_dir / f"{concat_timestamp_ns}.csv"
                 save_pointcloud_csv(csv_path, concat_timestamp_ns, pointcloud.points.T)
+                output_paths_by_channel[lidar_channel].append(csv_path)
                 stats[lidar_channel]["count"] += 1
                 continue
 
@@ -139,12 +139,15 @@ def extract_pointclouds(
             if source_pointcloud is None or source_pointcloud.num_points() == 0:
                 # The sensor contributed no points to this concat sweep (dropped
                 # out, or started after the recording began). Still write a
-                # header-only CSV: ensures the uploader still recognizes this frame even though it has no points.
+                # header-only CSV so the frame retains a resource for this
+                # sensor.
                 save_pointcloud_csv(csv_path, timestamp_ns, np.empty((0, 4), dtype=np.float32))
+                output_paths_by_channel[lidar_channel].append(csv_path)
                 stats[lidar_channel]["blank_count"] += 1
                 continue
 
             save_pointcloud_csv(csv_path, timestamp_ns, source_pointcloud.points.T)
+            output_paths_by_channel[lidar_channel].append(csv_path)
             stats[lidar_channel]["count"] += 1
 
     for lidar_channel, channel_stats in stats.items():
@@ -152,6 +155,7 @@ def extract_pointclouds(
             f"{lidar_channel}: {channel_stats['count']} point clouds extracted, "
             f"{channel_stats['blank_count']} blank frames written"
         )
+    return output_paths_by_channel
 
 
 def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -> None:

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -138,8 +139,7 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
     source.touch()
     output = tmp_path / "output"
     records = [
-        SimpleNamespace(timestamp=123, filename="data/CAM_FRONT/image.jpg")
-        for _ in range(3)
+        SimpleNamespace(timestamp=123, filename="data/CAM_FRONT/image.jpg") for _ in range(3)
     ]
     converter = T4ToKognicConverter(
         input_base=str(tmp_path / "input"),
@@ -152,6 +152,23 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
 
     with pytest.raises(ValueError, match="CAM_FRONT.*duplicate timestamp 123000 ns"):
         converter._collect_image_copies(tmp_path / "input", output, "CAM_FRONT")
+
+
+def test_annotated_keyframes_follow_samples_with_annotations(tmp_path: Path):
+    """Test that annotated conversion selects only samples containing objects."""
+    converter = object.__new__(T4ToKognicConverter)
+    converter._annotated = True
+    converter._anchor_channel = "LIDAR_TOP"
+    converter._annotated_sample_tokens = {"annotated-sample"}
+    converter._frame_records = [
+        {"LIDAR_TOP": SimpleNamespace(sample_token="annotated-sample")},
+        {"LIDAR_TOP": SimpleNamespace(sample_token="empty-sample")},
+    ]
+
+    converter._write_keyframes(tmp_path)
+    payload = json.loads((tmp_path / "keyframes.json").read_text())
+
+    assert payload["keyframe_indices"] == [0]
 
 
 def test_save_pointcloud_csv_writes_timestamp_and_first_four_features(tmp_path: Path):
