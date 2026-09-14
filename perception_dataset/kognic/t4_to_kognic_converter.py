@@ -289,10 +289,6 @@ class T4ToKognicConverter(AbstractConverter[None]):
         (out_dir / SEQUENCE_ARTIFACT_FILENAME).unlink(missing_ok=True)
 
         self._build_lookup_maps(seq_path)
-        self._has_lidar_concat_info = any(
-            sample_data.info_filename
-            for sample_data in self._sample_data_by_channel.get(LIDAR_CONCAT_CHANNEL, [])
-        )
         self._lidar_channels = self._discover_lidar_channels()
         self._frame_records = self._build_frame_records()
         self._record_missing_sensor_frames(seq_path)
@@ -341,17 +337,15 @@ class T4ToKognicConverter(AbstractConverter[None]):
         with ThreadPoolExecutor(max_workers=self._workers_number) as executor:
             list(executor.map(lambda args: copy_file(*args), pending_copies))
 
-        for lidar_channel in self._lidar_channels:
-            output_paths = extract_pointclouds(
+        sensor_files.update(
+            extract_pointclouds(
                 seq_path=seq_path,
                 out_dir=out_dir,
-                lidar_channel=lidar_channel,
+                lidar_channels=self._lidar_channels,
                 frame_records=self._frame_records,
                 channel_to_token=self._channel_to_token,
             )
-            if output_paths:
-                sensor_files[lidar_channel] = output_paths
-
+        )
         frame_timestamps_ns = [
             self._frame_timestamp_ns(frame_record) for frame_record in self._frame_records
         ]
@@ -591,6 +585,10 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 key=lambda sample_data_record: sample_data_record.timestamp,
             )
 
+        self._has_lidar_concat_info = any(
+            sample_data.info_filename
+            for sample_data in self._sample_data_by_channel.get(LIDAR_CONCAT_CHANNEL, [])
+        )
         self._ego_pose_by_token = {ep.token: ep for ep in t4.get_table("ego_pose")}
 
     def _discover_lidar_channels(self) -> List[str]:

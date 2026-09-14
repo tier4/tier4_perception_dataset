@@ -199,10 +199,6 @@ def constant(f):
 
 LIDAR_CONCAT_CHANNEL: str = SENSOR_ENUM.LIDAR_CONCAT.value["channel"]
 
-# Binary layout of LIDAR_CONCAT .bin files: x, y, z, intensity, ring_idx (float32 each).
-LIDAR_CONCAT_NUM_POINT_FEATURES: int = 5
-LIDAR_CONCAT_BYTES_PER_POINT: int = LIDAR_CONCAT_NUM_POINT_FEATURES * 4
-
 # ---------------------------------------------------------------------------
 # Kognic upload defaults
 # ---------------------------------------------------------------------------

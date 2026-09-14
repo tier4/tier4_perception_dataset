@@ -175,8 +175,8 @@ def test_upload_main_skips_scene_with_missing_resource(
         main()
 
 
-def test_wait_for_pre_annotation_reaches_indexed(monkeypatch: pytest.MonkeyPatch):
-    """Test that polling continues from processing to the indexed state.
+def test_wait_for_pre_annotation_reaches_available(monkeypatch: pytest.MonkeyPatch):
+    """Test that polling continues from processing to the available state.
 
     Upload creation only queues server-side processing. The helper must wait
     through the temporary ``processing`` response and return only after Kognic
@@ -189,7 +189,7 @@ def test_wait_for_pre_annotation_reaches_indexed(monkeypatch: pytest.MonkeyPatch
     pre_annotation = Mock()
     pre_annotation.list.side_effect = [
         [{"status": "processing"}],
-        [{"status": "Indexed", "id": "pre-1"}],
+        [{"status": "Available", "id": "pre-1"}],
     ]
     monkeypatch.setattr("perception_dataset.kognic.upload_dataset.time.sleep", lambda _: None)
 
@@ -197,7 +197,7 @@ def test_wait_for_pre_annotation_reaches_indexed(monkeypatch: pytest.MonkeyPatch
         SimpleNamespace(pre_annotation=pre_annotation), "pre-1", timeout_s=10, poll_s=0
     )
 
-    assert result["status"] == "Indexed"
+    assert result["status"] == "Available"
 
 
 @pytest.mark.parametrize("status", ["failed", "mystery-state"])
@@ -220,22 +220,24 @@ def test_wait_for_pre_annotation_rejects_terminal_failure(status: str):
         _wait_for_pre_annotation(client, "pre-1", timeout_s=0, poll_s=0)
 
 
-def test_wait_for_pre_annotation_does_not_attach_after_timeout():
+@pytest.mark.parametrize("pending_status", ["processing", "indexed"])
+def test_wait_for_pre_annotation_does_not_attach_after_timeout(pending_status: str):
     """Test that strict polling raises when processing exceeds the deadline.
 
-    Kognic continues to report ``processing`` after an immediate timeout. The
-    uploader must raise instead of attaching an unfinished pre-annotation,
-    which Kognic could later reject without creating the expected input.
+    Kognic continues to report a known non-ready status after an immediate
+    timeout. The uploader must raise instead of attaching an unfinished
+    pre-annotation, which Kognic could later reject without creating the
+    expected input.
     """
     client = SimpleNamespace(
-        pre_annotation=SimpleNamespace(list=lambda **_: [{"status": "processing"}])
+        pre_annotation=SimpleNamespace(list=lambda **_: [{"status": pending_status}])
     )
 
     with pytest.raises(TimeoutError, match="not attaching it to an input"):
         _wait_for_pre_annotation(client, "pre-1", timeout_s=0, poll_s=0, raise_on_timeout=True)
 
 
-def test_upload_pre_annotations_waits_for_index_before_returning(tmp_path: Path):
+def test_upload_pre_annotations_waits_for_availability_before_returning(tmp_path: Path):
     """Test that uploading checks the server status before returning an ID.
 
     The create call returns ``pre-1``, but that response alone does not mean the
@@ -248,7 +250,7 @@ def test_upload_pre_annotations_waits_for_index_before_returning(tmp_path: Path)
     calls = []
     pre_annotation_api = SimpleNamespace(
         create=lambda **_: SimpleNamespace(id="pre-1"),
-        list=lambda **_: calls.append("status") or [{"status": "indexed"}],
+        list=lambda **_: calls.append("status") or [{"status": "available"}],
     )
     uploader = KognicDatasetUploader(
         KognicUploadConfig(

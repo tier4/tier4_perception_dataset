@@ -125,9 +125,7 @@ class SceneUploadResult:
     error: Optional[BaseException] = None
 
 
-# Pre-annotation statuses that mean server-side processing has not finished
-# yet. Lifecycle: created -> processing -> indexed | failed ("Pre-annotations
-# can only be deleted from status=Indexed" pins indexed as the success state).
+# Pre-annotation statuses that mean server-side processing has not finished yet.
 _PRE_ANNOTATION_PENDING_STATUSES = {
     "created",
     "pending",
@@ -135,8 +133,9 @@ _PRE_ANNOTATION_PENDING_STATUSES = {
     "processing",
     "registered",
     "importing",
+    "indexed",
 }
-_PRE_ANNOTATION_SUCCESS_STATUS = "indexed"
+_PRE_ANNOTATION_SUCCESS_STATUS = "available"
 
 
 def _wait_for_pre_annotation(
@@ -164,7 +163,7 @@ def _wait_for_pre_annotation(
             raises instead of returning the last observed (pending) record.
 
     Returns:
-        dict: Final pre-annotation record (status ``indexed``), or the last
+        dict: Final pre-annotation record (status ``available``), or the last
             observed record on a non-raising timeout.
 
     Raises:
@@ -629,8 +628,8 @@ class KognicDatasetUploader:
 
         An input created against a pre-annotation that later fails or is still
         processing is silently dropped by Kognic, so each upload is confirmed
-        ``indexed`` here, before any input references it, rather than trusting
-        the create response alone.
+        ready here, before any input references it, rather than trusting the
+        create response alone.
 
         Args:
             scene_uuid (SceneUUID): Target scene UUID.
