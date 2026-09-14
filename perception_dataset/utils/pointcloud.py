@@ -184,13 +184,14 @@ def save_pointcloud_csv(csv_path: Path, timestamp_ns: int, points: np.ndarray) -
             f"first bad point at index {int(bad_indices[0])}: "
             f"{points[bad_indices[0], 0:4].tolist()}"
         )
-
-    with open(csv_path, "w") as f:
-        f.write("ts_gps,x,y,z,intensity\n")
-        for x, y, z, intensity, *_ in points:
-            f.write(
-                f"{timestamp_ns},{float(x):.6f},{float(y):.6f},{float(z):.6f},{float(intensity):.6f}\n"
-            )
+    # MEMO: The CSV format currently does not include point-level timestamps.
+    np.savetxt(
+        csv_path,
+        points[:, :4],
+        fmt=f"{timestamp_ns},%.6f,%.6f,%.6f,%.6f",
+        header="ts_gps,x,y,z,intensity",
+        comments="",
+    )
 
 
 def copy_file(src: Path, dst: Path) -> None:

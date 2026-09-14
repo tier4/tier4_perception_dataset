@@ -381,6 +381,8 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             frame_idx = int(np.argmin(np.abs(anchor - ts_ns)))
             diff_ms = abs(int(anchor[frame_idx]) - ts_ns) / 1e6
             if diff_ms <= self._frame_match_tolerance_ms:
+                # MEMO: If frame mapping stops being one-to-one, detect duplicate
+                # assignments and include them in the skipped-frame tally.
                 mapping[idx] = frame_idx
         return mapping
 

@@ -525,6 +525,10 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
                 attribute_tokens = self._collect_attribute_tokens(tables, object_data)
                 visibility_token = self._visibility_token(tables, object_data)
+                if len(cuboids) > 1:
+                    logger.warning(
+                        f"Frame {frame_key}, object {object_uuid}: multiple cuboids found; using the first one"
+                    )
                 translation, size, rotation = self._cuboid_to_t4_box(cuboids[0]["val"], ego_pose)
 
                 annotation_token = tables["sample_annotation"].insert_into_table(
@@ -1680,8 +1684,6 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
     # and unbounded, while ``unique_labels`` is bounded by the point count.
     output = np.zeros(labels.shape, dtype=np.uint8)
     for raw_value in unique_labels:
-        if raw_value == 0:
-            continue
         index = value_map.get(int(raw_value))
         if index is not None:
             output[labels == raw_value] = index
