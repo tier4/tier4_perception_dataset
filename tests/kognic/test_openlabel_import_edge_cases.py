@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -226,11 +227,32 @@ def test_segmentation_categories_reconcile_existing_bbox_indices():
 
     by_name = {record.name: record.index for record in categories.to_records()}
     assert mapping == {1: 1, 2: 2}
-    assert by_name["background"] == 0
+    assert by_name["unpainted"] == 0
     assert by_name["car"] == 1
     assert by_name["road"] == 2
     assert by_name["truck"] > 2
     assert len(set(by_name.values())) == len(by_name)
+
+
+def test_segmentation_ontology_zero_is_relocated_with_warning(monkeypatch):
+    """Keep T4 index zero unpainted while preserving a Kognic class ID zero."""
+    categories = TableHandler(Category)
+    warning = Mock()
+    monkeypatch.setattr(
+        "perception_dataset.kognic.openlabel_to_t4_converter.logger.warning", warning
+    )
+
+    mapping = OpenLabelToT4Converter._assign_segmentation_categories(
+        categories, {0: "road", 1: "car"}
+    )
+
+    by_name = {record.name: record.index for record in categories.to_records()}
+    assert mapping == {0: 2, 1: 1}
+    assert by_name["unpainted"] == 0
+    assert by_name["car"] == 1
+    assert by_name["road"] == 2
+    warning.assert_called_once()
+    assert "ontology contains class ID 0" in warning.call_args.args[0]
 
 
 def test_single_tagged_lidar_stream_is_written_into_its_source_slice(tmp_path: Path):

@@ -20,9 +20,9 @@ Point-cloud segmentation (``3DPointCloudSegmentation`` / ``semseg``)
     of per-point ``uint8`` class indices per frame (one label per point in the
     matching ``LIDAR_CONCAT`` ``.pcd.bin``, in order), and adds the ontology
     classes to ``category.json`` keyed by their ontology id (index ``0`` =
-    ``background``). Labels are decoded from Kognic run-length encoding
+    ``unpainted``). Labels are decoded from Kognic run-length encoding
     (``#<count>V<class_id>``); a trailing run of unlabelled points omitted by the
-    RLE is restored as ``background`` (0) and appended at the end.
+    RLE is restored as ``unpainted`` (0) and appended at the end.
 
 OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp.
 Uploads that split ``LIDAR_CONCAT`` into per-sensor streams name their files
@@ -87,11 +87,11 @@ import perception_dataset.utils.misc as misc_utils
 logger = configure_logger(modname=__name__)
 
 # Points the annotator left unlabelled, plus any point a decoded RLE omits or
-# fails to map, are written as this class. Segmentation owns the low indices so
-# this stays 0 no matter which annotation is imported first.
-BACKGROUND_CATEGORY_NAME = "background"
-BACKGROUND_CATEGORY_INDEX = 0
-BACKGROUND_CATEGORY_DESCRIPTION = "unlabelled / background points"
+# fails to map, are written as this class. T4 reserves index 0 for unpainted
+# points, so this stays 0 no matter which annotation is imported first.
+UNPAINTED_CATEGORY_NAME = "unpainted"
+UNPAINTED_CATEGORY_INDEX = 0
+UNPAINTED_CATEGORY_DESCRIPTION = "unpainted points"
 
 
 class OpenLabelToT4Converter(AbstractConverter[None]):
@@ -930,7 +930,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         """Reserve the low category indices for segmentation and return the mapping.
 
         Lidarseg ``.bin`` files store a category ``index`` per point, so those
-        indices must be stable and unique. ``background`` therefore always owns
+        indices must be stable and unique. ``unpainted`` therefore always owns
         index 0 and each ontology class keeps its ontology id as its index,
         which holds whether this scene already carries bbox categories or is
         annotated segmentation-first. Categories outside this ontology (bbox
@@ -948,18 +948,24 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Raises:
             ValueError: If an assigned index does not fit in a uint8 label.
         """
-        # An ontology id of 0 would collide with background, so park it above
-        # the ontology instead of shifting every other class.
+        # Ontology ID 0 is a valid Kognic class, but T4 reserves output index 0
+        # for unpainted points, so park that class above the ontology instead
+        # of shifting every other class.
         ceiling = max(ontology)
         index_by_class_id: Dict[int, int] = {}
         for class_id in sorted(ontology):
-            if class_id == BACKGROUND_CATEGORY_INDEX:
+            if class_id == UNPAINTED_CATEGORY_INDEX:
+                logger.warning(
+                    f"Segmentation ontology contains class ID 0 ({ontology[class_id]!r}); "
+                    f"T4 reserves output index 0 for unpainted points, so this class is "
+                    f"mapped to index {ceiling + 1}"
+                )
                 ceiling += 1
                 index_by_class_id[class_id] = ceiling
             else:
                 index_by_class_id[class_id] = class_id
 
-        reserved: Dict[int, str] = {BACKGROUND_CATEGORY_INDEX: BACKGROUND_CATEGORY_NAME}
+        reserved: Dict[int, str] = {UNPAINTED_CATEGORY_INDEX: UNPAINTED_CATEGORY_NAME}
         for class_id, index in index_by_class_id.items():
             reserved[index] = ontology[class_id]
 
@@ -987,7 +993,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         for index, name in sorted(reserved.items()):
             token = category_table.get_token_from_field("name", name)
             description = (
-                BACKGROUND_CATEGORY_DESCRIPTION if name == BACKGROUND_CATEGORY_NAME else ""
+                UNPAINTED_CATEGORY_DESCRIPTION if name == UNPAINTED_CATEGORY_NAME else ""
             )
             if token is None:
                 category_table.insert_into_table(name=name, description=description, index=index)
@@ -1197,11 +1203,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         labels = _remap_labels(decoded, value_map, frame_key)
         if labels.shape[0] < num_points:
             # Kognic RLE encodes labels sequentially from point 0 and omits a
-            # trailing run of unlabelled points; restore them as background (0).
+            # trailing run of unlabelled points; restore them as unpainted (0).
             pad = num_points - labels.shape[0]
             logger.warning(
                 f"Frame {frame_key}: RLE covers {labels.shape[0]}/{num_points} points; "
-                f"padding {pad} trailing point(s) as background (class 0)."
+                f"padding {pad} trailing point(s) as unpainted (class 0)."
             )
             labels = np.concatenate([labels, np.zeros(pad, dtype=np.uint8)])
         return labels
@@ -1257,7 +1263,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             if rle is None:
                 logger.warning(
                     f"Frame {frame_key}: no RLE labels for stream {channel}; leaving "
-                    f"its {length} point(s) as background"
+                    f"its {length} point(s) as unpainted"
                 )
                 continue
             if idx_begin + length > num_points:
@@ -1283,7 +1289,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 logger.warning(
                     f"Frame {frame_key}: stream {channel} RLE covers "
                     f"{stream_labels.shape[0]}/{length} points; padding {pad} trailing "
-                    f"point(s) as background (class 0)."
+                    f"point(s) as unpainted (class 0)."
                 )
                 stream_labels = np.concatenate([stream_labels, np.zeros(pad, dtype=np.uint8)])
             labels[idx_begin : idx_begin + length] = stream_labels
@@ -1654,7 +1660,7 @@ def _segmentation_value_map(
         if ontology_id is None:
             logger.warning(
                 f"Object {obj.get('name')} has type '{obj.get('type')}' not present in the "
-                f"segmentation ontology; its points will be mapped to background"
+                f"segmentation ontology; its points will be mapped to unpainted"
             )
             continue
         value_map[int(class_id)] = index_by_class_id[ontology_id]
@@ -1677,7 +1683,7 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
     if unmapped:
         logger.warning(
             f"Frame {frame_key}: {len(unmapped)} RLE label value(s) have no ontology/object "
-            f"mapping (e.g. {unmapped[:5]}); mapping them to background (0)"
+                f"mapping (e.g. {unmapped[:5]}); mapping them to unpainted (0)"
         )
     # Remap by the labels actually present rather than a lookup table sized to
     # the largest raw value: a raw class ID is attacker/corruption controlled
