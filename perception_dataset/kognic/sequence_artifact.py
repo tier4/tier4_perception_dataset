@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Generator
 
 import kognic.io.model as KognicModel
+from kognic.io.model.scene.resources.resource import MissingFileError
 
 SEQUENCE_ARTIFACT_FILENAME = "lidars_and_cameras_sequence.json"
 PENDING_CALIBRATION_ID = "pending-calibration-upload"
@@ -101,4 +102,9 @@ def load_sequence_artifact(sequence_path: Path) -> KognicModel.LidarsAndCamerasS
         resource_path = Path(resource["filename"])
         if not resource_path.is_absolute():
             resource["filename"] = str((sequence_path / resource_path).resolve())
-    return KognicModel.LidarsAndCamerasSequence.model_validate(payload)
+    try:
+        return KognicModel.LidarsAndCamerasSequence.model_validate(payload)
+    except MissingFileError as exc:
+        raise FileNotFoundError(
+            f"Referenced resource is missing while loading {sequence_path / SEQUENCE_ARTIFACT_FILENAME}"
+        ) from exc
