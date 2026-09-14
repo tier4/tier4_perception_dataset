@@ -105,7 +105,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         input_bag_base: Optional[str] = None,
         topic_list: Union[Dict[str, List[str]], List[str], None] = None,
         overwrite_mode: bool = False,
-        iso_rotated_cuboids: bool = False,
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = True,
     ):
@@ -119,7 +118,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             topic_list (Union[Dict[str, List[str]], List[str], None]): Rosbag
                 topics to preserve.
             overwrite_mode (bool): Whether existing output scenes may be replaced.
-            iso_rotated_cuboids (bool): Whether cuboids use the T4 forward axis.
             category_map (Optional[Dict[str, str]]): Kognic-to-T4 category map.
             include_attributes (bool): Whether to import object attributes.
         """
@@ -128,7 +126,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         self._input_bag_base: Optional[str] = input_bag_base
         self._topic_list: Union[Dict[str, List[str]], List[str]] = topic_list or []
         self._overwrite_mode = overwrite_mode
-        self._iso_rotated_cuboids = iso_rotated_cuboids
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
         self._t4_table_cache: Dict[Tuple[Path, str], list] = {}
@@ -728,7 +725,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             Tuple[List[float], List[float], List[float]]: Translation, size,
                 and quaternion in T4 conventions.
         """
-        return cuboid_val_to_t4_box(val, ego_pose, self._iso_rotated_cuboids)
+        return cuboid_val_to_t4_box(val, ego_pose)
 
     # ------------------------------------------------------------------
     # Table building

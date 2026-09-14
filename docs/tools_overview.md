@@ -194,7 +194,6 @@ Config parameters (`conversion`):
 | `batch`               | no                                                | restrict download to one batch (omit for all batches); applies to project-wide and to a single-scene download when `annotation_type` is set         |
 | `scene_external_id`   | no                                                | download a single scene by external id instead of the whole project                                                                                 |
 | `scene_id`            | no                                                | download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`                      |
-| `iso_rotated_cuboids` | no                                                | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame                                                                        |
 
 ### Kognic annotations to T4 annotation tables
 

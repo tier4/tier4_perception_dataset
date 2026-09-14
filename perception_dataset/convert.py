@@ -139,7 +139,6 @@ def main():
             input_bag_base=input_bag_base,
             topic_list=topic_list_yaml,
             overwrite_mode=args.overwrite,
-            iso_rotated_cuboids=config_dict["conversion"].get("iso_rotated_cuboids", False),
             category_map=config_dict["conversion"].get("category_map"),
             include_attributes=config_dict["conversion"].get("include_attributes", True),
         )

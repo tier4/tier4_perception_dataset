@@ -17,6 +17,7 @@ from scipy.spatial.transform import Rotation
 
 # Kognic cuboids face +y at yaw 0 while T4/nuScenes boxes face +x.
 ROTATION_T4_TO_KOGNIC = Rotation.from_euler("z", -90, degrees=True)
+KOGNIC_ISO_ROTATED_CUBOIDS = False
 
 
 def quat_wxyz_to_xyzw(quat: list) -> List[float]:
@@ -67,22 +68,19 @@ def t4_box_to_cuboid_val(annotation: dict, ego_pose: dict) -> List[float]:
 
 
 def cuboid_val_to_t4_box(
-    val: List[float], ego_pose: dict, iso_rotated_cuboids: bool = False
+    val: List[float], ego_pose: dict
 ) -> Tuple[List[float], List[float], List[float]]:
     """Undo :func:`t4_box_to_cuboid_val`.
 
     ``val`` is ``[x, y, z, qx, qy, qz, qw, sx, sy, sz]`` in the per-frame
     ego/base_link frame. Returns ``(translation, size, rotation)`` in the T4
     global frame, with rotation as a wxyz quaternion and size as
-    ``[width, length, height]``. When *iso_rotated_cuboids* is true the cuboids
-    already face +x (T4 convention) so the yaw correction is skipped.
+    ``[width, length, height]``. The fixed Kognic internal-frame convention is
+    converted back to the T4 forward axis.
 
     Args:
         val (List[float]): Kognic cuboid values in the ego frame.
         ego_pose (dict): T4 ego-pose record for the frame.
-        iso_rotated_cuboids (bool): Whether cuboids already use the T4 forward
-            axis convention.
-
     Returns:
         Tuple[List[float], List[float], List[float]]: Global translation, box
             size, and quaternion in ``[w, x, y, z]`` order.
@@ -95,7 +93,7 @@ def cuboid_val_to_t4_box(
     )
 
     rotation_cuboid = Rotation.from_quat([val[3], val[4], val[5], val[6]])
-    if iso_rotated_cuboids:
+    if KOGNIC_ISO_ROTATED_CUBOIDS:
         rotation_box = rotation_ego * rotation_cuboid
     else:
         rotation_box = rotation_ego * rotation_cuboid * ROTATION_T4_TO_KOGNIC.inv()

@@ -597,7 +597,6 @@ conversion:
   # scene_id: <scene_uuid>            # the scene UUID directly (skips lookup)
   # For a single scene, annotation_type is optional: omit it to download all
   # types, or keep it above to download only that type for the scene.
-  iso_rotated_cuboids: false
 ```
 
 | key                   | required                                          | description                                                                                                                                                                   |
@@ -610,7 +609,6 @@ conversion:
 | `batch`               | no                                                | Restrict the download to one batch (omit for all batches). Applies to project-wide downloads and to single-scene downloads when `annotation_type` is set.                     |
 | `scene_external_id`   | no                                                | Download a single scene by external id instead of the whole project.                                                                                                          |
 | `scene_id`            | no                                                | Download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`.                                               |
-| `iso_rotated_cuboids` | no                                                | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame. **Must match the value used in [Stage 5](#stage-5--kognic-annotations--t4-annotation-tables).** |
 
 ---
 
@@ -637,7 +635,7 @@ OpenLABEL frames are matched to T4 samples by the **LiDAR stream's URI timestamp
 
 ### 3D Cuboids (Object Detection)
 
-This is the inverse of [Stage 2](#stage-2--t4-annotations--openlabel-pre-annotation): cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes (undoing the `Rz(-90°)` yaw convention). `iso_rotated_cuboids` **must match** the value used at download time. It populates the otherwise-empty tables:
+This is the inverse of [Stage 2](#stage-2--t4-annotations--openlabel-pre-annotation): cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes (undoing the `Rz(-90°)` yaw convention). The converter uses the fixed Kognic internal cuboid convention for both download and import. It populates the otherwise-empty tables:
 
 ```text
 instance.json  category.json  attribute.json  visibility.json  sample_annotation.json
@@ -653,9 +651,9 @@ When the OpenLABEL carries per-point segmentation (object type `3DPointCloudSegm
 
 - `lidarseg.json` — one record per matched frame, linking a LiDAR `sample_data` token to its label file.
 - `lidarseg/<version>/<token>.bin` — a `uint8` array of per-point class indices, one label per point in the corresponding `LIDAR_CONCAT` `.pcd.bin`, in the same order. Stale `.bin` files are cleared on each run.
-- `category.json` — the OpenLABEL ontology classes, each with its ontology id as the T4 `index` (the value stored in the `.bin`). Index `0` is reserved for `background` (unlabelled points).
+- `category.json` — the OpenLABEL ontology classes, each with its ontology id as the T4 `index` (the value stored in the `.bin`). Index `0` is reserved for `unpainted` (unlabelled points).
 
-Labels are decoded from Kognic's run-length encoding (`#<count>V<class_id>` repeated). Kognic encodes labels sequentially from point 0 and omits a trailing run of unlabelled points, so when the RLE is shorter than the cloud the missing trailing points are treated as `background` (class `0`) and appended — logged as a warning per frame. A frame is skipped only when it has **more** labels than points (a genuine annotation/point-cloud mismatch) or when its LiDAR point cloud cannot be read.
+Labels are decoded from Kognic's run-length encoding (`#<count>V<class_id>` repeated). Kognic encodes labels sequentially from point 0 and omits a trailing run of unlabelled points, so when the RLE is shorter than the cloud the missing trailing points are treated as `unpainted` (class `0`) and appended — logged as a warning per frame. A frame is skipped only when it has **more** labels than points (a genuine annotation/point-cloud mismatch) or when its LiDAR point cloud cannot be read.
 
 ### Stage 5 Config Parameters
 
@@ -664,7 +662,6 @@ task: convert_kognic_annotation_to_t4
 conversion:
   output_base: ./data/non_annotated_t4_format
   annotation_base: ./data/kognic_annotations/test_upload_data
-  iso_rotated_cuboids: false
   # category_map: {}
   include_attributes: true
 ```
@@ -673,7 +670,6 @@ conversion:
 | --------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `output_base`         | Yes      | —       | T4 dataset to annotate; its annotation tables are populated in place. May be a single scene dir or a parent dir of scene dirs.            |
 | `annotation_base`     | Yes      | —       | Directory holding the downloaded OpenLABEL JSON(s) from Stage 4. Files are matched to scenes by filename stem and OpenLABEL metadata.     |
-| `iso_rotated_cuboids` | No       | `false` | **Must match** the flag used at download time: `true` → ISO8855 frame; `false` → Kognic internal frame.                                   |
 | `category_map`        | No       | `{}`    | Optional rename of Kognic object types to T4 category names, e.g. `{car: vehicle.car}`. Unmapped types pass through unchanged.            |
 | `include_attributes`  | No       | `true`  | Import class properties (`vehicle_state`, `occlusion_state`, ...) as T4 attributes. `occlusion_state` also drives the `visibility` level. |
 

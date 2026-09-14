@@ -16,6 +16,7 @@ from perception_dataset.kognic.utils.client import (
     get_kognic_credentials,
 )
 from perception_dataset.kognic.utils.scene import resolve_scene_external_ids_to_uuids
+from perception_dataset.kognic.openlabel.openlabel_geometry import KOGNIC_ISO_ROTATED_CUBOIDS
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -34,7 +35,6 @@ class KognicDownloadConfig:
         batch (Optional[str]): Project batch filter.
         scene_external_id (Optional[str]): External ID of one scene to fetch.
         scene_uuid (Optional[str]): UUID of one scene to fetch.
-        iso_rotated_cuboids (bool): Whether to request ISO-rotated cuboids.
     """
     output_base: Path
     organization_id: str
@@ -44,7 +44,6 @@ class KognicDownloadConfig:
     batch: Optional[str] = None
     scene_external_id: Optional[str] = None
     scene_uuid: Optional[str] = None
-    iso_rotated_cuboids: bool = False
 
 
 def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
@@ -90,7 +89,6 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
         batch=conversion.get("batch"),
         scene_external_id=scene_external_id,
         scene_uuid=scene_uuid,
-        iso_rotated_cuboids=conversion.get("iso_rotated_cuboids", False),
     )
 
 
@@ -189,14 +187,14 @@ class KognicAnnotationDownloader:
                     annotation_type=self.config.annotation_type,
                     batch=self.config.batch,
                     include_content=True,
-                    iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+                    iso_rotated_cuboids=KOGNIC_ISO_ROTATED_CUBOIDS,
                 )
                 if annotation.scene_uuid == scene_uuid
             ]
         else:
             annotations = self.kognic_io_client.annotation.get_annotations_for_scene(
                 scene_uuid=scene_uuid,
-                iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+                iso_rotated_cuboids=KOGNIC_ISO_ROTATED_CUBOIDS,
             )
 
         if not annotations:
@@ -268,7 +266,7 @@ class KognicAnnotationDownloader:
                 annotation_type=self.config.annotation_type,
                 batch=self.config.batch,
                 include_content=True,
-                iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+                iso_rotated_cuboids=KOGNIC_ISO_ROTATED_CUBOIDS,
             )
         )
 
