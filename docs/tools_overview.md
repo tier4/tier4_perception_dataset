@@ -187,8 +187,7 @@ python -m perception_dataset.kognic.delete_scenes \
   [--apply]
 ```
 
-The cleanup command no longer reads `upload_report.tsv` and never discovers
-candidate scenes implicitly. External IDs are resolved through their inputs,
+External IDs are resolved through their inputs,
 so orphaned scenes must be supplied by UUID. Without `--delete-input`, only
 scenes with no inputs are invalidated; with it, inputs are deleted first and a
 scene is not invalidated if any input deletion fails. Both commands report
