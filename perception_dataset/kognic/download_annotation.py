@@ -11,10 +11,7 @@ from typing import Dict, Optional
 from kognic.io.client import KognicIOClient
 import yaml
 
-from perception_dataset.kognic.utils.client import (
-    create_kognic_client,
-    get_kognic_credentials,
-)
+from perception_dataset.kognic.utils.client import get_kognic_credentials
 from perception_dataset.kognic.utils.scene import resolve_scene_external_ids_to_uuids
 from perception_dataset.kognic.openlabel.openlabel_geometry import KOGNIC_ISO_ROTATED_CUBOIDS
 from perception_dataset.utils.logger import configure_logger
@@ -112,9 +109,9 @@ class KognicAnnotationDownloader:
             KognicIOClient: Client configured for the requested workspace.
         """
         if self._kognic_io_client is None:
-            self._kognic_io_client = create_kognic_client(
-                self.config.organization_id,
-                self.config.workspace_id,
+            self._kognic_io_client = KognicIOClient(
+                client_organization_id=self.config.organization_id,
+                write_workspace_id=self.config.workspace_id,
             )
         return self._kognic_io_client
 
