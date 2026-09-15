@@ -57,24 +57,6 @@ class KognicUploadConfig:
     pre_annotation_timeout_s: int = 300
     pre_annotation_poll_interval_s: int = 5
 
-    @property
-    def project_external_id(self) -> Optional[str]:
-        """Get the first configured project external ID.
-
-        Returns:
-            Optional[str]: Project external ID, or ``None`` when unconfigured.
-        """
-        return self.project_targets[0].external_id if self.project_targets else None
-
-    @property
-    def batch(self) -> Optional[str]:
-        """Get the first configured project batch.
-
-        Returns:
-            Optional[str]: Batch external ID, or ``None``.
-        """
-        return self.project_targets[0].batch if self.project_targets else None
-
 
 def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
     """Resolve the projects (and their optional batches) a scene's inputs go to.
