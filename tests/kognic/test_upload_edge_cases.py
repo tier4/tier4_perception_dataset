@@ -119,11 +119,16 @@ def test_upload_only_loads_sequence_built_during_conversion(tmp_path: Path):
 
     uploader = KognicDatasetUploader(KognicUploadConfig(input_base=tmp_path))
     uploader._get_or_upload_calibration = Mock(return_value="calibration-id")
-    uploader._upload_scene = Mock(return_value=("scene-id", [], [], []))
+    uploader._kognic_io_client = Mock()
+    uploader._kognic_io_client.lidars_and_cameras_sequence.create.return_value = Mock(
+        scene_uuid="scene-id"
+    )
+    uploader._wait_for_scene_created = Mock()
 
     result = uploader.upload_one(tmp_path, "scene")
 
-    uploaded_scene = uploader._upload_scene.call_args.args[0]
+    create_mock = uploader._kognic_io_client.lidars_and_cameras_sequence.create
+    uploaded_scene = create_mock.call_args.args[0]
     assert uploaded_scene.calibration_id == "calibration-id"
     assert uploaded_scene.frames[0].metadata.annotate
     assert result[0].scene_uuid == "scene-id"
@@ -232,7 +237,7 @@ def test_wait_for_pre_annotation_does_not_attach_after_timeout(pending_status: s
         _wait_for_pre_annotation(client, "pre-1", timeout_s=0, poll_s=0, raise_on_timeout=True)
 
 
-def test_upload_pre_annotations_waits_for_availability_before_returning(tmp_path: Path):
+def test_create_pre_annotations_waits_for_availability_before_returning(tmp_path: Path):
     """Test that uploading checks the server status before returning an ID.
 
     The create call returns ``pre-1``, but that response alone does not mean the
@@ -256,7 +261,7 @@ def test_upload_pre_annotations_waits_for_availability_before_returning(tmp_path
     )
     uploader._kognic_io_client = SimpleNamespace(pre_annotation=pre_annotation_api)
 
-    result = uploader._upload_pre_annotations("scene-1", "scene", {"pre.json": object()})
+    result = uploader.create_pre_annotations("scene-1", "scene", {"pre.json": object()})
 
     assert result == {"pre.json": "pre-1"}
     assert calls == ["status"]
