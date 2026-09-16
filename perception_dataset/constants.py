@@ -191,3 +191,17 @@ def constant(f):
         return f()
 
     return property(fget, fset)
+
+
+# ---------------------------------------------------------------------------
+# LiDAR / point-cloud constants
+# ---------------------------------------------------------------------------
+
+LIDAR_CONCAT_CHANNEL: str = SENSOR_ENUM.LIDAR_CONCAT.value["channel"]
+
+# ---------------------------------------------------------------------------
+# Kognic upload defaults
+# ---------------------------------------------------------------------------
+
+IMU_TARGET_HZ: int = 200
+IMU_EXTRAPOLATE_S: float = 0.15
