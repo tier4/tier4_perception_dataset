@@ -235,6 +235,7 @@ class KognicDatasetUploader:
         """
         if self._kognic_io_client is None:
             self._kognic_io_client = KognicIOClient(
+                auth=self.config.auth,
                 client_organization_id=self.config.organization_id,
                 write_workspace_id=self.config.workspace_id,
             )

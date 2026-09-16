@@ -2,9 +2,16 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Union
+
+from kognic.auth.credentials_parser import ApiCredentials
 
 from perception_dataset.kognic.utils.client import get_kognic_credentials
+
+# What ``KognicIOClient(auth=...)`` accepts (see ``kognic.auth.resolve_credentials``):
+# a path to a credentials JSON, a ``(client_id, client_secret)`` pair, or a
+# parsed ``ApiCredentials``. ``None`` means "resolve from the environment".
+KognicAuth = Union[str, Tuple[str, str], ApiCredentials]
 
 
 @dataclass(frozen=True)
@@ -33,6 +40,7 @@ class KognicUploadConfig:
         input_base (Path): Base staging directory.
         organization_id (Optional[str]): Kognic organization identifier.
         workspace_id (Optional[str]): Kognic write-workspace identifier.
+        auth (Optional[KognicAuth]): Credentials forwarded to ``KognicIOClient``.
         project_targets (List[ProjectTarget]): Projects and batches to receive inputs.
         dryrun (bool): Whether Kognic should validate without persisting scenes.
         motion_compensate (bool): Whether to enable motion compensation.
@@ -48,6 +56,10 @@ class KognicUploadConfig:
     # and infers the write workspace when not provided.
     organization_id: Optional[str] = None
     workspace_id: Optional[str] = None
+    # Credentials forwarded to ``KognicIOClient(auth=...)``. ``None`` falls back
+    # to the credentials in the environment (``KOGNIC_CREDENTIALS`` or
+    # ``KOGNIC_CLIENT_ID``/``KOGNIC_CLIENT_SECRET``).
+    auth: Optional[KognicAuth] = None
     project_targets: List[ProjectTarget] = field(default_factory=list)
     dryrun: bool = False
     motion_compensate: bool = False
@@ -112,6 +124,30 @@ def _parse_project_targets(conversion_config: Dict) -> List[ProjectTarget]:
     return targets
 
 
+def _parse_auth(conversion_config: Dict) -> Optional[KognicAuth]:
+    """Resolve ``conversion.auth`` into something ``KognicIOClient`` accepts.
+
+    YAML can express two of the three forms: a path to a credentials JSON, or a
+    ``[client_id, client_secret]`` pair. The pair arrives as a list, which
+    ``resolve_credentials`` rejects (it checks for a ``tuple``), so convert it
+    here rather than letting it fail as "Bad auth credentials".
+    """
+    auth = conversion_config.get("auth")
+    if auth is None or isinstance(auth, str):
+        return auth
+    if isinstance(auth, (list, tuple)):
+        if len(auth) != 2:
+            raise ValueError(
+                "conversion.auth as a credentials pair must be "
+                f"[client_id, client_secret], got {len(auth)} item(s)"
+            )
+        return (str(auth[0]), str(auth[1]))
+    raise ValueError(
+        "conversion.auth must be a path to a credentials JSON or a "
+        f"[client_id, client_secret] pair, got {type(auth).__name__}"
+    )
+
+
 def load_upload_config(config_dict: Dict) -> KognicUploadConfig:
     """Load uploader configuration from parsed YAML.
 
@@ -128,6 +164,7 @@ def load_upload_config(config_dict: Dict) -> KognicUploadConfig:
         input_base=Path(conversion_config["input_base"]),
         organization_id=organization_id,
         workspace_id=workspace_id,
+        auth=_parse_auth(conversion_config),
         project_targets=_parse_project_targets(conversion_config),
         dryrun=conversion_config.get("dryrun", False),
         motion_compensate=conversion_config.get("motion_compensate", False),
