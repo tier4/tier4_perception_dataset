@@ -45,6 +45,7 @@ _UPLOAD_REPORT_FIELDS = (
     "batch",
     "scene_uuid",
     "input_id",
+    "request_id",
     "invalidated",
     "error_code",
     "error_type",
@@ -99,13 +100,17 @@ class InputRecord:
     """One input created from a scene, as recorded in the upload report.
 
     ``batch_name`` is ``None`` when the target left the batch unset (the latest
-    open batch was used); ``input_id`` is ``None`` when the API returned no
-    created input.
+    open batch was used); ``input_id`` and ``request_id`` are ``None`` when the
+    API returned no created input.
+
+    ``input_id`` identifies the Request Input itself, while ``request_id``
+    identifies the Request it belongs to (one Request holds many Inputs).
     """
 
     project_name: str
     batch_name: Optional[str]
     input_id: Optional[str]
+    request_id: Optional[str] = None
 
 
 @dataclass
@@ -592,6 +597,7 @@ class KognicDatasetUploader:
                         project_name=target.external_id,
                         batch_name=target.batch,
                         input_id=str(created_input.uuid) if created_input else None,
+                        request_id=str(created_input.request_uid) if created_input else None,
                     )
                 )
             except Exception as exc:
@@ -763,6 +769,7 @@ def _upload_report_row(
     batch: Optional[str] = None,
     scene_uuid: Optional[str] = None,
     input_id: Optional[str] = None,
+    request_id: Optional[str] = None,
     invalidated: Optional[bool] = None,
     error: Optional[BaseException] = None,
 ) -> Dict[str, str]:
@@ -776,6 +783,7 @@ def _upload_report_row(
         "batch": batch or "",
         "scene_uuid": scene_uuid or "",
         "input_id": input_id or "",
+        "request_id": request_id or "",
         "invalidated": "" if invalidated is None else str(invalidated).lower(),
         "error_code": error_fields.get("error_code", ""),
         "error_type": error_fields.get("error_type", ""),
@@ -816,6 +824,7 @@ def _result_report_rows(
             batch=input_record.batch_name,
             scene_uuid=result.scene_uuid,
             input_id=input_record.input_id,
+            request_id=input_record.request_id,
             duration_seconds=duration_seconds,
         )
         for input_record in result.inputs
