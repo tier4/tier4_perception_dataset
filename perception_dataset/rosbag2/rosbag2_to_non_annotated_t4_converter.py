@@ -26,6 +26,7 @@ except ImportError:
 import builtin_interfaces.msg
 import cv2
 import numpy as np
+from pypcd4 import PointCloud
 from pyquaternion import Quaternion
 from radar_msgs.msg import RadarTracks
 from sensor_msgs.msg import CameraInfo, CompressedImage, PointCloud2
@@ -189,6 +190,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._scene_description: str = params.scene_description
         self._accept_frame_drop: bool = params.accept_frame_drop
         self._undistort_image: bool = params.undistort_image
+        self._jpeg_quality: int = params.jpeg_quality
+        self._jpeg_optimize: bool = params.jpeg_optimize
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = params.world_frame_id
@@ -230,6 +233,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._lidar_info_topic: str = self._lidar_sensor["lidar_info_topic"]
         self._lidar_info_channel: str = self._lidar_sensor["lidar_info_channel"]
         self._num_lidar_feats: int = self._lidar_sensor["num_lidar_feats"]
+        self._output_pointcloud_format: str = self._lidar_sensor["output_pointcloud_format"]
         self._lidar_sources_mapping: Optional[List[LidarSourceMapping]] = self._lidar_sensor[
             "lidar_sources_mapping"
         ]
@@ -464,6 +468,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             "--------------------------------------------------------------------------------------------------------------------------"
         )
 
+    def _write_jpeg(self, output_path: str, image: np.ndarray, *, legacy_no_params: bool) -> None:
+        if legacy_no_params and self._jpeg_quality == 95 and not self._jpeg_optimize:
+            cv2.imwrite(output_path, image)
+            return
+
+        params = [int(cv2.IMWRITE_JPEG_QUALITY), self._jpeg_quality]
+        if self._jpeg_optimize:
+            params.extend([int(cv2.IMWRITE_JPEG_OPTIMIZE), 1])
+        cv2.imwrite(output_path, image, params)
+
     def _save_config(self):
         config_data = {
             key: getattr(self, key)
@@ -477,6 +491,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 self.__dict__,
             )
         }
+        if self._jpeg_quality == 95 and not self._jpeg_optimize:
+            config_data.pop("_jpeg_quality", None)
+            config_data.pop("_jpeg_optimize", None)
         config_data = {"rosbag2_to_non_annotated_t4_converter": config_data}
         with open(osp.join(self._output_scene_dir, "status.json"), "w") as f:
             json.dump(
@@ -734,7 +751,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 # Skip frame if no lidar info found and accept_no_info is True
                 continue
 
-            fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
+            if self._output_pointcloud_format == "pcd":
+                fileformat = EXTENSION_ENUM.PCD.value[1:]
+            else:
+                fileformat = EXTENSION_ENUM.PCDBIN.value[1:]
             filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
 
             nusc_timestamp = rosbag2_utils.stamp_to_nusc_timestamp(pointcloud_msg.header.stamp)
@@ -760,7 +780,6 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 sample_data_token
             )
 
-            # TODO(yukke42): Save data in the PCD file format, which allows flexible field configuration.
             points_arr = rosbag2_utils.pointcloud_msg_to_numpy(
                 pointcloud_msg, num_lidar_feats=self._num_lidar_feats
             )
@@ -769,7 +788,28 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     f"PointCloud message is empty [{frame_index}]: cur={unix_timestamp} prev={prev_frame_unix_timestamp}"
                 )
 
-            points_arr.tofile(osp.join(self._output_scene_dir, sample_data_record.filename))
+            pointcloud_filepath = osp.join(self._output_scene_dir, sample_data_record.filename)
+            if self._output_pointcloud_format == "pcd":
+                fields = ("x", "y", "z", "intensity", "ring", "return_type", "time_stamp")[
+                    : self._num_lidar_feats
+                ]
+                # Field types follow autoware_point_types, except that ring is uint16 to
+                # match the channel field of PointXYZIRC and intensity keeps the float32
+                # value written to .pcd.bin files. time_stamp stays float32 because
+                # pointcloud_msg_to_numpy casts all fields to float32; revisit once
+                # per-point timestamps are supported end-to-end.
+                types = (
+                    np.float32,
+                    np.float32,
+                    np.float32,
+                    np.float32,
+                    np.uint16,
+                    np.uint8,
+                    np.float32,
+                )[: self._num_lidar_feats]
+                PointCloud.from_points(points_arr, fields, list(types)).save(pointcloud_filepath)
+            else:
+                points_arr.tofile(pointcloud_filepath)
             if self._lidar_info_topic and info_filename:
                 self._save_info_as_json(
                     lidar_info_message,
@@ -1220,10 +1260,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sample_data_token
         )
         if isinstance(image_arr, np.ndarray):
-            cv2.imwrite(
+            self._write_jpeg(
                 osp.join(self._output_scene_dir, sample_data_record.filename),
                 image_arr,
-                [int(cv2.IMWRITE_JPEG_QUALITY), 95],
+                legacy_no_params=False,
             )
         elif isinstance(image_arr, CompressedImage):
             output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
@@ -1237,7 +1277,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 image = cv2.remap(
                     image, self.undistort_map_x, self.undistort_map_y, cv2.INTER_LINEAR
                 )
-                cv2.imwrite(output_image_path, image)
+                self._write_jpeg(output_image_path, image, legacy_no_params=True)
 
         return sample_data_token
 
