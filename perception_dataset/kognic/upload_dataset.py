@@ -412,7 +412,7 @@ class KognicDatasetUploader:
         )
 
         feature_flags = FeatureFlags() if not self.config.motion_compensate else None
-        scene = scene.model_copy(update={"calibration_id": calibration_id})
+        scene = self._with_upload_identity(scene, calibration_id, external_id)
 
         logger.info(
             f"Uploading {external_id} as scene without input (dryrun={self.config.dryrun})"
@@ -433,6 +433,43 @@ class KognicDatasetUploader:
                 external_id, scene_uuid, "scene processing", exc
             ) from exc
         return scene_uuid
+
+    @staticmethod
+    def _with_upload_identity(
+        scene: KognicModel.LidarsAndCamerasSequence,
+        calibration_id: str,
+        external_id: str,
+    ) -> KognicModel.LidarsAndCamerasSequence:
+        """Stamp the caller's scene identity onto a loaded sequence artifact.
+
+        The converter has no access to the caller's naming, so it writes the
+        staging directory name into the artifact. That name is shared by every
+        pipeline run, so leaving it in place makes uploaded scenes
+        indistinguishable on the Kognic platform; the caller's ``external_id``
+        has to win here.
+
+        Args:
+            scene (KognicModel.LidarsAndCamerasSequence): Scene loaded from the
+                sequence artifact.
+            calibration_id (str): Uploaded calibration ID to attach.
+            external_id (str): External ID chosen by the caller.
+
+        Returns:
+            KognicModel.LidarsAndCamerasSequence: Scene ready to be created.
+        """
+        metadata = scene.metadata.model_copy(
+            update={
+                "dataset_id": external_id,
+                "inner_uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, external_id)),
+            }
+        )
+        return scene.model_copy(
+            update={
+                "calibration_id": calibration_id,
+                "external_id": external_id,
+                "metadata": metadata,
+            }
+        )
 
     def load_pre_annotations(
         self, sequence_path: Path, targets: List[ProjectTarget]
