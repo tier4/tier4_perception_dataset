@@ -3,8 +3,8 @@ from typing import List, Optional, Tuple, Union
 
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 
-# T4 sample streams are 10 Hz and keyframes are picked as every
-# ``int(10 / annotation_hz)``-th sample, so a higher rate is unrepresentable and
+# T4 sample streams are 10 Hz and keyframes are picked at a rounded sample
+# stride, so a higher rate is unrepresentable and
 # anything <= 0 either divides by zero or selects an arbitrary subset.
 MAX_ANNOTATION_HZ = 10
 
@@ -27,6 +27,18 @@ def validate_annotation_hz(annotation_hz: int) -> int:
             f"(the T4 sample rate), got {annotation_hz!r}"
         )
     return annotation_hz
+
+
+def get_annotation_step(annotation_hz: int) -> int:
+    """Return the rounded T4 sample stride for an annotation frequency.
+
+    Args:
+        annotation_hz (int): Validated annotation frequency in Hz.
+
+    Returns:
+        int: Number of T4 samples between selected annotation frames.
+    """
+    return int(round(MAX_ANNOTATION_HZ / annotation_hz))
 
 
 def get_frame_index_from_filename(filename: str) -> int:

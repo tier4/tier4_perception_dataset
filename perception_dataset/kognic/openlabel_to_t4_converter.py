@@ -20,9 +20,9 @@ Point-cloud segmentation (``3DPointCloudSegmentation`` / ``semseg``)
     of per-point ``uint8`` class indices per frame (one label per point in the
     matching ``LIDAR_CONCAT`` ``.pcd.bin``, in order), and adds the ontology
     classes to ``category.json`` keyed by their ontology id (index ``0`` =
-    ``background``). Labels are decoded from Kognic run-length encoding
+    ``unpainted``). Labels are decoded from Kognic run-length encoding
     (``#<count>V<class_id>``); a trailing run of unlabelled points omitted by the
-    RLE is restored as ``background`` (0) and appended at the end.
+    RLE is restored as ``unpainted`` (0) and appended at the end.
 
 OpenLABEL frames are matched to T4 samples by the LiDAR stream's URI timestamp.
 Uploads that split ``LIDAR_CONCAT`` into per-sensor streams name their files
@@ -58,17 +58,22 @@ import time
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
+from t4_devkit import Tier4
+from t4_devkit.common.serialize import serialize_dataclass
+from t4_devkit.dataclass import LidarPointCloud, PointCloudMetainfo
 from t4_devkit.schema.tables import (
     Attribute,
     Category,
     Instance,
     LidarSeg,
+    Sample,
     SampleAnnotation,
+    SampleData,
     Visibility,
 )
 
 from perception_dataset.abstract_converter import AbstractConverter
-from perception_dataset.constants import LIDAR_CONCAT_NUM_POINT_FEATURES
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.openlabel import (
     cuboid_val_to_t4_box,
     occlusion_to_visibility_level,
@@ -78,23 +83,15 @@ from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
-from perception_dataset.utils.pointcloud import (
-    stamp_to_ns,
-    validate_concat_point_layout,
-)
-from perception_dataset.utils.t4_tables import (
-    channel_by_calibrated_sensor,
-    select_lidar_channel,
-)
 
 logger = configure_logger(modname=__name__)
 
 # Points the annotator left unlabelled, plus any point a decoded RLE omits or
-# fails to map, are written as this class. Segmentation owns the low indices so
-# this stays 0 no matter which annotation is imported first.
-BACKGROUND_CATEGORY_NAME = "background"
-BACKGROUND_CATEGORY_INDEX = 0
-BACKGROUND_CATEGORY_DESCRIPTION = "unlabelled / background points"
+# fails to map, are written as this class. T4 reserves index 0 for unpainted
+# points, so this stays 0 no matter which annotation is imported first.
+UNPAINTED_CATEGORY_NAME = "unpainted"
+UNPAINTED_CATEGORY_INDEX = 0
+UNPAINTED_CATEGORY_DESCRIPTION = "unpainted points"
 
 
 class OpenLabelToT4Converter(AbstractConverter[None]):
@@ -108,10 +105,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         input_bag_base: Optional[str] = None,
         topic_list: Union[Dict[str, List[str]], List[str], None] = None,
         overwrite_mode: bool = False,
-        iso_rotated_cuboids: bool = False,
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = True,
-        lidar_point_stride: Optional[int] = LIDAR_CONCAT_NUM_POINT_FEATURES,
     ):
         """Initialize the converter.
 
@@ -123,22 +118,17 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             topic_list (Union[Dict[str, List[str]], List[str], None]): Rosbag
                 topics to preserve.
             overwrite_mode (bool): Whether existing output scenes may be replaced.
-            iso_rotated_cuboids (bool): Whether cuboids use the T4 forward axis.
             category_map (Optional[Dict[str, str]]): Kognic-to-T4 category map.
             include_attributes (bool): Whether to import object attributes.
-            lidar_point_stride (Optional[int]): Explicit floats per point for
-                clouds without ``LIDAR_CONCAT_INFO``. Per-sensor point strides
-                are derived from the concat info.
         """
         super().__init__(input_base, output_base)
         self._annotation_base = Path(annotation_base)
         self._input_bag_base: Optional[str] = input_bag_base
         self._topic_list: Union[Dict[str, List[str]], List[str]] = topic_list or []
         self._overwrite_mode = overwrite_mode
-        self._iso_rotated_cuboids = iso_rotated_cuboids
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
-        self._lidar_point_stride = lidar_point_stride
+        self._t4_table_cache: Dict[Tuple[Path, str], list] = {}
 
     # ------------------------------------------------------------------
     # AbstractConverter contract
@@ -266,8 +256,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Returns:
             Tuple[float, float]: Unix start and end times with two-second margins.
         """
-        from t4_devkit import Tier4
-
         t4_dataset = Tier4(data_root=str(t4_dataset_dir), verbose=False)
         timestamps = [sample.timestamp for sample in t4_dataset.sample]
         start_sec = misc_utils.nusc_timestamp_to_unix_timestamp(min(timestamps)) - 2.0
@@ -587,33 +575,44 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             Tuple[_SampleIndex, str]: Sample lookup index and selected lidar
                 channel.
         """
-        sample = self._load_table(scene_dir, "sample.json")
-        sample_data = self._load_table(scene_dir, "sample_data.json")
-        sensor = self._load_table(scene_dir, "sensor.json")
-        calibrated_sensor = self._load_table(scene_dir, "calibrated_sensor.json")
-        ego_pose = self._load_table(scene_dir, "ego_pose.json")
+        t4_dataset = Tier4(data_root=str(scene_dir), verbose=False)
+        samples = t4_dataset.get_table("sample")
+        sample_data = t4_dataset.get_table("sample_data")
+        channels = {record.channel for record in sample_data}
+        if LIDAR_CONCAT_CHANNEL in channels:
+            lidar_channel = LIDAR_CONCAT_CHANNEL
+        else:
+            lidar_channels = sorted(
+                sensor.channel
+                for sensor in t4_dataset.get_table("sensor")
+                if sensor.modality.value == "lidar"
+            )
+            lidar_channel = lidar_channels[0] if lidar_channels else LIDAR_CONCAT_CHANNEL
 
-        channel_by_calib = channel_by_calibrated_sensor(sensor, calibrated_sensor)
-        lidar_channel = select_lidar_channel(sensor, channel_by_calib, sample_data)
-        ego_pose_by_token = {ep["token"]: ep for ep in ego_pose}
-
-        lidar_sd_by_sample = self._select_lidar_sample_data(
-            sample, sample_data, channel_by_calib, lidar_channel
+        ego_pose_by_token = {
+            pose.token: serialize_dataclass(pose) for pose in t4_dataset.get_table("ego_pose")
+        }
+        selected_lidar_sd_by_sample = self._select_lidar_sample_data(
+            samples, sample_data, lidar_channel
         )
+        lidar_sd_by_sample = {
+            sample_token: serialize_dataclass(record)
+            for sample_token, record in selected_lidar_sd_by_sample.items()
+        }
         entry_by_sample = {
-            sample_token: (sample_token, ego_pose_by_token.get(record["ego_pose_token"]))
-            for sample_token, record in lidar_sd_by_sample.items()
+            sample_token: (sample_token, ego_pose_by_token.get(record.ego_pose_token))
+            for sample_token, record in selected_lidar_sd_by_sample.items()
         }
         # ``extract_pointclouds`` names the exported cloud after
         # ``sample_data.timestamp``, so keying on that record makes the match
         # bit-exact; ``sample.timestamp`` is only an alias for it.
         by_timestamp_us = {
-            record["timestamp"]: entry_by_sample[sample_token]
-            for sample_token, record in lidar_sd_by_sample.items()
+            record.timestamp: entry_by_sample[sample_token]
+            for sample_token, record in selected_lidar_sd_by_sample.items()
         }
-        for s in sample:
-            if s["token"] in entry_by_sample:
-                by_timestamp_us.setdefault(s["timestamp"], entry_by_sample[s["token"]])
+        for sample in samples:
+            if sample.token in entry_by_sample:
+                by_timestamp_us.setdefault(sample.timestamp, entry_by_sample[sample.token])
         self._index_source_timestamps(
             scene_dir, lidar_sd_by_sample, entry_by_sample, by_timestamp_us
         )
@@ -621,11 +620,10 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
     @staticmethod
     def _select_lidar_sample_data(
-        sample: List[dict],
-        sample_data: List[dict],
-        channel_by_calib: Dict[str, Optional[str]],
+        sample: List[Sample],
+        sample_data: List[SampleData],
         lidar_channel: str,
-    ) -> Dict[str, dict]:
+    ) -> Dict[str, SampleData]:
         """Resolve the one lidar ``sample_data`` record backing each sample.
 
         A sample owns its keyframe record *and* the intermediate sweeps that
@@ -636,33 +634,34 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         of one sample can be metres apart.
 
         Args:
-            sample (List[dict]): Sample table records.
-            sample_data (List[dict]): Sample-data table records.
-            channel_by_calib (Dict[str, Optional[str]]): Calibrated-sensor token
-                to channel mapping.
+            sample (List[Sample]): Sample table records.
+            sample_data (List[SampleData]): Sample-data table records.
             lidar_channel (str): Lidar channel to resolve.
 
         Returns:
-            Dict[str, dict]: Lidar sample-data record keyed by sample token.
+            Dict[str, SampleData]: Lidar sample-data record keyed by sample token.
         """
-        records_by_sample: Dict[str, List[dict]] = {}
+        records_by_sample: Dict[str, List[SampleData]] = {}
         for record in sample_data:
-            if channel_by_calib.get(record["calibrated_sensor_token"]) == lidar_channel:
-                records_by_sample.setdefault(record["sample_token"], []).append(record)
+            if record.channel == lidar_channel:
+                records_by_sample.setdefault(record.sample_token, []).append(record)
 
-        selected: Dict[str, dict] = {}
-        for s in sample:
-            candidates = records_by_sample.get(s["token"], [])
-            exact = [r for r in candidates if r["timestamp"] == s["timestamp"]]
+        selected: Dict[str, SampleData] = {}
+        for sample_record in sample:
+            candidates = records_by_sample.get(sample_record.token, [])
+            exact = [
+                record for record in candidates if record.timestamp == sample_record.timestamp
+            ]
             if len(exact) != 1:
-                exact = [r for r in candidates if r.get("is_key_frame")]
+                exact = [record for record in candidates if record.is_key_frame]
             if len(exact) != 1:
                 logger.warning(
-                    f"Sample {s['token']} has {len(candidates)} {lidar_channel} sample_data "
+                    f"Sample {sample_record.token} has {len(candidates)} "
+                    f"{lidar_channel} sample_data "
                     f"record(s) and no unambiguous keyframe; excluding it from the frame index"
                 )
                 continue
-            selected[s["token"]] = exact[0]
+            selected[sample_record.token] = exact[0]
         return selected
 
     @staticmethod
@@ -701,10 +700,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             if not info_path.exists():
                 logger.warning(f"LIDAR_CONCAT_INFO is missing: {info_path}")
                 continue
-            with open(info_path) as f:
-                sources = json.load(f).get("sources", [])
-            for source in sources:
-                ts_ns = stamp_to_ns(source.get("stamp"))
+            metainfo = PointCloudMetainfo.from_file(str(info_path))
+            for source in metainfo.sources:
+                ts_ns = source.stamp.sec * 1_000_000_000 + source.stamp.nanosec
                 if not ts_ns:
                     continue
                 # setdefault: a real sample timestamp always wins a collision.
@@ -727,7 +725,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             Tuple[List[float], List[float], List[float]]: Translation, size,
                 and quaternion in T4 conventions.
         """
-        return cuboid_val_to_t4_box(val, ego_pose, self._iso_rotated_cuboids)
+        return cuboid_val_to_t4_box(val, ego_pose)
 
     # ------------------------------------------------------------------
     # Table building
@@ -929,7 +927,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         """Reserve the low category indices for segmentation and return the mapping.
 
         Lidarseg ``.bin`` files store a category ``index`` per point, so those
-        indices must be stable and unique. ``background`` therefore always owns
+        indices must be stable and unique. ``unpainted`` therefore always owns
         index 0 and each ontology class keeps its ontology id as its index,
         which holds whether this scene already carries bbox categories or is
         annotated segmentation-first. Categories outside this ontology (bbox
@@ -947,18 +945,24 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Raises:
             ValueError: If an assigned index does not fit in a uint8 label.
         """
-        # An ontology id of 0 would collide with background, so park it above
-        # the ontology instead of shifting every other class.
+        # Ontology ID 0 is a valid Kognic class, but T4 reserves output index 0
+        # for unpainted points, so park that class above the ontology instead
+        # of shifting every other class.
         ceiling = max(ontology)
         index_by_class_id: Dict[int, int] = {}
         for class_id in sorted(ontology):
-            if class_id == BACKGROUND_CATEGORY_INDEX:
+            if class_id == UNPAINTED_CATEGORY_INDEX:
+                logger.warning(
+                    f"Segmentation ontology contains class ID 0 ({ontology[class_id]!r}); "
+                    f"T4 reserves output index 0 for unpainted points, so this class is "
+                    f"mapped to index {ceiling + 1}"
+                )
                 ceiling += 1
                 index_by_class_id[class_id] = ceiling
             else:
                 index_by_class_id[class_id] = class_id
 
-        reserved: Dict[int, str] = {BACKGROUND_CATEGORY_INDEX: BACKGROUND_CATEGORY_NAME}
+        reserved: Dict[int, str] = {UNPAINTED_CATEGORY_INDEX: UNPAINTED_CATEGORY_NAME}
         for class_id, index in index_by_class_id.items():
             reserved[index] = ontology[class_id]
 
@@ -986,7 +990,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         for index, name in sorted(reserved.items()):
             token = category_table.get_token_from_field("name", name)
             description = (
-                BACKGROUND_CATEGORY_DESCRIPTION if name == BACKGROUND_CATEGORY_NAME else ""
+                UNPAINTED_CATEGORY_DESCRIPTION if name == UNPAINTED_CATEGORY_NAME else ""
             )
             if token is None:
                 category_table.insert_into_table(name=name, description=description, index=index)
@@ -1108,7 +1112,6 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             num_points = _lidar_point_count(
                 scene_dir / sample_data["filename"],
                 info_path=info_path,
-                point_stride=self._lidar_point_stride,
             )
             if num_points is None:
                 logger.warning(
@@ -1197,11 +1200,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         labels = _remap_labels(decoded, value_map, frame_key)
         if labels.shape[0] < num_points:
             # Kognic RLE encodes labels sequentially from point 0 and omits a
-            # trailing run of unlabelled points; restore them as background (0).
+            # trailing run of unlabelled points; restore them as unpainted (0).
             pad = num_points - labels.shape[0]
             logger.warning(
                 f"Frame {frame_key}: RLE covers {labels.shape[0]}/{num_points} points; "
-                f"padding {pad} trailing point(s) as background (class 0)."
+                f"padding {pad} trailing point(s) as unpainted (class 0)."
             )
             labels = np.concatenate([labels, np.zeros(pad, dtype=np.uint8)])
         return labels
@@ -1257,7 +1260,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             if rle is None:
                 logger.warning(
                     f"Frame {frame_key}: no RLE labels for stream {channel}; leaving "
-                    f"its {length} point(s) as background"
+                    f"its {length} point(s) as unpainted"
                 )
                 continue
             if idx_begin + length > num_points:
@@ -1283,7 +1286,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
                 logger.warning(
                     f"Frame {frame_key}: stream {channel} RLE covers "
                     f"{stream_labels.shape[0]}/{length} points; padding {pad} trailing "
-                    f"point(s) as background (class 0)."
+                    f"point(s) as unpainted (class 0)."
                 )
                 stream_labels = np.concatenate([stream_labels, np.zeros(pad, dtype=np.uint8)])
             labels[idx_begin : idx_begin + length] = stream_labels
@@ -1301,9 +1304,13 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
     # IO
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _load_table(scene_dir: Path, name: str) -> list:
-        """Load an optional T4 annotation table.
+    def _load_table(self, scene_dir: Path, name: str) -> list:
+        """Load a T4 table, using the devkit for core dataset tables.
+
+        The converter keeps dictionaries internally because OpenLABEL and
+        concat metadata are handled as JSON, but the core T4 sensor tables are
+        decoded by ``Tier4`` first so their schema and field interpretation
+        stay centralized in t4-devkit.
 
         Args:
             scene_dir (Path): T4 scene directory.
@@ -1312,6 +1319,23 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         Returns:
             list: Parsed records, or an empty list when the file is absent.
         """
+        core_tables = {
+            "sample.json",
+            "sample_data.json",
+            "sensor.json",
+            "calibrated_sensor.json",
+            "ego_pose.json",
+        }
+        cache_key = (scene_dir.resolve(), name)
+        if name in core_tables:
+            if cache_key not in self._t4_table_cache:
+                t4_dataset = Tier4(data_root=str(scene_dir), verbose=False)
+                table_name = Path(name).stem
+                self._t4_table_cache[cache_key] = [
+                    serialize_dataclass(record) for record in t4_dataset.get_table(table_name)
+                ]
+            return self._t4_table_cache[cache_key]
+
         path = scene_dir / "annotation" / name
         if not path.exists():
             return []
@@ -1633,7 +1657,7 @@ def _segmentation_value_map(
         if ontology_id is None:
             logger.warning(
                 f"Object {obj.get('name')} has type '{obj.get('type')}' not present in the "
-                f"segmentation ontology; its points will be mapped to background"
+                f"segmentation ontology; its points will be mapped to unpainted"
             )
             continue
         value_map[int(class_id)] = index_by_class_id[ontology_id]
@@ -1656,7 +1680,7 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
     if unmapped:
         logger.warning(
             f"Frame {frame_key}: {len(unmapped)} RLE label value(s) have no ontology/object "
-            f"mapping (e.g. {unmapped[:5]}); mapping them to background (0)"
+                f"mapping (e.g. {unmapped[:5]}); mapping them to unpainted (0)"
         )
     # Remap by the labels actually present rather than a lookup table sized to
     # the largest raw value: a raw class ID is attacker/corruption controlled
@@ -1672,41 +1696,23 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
 def _lidar_point_count(
     bin_path: Path,
     info_path: Optional[Path] = None,
-    point_stride: Optional[int] = None,
 ) -> Optional[int]:
     """Count points in a fused-lidar binary file.
 
     Args:
         bin_path (Path): Path to a ``.pcd.bin`` file.
         info_path (Optional[Path]): Corresponding ``LIDAR_CONCAT_INFO`` file.
-            When present, its validated sensor slices determine the point count
-            and point stride without guessing.
-        point_stride (Optional[int]): Explicit floats-per-point schema used
-            when concat metadata is unavailable.
+            When present, it is supplied to the t4-devkit loader.
 
     Returns:
         Optional[int]: Point count, or ``None`` when the file is missing.
     """
     if not bin_path.exists():
         return None
-    if info_path is not None:
-        if not info_path.exists():
-            raise FileNotFoundError(f"Required LIDAR_CONCAT_INFO is missing: {info_path}")
-        with open(info_path) as f:
-            info = json.load(f)
-        total_points, _ = validate_concat_point_layout(info, bin_path)
-        return total_points
-    if point_stride is None:
-        raise ValueError(
-            f"{bin_path}: an explicit point stride is required when "
-            "LIDAR_CONCAT_INFO is unavailable"
-        )
-    floats = np.fromfile(bin_path, dtype=np.float32)
-    if floats.size == 0:
-        return 0
-    if point_stride < 4 or floats.size % point_stride != 0:
-        raise ValueError(
-            f"{bin_path}: {floats.size} floats are incompatible with the explicit "
-            f"point stride {point_stride}"
-        )
-    return floats.size // point_stride
+    if info_path is not None and not info_path.exists():
+        raise FileNotFoundError(f"Required LIDAR_CONCAT_INFO is missing: {info_path}")
+    # Loading validates source coverage against the actual number of points.
+    return LidarPointCloud.from_file(
+        str(bin_path),
+        metainfo_filepath=str(info_path) if info_path is not None else None,
+    ).num_points()

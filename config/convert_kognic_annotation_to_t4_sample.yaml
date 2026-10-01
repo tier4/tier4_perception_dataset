@@ -15,7 +15,6 @@ conversion:
   # Files are matched to scenes by filename stem and by OpenLABEL metadata (dataset_id / scene_uuid).
   annotation_base: ./data/kognic_annotations
   # Must match the flag used at download time: true → cuboids in ISO8855 frame, false → Kognic internal frame.
-  iso_rotated_cuboids: false
   # Optional: rename Kognic object types to T4 category names, e.g. {car: vehicle.car}.
   # category_map: {}
   # Whether to import class properties (vehicle_state, occlusion_state, ...) as T4 attributes.

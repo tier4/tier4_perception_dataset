@@ -4,7 +4,7 @@ This document describes the full round-trip pipeline that takes a Tier IV **T4**
 
 1. **Convert non-annotated T4 → Kognic staging format** — reshape T4 sensor data (cameras, LiDAR, calibration, ego poses) into the local layout the Kognic uploader consumes.
 2. **Convert annotated T4 → Kognic staging format + pre-annotation** — the same sensor-data conversion, plus an OpenLABEL `pre_annotation.json` so existing 3D boxes are pre-loaded for labelers.
-3. **Upload the staging format to Kognic** — create the calibration, build a `LidarsAndCamerasSequence`, upload each sequence **once** as a single scene, and create one input per configured project (each input optionally referencing a pre-annotation).
+3. **Upload the staging format to Kognic** — create the remote calibration, Pydantically reload the staged `LidarsAndCamerasSequence`, upload each sequence **once** as a single scene, and create one input per configured project (each input optionally referencing a pre-annotation).
 4. **Download annotations from Kognic** — pull completed OpenLABEL annotations to local disk, either for the whole project or for a single scene.
 5. **Convert Kognic annotations → T4 annotation tables** — merge the downloaded OpenLABEL back into a non-annotated T4 dataset (3D cuboids or point-cloud segmentation), enriching it in place.
 
@@ -34,7 +34,7 @@ flowchart LR
   subgraph Outbound["Outbound: T4 → Kognic"]
     T4["T4 dataset<br/>annotation/ + data/"]
     Stage1["Stage 1/2<br/>t4_to_kognic_converter<br/>(+ t4_to_openlabel)"]
-    Staging["Kognic staging dir<br/>calibration.json, ego_poses.json,<br/>cameras/, lidar/<br/>(+ pre_annotation.json)"]
+    Staging["Kognic staging dir<br/>calibration.json, ego_poses.json,<br/>keyframes.json, lidars_and_cameras_sequence.json,<br/>cameras/, lidar/<br/>(+ pre_annotation.json)"]
     Stage3["Stage 3<br/>upload_dataset"]
     Kognic["Kognic platform<br/>LidarsAndCamerasSequence"]
     T4 --> Stage1 --> Staging --> Stage3 --> Kognic
@@ -65,13 +65,17 @@ The extractor creates a Kognic-ready local staging format for the Kognic IO uplo
   calibration.json
   ego_poses.json
   keyframes.json
+  lidars_and_cameras_sequence.json
   cameras/<camera_name>/<timestamp_ns>.jpg
   lidar/<lidar_name>/<timestamp_ns>.csv
 ```
 
-An uploader then reads this folder, creates a Kognic sensor calibration, builds a `LidarsAndCamerasSequence`, attaches per-frame images and point clouds, and uploads the scene.
+The converter builds and Pydantically validates the complete
+`LidarsAndCamerasSequence`, including resources, poses, annotation flags, and
+optional IMU data. The uploader reloads that artifact and only binds the
+remote calibration ID before uploading it.
 
-The converter always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found). `keyframes.json` records the staging indices of source T4 keyframes; the uploader uses exactly those indices for `annotate=True`.
+The converter always extracts all available sensor frames from `sample_data.json` (falling back to `sample.json` if no anchor channel is found). `keyframes.json` records the staging indices of source T4 keyframes; conversion uses the same in-memory indices for `annotate=True` while building the sequence artifact. Camera-copy and point-cloud extraction helpers return their generated destination paths in frame order, so sequence construction does not rediscover or sort files from the staging directory.
 
 ### High-Level Flow
 
@@ -85,6 +89,7 @@ flowchart LR
   Ego["Write ego_poses.json"]
   Images["Copy camera JPGs"]
   Lidar["Split LIDAR_CONCAT<br/>into per-lidar CSVs<br/>or export fused LIDAR_CONCAT"]
+  Sequence["Build + validate<br/>lidars_and_cameras_sequence.json"]
   Extracted["<output_base>/sequence_name/"]
   Upload["upload_dataset.py"]
   Kognic["Kognic<br/>LidarsAndCamerasSequence"]
@@ -96,10 +101,14 @@ flowchart LR
   Lookups --> Ego
   Lookups --> Images
   Lookups --> Lidar
+  Ego --> Sequence
+  Images --> Sequence
+  Lidar --> Sequence
   Calibration --> Extracted
   Ego --> Extracted
   Images --> Extracted
   Lidar --> Extracted
+  Sequence --> Extracted
   Extracted --> Upload
   Upload --> Kognic
 ```
@@ -144,7 +153,7 @@ If no sequence roots are found, extraction fails early with a `FileNotFoundError
 
 ### Lookup Maps
 
-Before extracting files, `_build_lookup_maps()` loads the annotation tables and builds fast joins:
+Before extracting files, `_build_lookup_maps()` loads the annotation tables and builds fast joins through `t4-devkit`'s `Tier4.get_table()` API:
 
 ```mermaid
 erDiagram
@@ -248,7 +257,10 @@ flowchart LR
 T_rel(frame_i) = inverse(T_ego_frame_0_to_world) * T_ego_frame_i_to_world
 ```
 
-Frame 0 therefore becomes position `(0, 0, 0)` with identity rotation. Later frames describe ego motion relative to that first frame. The uploader passes these poses into each `LidarsAndCamerasSequenceFrame` as `ego_vehicle_pose`, and can upsample them to IMU-like 200 Hz samples when configured.
+Frame 0 therefore becomes position `(0, 0, 0)` with identity rotation. Later
+frames describe ego motion relative to that first frame. Conversion stores
+these poses on each `LidarsAndCamerasSequenceFrame` as `ego_vehicle_pose` and
+can upsample them to IMU-like 200 Hz samples when configured.
 
 > The converter does not resample the raw T4 ego-pose stream. It loads `sample.json`, finds each sample's `LIDAR_CONCAT` `sample_data` record, reads that record's `ego_pose_token`, and converts only those selected poses. In the sample dataset the raw T4 ego poses are ~10 Hz while `sample.json` frames are ~1 Hz, so the intermediate poses exist but are not written. Frames eligible for annotation are recorded by the converter in `keyframes.json`.
 
@@ -266,7 +278,7 @@ Frame 0 therefore becomes position `(0, 0, 0)` with identity rotation. Later fra
 
 ### LiDAR Extraction
 
-`_extract_pointclouds()` normally turns one T4 concatenated point-cloud file into one CSV per source LiDAR using `LIDAR_CONCAT_INFO`. It also supports a **concat-only fallback**: if the sequence has `data/LIDAR_CONCAT/*.pcd.bin` but no `data/LIDAR_CONCAT_INFO/`, it exports the whole fused cloud as `lidar/LIDAR_CONCAT/<timestamp_ns>.csv` with an identity `LIDAR_CONCAT` calibration (source-LiDAR partitions cannot be recovered in that mode).
+`_extract_pointclouds()` normally turns one T4 concatenated point-cloud file into one CSV per source LiDAR using `LIDAR_CONCAT_INFO`. It validates each fused `LIDAR_CONCAT` frame once via `t4-devkit` (`LidarPointCloud.from_file()` + the loaded `PointCloudMetainfo`), then reuses the validated split data for every sensor that needs a channel export. It also supports a **concat-only fallback**: if the sequence has `data/LIDAR_CONCAT/*.pcd.bin` but no `data/LIDAR_CONCAT_INFO/`, it exports the whole fused cloud as `lidar/LIDAR_CONCAT/<timestamp_ns>.csv` with an identity `LIDAR_CONCAT` calibration (source-LiDAR partitions cannot be recovered in that mode).
 
 ```mermaid
 flowchart LR
@@ -276,18 +288,17 @@ flowchart LR
   Source["source entry matching<br/>sensor_token"]
   Range["idx_begin + length"]
   Bin["LIDAR_CONCAT .pcd.bin"]
-  Read["seek idx_begin * 20 bytes<br/>read length * 20 bytes"]
-  Parse["reshape float32 as<br/>(N, 5)"]
+  Validate["t4-devkit metadata<br/>and point layout validation"]
+  Split["split_by_sensor() once<br/>reused for all outputs"]
   Csv["write CSV<br/>ts_gps,x,y,z,intensity"]
 
   Sample --> SD
   SD --> Info
   Info --> Source --> Range
-  SD --> Bin --> Read
-  Range --> Read --> Parse --> Csv
+  SD --> Bin --> Validate --> Split --> Csv
 ```
 
-T4 point records begin with `x, y, z, intensity` but may contain additional fields. With `LIDAR_CONCAT_INFO`, the extractor derives the stride from the validated total sensor contribution; without it, `lidar_point_stride` declares the layout and defaults to the standard five values (`x, y, z, intensity, ring_idx`). The extractor preserves only `ts_gps,x,y,z,intensity`. Kognic's CSV format requires exact column names, comma separation, and a timestamp column (the full documented header is `ts_gps,x,y,z,intensity,rgb,red,green,blue`; the RGB columns are optional and not written here). No point filtering, deduplication, or coordinate transformation is performed; the only change is formatting numeric fields to six decimal places.
+T4 point records begin with `x, y, z, intensity` but may contain additional fields. When `LIDAR_CONCAT_INFO` is present, the extractor derives the layout from the validated `t4-devkit` metadata (`PointCloudMetainfo.num_pts_feats` / `LidarPointCloud`) instead of any local stride constant. The extractor preserves only `ts_gps,x,y,z,intensity`. Kognic's CSV format requires exact column names, comma separation, and a timestamp column (the full documented header is `ts_gps,x,y,z,intensity,rgb,red,green,blue`; the RGB columns are optional and not written here). No point filtering, deduplication, or coordinate transformation is performed; the only change is formatting numeric fields to six decimal places.
 
 ### Stage 1 Config Parameters
 
@@ -299,7 +310,7 @@ conversion:
   input_base: ./data/non_annotated_t4_format
   output_base: ./data/kognic_format
   workers_number: 12
-  lidar_point_stride: 5
+  include_imu_data: false
   generate_tsv_report: true
   camera_sensors:
     - channel: CAM_FRONT
@@ -316,7 +327,7 @@ conversion:
 | `output_base`                 | Yes      | —       | Directory where each scene's staging folder `<output_base>/<scene>/` is written.                                                                                                                                                                       |
 | `camera_sensors`              | Yes      | —       | List of `{channel: <name>}` entries naming the T4 camera channels to copy. Channels absent from the dataset, or present but with no image files, are skipped with a warning, allowing LiDAR-only conversion.                                           |
 | `workers_number`              | Yes      | `32`    | Size of the thread pool used to copy camera images in parallel.                                                                                                                                                                                        |
-| `lidar_point_stride`          | No       | `5`     | Floats per point for fused clouds without `LIDAR_CONCAT_INFO`. Metadata-backed clouds derive this value from their validated sensor point totals. Set this explicitly for another known schema, or `null` to accept only an unambiguous detected layout. |
+| `include_imu_data`            | No       | `true`  | Build the optional 200 Hz IMU stream during conversion and store it in `lidars_and_cameras_sequence.json`. At least two ego-pose entries are required.                                                                                                |
 | `generate_tsv_report`         | No       | `false` | Write `<output_base>/conversion_report.tsv`. The `scene` column contains the complete nested path relative to `input_base`. The report contains a `successful` or `failed` row per attempted scene plus a row for every missing camera or LiDAR frame, including blank images and header-only point clouds generated as fallbacks. With reporting enabled, remaining scenes are attempted before a summary error is raised. |
 
 For non-annotated T4 data, annotation tables (if present) are ignored.
@@ -405,7 +416,7 @@ export KOGNIC_CREDENTIALS=/path/to/kognic_credentials.json
 python -m perception_dataset.kognic.upload_dataset --config config/upload_kognic_dataset_sample.yaml
 ```
 
-All staged frames are uploaded. `keyframes.json` is required and determines which frames are marked `annotate=True`; its recorded `frame_count` must match the current staged frame count. Re-run the T4-to-Kognic converter after changing staged sensor data.
+All frames serialized in `lidars_and_cameras_sequence.json` are uploaded. The uploader does not read `keyframes.json` or reconstruct frames from staged sensor directories; annotation flags were already validated and serialized during conversion. Re-run the T4-to-Kognic converter after changing staged sensor data.
 
 Each sequence is uploaded **once** as a single scene. The uploader then creates **one input per configured project** from that scene, so the same sensor data can feed several projects/batches without re-uploading it. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations).
 
@@ -471,8 +482,6 @@ conversion:
     - project_external_id: my_semseg_project # second input from the same scene
   dryrun: false
   motion_compensate: false
-  include_imu_data: true
-  write_debug_frames: false
   generate_tsv_report: true # writes <input_base>/upload_report.tsv
   # scene_creation_timeout_s: 1800          # optional; max wait for a scene to reach Created
   # scene_creation_poll_interval_s: 10      # optional; poll cadence while waiting
@@ -480,27 +489,30 @@ conversion:
 
 | Parameter                         | Required | Default | Description                                                                                                                                                                                                                                                                                                                                                                         |
 | --------------------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `input_base`                      | Yes      | —       | Path to the staged Kognic format data. Can be a single sequence directory (containing `calibration.json`) or a parent directory of multiple sequence subdirectories.                                                                                                                                                                                                                |
-| `organization_id`                 | Yes      | —       | Your Kognic organization ID (also accepted as `client_organization_id`).                                                                                                                                                                                                                                                                                                            |
-| `workspace_id`                    | Yes      | —       | The Kognic workspace UUID to write scenes into (also accepted as `write_workspace_id`).                                                                                                                                                                                                                                                                                             |
+| `input_base`                      | Yes      | —       | Path to the staged Kognic format data. Can be a single sequence directory (containing `lidars_and_cameras_sequence.json`) or a parent directory of multiple sequence subdirectories.                                                                                                                                                                                               |
+| `organization_id`                 | Yes      | —       | Your Kognic organization ID.                                                                                                                                                                                                                                                                                                                                                        |
+| `workspace_id`                    | Yes      | —       | The Kognic workspace UUID to write scenes into.                                                                                                                                                                                                                                                                                                                                     |
 | `projects`                        | No       | `[]`    | List of projects to create inputs in from the shared scene. Each entry has `project_external_id` (required) plus optional `batch_external_id` and `pre_annotation`. See [Projects, Batches, and Pre-Annotations](#projects-batches-and-pre-annotations). If omitted/empty, the scene is created with no input. Each `(project_external_id, batch_external_id)` pair must be unique. |
 | `dryrun`                          | No       | `false` | When `true`, validates the scene structure against the Kognic API but does not create a scene, upload sensor files, attach pre-annotations, or create inputs. The calibration **is** uploaded for real even in dryrun mode. The scene id is recorded as `"dryrun"` in `dataset_id.json`.                                                                                            |
 | `motion_compensate`               | No       | `false` | When `false`, sends `FeatureFlags()` disabling server-side motion compensation. When `true`, no feature flags are sent and Kognic applies its default motion compensation. Requires accurate IMU or ego-pose data.                                                                                                                                                                  |
-| `include_imu_data`                | No       | `true`  | When `true`, generates a 200 Hz IMU-like stream by interpolating `ego_poses.json` and attaches it. Requires at least two ego-pose entries; otherwise no IMU data is attached.                                                                                                                                                                                                       |
-| `write_debug_frames`              | No       | `false` | When `true`, writes a `frames_debug.json` next to each staged sequence after building the frame list — the full Kognic model dump, useful for inspecting what was sent without checking the platform UI.                                                                                                                                                                            |
 | `generate_tsv_report`             | No       | `false` | When `true`, writes `<input_base>/upload_report.tsv` after the run. It records full nested scene paths, scene and per-input outcomes, remote scene/input IDs, orphan invalidation state, upload stage and duration, plus exception type, HTTP/SDK error code, and message. Remaining scenes are attempted after a failure so the report covers the complete batch. |
 | `scene_creation_timeout_s`        | No       | `1800`  | Maximum time to wait for a created scene to reach `Created` before raising `TimeoutError`.                                                                                                                                                                                                                                                                                          |
 | `scene_creation_poll_interval_s`  | No       | `10`    | How often to poll the scene status while waiting for `Created`.                                                                                                                                                                                                                                                                                                                     |
 
-### Frame Pairing and Calibration
+### Sequence Artifact and Calibration
 
-The uploader anchors frames on the first available LiDAR stream, preferring the normal Tier IV LiDAR order (`LIDAR_FRONT_UPPER`, `LIDAR_FRONT_LOWER`, ...) and falling back to `LIDAR_CONCAT` when the converter exported a fused concat-only cloud. Other LiDAR and camera streams are attached by frame order, not by requiring identical filenames; each camera keeps its own shutter timestamp from its image filename.
+During conversion, frames retain the order and timestamps of the converter's
+in-memory T4 frame records. Camera and LiDAR writers return their generated
+resource paths in that same order, and the converter attaches those paths
+directly instead of scanning, sorting, or pairing staged files afterward.
+Upload Pydantically reloads the resulting
+`lidars_and_cameras_sequence.json` without reconstructing any frames.
 
 | Kognic frame field   | Source                                                                                           |
 | -------------------- | ------------------------------------------------------------------------------------------------ |
 | `frame_id`           | Sequential extracted frame index as a string.                                                    |
-| `unix_timestamp`     | Anchor LiDAR timestamp in nanoseconds.                                                           |
-| `relative_timestamp` | Milliseconds since the first anchor frame.                                                       |
+| `unix_timestamp`     | Timestamp of the ordered T4 frame record in nanoseconds (`LIDAR_CONCAT`, with camera fallback).  |
+| `relative_timestamp` | Milliseconds since the first converted frame record.                                             |
 | `ego_vehicle_pose`   | Matching entry from `ego_poses.json`.                                                            |
 | `point_clouds`       | CSV files under `lidar/<sensor>/`.                                                               |
 | `images`             | JPG files under `cameras/<sensor>/`, with shutter start/end set to the image filename timestamp. |
@@ -524,7 +536,7 @@ After each sequence is uploaded, the script writes `dataset_id.json` under `inpu
 }
 ```
 
-`batch_name` is the configured batch (may be `null` when omitted, meaning the latest open batch was used). A project/batch with several annotation types yields one input record per type. Downstream cleanup tools (`delete_scenes.py`, `invalidate_unused_scenes.py`) read `scene_id` from this structure (and still accept the legacy flat `{name: scene_uuid}` form).
+`batch_name` is the configured batch (may be `null` when omitted, meaning the latest open batch was used). A project/batch with several annotation types yields one input record per type. The upload report and `dataset_id.json` preserve the scene and input IDs needed by the maintenance commands; `delete_scenes.py` accepts explicit UUIDs or external IDs, while `create_input_from_scenes.py` accepts one scene UUID and a target project/batch.
 
 #### Failure reporting
 
@@ -536,6 +548,44 @@ Once a scene exists server-side it must end up with at least one input, or it is
 - **Invalidation itself fails** (e.g. the scene is not yet queryable) → the scene is left on Kognic and reported as an orphan needing **manual** cleanup, rather than being silently reported as invalidated.
 
 At the end of the run the script exits non-zero with a summary listing scenes created without an input, orphans that could not be invalidated (as `external_id=scene_uuid`), and scenes kept with only partial inputs.
+
+### Post-upload maintenance
+
+The upload flow can be repaired without re-uploading sensor data. To create a
+missing input from an existing scene, use `create_input_from_scenes.py` with
+exactly one `--scene-uuid`, a target `--project`, and optionally `--batch` and
+`--pre-annotation-uuid`. The command is a dry run unless `--apply` is given.
+It skips failed or invalidated scenes and existing inputs in the selected
+project/batch, while allowing the same scene to receive inputs in other
+projects or batches.
+
+```bash
+python -m perception_dataset.kognic.create_input_from_scenes \
+  --scene-uuid <scene_uuid> \
+  --project <project_external_id> \
+  --batch <batch_external_id> \
+  [--pre-annotation-uuid <pre_annotation_uuid>] \
+  --apply
+```
+
+To invalidate orphaned or otherwise unwanted scenes, use `delete_scenes.py`:
+
+```bash
+python -m perception_dataset.kognic.delete_scenes \
+  --scene-uuids <scene_uuid_1>,<scene_uuid_2> \
+  [--scene-external-ids <external_id>] \
+  [--delete-input] \
+  [--apply]
+```
+
+The command accepts explicit UUID text, comma/space-separated UUIDs, or a CSV
+with a `scene_uuid` column. It also accepts external IDs or a CSV with a
+`scene_external_id` column; those IDs are resolved through Kognic inputs and
+therefore cannot find input-less orphan scenes. It no longer accepts or
+implicitly discovers `upload_report.tsv`. Without `--delete-input`, only
+input-less scenes are invalidated. With it, inputs are deleted first; if any
+input deletion fails, that scene is left uninvalidated for safe retry. Both
+commands default to dry-run behavior.
 
 ---
 
@@ -551,7 +601,12 @@ python -m perception_dataset.kognic.download_annotation --config config/download
 Output goes to `output_base/<project_external_id>/`. The download mode is **auto-detected** from the config:
 
 - **Project-wide** (default) — set `annotation_type` (and optionally `batch`) to download every matching annotation in the project. One `<scene_uuid>.json` is written per scene. Config: `config/download_kognic_annotation_whole_project.yaml`.
-- **Single scene** — set either `scene_external_id` or `scene_id` (the scene UUID) to download annotations for one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. `annotation_type` is optional here: omit it to download every annotation type for the scene (via `get_annotations_for_scene`), or set it (optionally with `batch`) to download only that type — done by filtering the project-wide query to the scene, since Kognic's per-scene endpoint exposes no annotation-type field. Files are written as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations). Config: `config/download_kognic_annotation_per_dataset_sample.yaml`.
+- **Single scene** — set either `scene_external_id` or `scene_id` (the scene UUID) to download annotations for one scene. With `scene_external_id` the external id is resolved to its scene UUID via the project's inputs; with `scene_id` the UUID is used directly (no lookup). Set only one of the two. `annotation_type` is optional here: omit it to download every annotation type for the scene (via `get_annotations_for_scene`), or set it (optionally with `batch`) to download only that type — done by filtering the project-wide query to the scene, since Kognic's per-scene endpoint exposes no annotation-type field. Files are written directly under `output_base` as `<scene_external_id>.json` / `<scene_id>.json` (suffixed with the request id when a scene has multiple annotations). Config: `config/download_kognic_annotation_per_dataset_sample.yaml`.
+
+When resolving `scene_external_id`, the downloader filters by the configured
+project and optional batch. If multiple scene UUIDs still match, it raises an
+error rather than selecting arbitrarily; provide both project and batch to
+identify the intended input.
 
 ```mermaid
 flowchart TD
@@ -585,20 +640,18 @@ conversion:
   # scene_id: <scene_uuid>            # the scene UUID directly (skips lookup)
   # For a single scene, annotation_type is optional: omit it to download all
   # types, or keep it above to download only that type for the scene.
-  iso_rotated_cuboids: false
 ```
 
 | key                   | required                                          | description                                                                                                                                                                   |
 | --------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `output_base`         | yes                                               | Directory where annotation JSONs are written.                                                                                                                                 |
-| `organization_id`     | yes                                               | Kognic client organization id (alias: `client_organization_id`).                                                                                                              |
-| `workspace_id`        | yes                                               | Kognic workspace id (alias: `write_workspace_id`).                                                                                                                            |
+| `organization_id`     | yes                                               | Kognic client organization id.                                                                                                                                                |
+| `workspace_id`        | yes                                               | Kognic workspace id.                                                                                                                                                          |
 | `project_external_id` | yes                                               | Project to download from.                                                                                                                                                     |
 | `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | Annotation type to download (e.g. `lidar-cuboid`, `camera-tag`). Optional for a single-scene download, where it filters the scene down to just that type.                     |
 | `batch`               | no                                                | Restrict the download to one batch (omit for all batches). Applies to project-wide downloads and to single-scene downloads when `annotation_type` is set.                     |
 | `scene_external_id`   | no                                                | Download a single scene by external id instead of the whole project.                                                                                                          |
 | `scene_id`            | no                                                | Download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`.                                               |
-| `iso_rotated_cuboids` | no                                                | `true` → cuboids in ISO8855 frame; `false` (default) → Kognic internal frame. **Must match the value used in [Stage 5](#stage-5--kognic-annotations--t4-annotation-tables).** |
 
 ---
 
@@ -621,11 +674,11 @@ python -m perception_dataset.convert --config config/convert_kognic_annotation_t
 
 OpenLABEL files are indexed by filename stem and by OpenLABEL metadata (`dataset_id`, `source_filename`, `scene_uuid`, `input_external_id`, and nested `scene_metadata`). Each T4 scene is matched to a file by its directory name or any ancestor directory name up to the dataset root (T4 datasets are commonly nested as `<root>/<scene_id>/<version>/`, so the identifier is often an ancestor).
 
-OpenLABEL frames are matched to T4 samples by the **LiDAR stream's URI timestamp**: when a usable timestamp is present it is authoritative (matched to the nearest sample within a 1 ms tolerance), so a frame whose capture time has no corresponding sample is reported as unmatched rather than mis-paired. The frame `external_id` is used as a positional fallback only when no timestamp is available. This makes subsampled annotation requests (covering only some scene frames) safe. Set `output_base` equal to the dataset path to enrich it in place.
+OpenLABEL frames are matched to T4 samples by the **LiDAR stream's URI timestamp**: when a usable timestamp is present it is authoritative (matched to the nearest sample within a 1 ms tolerance), so a frame whose capture time has no corresponding sample is reported as unmatched rather than mis-paired. Frames without a usable LiDAR timestamp are not positionally guessed from `external_id`; their annotations are skipped. This makes subsampled annotation requests (covering only some scene frames) safe. Set `output_base` equal to the dataset path to enrich it in place.
 
 ### 3D Cuboids (Object Detection)
 
-This is the inverse of [Stage 2](#stage-2--t4-annotations--openlabel-pre-annotation): cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes (undoing the `Rz(-90°)` yaw convention). `iso_rotated_cuboids` **must match** the value used at download time. It populates the otherwise-empty tables:
+This is the inverse of [Stage 2](#stage-2--t4-annotations--openlabel-pre-annotation): cuboids in the per-frame ego frame are transformed back to global-frame T4 boxes (undoing the `Rz(-90°)` yaw convention). The converter uses the fixed Kognic internal cuboid convention for both download and import. It populates the otherwise-empty tables:
 
 ```text
 instance.json  category.json  attribute.json  visibility.json  sample_annotation.json
@@ -641,9 +694,9 @@ When the OpenLABEL carries per-point segmentation (object type `3DPointCloudSegm
 
 - `lidarseg.json` — one record per matched frame, linking a LiDAR `sample_data` token to its label file.
 - `lidarseg/<version>/<token>.bin` — a `uint8` array of per-point class indices, one label per point in the corresponding `LIDAR_CONCAT` `.pcd.bin`, in the same order. Stale `.bin` files are cleared on each run.
-- `category.json` — the OpenLABEL ontology classes, each with its ontology id as the T4 `index` (the value stored in the `.bin`). Index `0` is reserved for `background` (unlabelled points).
+- `category.json` — the OpenLABEL ontology classes, each with its ontology id as the T4 `index` (the value stored in the `.bin`). Index `0` is reserved for `unpainted` (unlabelled points).
 
-Labels are decoded from Kognic's run-length encoding (`#<count>V<class_id>` repeated). Kognic encodes labels sequentially from point 0 and omits a trailing run of unlabelled points, so when the RLE is shorter than the cloud the missing trailing points are treated as `background` (class `0`) and appended — logged as a warning per frame. A frame is skipped only when it has **more** labels than points (a genuine annotation/point-cloud mismatch) or when its LiDAR point cloud cannot be read.
+Labels are decoded from Kognic's run-length encoding (`#<count>V<class_id>` repeated). Kognic encodes labels sequentially from point 0 and omits a trailing run of unlabelled points, so when the RLE is shorter than the cloud the missing trailing points are treated as `unpainted` (class `0`) and appended — logged as a warning per frame. A frame is skipped only when it has **more** labels than points (a genuine annotation/point-cloud mismatch) or when its LiDAR point cloud cannot be read.
 
 ### Stage 5 Config Parameters
 
@@ -652,7 +705,6 @@ task: convert_kognic_annotation_to_t4
 conversion:
   output_base: ./data/non_annotated_t4_format
   annotation_base: ./data/kognic_annotations/test_upload_data
-  iso_rotated_cuboids: false
   # category_map: {}
   include_attributes: true
 ```
@@ -661,7 +713,6 @@ conversion:
 | --------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `output_base`         | Yes      | —       | T4 dataset to annotate; its annotation tables are populated in place. May be a single scene dir or a parent dir of scene dirs.            |
 | `annotation_base`     | Yes      | —       | Directory holding the downloaded OpenLABEL JSON(s) from Stage 4. Files are matched to scenes by filename stem and OpenLABEL metadata.     |
-| `iso_rotated_cuboids` | No       | `false` | **Must match** the flag used at download time: `true` → ISO8855 frame; `false` → Kognic internal frame.                                   |
 | `category_map`        | No       | `{}`    | Optional rename of Kognic object types to T4 category names, e.g. `{car: vehicle.car}`. Unmapped types pass through unchanged.            |
 | `include_attributes`  | No       | `true`  | Import class properties (`vehicle_state`, `occlusion_state`, ...) as T4 attributes. `occlusion_state` also drives the `visibility` level. |
 
@@ -669,26 +720,30 @@ conversion:
 
 ## Reference: Kognic Staging File Shapes
 
-The local "Kognic format" produced by Stage 1 is a staging layout for Kognic IO, not an exported annotation format. Each file is either uploaded directly as scene data or converted into a Kognic model object by the uploader.
+The local "Kognic format" produced by Stage 1 is a staging layout for Kognic
+IO, not an exported annotation format. Conversion builds the complete scene
+model; upload reloads it Pydantically.
 
 ```text
 <output_base>/<sequence_name>/
   calibration.json
   ego_poses.json
+  keyframes.json
+  lidars_and_cameras_sequence.json
   pre_annotation.json        # added by Stage 2 (annotated task only)
   cameras/<camera_name>/<timestamp_ns>.jpg
   lidar/<lidar_name>/<timestamp_ns>.csv
-  frames_debug.json          # generated by the uploader when write_debug_frames: true
 ```
 
 | File or folder                        | Created by | What it contains                                                                                                                                                                               |
 | ------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `calibration.json`                    | Stage 1    | One Kognic calibration entry per configured sensor. Camera entries copy the T4 extrinsics/intrinsics; LiDAR entries are identity because the CSV points are already in `base_link`.            |
 | `ego_poses.json`                      | Stage 1    | Frame-indexed ego poses relative to frame 0. Keys are frame indices as strings; values contain position and rotation quaternion.                                                               |
+| `keyframes.json`                      | Stage 1    | Frame indices that become `metadata.annotate=true` in the complete sequence artifact.                                                                                                          |
+| `lidars_and_cameras_sequence.json`    | Stage 1    | Validated Pydantic scene payload containing frames, resources, poses, annotation flags, and optional IMU data.                                                                                  |
 | `cameras/<camera>/<timestamp_ns>.jpg` | Stage 1    | A copied camera image named by its nanosecond timestamp.                                                                                                                                       |
 | `lidar/<lidar>/<timestamp_ns>.csv`    | Stage 1    | A point cloud CSV with columns `ts_gps,x,y,z,intensity`. Per-source slice with `LIDAR_CONCAT_INFO`; whole fused `LIDAR_CONCAT` cloud without it. Points remain in `base_link`.                 |
 | `pre_annotation.json`                 | Stage 2    | OpenLABEL pre-annotation of the T4 3D boxes. Attached at upload time to a project's input only when that project names it via `pre_annotation:`; other projects on the same scene can skip it. |
-| `frames_debug.json`                   | Stage 3    | A local forensic dump of the constructed scene (frame IDs, timestamps, metadata, images, point clouds). Not uploaded; useful in `dryrun` mode. Written only when `write_debug_frames: true`.   |
 
 ### File Examples
 
@@ -714,7 +769,7 @@ The local "Kognic format" produced by Stage 1 is a staging layout for Kognic IO,
 }
 ```
 
-`ego_poses.json` is keyed by frame index. The uploader pairs these indices with frames discovered from the anchor LiDAR CSV files:
+`ego_poses.json` is keyed by frame index. Conversion pairs these indices with frames discovered from the anchor LiDAR CSV files:
 
 ```json
 {
@@ -756,7 +811,7 @@ ts_gps,x,y,z,intensity
 | Orphan scene can't be invalidated during cleanup (Stage 3)                | Scene left on Kognic and reported as needing manual invalidation (not silently dropped).  |
 | OpenLABEL frame can't be matched to a T4 sample (Stage 5)                 | Drops that frame's objects/segmentation and logs the count.                               |
 | Segmentation has more labels than points (Stage 5)                        | Skips that frame (the annotated cloud differs from this T4 extraction).                   |
-| Segmentation RLE shorter than the cloud (Stage 5)                         | Pads trailing points as `background` (class 0); logs a warning per frame.                 |
+| Segmentation RLE shorter than the cloud (Stage 5)                         | Pads trailing points as `unpainted` (class 0); logs a warning per frame.                  |
 
 ---
 

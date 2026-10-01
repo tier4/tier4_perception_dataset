@@ -1,12 +1,14 @@
+import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.t4_to_kognic_converter import T4ToKognicConverter
-from perception_dataset.utils.misc import validate_annotation_hz
+from perception_dataset.utils.misc import get_annotation_step, validate_annotation_hz
 from perception_dataset.utils.pointcloud import save_pointcloud_csv
 
 
@@ -36,6 +38,11 @@ def test_annotation_hz_accepts_supported_integer_values(value: int):
         value (int): Supported frequency supplied by the parametrized test.
     """
     assert validate_annotation_hz(value) == value
+
+
+def test_annotation_step_rounds_non_divisor_frequency():
+    """Use a rounded stride consistently for Kognic and Deepen sampling."""
+    assert get_annotation_step(6) == 2
 
 
 def test_scene_conversion_removes_stale_sensor_directories_before_generation(tmp_path: Path):
@@ -72,6 +79,55 @@ def test_scene_conversion_removes_stale_sensor_directories_before_generation(tmp
     assert not (output_dir / "lidar").exists()
 
 
+@pytest.mark.parametrize(
+    ("info_filename", "create_info_directory", "expected"),
+    [
+        ("metadata/concat.json", False, True),
+        (None, True, False),
+    ],
+)
+def test_lookup_maps_detect_lidar_concat_info_from_sample_data(
+    tmp_path: Path,
+    info_filename: str | None,
+    create_info_directory: bool,
+    expected: bool,
+):
+    """Test that concat metadata detection follows the loaded sample-data record."""
+    if create_info_directory:
+        (tmp_path / "data/LIDAR_CONCAT_INFO").mkdir(parents=True)
+
+    tables = {
+        "sensor": [SimpleNamespace(token="lidar-token", channel=LIDAR_CONCAT_CHANNEL)],
+        "calibrated_sensor": [],
+        "sample": [],
+        "sample_data": [
+            SimpleNamespace(
+                channel=LIDAR_CONCAT_CHANNEL,
+                filename="data/LIDAR_CONCAT/0.pcd.bin",
+                info_filename=info_filename,
+                timestamp=0,
+            )
+        ],
+        "ego_pose": [],
+    }
+    t4 = Mock()
+    t4.get_table.side_effect = tables.__getitem__
+    converter = T4ToKognicConverter(
+        input_base=str(tmp_path),
+        output_base=str(tmp_path / "output"),
+        camera_sensors=[],
+        annotated=False,
+    )
+
+    with patch(
+        "perception_dataset.kognic.t4_to_kognic_converter.Tier4",
+        return_value=t4,
+    ):
+        converter._build_lookup_maps(tmp_path)
+
+    assert converter._has_lidar_concat_info is expected
+
+
 def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
     """Test that repeated camera timestamps fail before overwriting a destination.
 
@@ -88,8 +144,7 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
     source.touch()
     output = tmp_path / "output"
     records = [
-        SimpleNamespace(timestamp=123, filename="data/CAM_FRONT/image.jpg")
-        for _ in range(3)
+        SimpleNamespace(timestamp=123, filename="data/CAM_FRONT/image.jpg") for _ in range(3)
     ]
     converter = T4ToKognicConverter(
         input_base=str(tmp_path / "input"),
@@ -102,6 +157,23 @@ def test_duplicate_camera_timestamps_raise_error(tmp_path: Path):
 
     with pytest.raises(ValueError, match="CAM_FRONT.*duplicate timestamp 123000 ns"):
         converter._collect_image_copies(tmp_path / "input", output, "CAM_FRONT")
+
+
+def test_annotated_keyframes_follow_samples_with_annotations(tmp_path: Path):
+    """Test that annotated conversion selects only samples containing objects."""
+    converter = object.__new__(T4ToKognicConverter)
+    converter._annotated = True
+    converter._anchor_channel = "LIDAR_TOP"
+    converter._annotated_sample_tokens = {"annotated-sample"}
+    converter._frame_records = [
+        {"LIDAR_TOP": SimpleNamespace(sample_token="annotated-sample")},
+        {"LIDAR_TOP": SimpleNamespace(sample_token="empty-sample")},
+    ]
+
+    converter._write_keyframes(tmp_path)
+    payload = json.loads((tmp_path / "keyframes.json").read_text())
+
+    assert payload["keyframe_indices"] == [0]
 
 
 def test_save_pointcloud_csv_writes_timestamp_and_first_four_features(tmp_path: Path):

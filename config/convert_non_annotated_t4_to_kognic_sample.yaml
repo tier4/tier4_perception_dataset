@@ -4,6 +4,7 @@ conversion:
   output_base: ./data/kognic_format
   workers_number: 12
   annotation_hz: 1
+  include_imu_data: false
   generate_tsv_report: true  # Write <output_base>/conversion_report.tsv after conversion.
   camera_sensors:
     - channel: CAM_FRONT
@@ -12,4 +13,3 @@ conversion:
     - channel: CAM_BACK
     - channel: CAM_BACK_LEFT
     - channel: CAM_FRONT_LEFT
-  # lidar_point_stride: 5 # optional: the stride of the lidar points to be used. Any columns greater than this stride will be skipped.

@@ -11,6 +11,9 @@ from typing import Dict, Optional
 from kognic.io.client import KognicIOClient
 import yaml
 
+from perception_dataset.kognic.utils.client import get_kognic_credentials
+from perception_dataset.kognic.utils.scene import resolve_scene_external_ids_to_uuids
+from perception_dataset.kognic.openlabel.openlabel_geometry import KOGNIC_ISO_ROTATED_CUBOIDS
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -29,7 +32,6 @@ class KognicDownloadConfig:
         batch (Optional[str]): Project batch filter.
         scene_external_id (Optional[str]): External ID of one scene to fetch.
         scene_uuid (Optional[str]): UUID of one scene to fetch.
-        iso_rotated_cuboids (bool): Whether to request ISO-rotated cuboids.
     """
     output_base: Path
     organization_id: str
@@ -39,7 +41,6 @@ class KognicDownloadConfig:
     batch: Optional[str] = None
     scene_external_id: Optional[str] = None
     scene_uuid: Optional[str] = None
-    iso_rotated_cuboids: bool = False
 
 
 def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
@@ -55,8 +56,7 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
         ValueError: If required settings are absent or scene selectors conflict.
     """
     conversion = config_dict["conversion"]
-    organization_id = conversion.get("organization_id") or conversion.get("client_organization_id")
-    workspace_id = conversion.get("workspace_id") or conversion.get("write_workspace_id")
+    organization_id, workspace_id = get_kognic_credentials(config_dict)
     scene_external_id = conversion.get("scene_external_id")
     scene_uuid = conversion.get("scene_id")
 
@@ -86,7 +86,6 @@ def _load_download_config(config_dict: Dict) -> KognicDownloadConfig:
         batch=conversion.get("batch"),
         scene_external_id=scene_external_id,
         scene_uuid=scene_uuid,
-        iso_rotated_cuboids=conversion.get("iso_rotated_cuboids", False),
     )
 
 
@@ -117,7 +116,7 @@ class KognicAnnotationDownloader:
         return self._kognic_io_client
 
     def _resolve_scene_uuid(self, scene_external_id: str) -> str:
-        """Resolve a scene external ID to its UUID.
+        """Resolve one scene external ID to a unique UUID.
 
         Args:
             scene_external_id (str): External ID to resolve within the project.
@@ -126,13 +125,15 @@ class KognicAnnotationDownloader:
             str: The unique matching scene UUID.
 
         Raises:
-            ValueError: If zero or multiple scenes match.
+            ValueError: If zero or multiple scenes match. Multiple matches
+                require both a project and batch filter in the config.
         """
-        inputs = self.kognic_io_client.input.query_inputs(
+        scene_uuids = resolve_scene_external_ids_to_uuids(
+            self.kognic_io_client,
+            [scene_external_id],
             project=self.config.project_external_id,
-            external_ids=[scene_external_id],
-        )
-        scene_uuids = {i.scene_uuid for i in inputs if i.scene_uuid}
+            batch=self.config.batch,
+        )[scene_external_id]
         if not scene_uuids:
             raise ValueError(
                 f"No scene found with external_id={scene_external_id} "
@@ -140,10 +141,11 @@ class KognicAnnotationDownloader:
             )
         if len(scene_uuids) > 1:
             raise ValueError(
-                f"Multiple scenes ({len(scene_uuids)}) match external_id={scene_external_id} "
-                f"in project {self.config.project_external_id}: {sorted(scene_uuids)}"
+                f"Multiple scenes ({len(scene_uuids)}) match external_id={scene_external_id}: "
+                f"{scene_uuids}. Specify both project_external_id and batch in the config "
+                "to select one scene."
             )
-        return scene_uuids.pop()
+        return scene_uuids[0]
 
     def download_scene(self) -> None:
         """Download annotations for the configured scene.
@@ -182,14 +184,14 @@ class KognicAnnotationDownloader:
                     annotation_type=self.config.annotation_type,
                     batch=self.config.batch,
                     include_content=True,
-                    iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+                    iso_rotated_cuboids=KOGNIC_ISO_ROTATED_CUBOIDS,
                 )
                 if annotation.scene_uuid == scene_uuid
             ]
         else:
             annotations = self.kognic_io_client.annotation.get_annotations_for_scene(
                 scene_uuid=scene_uuid,
-                iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+                iso_rotated_cuboids=KOGNIC_ISO_ROTATED_CUBOIDS,
             )
 
         if not annotations:
@@ -261,7 +263,7 @@ class KognicAnnotationDownloader:
                 annotation_type=self.config.annotation_type,
                 batch=self.config.batch,
                 include_content=True,
-                iso_rotated_cuboids=self.config.iso_rotated_cuboids,
+                iso_rotated_cuboids=KOGNIC_ISO_ROTATED_CUBOIDS,
             )
         )
 

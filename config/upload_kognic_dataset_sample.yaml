@@ -23,7 +23,5 @@ conversion:
       batch_external_id: test-semseg-upload-batch  # no pre_annotation -> input created without one
   dryrun: false
   motion_compensate: false
-  include_imu_data: false
-  write_debug_frames: false
   generate_tsv_report: true # Write <output_base>/upload_report.tsv after upload
   # scene_creation_timeout_s: 1800 # Optional: timeout for scene creation 
