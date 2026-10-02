@@ -13,6 +13,16 @@ import tf2_ros
 
 from perception_dataset.utils.rosbag2 import create_reader, get_topic_count, get_topic_type_dict
 
+# topic types that are treated as sensor topics (e.g. for frame_id lookup)
+SENSOR_TOPIC_TYPE_PREFIXES = (
+    "sensor_msgs/msg/",
+    "ffmpeg_image_transport_msgs/msg/FFMPEGPacket",
+)
+
+
+def _is_sensor_topic_type(topic_type: str) -> bool:
+    return any(topic_type.startswith(prefix) for prefix in SENSOR_TOPIC_TYPE_PREFIXES)
+
 
 class Rosbag2Reader:
     def __init__(
@@ -37,7 +47,7 @@ class Rosbag2Reader:
         self.sensor_topic_to_frame_id: Dict[str, str] = {
             topic: None
             for topic in self._topic_name_to_topic_type
-            if "sensor_msgs/msg/" in self._topic_name_to_topic_type[topic]
+            if _is_sensor_topic_type(self._topic_name_to_topic_type[topic])
         }
         self.camera_info: Dict[str, str] = {
             topic: None
@@ -116,13 +126,16 @@ class Rosbag2Reader:
     def get_topic_count(self, topic_name: str) -> int:
         return self._topic_name_to_topic_count.get(topic_name, 0)
 
+    def get_topic_type(self, topic_name: str) -> str:
+        return self._topic_name_to_topic_type[topic_name]
+
     def read_camera_info(self) -> Any:
         reader = create_reader(self._bag_dir)
         while reader.has_next():
             topic_name, data, timestamp = reader.read_next()
             topic_type = self._topic_name_to_topic_type[topic_name]
 
-            if "sensor_msgs/msg/" in topic_type:
+            if _is_sensor_topic_type(topic_type):
                 msg_type = get_message(topic_type)
                 msg = deserialize_message(data, msg_type)
                 if hasattr(msg, "header"):

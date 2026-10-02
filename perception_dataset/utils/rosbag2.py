@@ -1,16 +1,17 @@
 """some implementations are from https://github.com/tier4/ros2bag_extensions/blob/main/ros2bag_extensions/ros2bag_extensions/verb/__init__.py"""
 
+from collections import deque
 from dataclasses import dataclass
 import os.path as osp
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from types import SimpleNamespace
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 import uuid
 import warnings
 
-import accelerated_image_processor.common as aip_common
+import av
 import builtin_interfaces.msg
 import cv2
-from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 from nptyping import NDArray
 import numpy as np
 from pypcd4 import PointCloud
@@ -42,6 +43,30 @@ class DecodedImage:
 
     array: NDArray | None
     fileformat: str
+
+
+@dataclass(frozen=True)
+class VideoFrame:
+    """A frame decoded from an FFMPEGPacket video stream.
+
+    Attributes:
+        array (NDArray | None): Decoded BGR image. This is `None` when the decoder
+            produced no frame for the source packet (e.g. decoder delay at the start
+            of the stream or a corrupt packet).
+        stamp (builtin_interfaces.msg.Time): Header stamp of the source packet.
+        width (int): Frame width from the packet metadata.
+        height (int): Frame height from the packet metadata.
+    """
+
+    array: NDArray | None
+    stamp: builtin_interfaces.msg.Time
+    width: int
+    height: int
+
+    @property
+    def header(self) -> SimpleNamespace:
+        """Mimic the ROS message interface (`msg.header.stamp`)."""
+        return SimpleNamespace(stamp=self.stamp)
 
 
 def get_options(
@@ -227,114 +252,154 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
     return radar_tracks
 
 
-def decode_image_msg(
-    image_msg: CompressedImage | FFMPEGPacket, *, video_decompressor: Any | None = None
-) -> DecodedImage:
-    """Decode a supported ROS image message into image data and file metadata.
+def compressed_image_fileformat(compressed_image_msg: CompressedImage) -> str:
+    """Infer the output file format of a CompressedImage from its format field.
 
-    Args:
-        image_msg: Input image message. `CompressedImage` is decoded with OpenCV and
-            keeps its original jpg/png file format. `FFMPEGPacket` is decompressed with
-            `video_decompressor` and returned as png.
-        video_decompressor: Decompressor used only for `FFMPEGPacket` messages. This
-            must be provided when `image_msg` is an `FFMPEGPacket`.
+    The format field is a free-form string such as `jpeg` or `rgb8; jpeg compressed bgr8`.
+    """
+    return (
+        EXTENSION_ENUM.JPG.value[1:]
+        if "jpeg" in compressed_image_msg.format
+        else EXTENSION_ENUM.PNG.value[1:]
+    )
+
+
+def decode_image_msg(image_msg: CompressedImage) -> DecodedImage:
+    """Decode a CompressedImage message into image data and file metadata.
 
     Returns:
         DecodedImage: Decoded pixel array and the file format to use when saving it.
-        `array` can be `None` when decoding or decompression fails.
-
-    Raises:
-        ValueError: If `image_msg` is an `FFMPEGPacket` and `video_decompressor` is not
-            provided.
-        TypeError: If `image_msg` is not a supported message type.
-        ModuleNotFoundError: If decoding an `FFMPEGPacket` requires
-            `accelerated_image_processor` but it is unavailable.
+        `array` can be `None` when decoding fails.
     """
-    if isinstance(image_msg, CompressedImage):
-        return _decode_compressed_image_msg(image_msg)
-    elif isinstance(image_msg, FFMPEGPacket):
-        if video_decompressor is None:
-            raise ValueError("video_decompressor must be provided for FFMPEGPacket images")
-        return _decode_ffmpeg_packet(image_msg, video_decompressor=video_decompressor)
-    else:
-        raise TypeError(f"Unsupported image message type: {type(image_msg)}")
-
-
-def _decode_compressed_image_msg(compressed_image_msg: CompressedImage) -> DecodedImage:
-    """Decode a CompressedImage message and infer its file format."""
-    if hasattr(compressed_image_msg, "_encoding"):
+    if hasattr(image_msg, "_encoding"):
         try:
-            np_arr = np.frombuffer(compressed_image_msg.data, np.uint8)
-            image = np.reshape(
-                np_arr, (compressed_image_msg.height, compressed_image_msg.width, 3)
-            )
+            np_arr = np.frombuffer(image_msg.data, np.uint8)
+            image = np.reshape(np_arr, (image_msg.height, image_msg.width, 3))
         except Exception as e:
             print(e)
             image = None
     else:
         image_buf = np.ndarray(
-            shape=(1, len(compressed_image_msg.data)),
+            shape=(1, len(image_msg.data)),
             dtype=np.uint8,
-            buffer=compressed_image_msg.data,
+            buffer=image_msg.data,
         )
         image = cv2.imdecode(image_buf, cv2.IMREAD_ANYCOLOR)
 
-    fileformat = (
-        EXTENSION_ENUM.JPG.value[1:]
-        if compressed_image_msg.format == "jpeg"
-        else EXTENSION_ENUM.PNG.value[1:]
-    )
-    return DecodedImage(array=image, fileformat=fileformat)
+    return DecodedImage(array=image, fileformat=compressed_image_fileformat(image_msg))
 
 
-def _decode_ffmpeg_packet(image_msg: FFMPEGPacket, *, video_decompressor: Any) -> DecodedImage:
-    """Decode an FFMPEGPacket message into image data."""
-    aip_image = _ffmpeg_msg_to_image(image_msg)
-    decompressed_image = video_decompressor.process(aip_image)
-    if decompressed_image is None:
-        warnings.warn("Failed to decompress image")
-        image_arr = None
-    else:
-        # The decompressor returns the Boost.Python base Image, whereas to_numpy()
-        # is defined by the Python Image wrapper. Invoke the wrapper method explicitly.
-        image_arr = decompressed_image.to_numpy()
+def decode_ffmpeg_frames(
+    messages: Iterable[Any],
+    *,
+    start_time: Optional[builtin_interfaces.msg.Time] = None,
+) -> Iterator[VideoFrame]:
+    """Decode a single FFMPEGPacket stream into one VideoFrame per packet, in packet order.
 
-    return DecodedImage(array=image_arr, fileformat=EXTENSION_ENUM.PNG.value[1:])
-
-
-def _ffmpeg_msg_to_image(ffmpeg_msg: FFMPEGPacket) -> Any:
-    """Convert an FFMPEG packet to an aip_common.Image.
+    Every packet is fed to a dedicated software decoder in arrival order, so the caller
+    must pass all packets of the stream from the beginning of the bag (video frames
+    depend on the preceding packets). Only frames whose stamp is at or after
+    `start_time` are yielded. Decoded frames are paired with their source packet by
+    pts, so a yielded frame has `array=None` when the decoder produced no frame for
+    its packet (e.g. initial decoder delay before the first keyframe or a corrupt
+    packet); frames still buffered in the decoder are drained when the stream ends.
 
     Args:
-        ffmpeg_msg (FFMPEGPacket): The FFMPEG packet to convert.
+        messages: FFMPEGPacket messages of one topic, in arrival order.
+        start_time: Yield only frames with a header stamp at or after this time.
 
-    Returns:
-        Image: The converted aip_common.Image.
+    Yields:
+        VideoFrame: One frame per input packet with stamp >= `start_time`.
     """
-    image = aip_common.Image()
+    codec_ctx: Optional[av.CodecContext] = None
+    start = Time.from_msg(start_time) if start_time is not None else None
+    # packets sent to the decoder whose frames have not come out yet
+    pending: deque[Tuple[int, builtin_interfaces.msg.Time, int, int]] = deque()
 
-    image.frame_id = ffmpeg_msg.header.frame_id
-    image.timestamp = int(stamp_to_unix_timestamp(ffmpeg_msg.header.stamp))
-    image.width = ffmpeg_msg.width
-    image.height = ffmpeg_msg.height
-    image.format = _ffmpeg_encoding_to_image_format(ffmpeg_msg.encoding)
-    image.pts = ffmpeg_msg.pts
-    image.flags = ffmpeg_msg.flags
-    image.is_bigendian = ffmpeg_msg.is_bigendian
-    image.data = ffmpeg_msg.data
+    for msg in messages:
+        if codec_ctx is None:
+            codec_ctx = av.CodecContext.create(_ffmpeg_encoding_to_codec_name(msg.encoding), "r")
+        packet = av.Packet(bytes(msg.data))
+        packet.pts = msg.pts
+        pending.append((msg.pts, msg.header.stamp, msg.width, msg.height))
+        try:
+            frames = codec_ctx.decode(packet)
+        except av.FFmpegError as e:
+            warnings.warn(f"failed to decode video packet: {e}")
+            frames = []
+        for frame in frames:
+            yield from _emit_decoded_frame(frame, pending, start)
 
-    return image
+    if codec_ctx is not None:
+        # drain the frames still buffered in the decoder
+        try:
+            frames = codec_ctx.decode(None)
+        except av.FFmpegError as e:
+            warnings.warn(f"failed to flush the video decoder: {e}")
+            frames = []
+        for frame in frames:
+            yield from _emit_decoded_frame(frame, pending, start)
+
+    # packets that never produced a frame
+    while pending:
+        _, stamp, width, height = pending.popleft()
+        warnings.warn("no frame decoded for a trailing video packet")
+        if start is None or Time.from_msg(stamp) >= start:
+            yield VideoFrame(array=None, stamp=stamp, width=width, height=height)
 
 
-def _ffmpeg_encoding_to_image_format(encoding: str) -> Any:
+def _emit_decoded_frame(
+    frame: "av.VideoFrame",
+    pending: deque,
+    start: Optional[Time],
+) -> Iterator[VideoFrame]:
+    """Pair a decoded frame with its source packet (by pts) and yield VideoFrames.
+
+    Pending packets older than the decoded frame produced no output; they are yielded
+    with `array=None` so the caller can substitute a blank image. Streams with frame
+    reordering (B-frames) are not supported: the whole conversion pipeline assumes
+    monotonic frame stamps, so such frames are dropped with a warning here.
+    """
+    if pending and frame.pts is not None and frame.pts < pending[0][0]:
+        warnings.warn(
+            "decoded video frame is out of order (B-frames are not supported), dropping it"
+        )
+        return
+    while pending:
+        pts, stamp, width, height = pending.popleft()
+        if frame.pts is None or pts == frame.pts:
+            array = frame.to_ndarray(format="bgr24")
+            if start is None or Time.from_msg(stamp) >= start:
+                yield VideoFrame(array=array, stamp=stamp, width=width, height=height)
+            return
+        warnings.warn(f"no frame decoded for video packet with pts {pts}")
+        if start is None or Time.from_msg(stamp) >= start:
+            yield VideoFrame(array=None, stamp=stamp, width=width, height=height)
+    # a frame without a matching pending packet: should not happen, drop it
+    warnings.warn("decoded video frame does not match any pending packet")
+
+
+# software decoder names per codec, in order of preference. FFmpeg's decoder
+# named "av1" only supports hardware acceleration, so it must not be selected.
+_SOFTWARE_DECODER_NAMES = {
+    "h264": ("h264",),
+    "h265": ("hevc",),
+    "hevc": ("hevc",),
+    "av1": ("libdav1d", "libaom-av1"),
+}
+
+
+def _ffmpeg_encoding_to_codec_name(encoding: str) -> str:
+    """Map the FFMPEGPacket encoding field to an available FFmpeg software decoder name."""
     codec_candidates = _split_string_by_comma_and_semicolon(encoding)
     for codec in codec_candidates:
-        if codec == "h264":
-            return aip_common.ImageFormat.H264
-        elif codec == "h265":
-            return aip_common.ImageFormat.H265
-        elif codec == "av1":
-            return aip_common.ImageFormat.AV1
+        decoder_names = _SOFTWARE_DECODER_NAMES.get(codec)
+        if decoder_names is None:
+            continue
+        for decoder_name in decoder_names:
+            if decoder_name in av.codecs_available:
+                return decoder_name
+        raise ValueError(f"No software decoder available for codec: {codec}")
     raise ValueError(f"Unsupported codec: {encoding}")
 
 

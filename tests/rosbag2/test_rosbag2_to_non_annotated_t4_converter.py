@@ -4,17 +4,18 @@ from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
 
+import builtin_interfaces.msg
 import cv2
 import numpy as np
 import pytest
 from sensor_msgs.msg import CompressedImage
 
-from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 from perception_dataset.rosbag2 import rosbag2_to_non_annotated_t4_converter as converter_module
 from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     _Rosbag2ToNonAnnotatedT4Converter,
 )
+from perception_dataset.utils import rosbag2 as rosbag2_utils
 
 _MISSING = object()
 
@@ -266,14 +267,13 @@ def test_generate_image_data_routes_undistorted_compressed_image_to_jpeg_writer(
 ):
     bare_image_converter._undistort_image = True
     compressed_image = CompressedImage()
+    compressed_image.format = "jpeg"
     decoded_image = np.zeros((2, 3, 3), dtype=np.uint8)
     remapped_image = np.ones((2, 3, 3), dtype=np.uint8)
     decoded = mocker.patch.object(
         converter_module.rosbag2_utils,
         "decode_image_msg",
-        return_value=converter_module.rosbag2_utils.DecodedImage(
-            array=decoded_image, fileformat="jpg"
-        ),
+        return_value=rosbag2_utils.DecodedImage(array=decoded_image, fileformat="jpg"),
     )
     remap = mocker.patch.object(converter_module.cv2, "remap", return_value=remapped_image)
     write_jpeg = mocker.patch.object(bare_image_converter, "_write_jpeg")
@@ -281,7 +281,7 @@ def test_generate_image_data_routes_undistorted_compressed_image_to_jpeg_writer(
 
     _generate_image(bare_image_converter, compressed_image, camera_info=object())
 
-    decoded.assert_called_once()
+    decoded.assert_called_once_with(compressed_image)
     remap.assert_called_once_with(
         decoded_image,
         bare_image_converter.undistort_map_x,
@@ -298,6 +298,7 @@ def test_generate_image_data_routes_undistorted_compressed_image_to_jpeg_writer(
 
 def test_generate_image_data_preserves_compressed_image_bytes(bare_image_converter, mocker):
     compressed_image = CompressedImage()
+    compressed_image.format = "jpeg"
     compressed_image.data = b"original-compressed-image-bytes"
     write_jpeg = mocker.patch.object(bare_image_converter, "_write_jpeg")
     decoded = mocker.patch.object(converter_module.rosbag2_utils, "decode_image_msg")
@@ -375,123 +376,106 @@ def test_save_config_records_complete_non_default_jpeg_settings(
     }
 
 
-class _DummySampleDataTable:
+# ---------------------------------------------------------------------------
+# FFMPEGPacket video stream handling (decoded frames arrive as VideoFrame)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSampleDataTable:
     def __init__(self):
         self.last_insert = None
 
     def insert_into_table(self, **kwargs):
         self.last_insert = kwargs
-        return "sample_data_token"
+        return "sample-data-token"
 
     def get_record_from_token(self, token):
-        assert token == "sample_data_token"
+        assert token == "sample-data-token"
         return SimpleNamespace(filename=self.last_insert["filename"])
 
 
 @pytest.fixture
-def ffmpeg_packet_message():
-    ffmpeg_msg = FFMPEGPacket()
-    ffmpeg_msg.data = b"ffmpeg-packet"
-    return ffmpeg_msg
-
-
-@pytest.fixture
-def decoded_ffmpeg_image():
-    return np.full((4, 6, 3), 127, dtype=np.uint8)
-
-
-@pytest.fixture
-def converter_stub(tmp_path):
-    converter_class = converter_module._Rosbag2ToNonAnnotatedT4Converter
-
-    converter = converter_class.__new__(converter_class)
-    converter._generate_ego_pose = lambda stamp: "ego_pose_token"
-    converter._sample_data_table = _DummySampleDataTable()
+def video_converter(tmp_path):
+    converter = object.__new__(_Rosbag2ToNonAnnotatedT4Converter)
+    converter._generate_ego_pose = lambda _stamp: "ego-pose-token"
+    converter._sample_data_table = _RecordingSampleDataTable()
     converter._output_scene_dir = str(tmp_path)
-    converter._video_decompressor = object()
     converter._undistort_image = False
     converter._jpeg_quality = 95
     converter._jpeg_optimize = False
-
     (tmp_path / "data" / "CAM_FRONT").mkdir(parents=True)
-
     return converter
 
 
-def test_generate_image_data_decodes_ffmpeg_packet(
-    converter_stub,
-    ffmpeg_packet_message,
-    decoded_ffmpeg_image,
-    monkeypatch,
-    tmp_path,
-):
-    monkeypatch.setattr(
-        "perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter.rosbag2_utils.decode_image_msg",
-        lambda image_msg, *, video_decompressor=None: converter_module.rosbag2_utils.DecodedImage(
-            array=decoded_ffmpeg_image,
-            fileformat="png",
-        ),
+def _video_frame(array):
+    return rosbag2_utils.VideoFrame(
+        array=array,
+        stamp=builtin_interfaces.msg.Time(sec=1, nanosec=0),
+        width=6,
+        height=4,
     )
 
-    converter_stub._generate_image_data(
-        ffmpeg_packet_message,
+
+def _generate_video_image(converter, video_frame, frame_index=0, camera_info=None):
+    return converter._generate_image_data(
+        video_frame,
         image_unix_timestamp=1.0,
-        sample_token="sample_token",
-        calibrated_sensor_token="calibrated_sensor_token",
+        sample_token="sample-token",
+        calibrated_sensor_token="calibrated-sensor-token",
         sensor_channel="CAM_FRONT",
-        frame_index=0,
+        frame_index=frame_index,
+        camera_info=camera_info,
     )
 
-    insert_args = converter_stub._sample_data_table.last_insert
+
+def test_generate_image_data_writes_video_frame_as_jpeg(video_converter, mocker, tmp_path):
+    write_jpeg = mocker.spy(video_converter, "_write_jpeg")
+    decoded_image = np.full((4, 6, 3), 127, dtype=np.uint8)
+
+    _generate_video_image(video_converter, _video_frame(decoded_image))
+
+    insert_args = video_converter._sample_data_table.last_insert
     output_path = tmp_path / insert_args["filename"]
 
-    assert insert_args["fileformat"] == "png"
+    assert insert_args["fileformat"] == "jpg"
     assert insert_args["height"] == 4
     assert insert_args["width"] == 6
-    assert output_path.suffix == ".png"
-    assert output_path.exists()
+    assert insert_args["is_valid"] is True
+    assert output_path.suffix == ".jpg"
     assert cv2.imread(str(output_path)) is not None
+    assert write_jpeg.call_args.kwargs == {"legacy_no_params": False}
 
 
-def test_generate_image_data_undistorts_decoded_ffmpeg_packet(
-    converter_stub,
-    ffmpeg_packet_message,
-    decoded_ffmpeg_image,
-    monkeypatch,
-    tmp_path,
-):
-    converter_stub._undistort_image = True
-    converter_stub.undistort_map_x = np.zeros(decoded_ffmpeg_image.shape[:2], dtype=np.float32)
-    converter_stub.undistort_map_y = np.zeros(decoded_ffmpeg_image.shape[:2], dtype=np.float32)
+def test_generate_image_data_undistorts_video_frame(video_converter, mocker, tmp_path):
+    decoded_image = np.full((4, 6, 3), 127, dtype=np.uint8)
+    remapped_image = np.full_like(decoded_image, 64)
+    video_converter._undistort_image = True
+    video_converter.undistort_map_x = np.zeros(decoded_image.shape[:2], dtype=np.float32)
+    video_converter.undistort_map_y = np.zeros(decoded_image.shape[:2], dtype=np.float32)
+    mocker.patch.object(converter_module.cv2, "remap", return_value=remapped_image)
 
-    remapped_image = np.full_like(decoded_ffmpeg_image, 64)
-
-    monkeypatch.setattr(
-        "perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter.rosbag2_utils.decode_image_msg",
-        lambda image_msg, *, video_decompressor=None: converter_module.rosbag2_utils.DecodedImage(
-            array=decoded_ffmpeg_image,
-            fileformat="png",
-        ),
-    )
-    monkeypatch.setattr(
-        "perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter.cv2.remap",
-        lambda image, map_x, map_y, interpolation: remapped_image,
+    _generate_video_image(
+        video_converter, _video_frame(decoded_image), frame_index=1, camera_info=object()
     )
 
-    converter_stub._generate_image_data(
-        ffmpeg_packet_message,
-        image_unix_timestamp=1.0,
-        sample_token="sample_token",
-        calibrated_sensor_token="calibrated_sensor_token",
-        sensor_channel="CAM_FRONT",
-        frame_index=1,
-        camera_info=object(),
-    )
+    insert_args = video_converter._sample_data_table.last_insert
+    saved_image = cv2.imread(str(tmp_path / insert_args["filename"]))
 
-    insert_args = converter_stub._sample_data_table.last_insert
-    output_path = tmp_path / insert_args["filename"]
-    saved_image = cv2.imread(str(output_path))
-
-    assert output_path.exists()
     assert saved_image is not None
     assert np.array_equal(saved_image, remapped_image)
+
+
+def test_generate_image_data_writes_blank_image_for_missing_video_frame(video_converter, tmp_path):
+    with pytest.warns(UserWarning, match="no frame"):
+        _generate_video_image(video_converter, _video_frame(None), frame_index=2)
+
+    insert_args = video_converter._sample_data_table.last_insert
+    saved_image = cv2.imread(str(tmp_path / insert_args["filename"]))
+
+    assert insert_args["fileformat"] == "jpg"
+    assert insert_args["is_valid"] is False
+    assert insert_args["is_key_frame"] is False
+    assert insert_args["height"] == 4
+    assert insert_args["width"] == 6
+    assert saved_image is not None
+    assert not saved_image.any()
