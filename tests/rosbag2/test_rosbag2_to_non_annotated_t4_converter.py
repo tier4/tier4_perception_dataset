@@ -15,7 +15,7 @@ from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     _Rosbag2ToNonAnnotatedT4Converter,
 )
-from perception_dataset.utils import rosbag2 as rosbag2_utils
+from perception_dataset.utils import image as image_utils
 
 _MISSING = object()
 
@@ -271,9 +271,9 @@ def test_generate_image_data_routes_undistorted_compressed_image_to_jpeg_writer(
     decoded_image = np.zeros((2, 3, 3), dtype=np.uint8)
     remapped_image = np.ones((2, 3, 3), dtype=np.uint8)
     decoded = mocker.patch.object(
-        converter_module.rosbag2_utils,
+        converter_module.image_utils,
         "decode_image_msg",
-        return_value=rosbag2_utils.DecodedImage(array=decoded_image, fileformat="jpg"),
+        return_value=image_utils.DecodedImage(array=decoded_image, fileformat="jpg"),
     )
     remap = mocker.patch.object(converter_module.cv2, "remap", return_value=remapped_image)
     write_jpeg = mocker.patch.object(bare_image_converter, "_write_jpeg")
@@ -301,7 +301,7 @@ def test_generate_image_data_preserves_compressed_image_bytes(bare_image_convert
     compressed_image.format = "jpeg"
     compressed_image.data = b"original-compressed-image-bytes"
     write_jpeg = mocker.patch.object(bare_image_converter, "_write_jpeg")
-    decoded = mocker.patch.object(converter_module.rosbag2_utils, "decode_image_msg")
+    decoded = mocker.patch.object(converter_module.image_utils, "decode_image_msg")
     remap = mocker.patch.object(converter_module.cv2, "remap")
     imwrite = mocker.patch.object(converter_module.cv2, "imwrite")
 
@@ -408,7 +408,7 @@ def video_converter(tmp_path):
 
 
 def _video_frame(array):
-    return rosbag2_utils.VideoFrame(
+    return image_utils.VideoFrame(
         array=array,
         stamp=builtin_interfaces.msg.Time(sec=1, nanosec=0),
         width=6,

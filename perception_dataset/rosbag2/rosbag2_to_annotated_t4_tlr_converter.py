@@ -21,6 +21,7 @@ from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
     Rosbag2ToT4Converter,
     _Rosbag2ToT4Converter,
 )
+import perception_dataset.utils.image as image_utils
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -236,7 +237,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
 
             last_translation: List[float] = [0.0, 0.0, 0.0]
             for image_msg in self._make_image_generator(topic, is_video_topic, start_time_in_time):
-                image_msg: Union[CompressedImage, rosbag2_utils.VideoFrame]
+                image_msg: Union[CompressedImage, image_utils.VideoFrame]
                 if generated_frame_index >= self._num_load_frames:
                     break
 
@@ -280,7 +281,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         )
                         if isinstance(image_msg, CompressedImage):
                             # decode and re-encode, matching the output of previous versions
-                            image_arr = rosbag2_utils.decode_image_msg(image_msg).array
+                            image_arr = image_utils.decode_image_msg(image_msg).array
                         else:
                             image_arr = image_msg
                         sample_data_token = self._generate_image_data(

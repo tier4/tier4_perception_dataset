@@ -7,7 +7,7 @@ import builtin_interfaces.msg
 import numpy as np
 import pytest
 
-from perception_dataset.utils import rosbag2 as rosbag2_utils
+from perception_dataset.utils import image as image_utils
 
 
 class _DummySampleTable:
@@ -74,7 +74,7 @@ def ffmpeg_packet_message():
 
 @pytest.fixture
 def decoded_video_frame(ffmpeg_packet_message):
-    return rosbag2_utils.VideoFrame(
+    return image_utils.VideoFrame(
         array=np.zeros((4, 6, 3), dtype=np.uint8),
         stamp=ffmpeg_packet_message.header.stamp,
         width=6,
@@ -120,7 +120,7 @@ def test_convert_image_camera_only_decodes_ffmpeg_topic(
         yield decoded_video_frame
 
     monkeypatch.setattr(
-        "perception_dataset.utils.rosbag2.decode_ffmpeg_frames",
+        "perception_dataset.utils.image.decode_ffmpeg_frames",
         _decode_ffmpeg_frames,
     )
 
@@ -179,13 +179,13 @@ def test_convert_image_lidar_mode_probes_shape_without_decoding(
         lambda **kwargs: [(0, 0, None)],
     )
     monkeypatch.setattr(
-        "perception_dataset.utils.rosbag2.decode_ffmpeg_frames",
+        "perception_dataset.utils.image.decode_ffmpeg_frames",
         lambda messages, *, start_time=None: iter([decoded_video_frame]),
     )
 
     decode_image_msg_calls = []
     monkeypatch.setattr(
-        "perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter.rosbag2_utils.decode_image_msg",
+        "perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter.image_utils.decode_image_msg",
         lambda image_msg: decode_image_msg_calls.append(image_msg),
     )
 
@@ -242,8 +242,8 @@ def test_convert_image_camera_only_re_encodes_compressed_image(annotated_tlr_mod
     converter._bag_reader = _make_bag_reader(compressed_image, "sensor_msgs/msg/CompressedImage")
     decoded_array = np.zeros((4, 6, 3), dtype=np.uint8)
     monkeypatch.setattr(
-        "perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter.rosbag2_utils.decode_image_msg",
-        lambda image_msg: rosbag2_utils.DecodedImage(array=decoded_array, fileformat="jpg"),
+        "perception_dataset.rosbag2.rosbag2_to_annotated_t4_tlr_converter.image_utils.decode_image_msg",
+        lambda image_msg: image_utils.DecodedImage(array=decoded_array, fileformat="jpg"),
     )
 
     captured = {}

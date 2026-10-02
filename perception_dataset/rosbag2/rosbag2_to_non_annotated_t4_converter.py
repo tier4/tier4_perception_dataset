@@ -63,6 +63,7 @@ from perception_dataset.rosbag2.converter_params import (
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.table_handler import TableHandler
+import perception_dataset.utils.image as image_utils
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -1134,7 +1135,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
             last_translation: List[float] = [0.0, 0.0, 0.0]
             for image_msg in self._make_image_generator(topic, is_video_topic, start_time_in_time):
-                image_msg: Union[CompressedImage, rosbag2_utils.VideoFrame]
+                image_msg: Union[CompressedImage, image_utils.VideoFrame]
                 if generated_frame_index >= self._num_load_cam_frames:
                     break
 
@@ -1174,7 +1175,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     )
                     if isinstance(image_msg, CompressedImage):
                         # decode and re-encode, matching the output of previous versions
-                        image_arr = rosbag2_utils.decode_image_msg(image_msg).array
+                        image_arr = image_utils.decode_image_msg(image_msg).array
                     else:
                         image_arr = image_msg
                     sample_data_token = self._generate_image_data(
@@ -1200,7 +1201,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             # FFMPEGPacket carries the stream resolution; decoding is not needed
             # (and would disturb the per-topic decoder state).
             return (temp_image_msg.height, temp_image_msg.width, 3)
-        return rosbag2_utils.decode_image_msg(temp_image_msg).array.shape
+        return image_utils.decode_image_msg(temp_image_msg).array.shape
 
     def _make_image_generator(
         self,
@@ -1215,7 +1216,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         frames with stamp >= start_time are yielded.
         """
         if is_video_topic:
-            return rosbag2_utils.decode_ffmpeg_frames(
+            return image_utils.decode_ffmpeg_frames(
                 self._bag_reader.read_messages(topics=[topic]),
                 start_time=start_time_in_time,
             )
@@ -1249,7 +1250,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _generate_image_data(
         self,
-        image_arr: Union[np.ndarray, CompressedImage, rosbag2_utils.VideoFrame],
+        image_arr: Union[np.ndarray, CompressedImage, image_utils.VideoFrame],
         image_unix_timestamp: float,
         sample_token: Optional[str],
         calibrated_sensor_token: str,
@@ -1272,7 +1273,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         if isinstance(image_arr, np.ndarray):
             image_shape = image_arr.shape
             output_image = image_arr
-        elif isinstance(image_arr, rosbag2_utils.VideoFrame):
+        elif isinstance(image_arr, image_utils.VideoFrame):
             output_image = image_arr.array
             if output_image is None:
                 warnings.warn(
@@ -1292,11 +1293,11 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         elif isinstance(image_arr, CompressedImage):
             if camera_info is None or not self._undistort_image:
                 # save compressed image as is
-                fileformat = rosbag2_utils.compressed_image_fileformat(image_arr)
+                fileformat = image_utils.compressed_image_fileformat(image_arr)
                 output_image_bytes = image_arr.data
             else:
                 # load image and undistort
-                decoded_image = rosbag2_utils.decode_image_msg(image_arr)
+                decoded_image = image_utils.decode_image_msg(image_arr)
                 if decoded_image.array is None:
                     raise ValueError(f"Failed to decode image message: {type(image_arr)}")
                 fileformat = decoded_image.fileformat
