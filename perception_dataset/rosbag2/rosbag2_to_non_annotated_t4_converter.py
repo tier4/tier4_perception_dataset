@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import warnings
 
 import accelerated_image_processor.decompression as aip_decompression
+
 from ffmpeg_image_transport_msgs.msg import FFMPEGPacket
 
 try:
@@ -193,6 +194,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._scene_description: str = params.scene_description
         self._accept_frame_drop: bool = params.accept_frame_drop
         self._undistort_image: bool = params.undistort_image
+        self._jpeg_quality: int = params.jpeg_quality
+        self._jpeg_optimize: bool = params.jpeg_optimize
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = params.world_frame_id
@@ -474,6 +477,16 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             "--------------------------------------------------------------------------------------------------------------------------"
         )
 
+    def _write_jpeg(self, output_path: str, image: np.ndarray, *, legacy_no_params: bool) -> None:
+        if legacy_no_params and self._jpeg_quality == 95 and not self._jpeg_optimize:
+            cv2.imwrite(output_path, image)
+            return
+
+        params = [int(cv2.IMWRITE_JPEG_QUALITY), self._jpeg_quality]
+        if self._jpeg_optimize:
+            params.extend([int(cv2.IMWRITE_JPEG_OPTIMIZE), 1])
+        cv2.imwrite(output_path, image, params)
+
     def _save_config(self):
         config_data = {
             key: getattr(self, key)
@@ -487,6 +500,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 self.__dict__,
             )
         }
+        if self._jpeg_quality == 95 and not self._jpeg_optimize:
+            config_data.pop("_jpeg_quality", None)
+            config_data.pop("_jpeg_optimize", None)
         config_data = {"rosbag2_to_non_annotated_t4_converter": config_data}
         with open(osp.join(self._output_scene_dir, "status.json"), "w") as f:
             json.dump(
@@ -1281,17 +1297,15 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             sample_data_token
         )
         if output_image is not None:
-            imwrite_params = []
-            if fileformat == EXTENSION_ENUM.JPG.value[1:]:
-                imwrite_params = [int(cv2.IMWRITE_JPEG_QUALITY), 95]
-
-            cv2.imwrite(
+            # an undistorted CompressedImage keeps the legacy no-params output
+            self._write_jpeg(
                 osp.join(self._output_scene_dir, sample_data_record.filename),
                 output_image,
-                imwrite_params,
+                legacy_no_params=isinstance(image_arr, CompressedImage),
             )
         elif output_image_bytes is not None:
             output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
+            # save compressed image as is
             with open(output_image_path, "xb") as fw:
                 fw.write(output_image_bytes)
 

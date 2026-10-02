@@ -1,0 +1,405 @@
+"""Convert T4 annotation tables to Kognic OpenLABEL pre-annotations."""
+
+import json
+from pathlib import Path
+import time
+from typing import Dict, List, Optional, Tuple
+import uuid
+
+from kognic.openlabel.models import models as openlabel
+import numpy as np
+from t4_devkit import Tier4
+from t4_devkit.common.serialize import serialize_dataclass
+from t4_devkit.schema.tables import Instance, SampleAnnotation, SampleData
+
+from perception_dataset.abstract_converter import AbstractConverter
+from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
+from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cuboid_val
+from perception_dataset.kognic.sequence_artifact import (
+    SEQUENCE_ARTIFACT_FILENAME,
+    load_sequence_artifact,
+)
+from perception_dataset.kognic.utils import iter_scene_pairs
+from perception_dataset.utils.logger import configure_logger
+
+logger = configure_logger(modname=__name__)
+
+
+class T4ToOpenLabelConverter(AbstractConverter[None]):
+    """Convert T4 3D box annotations to a Kognic OpenLABEL pre-annotation.
+
+    For every annotated T4 sequence under ``input_base``, reads
+    ``annotation/sample_annotation.json`` (and its companion tables) and
+    writes a ``cuboid_pre_annotation.json`` into the matching Kognic staging
+    directory under ``output_base``, as previously produced by
+    ``T4ToKognicConverter``::
+
+        <output_base>/<scene>/
+            calibration.json
+            ego_poses.json
+            cuboid_pre_annotation.json     <- added by this converter
+            cameras/...  lidar/...
+
+    Conventions (https://docs.kognic.com/api-guide/pre-annotations):
+
+    - Cuboids are expressed in the per-frame reference (ego/base_link)
+      coordinate system, as required for multi-lidar scenes. This composes
+      with the T0-normalised ego poses uploaded by ``KognicDatasetUploader``.
+    - Cuboid ``val`` is ``[x, y, z, qx, qy, qz, qw, sx, sy, sz]`` with yaw 0
+      facing +y, so T4 box rotations are post-multiplied by Rz(-90 deg) and
+      T4 sizes (width, length, height) map unchanged.
+    - Pre-annotation frames are matched to scene frames by timestamp, so
+      ``frame_properties.timestamp`` mirrors the uploader's
+      ``relative_timestamp`` (milliseconds since the first anchor frame).
+    - The converter-generated sequence artifact already marks source T4
+      keyframes ``annotate=True``, so annotatable frames line up with the
+      pre-annotation frames: Kognic only surfaces pre-annotations on
+      annotatable frames.
+    """
+
+    def __init__(
+        self,
+        input_base: str,
+        output_base: str,
+        lidar_stream: str = "",
+        category_map: Optional[Dict[str, str]] = None,
+        include_attributes: bool = False,
+        exclude_attributes: Optional[List[str]] = None,
+        frame_match_tolerance_ms: float = 50.0,
+    ):
+        """Initialize the pre-annotation converter.
+
+        Args:
+            input_base (str): Input T4 dataset directory.
+            output_base (str): Existing Kognic staging directory.
+            lidar_stream (str): Explicit OpenLABEL lidar stream name.
+            category_map (Optional[Dict[str, str]]): T4-to-Kognic category map.
+            include_attributes (bool): Whether to include T4 box attributes.
+            exclude_attributes (Optional[List[str]]): Attribute groups to omit.
+            frame_match_tolerance_ms (float): Maximum timestamp matching error.
+        """
+        super().__init__(input_base, output_base)
+        self._lidar_stream = lidar_stream
+        self._category_map = category_map or {}
+        self._include_attributes = include_attributes
+        # attributes that exist in the annotation but does not want to be included in openlabel
+        self._exclude_attributes = set(exclude_attributes or [])
+        self._frame_match_tolerance_ms = frame_match_tolerance_ms
+
+    def convert(self) -> None:
+        """Convert annotations for every discovered T4 sequence.
+
+        Returns:
+            None
+        """
+        start = time.time()
+
+        for seq_path, staging_dir in iter_scene_pairs(
+            Path(self._input_base), Path(self._output_base)
+        ):
+            if not (staging_dir / SEQUENCE_ARTIFACT_FILENAME).is_file():
+                logger.warning(
+                    f"No {SEQUENCE_ARTIFACT_FILENAME} at {staging_dir}; "
+                    f"run convert_t4_to_kognic first. Skipping {seq_path}"
+                )
+                continue
+            logger.info(f"[BEGIN] {seq_path} -> {staging_dir / 'cuboid_pre_annotation.json'}")
+            self._convert_one_scene(seq_path, staging_dir)
+            logger.info(f"[DONE]  {seq_path}")
+
+        logger.info(f"Elapsed: {time.time() - start:.1f}s")
+
+    # ------------------------------------------------------------------
+    # Scene conversion
+    # ------------------------------------------------------------------
+
+    def _convert_one_scene(self, seq_path: Path, staging_dir: Path) -> None:
+        """Create an OpenLABEL pre-annotation for one scene.
+
+        Args:
+            seq_path (Path): Source T4 sequence root.
+            staging_dir (Path): Destination Kognic staging directory.
+
+        Returns:
+            None
+        """
+        t4 = Tier4(data_root=str(seq_path), verbose=False)
+        sample_annotations = t4.get_table("sample_annotation")
+
+        if not sample_annotations:
+            logger.warning(f"No annotations in {seq_path}; skipping")
+            return
+
+        concat_records = self._collect_concat_records(t4)
+        if not concat_records:
+            logger.warning(f"No {LIDAR_CONCAT_CHANNEL} sample_data in {seq_path}; skipping")
+            return
+
+        anchor_ts_ns, relative_ms, anchor_stream = self._load_staging_frames(staging_dir)
+        concat_to_frame = self._map_concat_to_frames(concat_records, anchor_ts_ns)
+        stream_name = self._lidar_stream or anchor_stream
+
+        concat_idx_by_sample = {
+            record.sample_token: idx
+            for idx, record in enumerate(concat_records)
+            if record.is_key_frame
+        }
+
+        categories = {category.token: category.name for category in t4.get_table("category")}
+        instances = {instance.token: instance for instance in t4.get_table("instance")}
+        attributes = {attribute.token: attribute.name for attribute in t4.get_table("attribute")}
+        ego_pose_by_token = {pose.token: pose for pose in t4.get_table("ego_pose")}
+
+        annotations_by_sample: Dict[str, List[SampleAnnotation]] = {}
+        for annotation in sample_annotations:
+            annotations_by_sample.setdefault(annotation.sample_token, []).append(annotation)
+
+        objects: Dict[str, openlabel.Object] = {}
+        frames: Dict[str, openlabel.Frame] = {}
+        skipped = 0
+
+        for sample in sorted(t4.get_table("sample"), key=lambda record: record.timestamp):
+            annotations = annotations_by_sample.get(sample.token)
+            if not annotations:
+                continue
+
+            concat_idx = concat_idx_by_sample.get(sample.token)
+            frame_idx = concat_to_frame.get(concat_idx) if concat_idx is not None else None
+            if frame_idx is None:
+                logger.warning(
+                    f"Sample {sample.token} could not be matched to a staging frame; "
+                    f"dropping {len(annotations)} annotation(s)"
+                )
+                skipped += len(annotations)
+                continue
+
+            ego_pose = ego_pose_by_token[concat_records[concat_idx].ego_pose_token]
+            frame_objects: Dict[str, openlabel.Objects] = {}
+
+            for annotation in annotations:
+                instance = instances[annotation.instance_token]
+                category_name = categories.get(instance.category_token, "unknown")
+                object_uuid = _token_to_uuid(annotation.instance_token)
+
+                objects.setdefault(
+                    object_uuid,
+                    openlabel.Object(
+                        name=_object_name(instance, object_uuid),
+                        type=self._category_map.get(category_name, category_name),
+                    ),
+                )
+
+                # The cuboid geometry only carries the ``stream`` marker that ties
+                # it to the LiDAR sensor frame. Class properties (vehicle_state,
+                # occlusion_state, ...) must live on the object, not on the
+                # geometry: Kognic rejects source-specific properties on 3D
+                # geometry ("3D geometry may not use source specific properties").
+                class_properties = []
+                if self._include_attributes:
+                    class_properties = [
+                        attribute_to_text(attributes[token])
+                        for token in annotation.attribute_tokens
+                        if token in attributes
+                        and attributes[token].rpartition(".")[0] not in self._exclude_attributes
+                    ]
+
+                frame_objects[object_uuid] = openlabel.Objects(
+                    object_data=openlabel.ObjectData(
+                        cuboid=[
+                            openlabel.Cuboid(
+                                name=f"cuboid-{object_uuid[:8]}",
+                                val=t4_box_to_cuboid_val(
+                                    serialize_dataclass(annotation),
+                                    serialize_dataclass(ego_pose),
+                                ),
+                                attributes=openlabel.Attributes(
+                                    text=[openlabel.Text(name="stream", val=stream_name)]
+                                ),
+                            )
+                        ],
+                        text=class_properties or None,
+                    )
+                )
+
+            frames[str(frame_idx)] = openlabel.Frame(
+                frame_properties=openlabel.FrameProperties(
+                    timestamp=relative_ms[frame_idx],
+                    streams={stream_name: {}},
+                    external_id=str(frame_idx),
+                ),
+                objects=frame_objects,
+            )
+
+        if not frames:
+            logger.warning(f"No annotation could be placed on a staging frame for {seq_path}")
+            return
+
+        frame_indices = sorted(int(idx) for idx in frames)
+        annotation = openlabel.OpenLabelAnnotation(
+            openlabel=openlabel.Openlabel(
+                metadata=openlabel.Metadata(
+                    schema_version=openlabel.SchemaVersion.field_1_0_0,
+                    name=staging_dir.name,
+                ),
+                objects=objects,
+                frames=frames,
+                frame_intervals=[
+                    openlabel.FrameInterval(
+                        frame_start=frame_indices[0], frame_end=frame_indices[-1]
+                    )
+                ],
+                streams=self._build_streams(staging_dir),
+            )
+        )
+
+        out_path = staging_dir / "cuboid_pre_annotation.json"
+        with open(out_path, "w") as f:
+            json.dump(annotation.model_dump(mode="json", exclude_none=True), f, indent=2)
+
+        total = sum(len(frame.objects) for frame in frames.values())
+        logger.info(
+            f"{out_path}: {len(objects)} objects, {total} cuboids over "
+            f"{len(frames)} frames (skipped {skipped})"
+        )
+
+    @staticmethod
+    def _collect_concat_records(t4: Tier4) -> List[SampleData]:
+        """Collect fused-lidar sample-data records in timestamp order.
+
+        Args:
+            t4 (Tier4): Loaded T4 dataset.
+
+        Returns:
+            List[SampleData]: Ordered ``LIDAR_CONCAT`` records.
+        """
+        return sorted(
+            (
+                record
+                for record in t4.get_table("sample_data")
+                if record.channel == LIDAR_CONCAT_CHANNEL
+            ),
+            key=lambda record: record.timestamp,
+        )
+
+    @staticmethod
+    def _load_staging_frames(staging_dir: Path) -> Tuple[List[int], List[int], str]:
+        """Load staging frame timing from the validated sequence artifact.
+
+        Args:
+            staging_dir (Path): Kognic staging directory.
+
+        Returns:
+            Tuple[List[int], List[int], str]: Absolute timestamps, relative
+                timestamps in milliseconds, and anchor lidar channel.
+
+        Raises:
+            FileNotFoundError: If the artifact contains no lidar resources.
+        """
+        sequence = load_sequence_artifact(staging_dir)
+        if not sequence.frames or not sequence.frames[0].point_clouds:
+            raise FileNotFoundError(
+                f"No lidar resources found in {staging_dir}"
+            )
+        anchor = sequence.frames[0].point_clouds[0].sensor_name
+        timestamps_ns = []
+        relative_ms = []
+        for frame in sequence.frames:
+            if frame.unix_timestamp is None:
+                raise ValueError(f"Frame {frame.frame_id} is missing unix_timestamp")
+            timestamps_ns.append(int(frame.unix_timestamp))
+            relative_ms.append(int(frame.relative_timestamp))
+        return timestamps_ns, relative_ms, anchor
+
+    def _map_concat_to_frames(
+        self, concat_records: List[SampleData], anchor_ts_ns: List[int]
+    ) -> Dict[int, int]:
+        """Map LIDAR_CONCAT record index -> staging frame index.
+
+        The staging frames were generated one per LIDAR_CONCAT record in
+        timestamp order, so when the counts match the mapping is positional.
+        Otherwise fall back to nearest-timestamp matching within tolerance
+        (anchor per-source stamps are offset from the concat timestamp by a
+        fraction of the sweep period).
+
+        Args:
+            concat_records (List[SampleData]): Ordered fused-lidar sample data.
+            anchor_ts_ns (List[int]): Staging anchor timestamps in nanoseconds.
+
+        Returns:
+            Dict[int, int]: Concat-record indices mapped to staging frames.
+        """
+        if len(concat_records) == len(anchor_ts_ns):
+            return {idx: idx for idx in range(len(concat_records))}
+
+        logger.warning(
+            f"Staging frame count ({len(anchor_ts_ns)}) != LIDAR_CONCAT record count "
+            f"({len(concat_records)}); falling back to nearest-timestamp matching"
+        )
+        anchor = np.asarray(anchor_ts_ns, dtype=np.int64)
+        mapping: Dict[int, int] = {}
+        for idx, record in enumerate(concat_records):
+            ts_ns = int(record.timestamp) * 1000
+            frame_idx = int(np.argmin(np.abs(anchor - ts_ns)))
+            diff_ms = abs(int(anchor[frame_idx]) - ts_ns) / 1e6
+            if diff_ms <= self._frame_match_tolerance_ms:
+                # MEMO: If frame mapping stops being one-to-one, detect duplicate
+                # assignments and include them in the skipped-frame tally.
+                mapping[idx] = frame_idx
+        return mapping
+
+    @staticmethod
+    def _build_streams(staging_dir: Path) -> Dict[str, openlabel.Stream]:
+        """Build OpenLABEL stream declarations from staged sensors.
+
+        Args:
+            staging_dir (Path): Kognic staging directory.
+
+        Returns:
+            Dict[str, openlabel.Stream]: Stream declarations keyed by channel.
+        """
+        streams: Dict[str, openlabel.Stream] = {}
+        for path in sorted((staging_dir / "lidar").iterdir()):
+            if path.is_dir():
+                streams[path.name] = openlabel.Stream(type=openlabel.StreamTypes.lidar)
+        cameras_root = staging_dir / "cameras"
+        if cameras_root.is_dir():
+            for path in sorted(cameras_root.iterdir()):
+                if path.is_dir():
+                    streams[path.name] = openlabel.Stream(type=openlabel.StreamTypes.camera)
+        return streams
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _token_to_uuid(token: str) -> str:
+    """Convert a T4 token to a stable UUID string.
+
+    Args:
+        token (str): T4 token, which may or may not be hexadecimal.
+
+    Returns:
+        str: Canonical UUID derived from the token.
+    """
+    try:
+        return str(uuid.UUID(hex=token))
+    except ValueError:
+        return str(uuid.uuid5(uuid.NAMESPACE_OID, token))
+
+
+def _object_name(instance: Instance, object_uuid: str) -> str:
+    """Choose an OpenLABEL object name for a T4 instance.
+
+    Args:
+        instance (Instance): T4 instance record.
+        object_uuid (str): Fallback object UUID.
+
+    Returns:
+        str: Instance-name suffix when available, otherwise ``object_uuid``.
+    """
+    instance_name = instance.instance_name
+    if instance_name:
+        return instance_name.split("::")[-1]
+    return object_uuid

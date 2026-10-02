@@ -10,6 +10,8 @@ conversion:
   start_timestamp_sec: 0.0
   accept_frame_drop: True
   undistort_image: True
+  jpeg_quality: 95 # JPEG encoding quality in [1, 100], applied when images are re-encoded.
+  jpeg_optimize: False # If true, enable optimized Huffman tables for smaller files.
   lidar_sensor:
     topic: /sensing/lidar/concatenated/pointcloud
     channel: LIDAR_CONCAT
