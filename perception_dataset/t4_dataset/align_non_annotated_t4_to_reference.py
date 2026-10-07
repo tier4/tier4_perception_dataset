@@ -9,7 +9,7 @@ import os.path as osp
 from pathlib import Path
 import shutil
 from statistics import median
-from typing import Any
+from typing import Any, Iterable
 
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.utils.logger import configure_logger
@@ -40,6 +40,7 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         max_abs_diff_ms: float = 0.1,
         max_frame_drop_ratio: float = 0.1,
         write_alignment_report: bool = True,
+        exclude_sample_tokens: Iterable[str] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         super().__init__(input_base=input_base, output_base=output_base)
@@ -49,6 +50,9 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         self._max_abs_diff_ms = max_abs_diff_ms
         self._max_frame_drop_ratio = max_frame_drop_ratio
         self._write_alignment_report = write_alignment_report
+        # Candidate samples to leave out entirely (e.g. edge frames with LiDAR concat drops,
+        # see ``concat_health``). Their sample_data rows and files are not copied either.
+        self._exclude_sample_tokens = set(exclude_sample_tokens or [])
         self._logger = logger or configure_logger(modname=__name__)
 
     # ------------------------------------------------------------------ #
@@ -130,6 +134,19 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
         reference_tables = self._load_tables(reference_dir)
 
         candidate_samples = self._samples_sorted_by_timestamp(candidate_tables)
+        excluded_samples = [
+            row for row in candidate_samples if row["token"] in self._exclude_sample_tokens
+        ]
+        if excluded_samples:
+            candidate_samples = [
+                row for row in candidate_samples if row["token"] not in self._exclude_sample_tokens
+            ]
+            self._logger.info(
+                f"excluding {len(excluded_samples)} candidate sample(s) from {candidate_dir} "
+                "(exclude_sample_tokens)"
+            )
+        if not candidate_samples:
+            raise RuntimeError(f"candidate {candidate_dir} has no samples left after exclusion")
         reference_samples = self._samples_sorted_by_timestamp(reference_tables)
         if not reference_samples:
             raise RuntimeError(f"reference {reference_dir} has no samples")
@@ -221,6 +238,8 @@ class AlignNonAnnotatedT4ToReferenceConverter(AbstractConverter[list[dict[str, A
             sample_data_rows=sample_data_rows,
             sample_annotations=sample_annotations,
         )
+        report["num_excluded_candidate_samples"] = len(excluded_samples)
+        report["excluded_candidate_sample_tokens"] = [row["token"] for row in excluded_samples]
         if self._write_alignment_report:
             self._save_json(output_dir / "alignment_report.json", report)
         return report
