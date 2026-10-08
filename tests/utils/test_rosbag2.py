@@ -137,11 +137,6 @@ def test_pointcloud_msg_to_numpy_with_extended_placeholders():
     )
 
 
-def test_compressed_msg_to_numpy():
-    # TODO(yukke42): impl test_compressed_msg_to_numpy
-    pass
-
-
 def test_stamp_to_unix_timestamp():
     # TODO(yukke42): impl test_stamp_to_unix_timestamp
     pass

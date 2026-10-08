@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
 
+import builtin_interfaces.msg
 import cv2
 import numpy as np
 import pytest
@@ -14,6 +15,7 @@ from perception_dataset.rosbag2.converter_params import Rosbag2ConverterParams
 from perception_dataset.rosbag2.rosbag2_to_non_annotated_t4_converter import (
     _Rosbag2ToNonAnnotatedT4Converter,
 )
+from perception_dataset.utils import image as image_utils
 
 _MISSING = object()
 
@@ -265,12 +267,13 @@ def test_generate_image_data_routes_undistorted_compressed_image_to_jpeg_writer(
 ):
     bare_image_converter._undistort_image = True
     compressed_image = CompressedImage()
+    compressed_image.format = "jpeg"
     decoded_image = np.zeros((2, 3, 3), dtype=np.uint8)
     remapped_image = np.ones((2, 3, 3), dtype=np.uint8)
     decoded = mocker.patch.object(
-        converter_module.rosbag2_utils,
-        "compressed_msg_to_numpy",
-        return_value=decoded_image,
+        converter_module.image_utils,
+        "decode_image_msg",
+        return_value=image_utils.DecodedImage(array=decoded_image, fileformat="jpg"),
     )
     remap = mocker.patch.object(converter_module.cv2, "remap", return_value=remapped_image)
     write_jpeg = mocker.patch.object(bare_image_converter, "_write_jpeg")
@@ -295,9 +298,10 @@ def test_generate_image_data_routes_undistorted_compressed_image_to_jpeg_writer(
 
 def test_generate_image_data_preserves_compressed_image_bytes(bare_image_converter, mocker):
     compressed_image = CompressedImage()
+    compressed_image.format = "jpeg"
     compressed_image.data = b"original-compressed-image-bytes"
     write_jpeg = mocker.patch.object(bare_image_converter, "_write_jpeg")
-    decoded = mocker.patch.object(converter_module.rosbag2_utils, "compressed_msg_to_numpy")
+    decoded = mocker.patch.object(converter_module.image_utils, "decode_image_msg")
     remap = mocker.patch.object(converter_module.cv2, "remap")
     imwrite = mocker.patch.object(converter_module.cv2, "imwrite")
 
@@ -370,3 +374,108 @@ def test_save_config_records_complete_non_default_jpeg_settings(
             "_jpeg_optimize": jpeg_optimize,
         }
     }
+
+
+# ---------------------------------------------------------------------------
+# FFMPEGPacket video stream handling (decoded frames arrive as VideoFrame)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingSampleDataTable:
+    def __init__(self):
+        self.last_insert = None
+
+    def insert_into_table(self, **kwargs):
+        self.last_insert = kwargs
+        return "sample-data-token"
+
+    def get_record_from_token(self, token):
+        assert token == "sample-data-token"
+        return SimpleNamespace(filename=self.last_insert["filename"])
+
+
+@pytest.fixture
+def video_converter(tmp_path):
+    converter = object.__new__(_Rosbag2ToNonAnnotatedT4Converter)
+    converter._generate_ego_pose = lambda _stamp: "ego-pose-token"
+    converter._sample_data_table = _RecordingSampleDataTable()
+    converter._output_scene_dir = str(tmp_path)
+    converter._undistort_image = False
+    converter._jpeg_quality = 95
+    converter._jpeg_optimize = False
+    (tmp_path / "data" / "CAM_FRONT").mkdir(parents=True)
+    return converter
+
+
+def _video_frame(array):
+    return image_utils.VideoFrame(
+        array=array,
+        stamp=builtin_interfaces.msg.Time(sec=1, nanosec=0),
+        width=6,
+        height=4,
+    )
+
+
+def _generate_video_image(converter, video_frame, frame_index=0, camera_info=None):
+    return converter._generate_image_data(
+        video_frame,
+        image_unix_timestamp=1.0,
+        sample_token="sample-token",
+        calibrated_sensor_token="calibrated-sensor-token",
+        sensor_channel="CAM_FRONT",
+        frame_index=frame_index,
+        camera_info=camera_info,
+    )
+
+
+def test_generate_image_data_writes_video_frame_as_jpeg(video_converter, mocker, tmp_path):
+    write_jpeg = mocker.spy(video_converter, "_write_jpeg")
+    decoded_image = np.full((4, 6, 3), 127, dtype=np.uint8)
+
+    _generate_video_image(video_converter, _video_frame(decoded_image))
+
+    insert_args = video_converter._sample_data_table.last_insert
+    output_path = tmp_path / insert_args["filename"]
+
+    assert insert_args["fileformat"] == "jpg"
+    assert insert_args["height"] == 4
+    assert insert_args["width"] == 6
+    assert insert_args["is_valid"] is True
+    assert output_path.suffix == ".jpg"
+    assert cv2.imread(str(output_path)) is not None
+    assert write_jpeg.call_args.kwargs == {"legacy_no_params": False}
+
+
+def test_generate_image_data_undistorts_video_frame(video_converter, mocker, tmp_path):
+    decoded_image = np.full((4, 6, 3), 127, dtype=np.uint8)
+    remapped_image = np.full_like(decoded_image, 64)
+    video_converter._undistort_image = True
+    video_converter.undistort_map_x = np.zeros(decoded_image.shape[:2], dtype=np.float32)
+    video_converter.undistort_map_y = np.zeros(decoded_image.shape[:2], dtype=np.float32)
+    mocker.patch.object(converter_module.cv2, "remap", return_value=remapped_image)
+
+    _generate_video_image(
+        video_converter, _video_frame(decoded_image), frame_index=1, camera_info=object()
+    )
+
+    insert_args = video_converter._sample_data_table.last_insert
+    saved_image = cv2.imread(str(tmp_path / insert_args["filename"]))
+
+    assert saved_image is not None
+    assert np.array_equal(saved_image, remapped_image)
+
+
+def test_generate_image_data_writes_blank_image_for_missing_video_frame(video_converter, tmp_path):
+    with pytest.warns(UserWarning, match="no frame"):
+        _generate_video_image(video_converter, _video_frame(None), frame_index=2)
+
+    insert_args = video_converter._sample_data_table.last_insert
+    saved_image = cv2.imread(str(tmp_path / insert_args["filename"]))
+
+    assert insert_args["fileformat"] == "jpg"
+    assert insert_args["is_valid"] is False
+    assert insert_args["is_key_frame"] is False
+    assert insert_args["height"] == 4
+    assert insert_args["width"] == 6
+    assert saved_image is not None
+    assert not saved_image.any()

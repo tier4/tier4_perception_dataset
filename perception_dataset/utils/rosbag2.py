@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
 import builtin_interfaces.msg
-import cv2
 from nptyping import NDArray
 import numpy as np
 from pypcd4 import PointCloud
@@ -19,7 +18,7 @@ from rosbag2_py import (
     SequentialWriter,
     StorageOptions,
 )
-from sensor_msgs.msg import CompressedImage, PointCloud2
+from sensor_msgs.msg import PointCloud2
 import yaml
 
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -206,26 +205,6 @@ def radar_tracks_msg_to_list(radar_tracks_msg: RadarTracks) -> List[Dict[str, An
             }
         )
     return radar_tracks
-
-
-def compressed_msg_to_numpy(compressed_image_msg: CompressedImage) -> NDArray:
-    if hasattr(compressed_image_msg, "_encoding"):
-        try:
-            np_arr = np.frombuffer(compressed_image_msg.data, np.uint8)
-            image = np.reshape(
-                np_arr, (compressed_image_msg.height, compressed_image_msg.width, 3)
-            )
-        except Exception as e:
-            print(e)
-            return None
-    else:
-        image_buf = np.ndarray(
-            shape=(1, len(compressed_image_msg.data)),
-            dtype=np.uint8,
-            buffer=compressed_image_msg.data,
-        )
-        image = cv2.imdecode(image_buf, cv2.IMREAD_ANYCOLOR)
-    return image
 
 
 def stamp_to_unix_timestamp(stamp: builtin_interfaces.msg.Time) -> float:

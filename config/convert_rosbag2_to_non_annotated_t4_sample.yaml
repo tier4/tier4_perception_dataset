@@ -14,6 +14,10 @@ conversion:
   # With the default values, output images are byte-identical to previous converter versions.
   jpeg_quality: 95 # JPEG encoding quality in [1, 100]. Lower values produce smaller files at lower image quality.
   jpeg_optimize: False # If true, enable optimized Huffman tables for smaller files (pixel-identical, but byte-different output).
+  # FFMPEGPacket (video) camera topics follow the color metadata signaled in the bitstream.
+  # Set these only to override streams whose metadata is known to be wrong.
+  # video_color_range: full # "full" or "limited"
+  # video_colorspace: bt709 # "bt601" or "bt709"
   # INS settings for adding geolocalization information
   with_ins: false # whether to use INS messages as a ego state instead of `/tf`
   ins_topic_mapping: # mappings for j6gen2 and jpntaxigen2
