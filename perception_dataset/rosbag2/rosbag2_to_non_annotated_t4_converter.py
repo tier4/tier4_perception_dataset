@@ -193,6 +193,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._undistort_image: bool = params.undistort_image
         self._jpeg_quality: int = params.jpeg_quality
         self._jpeg_optimize: bool = params.jpeg_optimize
+        self._video_color_range: Optional[str] = params.video_color_range
+        self._video_colorspace: Optional[str] = params.video_colorspace
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = params.world_frame_id
@@ -495,6 +497,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         if self._jpeg_quality == 95 and not self._jpeg_optimize:
             config_data.pop("_jpeg_quality", None)
             config_data.pop("_jpeg_optimize", None)
+        # record video color settings only when overridden
+        for key in ("_video_color_range", "_video_colorspace"):
+            if config_data.get(key) is None:
+                config_data.pop(key, None)
         config_data = {"rosbag2_to_non_annotated_t4_converter": config_data}
         with open(osp.join(self._output_scene_dir, "status.json"), "w") as f:
             json.dump(
@@ -1219,6 +1225,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             return image_utils.decode_ffmpeg_frames(
                 self._bag_reader.read_messages(topics=[topic]),
                 start_time=start_time_in_time,
+                color_range=self._video_color_range,
+                colorspace=self._video_colorspace,
             )
         return self._bag_reader.read_messages(topics=[topic], start_time=start_time_in_time)
 

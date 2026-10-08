@@ -109,13 +109,15 @@ def test_convert_image_camera_only_decodes_ffmpeg_topic(
         None,
     )
     converter._is_traffic_light_label_available = lambda timestamp: True
+    converter._video_color_range = None
+    converter._video_colorspace = None
     converter._bag_reader = _make_bag_reader(
         ffmpeg_packet_message, "ffmpeg_image_transport_msgs/msg/FFMPEGPacket"
     )
 
     decode_calls = []
 
-    def _decode_ffmpeg_frames(messages, *, start_time=None):
+    def _decode_ffmpeg_frames(messages, *, start_time=None, color_range=None, colorspace=None):
         decode_calls.append((list(messages), start_time))
         yield decoded_video_frame
 
@@ -170,6 +172,8 @@ def test_convert_image_lidar_mode_probes_shape_without_decoding(
         None,
     )
     converter._is_traffic_light_label_available = lambda timestamp: True
+    converter._video_color_range = None
+    converter._video_colorspace = None
     converter._bag_reader = _make_bag_reader(
         ffmpeg_packet_message, "ffmpeg_image_transport_msgs/msg/FFMPEGPacket"
     )
@@ -180,7 +184,7 @@ def test_convert_image_lidar_mode_probes_shape_without_decoding(
     )
     monkeypatch.setattr(
         "perception_dataset.utils.image.decode_ffmpeg_frames",
-        lambda messages, *, start_time=None: iter([decoded_video_frame]),
+        lambda messages, **kwargs: iter([decoded_video_frame]),
     )
 
     decode_image_msg_calls = []

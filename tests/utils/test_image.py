@@ -13,6 +13,7 @@ from perception_dataset.utils.image import (
     compressed_image_fileformat,
     decode_ffmpeg_frames,
     decode_image_msg,
+    video_frame_to_bgr,
 )
 
 
@@ -152,3 +153,69 @@ def test_decode_ffmpeg_frames_never_mis_stamps_reordered_streams(video_images):
             assert (
                 abs(float(frame.array.mean()) - float(video_images[source_index].mean())) < 6.0
             ), f"frame yielded with the wrong stamp: {frame.stamp.sec}"
+
+
+def _yuv_frame(y, u=128, v=128, *, fmt="yuv420p", width=64, height=48):
+    frame = av.VideoFrame(width, height, fmt)
+    frame.planes[0].update(np.full((height, width), y, np.uint8).tobytes())
+    frame.planes[1].update(np.full((height // 2, width // 2), u, np.uint8).tobytes())
+    frame.planes[2].update(np.full((height // 2, width // 2), v, np.uint8).tobytes())
+    return frame
+
+
+@pytest.mark.parametrize(
+    ("tagged_range", "override", "expected_black_level"),
+    [
+        (1, None, 0),  # tagged limited: Y=16 is pure black
+        (2, None, 16),  # tagged full: Y=16 stays dark gray
+        (0, None, 0),  # untagged: swscale default (limited)
+        (1, "full", 16),  # wrong "limited" tag overridden (the real-bag case)
+        (2, "limited", 0),  # wrong "full" tag overridden
+    ],
+)
+def test_video_frame_to_bgr_color_range(tagged_range, override, expected_black_level):
+    frame = _yuv_frame(16)
+    frame.color_range = tagged_range
+
+    bgr = video_frame_to_bgr(frame, color_range=override)
+
+    assert int(bgr[0, 0, 0]) == expected_black_level
+    # white point check: Y=235 clips to 255 in limited, stays 235 in full
+    white = _yuv_frame(235)
+    white.color_range = tagged_range
+    bgr_white = video_frame_to_bgr(white, color_range=override)
+    assert int(bgr_white[0, 0, 0]) == (255 if expected_black_level == 0 else 235)
+
+
+def test_video_frame_to_bgr_colorspace_matrix():
+    colored = _yuv_frame(120, 90, 170)
+
+    bt601 = video_frame_to_bgr(colored, colorspace="bt601")
+    default = video_frame_to_bgr(colored)
+    bt709 = video_frame_to_bgr(colored, colorspace="bt709")
+
+    assert np.array_equal(bt601, default), "bt601 must be the default matrix"
+    assert not np.array_equal(bt709, bt601), "bt709 must use a different matrix"
+
+
+def test_video_frame_to_bgr_full_range_with_bt709():
+    frame = _yuv_frame(16)
+
+    bgr = video_frame_to_bgr(frame, color_range="full", colorspace="bt709")
+
+    # the explicit colorspace must not silently reset the range to limited
+    assert int(bgr[0, 0, 0]) == 16
+
+
+def test_decode_ffmpeg_frames_passes_color_overrides(video_messages):
+    limited = next(decode_ffmpeg_frames(video_messages)).array
+    full = next(decode_ffmpeg_frames(video_messages, color_range="full")).array
+
+    assert not np.array_equal(limited, full)
+
+
+def test_decode_ffmpeg_frames_rejects_unknown_color_settings(video_messages):
+    with pytest.raises(ValueError, match="color_range"):
+        next(decode_ffmpeg_frames(video_messages, color_range="fullish"))
+    with pytest.raises(ValueError, match="colorspace"):
+        next(decode_ffmpeg_frames(video_messages, colorspace="bt2020"))
