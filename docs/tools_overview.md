@@ -85,6 +85,38 @@ Execute the conversion command again with `--overwrite` option.
 
 ![confirm_non_annotated_format](./confirm_non_annotated_format.png)
 
+## T4 format to rosbag2
+
+This step converts T4 format data back to rosbag2 (LiDAR, camera images, TF and 3D annotations as `DetectedObjects` / `TrackedObjects`).
+See [T4 to rosbag2 conversions](./t4_to_rosbag2_conversions.md) for usage and examples.
+
+```bash
+python -m perception_dataset.convert --config config/t4_to_rosbag2/convert_t4_to_rosbag2.yaml
+```
+
+`config/t4_to_rosbag2/convert_t4_to_rosbag2.yaml`:
+
+```yaml
+task: convert_t4_to_rosbag2
+description:
+  scene: t4_to_rosbag2
+conversion:
+  input_base: ./data/t4_dataset
+  output_base: ./data/t4_to_rosbag2
+  storage_id: sqlite3 # sqlite3 or mcap
+  object_topic_name: /ground_truth/objects
+  tracked_object_topic_name: /ground_truth/tracked_objects
+  world_frame_id: map
+  base_frame_id: base_link
+  # Optional overrides, see "Topic names" in t4_to_rosbag2_conversions.md
+  # lidar_sensor:
+  #   topic: /sensing/lidar/concatenated/pointcloud
+  #   channel: LIDAR_CONCAT
+  # camera_sensors:
+  #   - channel: CAM_FRONT
+  #     topic: /sensing/camera/camera0/image_raw/compressed
+```
+
 ## Kognic
 
 The Kognic tools form a round-trip annotation pipeline: T4 sensor data is reshaped into a local Kognic staging format and uploaded to the Kognic platform, then the completed annotations are downloaded and merged back into T4 format. The five stages are:
