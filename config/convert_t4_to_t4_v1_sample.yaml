@@ -1,0 +1,34 @@
+# Migrate T4 0.x datasets to 1.0, filling the metadata 0.x never stored.
+#
+# - Web.Auto values (project, map, log files, ...) are given per dataset below; leave out what is
+#   unknown and the 1.0 placeholder stays.
+# - The rest comes from the dataset's `input_bag/` and the extra `bags`, e.g. a filtered slice of
+#   the original log (`webauto data rosbag pull-filtered-rosbag`) and the chunk where the route
+#   was set. Bags need a `metadata.yaml` (`ros2 bag reindex <dir> -s sqlite3`).
+# - `vehicle_table`: the public sample, or perception-devops
+#   `dataset_annotation/vehicle_info/vehicles.yaml` for real vehicles.
+task: convert_t4_to_t4_v1
+conversion:
+  input_base: ./data/t4_dataset # 0.x <dataset_id>/<version>
+  output_base: ./data/t4_dataset_v1 # writes <dataset_id>/<dataset_version>
+  vehicle_table: ./config/vehicle_info/vehicles_sample.yaml
+  keep_images: false # true: copy camera images instead of encoding AV1 videos
+  datasets:
+    - dataset_id: 00000000-0000-0000-0000-000000000000
+      version: 0 # 0.x version folder
+      dataset_version: 1 # 1.0 version to write (given by Web.Auto)
+      vehicle_name: sample_vehicle_01 # Web.Auto custom tag `vehicle-name:`
+      location: Sample City # custom tag `location-name:`
+      project_id: sample_project
+      source_project_id: sample_source_project
+      is_discontinuous: false
+      map: { map_id: "0", version_id: "0-00000000000000000000", name: Sample City }
+      provenance:
+        rosbag:
+          log_file_ids: [00000000-0000-0000-0000-000000000000]
+          storage: sqlite3
+          record_start: "2025-01-01T00:00:00Z"
+          record_end: "2025-01-01T00:01:00Z"
+        process_config_id: null
+        process_config_version_id: null
+      bags: [] # extra rosbag directories

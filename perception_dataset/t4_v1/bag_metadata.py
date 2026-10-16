@@ -28,6 +28,8 @@ class BagMetadata:
         self.notes: list[str] = []
         # topic -> [(stamp [us], message)], in stamp order
         self.messages: dict[str, list[tuple[int, Any]]] = defaultdict(list)
+        # a message in several bags (input_bag and a slice of the original log) is read once
+        self._seen: set[tuple[str, int, int]] = set()
         for bag_dir in bag_dirs:
             self._read(bag_dir)
         for messages in self.messages.values():
@@ -57,6 +59,10 @@ class BagMetadata:
         classes = {}
         while reader.has_next():
             topic, data, bag_time = reader.read_next()
+            key = (topic, bag_time, hash(data))
+            if key in self._seen:
+                continue
+            self._seen.add(key)
             if topic == "/perception/traffic_light_recognition/traffic_signals":
                 message = parse_traffic_signals(data)
                 if message is not None:
@@ -226,7 +232,8 @@ class BagMetadata:
         return rows
 
     def traffic_lights(self) -> list[dict[str, Any]]:
-        """Return a 1.0 `traffic_light` row (no token) per group of each recognition message."""
+        """Return a 1.0 `traffic_light` row (no token) per group of each recognition message;
+        `confidence` is the lowest of its bulbs."""
         colors = ["unknown", "red", "amber", "green", "white"]
         shapes = [
             "unknown",
@@ -277,7 +284,10 @@ class BagMetadata:
                         "instance_token": None,
                         "annotation_type": "auto",
                         "provenance": "autoware traffic_light_recognition",
-                        "confidence": None,
+                        # the group's state is as sure as its least sure bulb
+                        "confidence": min(
+                            (round(element[3], 6) for element in elements), default=None
+                        ),
                     }
                 )
         return rows

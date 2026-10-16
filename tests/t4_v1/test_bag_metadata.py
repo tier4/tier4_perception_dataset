@@ -17,14 +17,12 @@ from autoware_vehicle_msgs.msg import (
 from builtin_interfaces.msg import Time
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from nav_msgs.msg import Odometry
-from rclpy.serialization import serialize_message
-from rosbag2_py import TopicMetadata
 from sensor_msgs.msg import CameraInfo, Imu, NavSatFix
 from std_msgs.msg import String
 
 from perception_dataset.t4_v1.bag_metadata import BagMetadata
 from perception_dataset.t4_v1.traffic_signal_cdr import parse_traffic_signals
-from perception_dataset.utils.rosbag2 import create_writer
+from tests.t4_v1.bags import write_bag
 
 SECOND = 1_763_000_000
 
@@ -35,17 +33,6 @@ def v421_traffic_signals(sec: int, group_id: int) -> bytes:
     body = struct.pack("<III", sec, 0, 1) + bytes(4)  # stamp, 1 group, padding to 8
     body += struct.pack("<qI", group_id, 1) + bytes([1, 1, 2, 0]) + struct.pack("<f", 0.5)
     return header + body
-
-
-def write_bag(path, messages):
-    """Write (topic, type, message or raw bytes, sec) to a sqlite3 bag."""
-    writer = create_writer(str(path))
-    for topic, type_name in {(topic, type_name) for topic, type_name, _, _ in messages}:
-        writer.create_topic(TopicMetadata(name=topic, type=type_name, serialization_format="cdr"))
-    for topic, _, message, sec in messages:
-        data = message if isinstance(message, bytes) else serialize_message(message)
-        writer.write(topic, data, sec * 10**9)
-    del writer
 
 
 def test_bag_metadata(tmp_path):
@@ -173,6 +160,7 @@ def test_bag_metadata(tmp_path):
     assert v421["elements"] == [
         {"color": "red", "shape": "circle", "status": "solid_on", "confidence": 0.5}
     ]
+    assert v421["confidence"] == 0.5
     assert newer["elements"][0]["color"] == "green"
 
     assert metadata.lidar_hardware()["front_upper"].serial_number == "OT0001"

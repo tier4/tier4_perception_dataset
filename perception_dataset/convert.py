@@ -555,6 +555,12 @@ def main():
         converter = Rosbag2ToT4LocConverter(converter_params)
         converter.convert()
         logger.info("[END] Conversion Completed")
+    elif task == "convert_t4_to_t4_v1":
+        from perception_dataset.t4_v1.backfill import backfill_datasets
+
+        logger.info("[BEGIN] Migrating T4 0.x --> T4 1.0 with metadata backfill")
+        backfill_datasets(config_dict["conversion"])
+        logger.info("[END] Migration Completed")
     else:
         raise NotImplementedError()
 
