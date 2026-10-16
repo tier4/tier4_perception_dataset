@@ -1,0 +1,30 @@
+# Vehicle metadata for T4Dataset 1.0 (`vehicle` table, `sensor.camera` hardware), by vehicle model.
+#
+# Example only: values from Autoware's public `sample_vehicle_description`. Real vehicles are in
+# the private perception-devops `dataset_annotation/vehicle_info/vehicles.yaml`; point
+# `vehicle_table` in the task config to it.
+#
+# - The entry is the one whose `vehicle_names` pattern matches the dataset's vehicle name.
+# - `vehicle_info` is copied from `<model>_description/config/vehicle_info.param.yaml`. The task
+#   derives:
+#     length               = front_overhang + wheel_base + rear_overhang
+#     width                = left_overhang + wheel_tread + right_overhang
+#     rear_axle_to_center  = length / 2 - rear_overhang
+# - `cameras` gives each camera's hardware by its name in the topic (`camera0`, ...), else
+#   `default`. LiDAR hardware is read from the rosbag's `/diagnostics`.
+# - Unknown values are left out, not guessed: the 1.0 placeholders stay.
+
+sample_vehicle:
+  sensor_kit: sample_sensor_kit
+  vehicle_names: ["sample_vehicle_*"]
+  vehicle_info:  # autoware sample_vehicle_description
+    wheel_base: 2.79
+    wheel_tread: 1.64
+    front_overhang: 1.0
+    rear_overhang: 1.1
+    left_overhang: 0.128
+    right_overhang: 0.128
+    vehicle_height: 2.5
+  cameras:
+    default: {make: Sample Make, model: Sample Camera}
+    camera0: {make: Sample Make, model: Sample Wide Camera}

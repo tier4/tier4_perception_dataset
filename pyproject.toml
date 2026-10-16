@@ -44,7 +44,7 @@ dev = [
 constraint-dependencies = ["typer<0.25"]
 
 [tool.uv.sources]
-t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", rev = "v0.8.0" }
+t4-devkit = { git = "https://github.com/tier4/t4-devkit.git", branch = "v1/migrate-backfill" }
 
 [build-system]
 requires = ["hatchling"]
