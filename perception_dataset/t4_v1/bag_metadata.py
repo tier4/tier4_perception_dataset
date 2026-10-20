@@ -11,7 +11,6 @@ from rosbag2_py import StorageFilter
 from rosidl_runtime_py.utilities import get_message
 from t4_devkit.schema.v1 import Hardware
 
-from perception_dataset.t4_v1.traffic_signal_cdr import parse_traffic_signals
 from perception_dataset.utils.rosbag2 import create_reader, get_topic_type_dict
 
 __all__ = ["BagMetadata"]
@@ -48,7 +47,6 @@ class BagMetadata:
             "/vehicle/status/hazard_lights_status",
             "/planning/mission_planning/route",
             "/api/routing/state",
-            "/perception/traffic_light_recognition/traffic_signals",
             "/diagnostics",
             "/webauto/vehicle_info",
         }
@@ -63,11 +61,6 @@ class BagMetadata:
             if key in self._seen:
                 continue
             self._seen.add(key)
-            if topic == "/perception/traffic_light_recognition/traffic_signals":
-                message = parse_traffic_signals(data)
-                if message is not None:
-                    self.messages[topic].append((_us(*message["stamp"]), message))
-                    continue
             if topic not in classes:
                 classes[topic] = get_message(types[topic])
             message = deserialize_message(data, classes[topic])
@@ -229,67 +222,6 @@ class BagMetadata:
                     "provenance": "own_bag",
                 }
             )
-        return rows
-
-    def traffic_lights(self) -> list[dict[str, Any]]:
-        """Return a 1.0 `traffic_light` row (no token) per group of each recognition message;
-        `confidence` is the lowest of its bulbs."""
-        colors = ["unknown", "red", "amber", "green", "white"]
-        shapes = [
-            "unknown",
-            "circle",
-            "left_arrow",
-            "right_arrow",
-            "up_arrow",
-            "up_left_arrow",
-            "up_right_arrow",
-            "down_arrow",
-            "down_left_arrow",
-            "down_right_arrow",
-            "cross",
-        ]
-        statuses = ["unknown", "solid_off", "solid_on", "flashing"]
-
-        def name(names: list[str], value: int) -> str:
-            return names[value] if value < len(names) else "unknown"
-
-        rows = []
-        topic = "/perception/traffic_light_recognition/traffic_signals"
-        for timestamp, message in self.messages.get(topic, []):
-            if isinstance(message, dict):
-                groups = message["groups"]
-            else:  # newer layout, read by the installed message class
-                groups = [
-                    (
-                        group.traffic_light_group_id,
-                        [(e.color, e.shape, e.status, e.confidence) for e in group.elements],
-                    )
-                    for group in message.traffic_light_groups
-                ]
-            for group_id, elements in groups:
-                rows.append(
-                    {
-                        "timestamp": timestamp,
-                        "regulatory_element_id": group_id,
-                        "elements": [
-                            {
-                                "color": name(colors, color),
-                                "shape": name(shapes, shape),
-                                "status": name(statuses, status),
-                                "confidence": round(confidence, 6),
-                            }
-                            for color, shape, status, confidence in elements
-                        ],
-                        "object_ann_token": None,
-                        "instance_token": None,
-                        "annotation_type": "auto",
-                        "provenance": "autoware traffic_light_recognition",
-                        # the group's state is as sure as its least sure bulb
-                        "confidence": min(
-                            (round(element[3], 6) for element in elements), default=None
-                        ),
-                    }
-                )
         return rows
 
     def lidar_hardware(self) -> dict[str, Hardware]:

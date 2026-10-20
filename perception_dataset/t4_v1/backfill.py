@@ -10,7 +10,6 @@ from t4_devkit.schema.v1 import (
     Manifest,
     Route,
     SchemaName,
-    TrafficLight,
     VehicleState,
 )
 from t4_devkit.schema.v1.migrate_v0 import V0Migrator
@@ -52,8 +51,11 @@ class Backfill:
 
     - Web.Auto values (project, map ids, log files, ...) come from the task config, as given.
     - Vehicle model and dimensions, camera hardware: the vehicle table.
-    - Ego twist / acceleration / GNSS, vehicle state, routes, traffic-light states, LiDAR
-      hardware, distortion models and the Autoware version: the rosbags.
+    - Ego twist / acceleration / GNSS, vehicle state, routes, LiDAR hardware, distortion models
+      and the Autoware version: the rosbags.
+
+    `traffic_light` is not filled from the rosbags: recognition results are model output, not
+    ground truth.
 
     Values without a source keep their 1.0 placeholders; `notes` (written to
     `manifest.migration_notes`) say what was filled and what was dropped.
@@ -99,7 +101,6 @@ class Backfill:
         self.fill_vehicle_states()
         lanelet_map = self._lanelet_map()
         self.fill_routes(lanelet_map)
-        self.fill_traffic_lights(lanelet_map)
         return self.migrator.migrate(
             dataset_id, version, keep_images=keep_images, manifest_fields=self.manifest_fields()
         )
@@ -199,7 +200,13 @@ class Backfill:
         if map_record is None:
             self.notes.append("route: none added, the dataset has no map")
             return
-        lanelets = _relation_ids(lanelet_map, "lanelet") if lanelet_map else None
+        lanelets = None
+        if lanelet_map is not None:
+            lanelets = {
+                int(id)
+                for id, relation in lanelet_map.relations.items()
+                if relation.tags.get("type") == "lanelet"
+            }
         routes = self.migrator.tables(SchemaName.ROUTE)
         for row in self.bags.routes():
             if row["valid_from"] > last or (row["valid_until"] or last + 1) <= first:
@@ -217,33 +224,6 @@ class Backfill:
                 )
                 continue
             routes.append(Route.new(dict(row, log_token=log.token, map_token=map_record.token)))
-
-    def fill_traffic_lights(self, lanelet_map: LaneletParser | None) -> None:
-        """Add the recognized traffic-light states during the dataset; drop groups that are not
-        a traffic-light regulatory element of its map."""
-        first, last = self.sample_times[0], self.sample_times[-1]
-        elements = (
-            _relation_ids(lanelet_map, "regulatory_element", subtype="traffic_light")
-            if lanelet_map
-            else None
-        )
-        firmware = (self.bags.vehicle_info() or {}).get("firmware_release_name")
-        lights = self.migrator.tables(SchemaName.TRAFFIC_LIGHT)
-        dropped = set()
-        for row in self.bags.traffic_lights():
-            if not first <= row["timestamp"] <= last:
-                continue
-            if elements is not None and row["regulatory_element_id"] not in elements:
-                dropped.add(row["regulatory_element_id"])
-                continue
-            if firmware is not None:
-                row = dict(row, provenance=f"{row['provenance']} ({firmware})")
-            lights.append(TrafficLight.new(row))
-        if dropped:
-            self.notes.append(
-                f"traffic_light: groups {sorted(dropped)} dropped, not traffic-light regulatory "
-                "elements of the dataset's map"
-            )
 
     def manifest_fields(self) -> dict[str, Any]:
         """Return the manifest fields: config values, topics of each channel, Autoware version
@@ -286,19 +266,9 @@ class Backfill:
         return maps[0] if maps else None
 
     def _lanelet_map(self) -> LaneletParser | None:
-        """Return the dataset's lanelet2 map, or None (routes and lights are then not checked)."""
+        """Return the dataset's lanelet2 map, or None (routes are then not checked)."""
         map_record = self._map_record()
         if map_record is None or not osp.exists(osp.join(self.data_root, map_record.filename)):
-            self.notes.append("route / traffic_light: no lanelet2 map, ids not checked")
+            self.notes.append("route: no lanelet2 map, lanelet ids not checked")
             return None
         return LaneletParser(osp.join(self.data_root, map_record.filename))
-
-
-def _relation_ids(lanelet_map: LaneletParser, type_: str, subtype: str | None = None) -> set[int]:
-    """Return the ids of the map's relations of a type (and subtype)."""
-    return {
-        int(id)
-        for id, relation in lanelet_map.relations.items()
-        if relation.tags.get("type") == type_
-        and (subtype is None or relation.tags.get("subtype") == subtype)
-    }
