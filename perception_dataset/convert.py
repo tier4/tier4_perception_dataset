@@ -106,6 +106,11 @@ def main():
                 frame_match_tolerance_ms=config_dict["conversion"].get(
                     "frame_match_tolerance_ms", 50.0
                 ),
+                attribute_value_priority=config_dict["conversion"].get("attribute_value_priority"),
+                static_attributes=config_dict["conversion"].get("static_attributes"),
+                category_attributes=config_dict["conversion"].get("category_attributes"),
+                task_definition_classes=config_dict["conversion"].get("task_definition_classes"),
+                attribute_map=config_dict["conversion"].get("attribute_map"),
             )
 
             logger.info(
@@ -141,6 +146,8 @@ def main():
             overwrite_mode=args.overwrite,
             category_map=config_dict["conversion"].get("category_map"),
             include_attributes=config_dict["conversion"].get("include_attributes", True),
+            attribute_map=config_dict["conversion"].get("attribute_map"),
+            occlusion_to_visibility=config_dict["conversion"].get("occlusion_to_visibility"),
         )
 
         logger.info(

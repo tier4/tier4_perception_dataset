@@ -19,3 +19,14 @@ conversion:
   # category_map: {}
   # Whether to import class properties (vehicle_state, occlusion_state, ...) as T4 attributes.
   include_attributes: true
+  # Attribute groups T4 and Kognic spell differently, given T4 -> Kognic exactly as in
+  # convert_annotated_t4_to_kognic_sample.yaml (inverted on import).
+  attribute_map:
+    two_wheel_vehicle_state: rider_state
+  # Kognic occlusion_state value -> T4 visibility level (best effort, both sides
+  # have four levels; adjust if the task definition changes its values).
+  occlusion_to_visibility:
+    none: full
+    light: most
+    most: partial
+    full: none

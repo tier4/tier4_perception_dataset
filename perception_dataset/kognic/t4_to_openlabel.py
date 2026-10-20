@@ -15,6 +15,10 @@ from t4_devkit.schema.tables import Instance, SampleAnnotation, SampleData
 from perception_dataset.abstract_converter import AbstractConverter
 from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cuboid_val
+from perception_dataset.kognic.openlabel.openlabel_attributes import (
+    choose_static_value,
+    resolve_multi_value_attribute,
+)
 from perception_dataset.kognic.sequence_artifact import (
     SEQUENCE_ARTIFACT_FILENAME,
     load_sequence_artifact,
@@ -66,6 +70,11 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         include_attributes: bool = False,
         exclude_attributes: Optional[List[str]] = None,
         frame_match_tolerance_ms: float = 50.0,
+        attribute_value_priority: Optional[Dict[str, List[str]]] = None,
+        static_attributes: Optional[List[str]] = None,
+        category_attributes: Optional[Dict[str, Dict[str, str]]] = None,
+        task_definition_classes: Optional[List[str]] = None,
+        attribute_map: Optional[Dict[str, str]] = None,
     ):
         """Initialize the pre-annotation converter.
 
@@ -75,8 +84,30 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             lidar_stream (str): Explicit OpenLABEL lidar stream name.
             category_map (Optional[Dict[str, str]]): T4-to-Kognic category map.
             include_attributes (bool): Whether to include T4 box attributes.
-            exclude_attributes (Optional[List[str]]): Attribute groups to omit.
+            exclude_attributes (Optional[List[str]]): Attribute groups to omit, either for every
+                class (``"extremities_state"``) or for one class only
+                (``"pedestrian.extremities_state"``; the class may be the T4 category or the
+                mapped Kognic class).
             frame_match_tolerance_ms (float): Maximum timestamp matching error.
+            attribute_value_priority (Optional[Dict[str, List[str]]]): Per attribute group, the
+                values in decreasing priority used to reduce a multi-valued T4 attribute
+                (``extremities_state.protruding_object;none``) to the single value Kognic accepts.
+            static_attributes (Optional[List[str]]): Attribute groups the Kognic task definition
+                declares as static (one value per object, not per frame), with the same
+                ``"group"`` / ``"<class>.group"`` scoping as ``exclude_attributes``. Their value is
+                chosen across frames by ``attribute_value_priority`` (else the most frequent one)
+                and emitted on the object instead of on every frame.
+            category_attributes (Optional[Dict[str, Dict[str, str]]]): Extra properties per T4
+                category, ``{"police_car": {"<property>": "police_car"}}``: keeps information a
+                ``category_map`` entry folds away (e.g. the emergency-vehicle subtype) as a Kognic
+                property of the object. Property names must exist in the task definition.
+            task_definition_classes (Optional[List[str]]): Classes of the Kognic task definition.
+                When given, a scene whose (mapped) categories include a class outside the list
+                fails before anything is written: Kognic would reject the whole pre-annotation
+                anyway, and the error names the category to add to ``category_map``.
+            attribute_map (Optional[Dict[str, str]]): Attribute groups T4 and Kognic spell
+                differently, T4 -> Kognic (``{"two_wheel_vehicle_state": "rider_state"}``);
+                ``None`` uses the module default.
         """
         super().__init__(input_base, output_base)
         self._lidar_stream = lidar_stream
@@ -85,6 +116,56 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         # attributes that exist in the annotation but does not want to be included in openlabel
         self._exclude_attributes = set(exclude_attributes or [])
         self._frame_match_tolerance_ms = frame_match_tolerance_ms
+        self._attribute_value_priority = {
+            group: list(values) for group, values in (attribute_value_priority or {}).items()
+        }
+        self._static_attributes = set(static_attributes or [])
+        self._category_attributes = {
+            category: dict(props) for category, props in (category_attributes or {}).items()
+        }
+        self._task_definition_classes = set(task_definition_classes or [])
+        self._attribute_map = None if attribute_map is None else dict(attribute_map)
+
+    @staticmethod
+    def attribute_in_scoped_groups(
+        attribute_name: str, category_name: str, mapped_category: str, scoped_groups: "set[str]"
+    ) -> bool:
+        """Whether a T4 attribute (``group.value``) falls under one of ``scoped_groups``.
+
+        Entries are attribute groups (``extremities_state``, applied to every class) or class-scoped
+        groups (``pedestrian.extremities_state``), where the class is the T4 category or the Kognic
+        class it is mapped to. Used for ``exclude_attributes`` and ``static_attributes`` alike.
+        """
+        group = attribute_name.rpartition(".")[0]
+        if not group:
+            return False
+        if group in scoped_groups:
+            return True
+        return f"{category_name}.{group}" in scoped_groups or f"{mapped_category}.{group}" in scoped_groups
+
+    def is_attribute_excluded(self, attribute_name: str, category_name: str, mapped_category: str) -> bool:
+        """Whether the attribute is left out of the pre-annotation (``exclude_attributes``)."""
+        return self.attribute_in_scoped_groups(attribute_name, category_name, mapped_category, self._exclude_attributes)
+
+    def is_attribute_static(self, attribute_name: str, category_name: str, mapped_category: str) -> bool:
+        """Whether the attribute is a per-object (static) Kognic property (``static_attributes``)."""
+        return self.attribute_in_scoped_groups(attribute_name, category_name, mapped_category, self._static_attributes)
+
+    def _check_task_definition_classes(self, category_names, dataset_dir) -> None:
+        """Fail fast when a (mapped) T4 category is not a class of the Kognic task definition."""
+        if not self._task_definition_classes:
+            return
+        unknown = sorted(
+            {
+                f"{name} -> {self._category_map.get(name, name)}"
+                for name in category_names
+                if self._category_map.get(name, name) not in self._task_definition_classes
+            }
+        )
+        if unknown:
+            raise ValueError(
+                f"{dataset_dir}: categories not in the Kognic task definition (add them to category_map): {unknown}"
+            )
 
     def convert(self) -> None:
         """Convert annotations for every discovered T4 sequence.
@@ -146,8 +227,10 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         }
 
         categories = {category.token: category.name for category in t4.get_table("category")}
+        self._check_task_definition_classes(categories.values(), seq_path)
         instances = {instance.token: instance for instance in t4.get_table("instance")}
-        attributes = {attribute.token: attribute.name for attribute in t4.get_table("attribute")}
+        # some sources write the group with a trailing blank ("extremities_state .")
+        attributes = {attribute.token: attribute.name.strip() for attribute in t4.get_table("attribute")}
         ego_pose_by_token = {pose.token: pose for pose in t4.get_table("ego_pose")}
 
         annotations_by_sample: Dict[str, List[SampleAnnotation]] = {}
@@ -157,6 +240,9 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         objects: Dict[str, openlabel.Object] = {}
         frames: Dict[str, openlabel.Frame] = {}
         skipped = 0
+        multi_value_resolved: Dict[str, str] = {}
+        # object uuid -> attribute group -> values over frames (properties the task definition holds per object)
+        static_values: Dict[str, Dict[str, List[str]]] = {}
 
         for sample in sorted(t4.get_table("sample"), key=lambda record: record.timestamp):
             annotations = annotations_by_sample.get(sample.token)
@@ -196,12 +282,24 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                 # geometry ("3D geometry may not use source specific properties").
                 class_properties = []
                 if self._include_attributes:
-                    class_properties = [
-                        attribute_to_text(attributes[token])
-                        for token in annotation.attribute_tokens
-                        if token in attributes
-                        and attributes[token].rpartition(".")[0] not in self._exclude_attributes
-                    ]
+                    mapped_category = self._category_map.get(category_name, category_name)
+                    for token in annotation.attribute_tokens:
+                        if token not in attributes or self.is_attribute_excluded(
+                            attributes[token], category_name, mapped_category
+                        ):
+                            continue
+                        attribute_name = resolve_multi_value_attribute(
+                            attributes[token], self._attribute_value_priority
+                        )
+                        if attribute_name != attributes[token]:
+                            multi_value_resolved[attributes[token]] = attribute_name
+                        if self.is_attribute_static(attribute_name, category_name, mapped_category):
+                            group, _, value = attribute_name.rpartition(".")
+                            static_values.setdefault(object_uuid, {}).setdefault(group, []).append(value)
+                            continue
+                        class_properties.append(attribute_to_text(attribute_name, self._attribute_map))
+                for name, value in self._category_attributes.get(category_name, {}).items():
+                    class_properties.append(openlabel.Text(name=name, val=str(value)))
 
                 frame_objects[object_uuid] = openlabel.Objects(
                     object_data=openlabel.ObjectData(
@@ -234,6 +332,19 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             logger.warning(f"No annotation could be placed on a staging frame for {seq_path}")
             return
 
+        for object_uuid, groups in static_values.items():
+            texts = [
+                attribute_to_text(
+                    f"{group}.{choose_static_value(values, self._attribute_value_priority.get(group, []))}",
+                    self._attribute_map,
+                )
+                for group, values in sorted(groups.items())
+            ]
+            current = objects[object_uuid]
+            objects[object_uuid] = openlabel.Object(
+                name=current.name, type=current.type, object_data=openlabel.ObjectData(text=texts)
+            )
+
         frame_indices = sorted(int(idx) for idx in frames)
         annotation = openlabel.OpenLabelAnnotation(
             openlabel=openlabel.Openlabel(
@@ -256,6 +367,13 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         with open(out_path, "w") as f:
             json.dump(annotation.model_dump(mode="json", exclude_none=True), f, indent=2)
 
+        for original, resolved in sorted(multi_value_resolved.items()):
+            logger.info(f"{out_path.name}: multi-valued attribute {original!r} -> {resolved!r}")
+        if static_values:
+            groups = sorted({group for per_object in static_values.values() for group in per_object})
+            logger.info(
+                f"{out_path.name}: {len(static_values)} object(s) carry static (per-object) properties {groups}"
+            )
         total = sum(len(frame.objects) for frame in frames.values())
         logger.info(
             f"{out_path}: {len(objects)} objects, {total} cuboids over "

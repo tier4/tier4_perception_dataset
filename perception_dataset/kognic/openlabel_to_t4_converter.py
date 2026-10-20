@@ -107,6 +107,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         overwrite_mode: bool = False,
         category_map: Optional[Dict[str, str]] = None,
         include_attributes: bool = True,
+        attribute_map: Optional[Dict[str, str]] = None,
+        occlusion_to_visibility: Optional[Dict[str, str]] = None,
     ):
         """Initialize the converter.
 
@@ -120,6 +122,11 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             overwrite_mode (bool): Whether existing output scenes may be replaced.
             category_map (Optional[Dict[str, str]]): Kognic-to-T4 category map.
             include_attributes (bool): Whether to import object attributes.
+            attribute_map (Optional[Dict[str, str]]): Attribute groups T4 and Kognic spell
+                differently, given T4 -> Kognic (the same map the export uses) and inverted here;
+                ``None`` uses the module default.
+            occlusion_to_visibility (Optional[Dict[str, str]]): Kognic ``occlusion_state`` value
+                -> T4 visibility level; ``None`` uses the module default.
         """
         super().__init__(input_base, output_base)
         self._annotation_base = Path(annotation_base)
@@ -128,6 +135,8 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         self._overwrite_mode = overwrite_mode
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
+        self._attribute_map = None if attribute_map is None else dict(attribute_map)
+        self._occlusion_to_visibility = None if occlusion_to_visibility is None else dict(occlusion_to_visibility)
         self._t4_table_cache: Dict[Tuple[Path, str], list] = {}
 
     # ------------------------------------------------------------------
@@ -842,14 +851,14 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         tokens: List[str] = []
         for text in object_data.get("text", []):
-            name = to_t4_attribute_name(text["name"])
+            name = to_t4_attribute_name(text["name"], self._attribute_map)
             tokens.append(self._attribute_token(tables, f"{name}.{text['val']}"))
         for boolean in object_data.get("boolean", []):
-            name = to_t4_attribute_name(boolean["name"])
+            name = to_t4_attribute_name(boolean["name"], self._attribute_map)
             value = "true" if boolean.get("val") else "false"
             tokens.append(self._attribute_token(tables, f"{name}.{value}"))
         for vec in object_data.get("vec", []):
-            name = to_t4_attribute_name(vec["name"])
+            name = to_t4_attribute_name(vec["name"], self._attribute_map)
             for value in vec.get("val", []):
                 tokens.append(self._attribute_token(tables, f"{name}.{value}"))
         return tokens
@@ -883,7 +892,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             (t["val"] for t in object_data.get("text", []) if t["name"] == "occlusion_state"),
             None,
         )
-        level = occlusion_to_visibility_level(occlusion)
+        level = occlusion_to_visibility_level(occlusion, self._occlusion_to_visibility)
         return tables["visibility"].insert_into_table(
             reuse_if_duplicate=True, level=level, description=""
         )

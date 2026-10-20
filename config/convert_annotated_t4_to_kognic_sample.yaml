@@ -4,6 +4,8 @@ conversion:
   output_base: ./data/kognic_format
   workers_number: 12
   include_imu_data: false
+  # Frames offered for annotation: 1 = the T4 keyframes (1 Hz), 10 = every sweep.
+  annotation_hz: 1
   camera_sensors:
     - channel: CAM_FRONT
     - channel: CAM_FRONT_RIGHT
@@ -15,17 +17,78 @@ conversion:
   # Stream name the cuboids are attached to. Defaults to the anchor lidar
   # (first staged lidar in PREFERRED_LIDAR_SENSORS order) used by the uploader.
   lidar_stream: ""
-  # Optional mapping from T4 category names to the Kognic task-definition
-  # class names, e.g. {car: PassengerCar}. Unmapped names pass through as-is.
-  category_map: {}
+
+  # The Kognic 3D pre-label task definition (Sep 2026) has:
+  # traffic_cone, stroller, bicycle_rack, debris, car, animal,
+  # trailer, train, construction_sign, personal_mobility, bus, forklift,
+  # pushable_pullable, construction_vehicle, kart, barrier, other_vehicle,
+  # pedestrian, emergency_vehicle, bicycle, motorcycle, truck,
+  # vehicle_protruding_object, open_door. 
+  # T4 categories outside that list are mapped to the closest class here;
+  # Conversion fails before writing anything when a (mapped) category is not
+  # in task_definition_classes, naming the category to add to category_map.
+  task_definition_classes:
+    [traffic_cone, stroller, bicycle_rack, debris, car, animal, trailer, train,
+     construction_sign, personal_mobility, bus, forklift, pushable_pullable,
+     construction_vehicle, kart, barrier, other_vehicle, pedestrian,
+     emergency_vehicle, bicycle, motorcycle, truck, vehicle_protruding_object,
+     open_door]
+  category_map:
+    wheelchair: personal_mobility
+    other_pedestrian: personal_mobility
+    construction_worker: pedestrian
+    police_officer: pedestrian
+    tractor_unit: truck
+    tractor: truck
+    semi_trailer: trailer
+    "construction sign": construction_sign   # spelling variant seen in one DB_J6Gen2 dataset
+    # emergency vehicles are one class in the task definition
+    police_car: emergency_vehicle
+    ambulance: emergency_vehicle
+    fire_truck: emergency_vehicle
+  # Extra properties per T4 category, to keep what category_map folds away:
+  # the emergency-vehicle subtype is pre-filled on the emergency_vehicle class.
+  # Property names and values must match the task definition (an unknown
+  # property makes the upload fail).
+  category_attributes:
+    police_car: {emergency_vehicle_type: police_car}
+    ambulance: {emergency_vehicle_type: ambulance}
+    fire_truck: {emergency_vehicle_type: fire_truck}
+  # Attribute groups T4 and Kognic spell differently, T4 -> Kognic. The value
+  # (with_rider / without_rider) is kept as-is. The Kognic -> T4 import inverts
+  # the same map, so keep both configs identical.
+  attribute_map:
+    two_wheel_vehicle_state: rider_state
   # If true, T4 attributes (e.g. vehicle_state.driving) are exported as text
   # attributes on each cuboid. They must be allowed by the Kognic task
   # definition. It is set true by default.
   include_attributes: true
-  # T4 attribute groups NOT exported, for attributes the Kognic task
-  # definition does not declare (upload fails on unknown dynamic properties).
+  # T4 attribute groups NOT exported because the Kognic pre-label task
+  # definitions do not declare them (the upload fails with "Pre-annotation is
+  # incompatible with Task Definition" on unknown dynamic properties). Entries
+  # are a group for every class ("emergency_vehicle_lights_state") or a
+  # class-scoped group ("personal_mobility.pedestrian_state"; the class is the
+  # T4 category or the mapped Kognic category). Keep this list in sync with the
+  # task definitions; omitting it exports every attribute.
   exclude_attributes:
     - emergency_vehicle_lights_state
+    - pedestrian.extremities_state
+    - personal_mobility.extremities_state
+    - personal_mobility.pedestrian_state
+    - stroller.pedestrian_state
+    - stroller.extremities_state
+  # Kognic properties are single-valued, but some T4 sources carry several
+  # values in one attribute ("extremities_state.protruding_object;none"). Per
+  # group, the first value present in this list is kept.
+  attribute_value_priority:
+    extremities_state: [open_door, protruding_object, none]
+    vehicle_state: [parked, driving]
+  # Attribute groups the task definition declares as static (one value per
+  # object) for a class, while T4 stores them per frame: the per-frame values
+  # are reduced to one with attribute_value_priority (else the most frequent).
+  # Format "<class>.<group>" as in exclude_attributes.
+  static_attributes:
+    - forklift.extremities_state
   # Used only when staging frame count differs from LIDAR_CONCAT records and
   # frames must be matched by nearest timestamp instead of position.
   frame_match_tolerance_ms: 50
