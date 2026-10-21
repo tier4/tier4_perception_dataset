@@ -64,7 +64,13 @@ class BagMetadata:
             if topic not in classes:
                 classes[topic] = get_message(types[topic])
             message = deserialize_message(data, classes[topic])
-            self.messages[topic].append((self._stamp(message, bag_time), message))
+            if topic == "/planning/mission_planning/route":
+                # a route reloaded by the mission planner keeps its old header stamp: use the
+                # time it was published
+                stamp = bag_time // 1000
+            else:
+                stamp = self._stamp(message, bag_time)
+            self.messages[topic].append((stamp, message))
 
     @staticmethod
     def _stamp(message: Any, bag_time: int) -> int:
