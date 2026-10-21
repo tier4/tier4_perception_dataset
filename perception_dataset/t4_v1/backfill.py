@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os.path as osp
+import re
 from typing import Any
 
 from t4_devkit.lanelet import LaneletParser
@@ -242,8 +243,12 @@ class Backfill:
                 "process_config_version_id": provenance.get("process_config_version_id"),
             }
         firmware = (self.bags.vehicle_info() or {}).get("firmware_release_name")
-        if firmware is not None:
+        # a release name has no spaces (e.g. "20250715-v4.2.1"); some vehicles report free
+        # text such as "a mix of versions"
+        if firmware is not None and re.fullmatch(r"\S+", firmware):
             fields["generators"] = [{"name": "autoware", "version": firmware}]
+        elif firmware is not None:
+            self.notes.append(f"generators: Autoware version not recorded ({firmware!r})")
         fields["migration_notes"] = self.notes
         return fields
 
