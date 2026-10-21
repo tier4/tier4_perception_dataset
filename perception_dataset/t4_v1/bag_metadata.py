@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 import json
-from typing import Any
+import math
+import struct
+from typing import Any, Callable
 import uuid
 
 import numpy as np
@@ -50,8 +52,29 @@ class BagMetadata:
             "/diagnostics",
             "/webauto/vehicle_info",
         }
+        # Vehicle-specific topics, read from raw CDR: their message packages (tier4_vehicle_msgs,
+        # j6_interface_msgs) are not built here. Each returns (stamp [us] or None, value), or
+        # None if the bytes are not the expected layout.
+        # TODO: stopgap for the 1.0 sample datasets. Build the message packages (add them to
+        # build_depends.repos) and deserialize these like the other topics, so a layout change
+        # fails loudly instead of being skipped.
+        raw_topics: dict[str, Callable[[bytes], tuple[int | None, float] | None]] = {
+            # tier4 SteeringWheelStatusStamped (jpntaxi) and j6 SteeringWheelReport: a stamp
+            # and the wheel angle [rad] as float32
+            "/vehicle/status/steering_wheel_status": _stamped_float32,
+            # ERGA: std_msgs/Float32, no stamp
+            "/vehicle/status/steering_wheel_deg": lambda data: _float32(data, math.radians),
+            "/vehicle/status/accel_pedal_position": lambda data: _float32(data, lambda x: x / 100),
+            "/vehicle/status/brake_pedal_position": lambda data: _float32(data, lambda x: x / 100),
+            # tier4 ActuationStatusStamped (jpntaxi): header, then accel / brake / steer status
+            "/vehicle/status/actuation_status": _accel_status,
+        }
         types = get_topic_type_dict(bag_dir)
-        topics = [t for t in types if t in backfill_topics or t.endswith("/camera_info")]
+        topics = [
+            t
+            for t in types
+            if t in backfill_topics or t in raw_topics or t.endswith("/camera_info")
+        ]
         reader = create_reader(bag_dir)
         reader.set_filter(StorageFilter(topics=topics))
         classes = {}
@@ -61,6 +84,15 @@ class BagMetadata:
             if key in self._seen:
                 continue
             self._seen.add(key)
+            if topic in raw_topics:
+                parsed = raw_topics[topic](bytes(data))
+                if parsed is None:
+                    if f"{topic}: unexpected layout, not used" not in self.notes:
+                        self.notes.append(f"{topic}: unexpected layout, not used")
+                    continue
+                stamp, value = parsed
+                self.messages[topic].append((stamp or bag_time // 1000, value))
+                continue
             if topic not in classes:
                 classes[topic] = get_message(types[topic])
             message = deserialize_message(data, classes[topic])
@@ -137,6 +169,9 @@ class BagMetadata:
         """Return a 1.0 `vehicle_state` row (no token) at each sample time, from the nearest
         velocity, steering, gear, turn indicator and hazard report within 100 ms.
 
+        Steering wheel angle [rad] and pedal positions (0 to 1) come from vehicle-specific
+        topics where a vehicle has them; `steer_pedal` has no source.
+
         Args:
             timestamps (list[int]): Sample times [us].
 
@@ -154,12 +189,23 @@ class BagMetadata:
         def nearest(name: str) -> list[Any]:
             return self._nearest(f"/vehicle/status/{name}", timestamps, 100_000)
 
+        def first_of(*names: str) -> list[Any]:
+            """The nearest values of the first of these topics the bags have."""
+            name = next((n for n in names if self.messages.get(f"/vehicle/status/{n}")), names[0])
+            return nearest(name)
+
         velocities, steerings = nearest("velocity_status"), nearest("steering_status")
         gears = nearest("gear_status")
         turns, hazards = nearest("turn_indicators_status"), nearest("hazard_lights_status")
+        wheels = first_of("steering_wheel_status", "steering_wheel_deg")
+        # jpntaxi reports the accelerator in actuation_status; its brake_status stays 0 while
+        # the car brakes, so it is not used. j6_gen2's pedal reports are the driver's pedals
+        # with an unknown accelerator scale, so they are not read.
+        accels = first_of("accel_pedal_position", "actuation_status")
+        brakes = nearest("brake_pedal_position")
         rows = []
-        for timestamp, velocity, steering, gear, turn, hazard in zip(
-            timestamps, velocities, steerings, gears, turns, hazards
+        for timestamp, velocity, steering, gear, turn, hazard, wheel, accel, brake in zip(
+            timestamps, velocities, steerings, gears, turns, hazards, wheels, accels, brakes
         ):
             if velocity is None:
                 continue
@@ -175,13 +221,13 @@ class BagMetadata:
             rows.append(
                 {
                     "timestamp": timestamp,
-                    "accel_pedal": None,
-                    "brake_pedal": None,
+                    "accel_pedal": accel,
+                    "brake_pedal": brake,
                     "steer_pedal": None,
                     "steering_tire_angle": (
                         steering.steering_tire_angle if steering is not None else None
                     ),
-                    "steering_wheel_angle": None,
+                    "steering_wheel_angle": wheel,
                     "shift_state": shift_state(gear.report) if gear is not None else None,
                     "indicators": indicators,
                     "longitudinal_velocity": velocity.longitudinal_velocity,
@@ -280,3 +326,30 @@ def _pose(pose: Any) -> dict[str, list[float]]:
         "translation": [position.x, position.y, position.z],
         "rotation": [orientation.w, orientation.x, orientation.y, orientation.z],
     }
+
+
+def _stamped_float32(data: bytes) -> tuple[int, float] | None:
+    """Return (stamp [us], value) of a `builtin_interfaces/Time` followed by a float32."""
+    if len(data) != 16:
+        return None
+    sec, nanosec, value = struct.unpack_from("<IIf", data, 4)
+    return _us(sec, nanosec), value
+
+
+def _float32(data: bytes, convert: Callable[[float], float]) -> tuple[None, float] | None:
+    """Return (no stamp, converted value) of a `std_msgs/Float32`."""
+    if len(data) != 8:
+        return None
+    return None, convert(struct.unpack_from("<f", data, 4)[0])
+
+
+def _accel_status(data: bytes) -> tuple[int, float] | None:
+    """Return (stamp [us], accel_status) of a `tier4_vehicle_msgs/ActuationStatusStamped`."""
+    if len(data) < 16:
+        return None
+    sec, nanosec, frame_length = struct.unpack_from("<III", data, 4)
+    offset = 16 + frame_length
+    offset += -(offset - 4) % 8  # float64 alignment, counted after the encapsulation header
+    if offset + 24 != len(data):
+        return None
+    return _us(sec, nanosec), struct.unpack_from("<d", data, offset)[0]

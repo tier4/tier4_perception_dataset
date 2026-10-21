@@ -1,4 +1,5 @@
 import json
+import struct
 
 from autoware_adapi_v1_msgs.msg import RouteState
 from autoware_planning_msgs.msg import LaneletPrimitive, LaneletRoute, LaneletSegment
@@ -12,7 +13,7 @@ from builtin_interfaces.msg import Time
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo, Imu, NavSatFix
-from std_msgs.msg import String
+from std_msgs.msg import Float32, String
 
 from perception_dataset.t4_v1.bag_metadata import BagMetadata
 from tests.t4_v1.bags import write_bag
@@ -54,6 +55,26 @@ def test_bag_metadata(tmp_path):
             ("/localization/kinematic_state", "nav_msgs/msg/Odometry", odometry, SECOND),
             ("/sensing/imu/imu_data", "sensor_msgs/msg/Imu", imu, SECOND),
             ("/sensing/gnss/septentrio/nav_sat_fix", "sensor_msgs/msg/NavSatFix", fix, SECOND),
+            # vehicle-specific topics: a stamped wheel angle [rad] (raw CDR, as the message
+            # packages are not built) and pedals in percent (ERGA)
+            (
+                "/vehicle/status/steering_wheel_status",
+                "tier4_vehicle_msgs/msg/SteeringWheelStatusStamped",
+                b"\x00\x01\x00\x00" + struct.pack("<IIf", SECOND, 0, 1.5),
+                SECOND,
+            ),
+            (
+                "/vehicle/status/accel_pedal_position",
+                "std_msgs/msg/Float32",
+                Float32(data=25.0),
+                SECOND,
+            ),
+            (
+                "/vehicle/status/brake_pedal_position",
+                "std_msgs/msg/Float32",
+                Float32(data=0.0),
+                SECOND,
+            ),
             (
                 "/vehicle/status/velocity_status",
                 "autoware_vehicle_msgs/msg/VelocityReport",
@@ -113,6 +134,12 @@ def test_bag_metadata(tmp_path):
     assert state["shift_state"] == "PARK"
     assert state["indicators"] == {"left": "on", "right": "off", "hazard": "off"}
     assert state["longitudinal_velocity"] == 3.0
+    assert (state["steering_wheel_angle"], state["accel_pedal"], state["brake_pedal"]) == (
+        1.5,
+        0.25,
+        0.0,
+    )
+    assert state["steer_pedal"] is None
 
     (route_row,) = metadata.routes()
     assert (route_row["valid_from"], route_row["valid_until"]) == (us, us + 5_000_000)
