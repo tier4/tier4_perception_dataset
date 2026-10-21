@@ -17,6 +17,7 @@ from perception_dataset.constants import LIDAR_CONCAT_CHANNEL
 from perception_dataset.kognic.openlabel import attribute_to_text, t4_box_to_cuboid_val
 from perception_dataset.kognic.openlabel.openlabel_attributes import (
     choose_static_value,
+    normalize_attribute_value,
     resolve_multi_value_attribute,
 )
 from perception_dataset.kognic.sequence_artifact import (
@@ -174,6 +175,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             None
         """
         start = time.time()
+        rejected: List[str] = []
 
         for seq_path, staging_dir in iter_scene_pairs(
             Path(self._input_base), Path(self._output_base)
@@ -185,10 +187,21 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                 )
                 continue
             logger.info(f"[BEGIN] {seq_path} -> {staging_dir / 'cuboid_pre_annotation.json'}")
-            self._convert_one_scene(seq_path, staging_dir)
+            try:
+                self._convert_one_scene(seq_path, staging_dir)
+            except ValueError as exc:
+                # task-definition check: the other scenes still get their pre-annotation
+                logger.error(str(exc))
+                rejected.append(str(exc))
+                continue
             logger.info(f"[DONE]  {seq_path}")
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
+        if rejected:
+            raise ValueError(
+                f"{len(rejected)} scene(s) not converted (categories outside the task definition):\n"
+                + "\n".join(rejected)
+            )
 
     # ------------------------------------------------------------------
     # Scene conversion
@@ -295,7 +308,9 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                             multi_value_resolved[attributes[token]] = attribute_name
                         if self.is_attribute_static(attribute_name, category_name, mapped_category):
                             group, _, value = attribute_name.rpartition(".")
-                            static_values.setdefault(object_uuid, {}).setdefault(group, []).append(value)
+                            static_values.setdefault(object_uuid, {}).setdefault(group, []).append(
+                                normalize_attribute_value(value)
+                            )
                             continue
                         class_properties.append(attribute_to_text(attribute_name, self._attribute_map))
                 for name, value in self._category_attributes.get(category_name, {}).items():

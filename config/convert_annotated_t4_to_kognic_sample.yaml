@@ -4,8 +4,6 @@ conversion:
   output_base: ./data/kognic_format
   workers_number: 12
   include_imu_data: false
-  # Frames offered for annotation: 1 = the T4 keyframes (1 Hz), 10 = every sweep.
-  annotation_hz: 1
   camera_sensors:
     - channel: CAM_FRONT
     - channel: CAM_FRONT_RIGHT
