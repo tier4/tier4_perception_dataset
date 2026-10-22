@@ -116,6 +116,10 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
     jpeg_quality: int = 95  # 1-100
     jpeg_optimize: bool = False  # must default False: pixel-identical but byte-different
     make_t4_dataset_dir: bool = True  # whether to make t4 dataset directory
+    # FFMPEGPacket (video) topics: the YUV->BGR conversion follows the color metadata
+    # signaled in the bitstream. Set these to override streams with wrong metadata.
+    video_color_range: Optional[str] = None  # "full" or "limited"
+    video_colorspace: Optional[str] = None  # "bt601" or "bt709"
 
     # rosbag data type
     data_type: DataType = DataType.REAL  # real or synthetic
@@ -215,6 +219,18 @@ class Rosbag2ConverterParams(BaseModelWithDictAccess):
         elif v > 100:
             logger.warning(f"jpeg_quality must be in [1, 100], got {v}, replaced to 100.")
             v = 100
+        return v
+
+    @field_validator("video_color_range")
+    def check_video_color_range(cls, v):
+        if v is not None and v not in ("full", "limited"):
+            raise ValueError(f"video_color_range must be 'full' or 'limited', got {v!r}")
+        return v
+
+    @field_validator("video_colorspace")
+    def check_video_colorspace(cls, v):
+        if v is not None and v not in ("bt601", "bt709"):
+            raise ValueError(f"video_colorspace must be 'bt601' or 'bt709', got {v!r}")
         return v
 
     @field_validator("skip_timestamp")

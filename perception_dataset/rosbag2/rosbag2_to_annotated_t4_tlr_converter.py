@@ -21,6 +21,7 @@ from perception_dataset.rosbag2.rosbag2_to_t4_converter import (
     Rosbag2ToT4Converter,
     _Rosbag2ToT4Converter,
 )
+import perception_dataset.utils.image as image_utils
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 from perception_dataset.utils.misc import unix_timestamp_to_nusc_timestamp
@@ -146,6 +147,7 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
         """
         sample_data_token_list: List[str] = []
         sample_records: List[Sample] = self._sample_table.to_records()
+        is_video_topic = "FFMPEGPacket" in self._bag_reader.get_topic_type(topic)
 
         # Get calibrated sensor token
         start_time_in_time = rosbag2_utils.unix_timestamp_to_stamp(start_timestamp)
@@ -178,15 +180,12 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
             )
 
             # Get image shape
-            temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
-            image_shape = rosbag2_utils.compressed_msg_to_numpy(temp_image_msg).shape
+            image_shape = self._probe_image_shape(topic, is_video_topic)
 
             # Save image
             sample_data_token_list: List[str] = []
             image_index_counter = -1
-            image_generator = self._bag_reader.read_messages(
-                topics=[topic], start_time=start_time_in_time
-            )
+            image_generator = self._make_image_generator(topic, is_video_topic, start_time_in_time)
             for image_index, lidar_frame_index, dummy_image_timestamp in synced_frame_info_list:
                 lidar_sample_token: str = sample_records[lidar_frame_index].token
 
@@ -237,11 +236,8 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
             generated_frame_index: int = 0
 
             last_translation: List[float] = [0.0, 0.0, 0.0]
-            for image_msg in self._bag_reader.read_messages(
-                topics=[topic],
-                start_time=start_time_in_time,
-            ):
-                image_msg: CompressedImage
+            for image_msg in self._make_image_generator(topic, is_video_topic, start_time_in_time):
+                image_msg: Union[CompressedImage, image_utils.VideoFrame]
                 if generated_frame_index >= self._num_load_frames:
                     break
 
@@ -283,8 +279,13 @@ class _Rosbag2ToAnnotatedT4TlrConverter(_Rosbag2ToT4Converter):
                         print(
                             f"frame: {generated_frame_index}, image stamp: {image_unix_timestamp}"
                         )
+                        if isinstance(image_msg, CompressedImage):
+                            # decode and re-encode, matching the output of previous versions
+                            image_arr = image_utils.decode_image_msg(image_msg).array
+                        else:
+                            image_arr = image_msg
                         sample_data_token = self._generate_image_data(
-                            rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                            image_arr,
                             image_unix_timestamp,
                             sample_token,
                             calibrated_sensor_token,
