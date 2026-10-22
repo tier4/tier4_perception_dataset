@@ -51,6 +51,7 @@ for _label in range(30):
     CATEGORY_NAME_TO_LABEL.setdefault(object_classification_to_category_name(_label), _label)
 
 LIDAR_FEATS = ("x", "y", "z", "intensity", "ring")
+POINTCLOUD_FORMATS = {"default": LIDAR_FEATS, "xyzi": LIDAR_FEATS[:4]}
 
 
 def _stamp(timestamp_us: int) -> Time:
@@ -95,7 +96,13 @@ class T4ToRosbag2Converter:
         base_frame_id: str = "base_link",
         lidar_sensor: Optional[Dict[str, str]] = None,
         camera_sensors: Optional[List[Dict[str, Any]]] = None,
+        pointcloud_format: str = "default",
     ):
+        if pointcloud_format not in POINTCLOUD_FORMATS:
+            raise ValueError(
+                f"pointcloud_format must be one of {list(POINTCLOUD_FORMATS)}, got {pointcloud_format!r}"
+            )
+        self._pointcloud_format = pointcloud_format
         self._input_base = Path(input_base)
         self._output_base = Path(output_base)
         self._overwrite_mode = overwrite_mode
@@ -256,17 +263,19 @@ class T4ToRosbag2Converter:
         del writer
 
     def _pointcloud_msg(self, path: Path, timestamp_us: int, frame_id: str) -> PointCloud2:
-        points = np.fromfile(path, dtype=np.float32).reshape(-1, len(LIDAR_FEATS))
+        feats = POINTCLOUD_FORMATS[self._pointcloud_format]
+        points = np.fromfile(path, dtype=np.float32).reshape(-1, len(LIDAR_FEATS))[:, : len(feats)]
+        points = np.ascontiguousarray(points)
         msg = PointCloud2()
         msg.header = Header(stamp=_stamp(timestamp_us), frame_id=frame_id)
         msg.height = 1
         msg.width = points.shape[0]
         msg.fields = [
             PointField(name=n, offset=4 * i, datatype=PointField.FLOAT32, count=1)
-            for i, n in enumerate(LIDAR_FEATS)
+            for i, n in enumerate(feats)
         ]
         msg.is_bigendian = False
-        msg.point_step = 4 * len(LIDAR_FEATS)
+        msg.point_step = 4 * len(feats)
         msg.row_step = msg.point_step * msg.width
         msg.is_dense = True
         msg.data = points.tobytes()
