@@ -1,0 +1,356 @@
+version: 1
+process_type: deepen_integration
+integration_id: cd6738a4-5292-4223-9d3a-54574bbc23e3
+preprocess:
+  tasks:
+    - type: filter_and_slice_rosbag
+      config:
+        topics:
+          - /sensing/lidar/front_upper/pandar_packets
+          - /sensing/lidar/front_lower/pandar_packets
+          - /sensing/lidar/left_upper/pandar_packets
+          - /sensing/lidar/left_lower/pandar_packets
+          - /sensing/lidar/right_upper/pandar_packets
+          - /sensing/lidar/right_lower/pandar_packets
+          - /sensing/lidar/rear_upper/pandar_packets
+          - /sensing/lidar/rear_lower/pandar_packets
+          - /sensing/camera/camera0/image_raw/compressed
+          - /sensing/camera/camera1/image_raw/compressed
+          - /sensing/camera/camera2/image_raw/compressed
+          - /sensing/camera/camera3/image_raw/compressed
+          - /sensing/camera/camera4/image_raw/compressed
+          - /sensing/camera/camera5/image_raw/compressed
+          - /sensing/camera/camera6/image_raw/compressed
+          - /sensing/camera/camera7/image_raw/compressed
+          - /sensing/camera/camera8/image_raw/compressed
+          - /sensing/camera/camera9/image_raw/compressed
+          - /sensing/camera/camera10/image_raw/compressed
+          - /sensing/camera/camera0/camera_info
+          - /sensing/camera/camera1/camera_info
+          - /sensing/camera/camera2/camera_info
+          - /sensing/camera/camera3/camera_info
+          - /sensing/camera/camera4/camera_info
+          - /sensing/camera/camera5/camera_info
+          - /sensing/camera/camera6/camera_info
+          - /sensing/camera/camera7/camera_info
+          - /sensing/camera/camera8/camera_info
+          - /sensing/camera/camera9/camera_info
+          - /sensing/camera/camera10/camera_info
+          - /sensing/radar/front_center/nebula_packets
+          - /sensing/radar/front_left/nebula_packets
+          - /sensing/radar/front_right/nebula_packets
+          - /sensing/radar/rear_center/nebula_packets
+          - /sensing/radar/rear_left/nebula_packets
+          - /sensing/radar/rear_right/nebula_packets
+          - /j6/from_can_bus
+          - /gsm8/from_can_bus
+          - /pacmod/from_can_bus
+          - /can_rx
+          - /pacmod/can_rx
+          - /sensing/gnss/ublox/fix_velocity
+          - /sensing/gnss/ublox/nav_sat_fix
+          - /sensing/gnss/ublox/navpvt
+          - /sensing/gnss/septentrio/nav_sat_fix
+          - /sensing/gnss/fixed
+          - /sensing/gnss/pose
+          - /sensing/gnss/pose_with_covariance
+          - /sensing/imu/tamagawa/imu_raw
+          - /sensing/imu/imu_data
+          - /planning/mission_planning/route
+          - /localization/kinematic_state
+          - /localization/acceleration
+          - /localization/pose_estimator/pose_with_covariance
+          - /vehicle/status/control_mode
+          - /vehicle/status/steering_status
+          - /vehicle/status/turn_indicators_status
+          - /vehicle/status/velocity_status
+          - /tf
+          - /tf_static
+          - /diagnostics
+    - type: inject_concatenated_pointcloud
+      config:
+        allow_concat_drop: True
+        param_file: ../../../aip_launcher/aip_x2_gen2_launch/config/concatenate_and_time_sync_node.param.yaml
+        distortion_param_file: ../../../aip_launcher/aip_x2_gen2_launch/config/distortion_corrector_node.param.yaml
+        input_imu_topic: /sensing/imu/imu_data
+        input_twist_topic: /sensing/vehicle_velocity_converter/twist_with_covariance
+        lidar_topics:
+          - name: "/sensing/lidar/left_lower/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: True
+            sensor_model: "PandarQT128"
+            return_mode: "LastStrongest"
+            min_range: 0.1
+            max_range: 50.0
+            cloud_min_angle: 90
+            cloud_max_angle: 270
+            cut_angle: 270.0
+            dual_return_distance_threshold: 0.1
+          - name: "/sensing/lidar/left_upper/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: False
+            sensor_model: "Pandar128E4X"
+            return_mode: "LastStrongest"
+            min_range: 0.3
+            max_range: 230.0
+            cloud_min_angle: 90
+            cloud_max_angle: 359
+            cut_angle: 359.0
+            dual_return_distance_threshold: 0.1
+          - name: "/sensing/lidar/right_lower/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: False
+            sensor_model: "PandarQT128"
+            return_mode: "LastStrongest"
+            min_range: 0.1
+            max_range: 50.0
+            cloud_min_angle: 90
+            cloud_max_angle: 270
+            cut_angle: 270.0
+            dual_return_distance_threshold: 0.1
+          - name: "/sensing/lidar/right_upper/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: False
+            sensor_model: "Pandar128E4X"
+            return_mode: "LastStrongest"
+            min_range: 0.3
+            max_range: 230.0
+            cloud_min_angle: 0
+            cloud_max_angle: 270
+            cut_angle: 270.0
+            dual_return_distance_threshold: 0.1
+          - name: "/sensing/lidar/front_lower/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: False
+            sensor_model: "PandarQT128"
+            return_mode: "LastStrongest"
+            min_range: 0.1
+            max_range: 50.0
+            cloud_min_angle: 90
+            cloud_max_angle: 270
+            cut_angle: 270.0
+            dual_return_distance_threshold: 0.1
+          - name: "/sensing/lidar/front_upper/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: False
+            sensor_model: "Pandar128E4X"
+            return_mode: "LastStrongest"
+            min_range: 0.3
+            max_range: 230.0
+            cloud_min_angle: 85
+            cloud_max_angle: 275
+            cut_angle: 275.0
+            dual_return_distance_threshold: 0.1
+          - name: "/sensing/lidar/rear_lower/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: False
+            sensor_model: "PandarQT128"
+            return_mode: "LastStrongest"
+            min_range: 0.1
+            max_range: 50.0
+            cloud_min_angle: 90
+            cloud_max_angle: 270
+            cut_angle: 180.0
+            dual_return_distance_threshold: 0.1
+          - name: "/sensing/lidar/rear_upper/pandar_packets"
+            type: "pandar_msgs/msg/PandarScan"
+            is_reset_topic: False
+            sensor_model: "Pandar128E4X"
+            return_mode: "LastStrongest"
+            min_range: 0.3
+            max_range: 230.0
+            cloud_min_angle: 88
+            cloud_max_angle: 274
+            cut_angle: 180.0
+            dual_return_distance_threshold: 0.1
+        other_topics:
+          - name: "/vehicle/status/velocity_status"
+            type: "autoware_vehicle_msgs/msg/VelocityReport"
+          - name: "/pacmod/from_can_bus"
+            type: "can_msgs/msg/Frame"
+          - name: "/sensing/imu/tamagawa/imu_raw"
+            type: "sensor_msgs/msg/Imu"
+    - type: convert_rosbag2_to_non_annotated_t4
+      config:
+        description:
+          scene: ""
+        conversion:
+          skip_timestamp: 0.1
+          pcd_output_format: bin # bin, pcd, or both
+          num_load_frames: 0
+          start_timestamp_sec: 0.0
+          accept_frame_drop: True
+          undistort_image: True
+          with_ins: False
+          ins_topic_mapping: # mappings for j6gen2 and jpntaxigen2
+            imu: /sensing/imu/tamagawa/imu_raw
+            nav_sat_fix: /sensing/gnss/septentrio/nav_sat_fix
+            odometry: /localization/kinematic_state
+          lidar_sensor:
+            topic: /sensing/lidar/concatenated/pointcloud
+            channel: LIDAR_CONCAT
+            write_individual_lidar: False # Set True to create per-source LiDAR sensor channels/directories.
+            num_lidar_feats: 7
+            lidar_info_topic: /sensing/lidar/concatenated/pointcloud_info # Do not set to disable saving lidar info
+            lidar_info_channel: LIDAR_CONCAT_INFO
+            accept_no_info: True # If True, the conversion will continue even if no lidar_info message is found for a point cloud timestamp.
+            lidar_sources_mapping:
+              - topic: /sensing/lidar/rear_upper/pointcloud_before_sync     # name of the source topic in lidar info message
+                channel: LIDAR_REAR_UPPER                                   # channel name for this source in T4 dataset
+                frame_id: rear_upper/lidar                                  # frame_id of this source in TF tree
+              - topic: /sensing/lidar/rear_lower/pointcloud_before_sync
+                channel: LIDAR_REAR_LOWER
+                frame_id: rear_lower/lidar
+              - topic: /sensing/lidar/left_upper/pointcloud_before_sync
+                channel: LIDAR_LEFT_UPPER
+                frame_id: left_upper/lidar
+              - topic: /sensing/lidar/left_lower/pointcloud_before_sync
+                channel: LIDAR_LEFT_LOWER
+                frame_id: left_lower/lidar
+              - topic: /sensing/lidar/front_upper/pointcloud_before_sync
+                channel: LIDAR_FRONT_UPPER
+                frame_id: front_upper/lidar
+              - topic: /sensing/lidar/front_lower/pointcloud_before_sync
+                channel: LIDAR_FRONT_LOWER
+                frame_id: front_lower/lidar
+              - topic: /sensing/lidar/right_upper/pointcloud_before_sync
+                channel: LIDAR_RIGHT_UPPER
+                frame_id: right_upper/lidar
+              - topic: /sensing/lidar/right_lower/pointcloud_before_sync
+                channel: LIDAR_RIGHT_LOWER
+                frame_id: right_lower/lidar
+          camera_sensors:
+            - topic: /sensing/camera/camera8/image_raw/compressed
+              channel: CAM_FRONT
+              delay_msec: 45
+            - topic: /sensing/camera/camera0/image_raw/compressed
+              channel: CAM_BACK
+              delay_msec: -10
+            - topic: /sensing/camera/camera6/image_raw/compressed
+              channel: CAM_FRONT_LEFT
+              delay_msec: 25
+            - topic: /sensing/camera/camera10/image_raw/compressed
+              channel: CAM_BACK_LEFT
+              delay_msec: 13
+            - topic: /sensing/camera/camera7/image_raw/compressed
+              channel: CAM_FRONT_RIGHT
+              delay_msec: 61
+            - topic: /sensing/camera/camera9/image_raw/compressed
+              channel: CAM_BACK_RIGHT
+              delay_msec: 80
+          ignore_no_ego_transform_at_rosbag_beginning: True
+    - type: convert_non_annotated_t4_to_deepen
+      config:
+        conversion:
+          annotation_hz: 1
+          camera_sensors:
+            - channel: CAM_FRONT
+            - channel: CAM_FRONT_RIGHT
+            - channel: CAM_BACK_RIGHT
+            - channel: CAM_BACK
+            - channel: CAM_BACK_LEFT
+            - channel: CAM_FRONT_LEFT
+annotation:
+  tasks:
+    - type: deepen_dataset_upload
+      config:
+        deepen:
+          dataset_type: 3d
+          labeling_mode: label_by_label
+          labeling_profile_id: KlLAl1cSagn3hMWcAG6nUE5H
+    - type: deepen_annotation_download
+postprocess:
+  tasks:
+    - type: convert_deepen_to_t4
+      config:
+        description:
+          visibility:
+            full: "No occlusion of the object."
+            most: "Object is occluded, but by less than 50%."
+            partial: "The object is occluded by more than 50% (but not completely)."
+            none: "The object is 90-100% occluded and no points/pixels are visible in the label."
+          camera_index:
+            CAM_FRONT: 0
+            CAM_FRONT_RIGHT: 1
+            CAM_BACK_RIGHT: 2
+            CAM_BACK: 3
+            CAM_BACK_LEFT: 4
+            CAM_FRONT_LEFT: 5
+        conversion:
+          ignore_interpolate_label: False
+          topic_list:
+            topic_list:
+              - /sensing/lidar/concatenated/pointcloud
+              - /sensing/lidar/concatenated/pointcloud_info
+              - /sensing/lidar/front_upper/pandar_packets
+              - /sensing/lidar/front_lower/pandar_packets
+              - /sensing/lidar/left_upper/pandar_packets
+              - /sensing/lidar/left_lower/pandar_packets
+              - /sensing/lidar/right_upper/pandar_packets
+              - /sensing/lidar/right_lower/pandar_packets
+              - /sensing/lidar/rear_upper/pandar_packets
+              - /sensing/lidar/rear_lower/pandar_packets
+              - /sensing/camera/camera0/image_raw/compressed
+              - /sensing/camera/camera1/image_raw/compressed
+              - /sensing/camera/camera2/image_raw/compressed
+              - /sensing/camera/camera3/image_raw/compressed
+              - /sensing/camera/camera4/image_raw/compressed
+              - /sensing/camera/camera5/image_raw/compressed
+              - /sensing/camera/camera6/image_raw/compressed
+              - /sensing/camera/camera7/image_raw/compressed
+              - /sensing/camera/camera8/image_raw/compressed
+              - /sensing/camera/camera9/image_raw/compressed
+              - /sensing/camera/camera10/image_raw/compressed
+              - /sensing/camera/camera0/camera_info
+              - /sensing/camera/camera1/camera_info
+              - /sensing/camera/camera2/camera_info
+              - /sensing/camera/camera3/camera_info
+              - /sensing/camera/camera4/camera_info
+              - /sensing/camera/camera5/camera_info
+              - /sensing/camera/camera6/camera_info
+              - /sensing/camera/camera7/camera_info
+              - /sensing/camera/camera8/camera_info
+              - /sensing/camera/camera9/camera_info
+              - /sensing/camera/camera10/camera_info
+              - /sensing/radar/front_center/nebula_packets
+              - /sensing/radar/front_left/nebula_packets
+              - /sensing/radar/front_right/nebula_packets
+              - /sensing/radar/rear_center/nebula_packets
+              - /sensing/radar/rear_left/nebula_packets
+              - /sensing/radar/rear_right/nebula_packets
+              - /sensing/radar/front_center/detected_objects
+              - /sensing/radar/front_left/detected_objects
+              - /sensing/radar/front_right/detected_objects
+              - /sensing/radar/rear_center/detected_objects
+              - /sensing/radar/rear_left/detected_objects
+              - /sensing/radar/rear_right/detected_objects
+              - /j6/from_can_bus
+              - /gsm8/from_can_bus
+              - /pacmod/from_can_bus
+              - /can_rx
+              - /pacmod/can_rx
+              - /sensing/gnss/ublox/fix_velocity
+              - /sensing/gnss/ublox/nav_sat_fix
+              - /sensing/gnss/ublox/navpvt
+              - /sensing/gnss/septentrio/nav_sat_fix
+              - /sensing/imu/tamagawa/imu_raw
+              - /sensing/imu/imu_data
+              - /perception/object_recognition/detection/rois0
+              - /perception/object_recognition/detection/rois1
+              - /perception/object_recognition/detection/rois2
+              - /perception/object_recognition/detection/rois3
+              - /perception/object_recognition/detection/rois4
+              - /perception/object_recognition/detection/rois5
+              - /planning/mission_planning/route
+              - /localization/kinematic_state
+              - /localization/acceleration
+              - /localization/pose_estimator/pose_with_covariance
+              - /vehicle/status/control_mode
+              - /vehicle/status/steering_status
+              - /vehicle/status/turn_indicators_status
+              - /vehicle/status/velocity_status
+              - /tf
+              - /tf_static
+              - /diagnostics
+            mandatory_topic_list:
+              - /tf
