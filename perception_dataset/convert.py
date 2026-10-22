@@ -591,6 +591,15 @@ def main():
         converter = Rosbag2ToT4LocConverter(converter_params)
         converter.convert()
         logger.info("[END] Conversion Completed")
+    elif task == "convert_t4_to_rosbag2":
+        from perception_dataset.t4_dataset.t4_to_rosbag2_converter import T4ToRosbag2Converter
+
+        converter = T4ToRosbag2Converter(
+            overwrite_mode=args.overwrite, **config_dict["conversion"]
+        )
+        logger.info("[BEGIN] Converting T4 dataset --> rosbag2")
+        converter.convert()
+        logger.info("[END] Conversion Completed")
     else:
         raise NotImplementedError()
 
