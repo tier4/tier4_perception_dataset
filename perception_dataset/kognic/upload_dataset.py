@@ -319,6 +319,14 @@ class KognicDatasetUploader:
                 pre_annotation_uuids = self.create_pre_annotations(
                     scene_uuid, external_id, pre_annotations
                 )
+                for uuid in pre_annotation_uuids.values():
+                    _wait_for_pre_annotation(
+                        self.kognic_io_client,
+                        uuid,
+                        timeout_s=self.config.pre_annotation_timeout_s,
+                        poll_s=self.config.pre_annotation_poll_interval_s,
+                        raise_on_timeout=True,
+                    )
             except Exception as exc:
                 raise self._orphaned_scene_error(
                     external_id, scene_uuid, "pre-annotation upload", exc
@@ -567,13 +575,6 @@ class KognicDatasetUploader:
                 pre_annotation=pre_annotation,
                 external_id=f"{external_id}-{Path(filename).stem}-pre-annotation",
                 dryrun=False,
-            )
-            _wait_for_pre_annotation(
-                self.kognic_io_client,
-                created.id,
-                timeout_s=self.config.pre_annotation_timeout_s,
-                poll_s=self.config.pre_annotation_poll_interval_s,
-                raise_on_timeout=True,
             )
             pre_annotation_uuids[filename] = created.id
         return pre_annotation_uuids
