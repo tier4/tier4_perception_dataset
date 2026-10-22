@@ -1115,7 +1115,7 @@ wheels = [
 
 [[package]]
 name = "perception-dataset"
-version = "1.0.37"
+version = "1.0.38"
 source = { editable = "." }
 dependencies = [
     { name = "colorama" },
