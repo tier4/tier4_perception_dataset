@@ -647,12 +647,24 @@ class T4ToKognicConverter(AbstractConverter[None]):
                 directly when constructing the sequence artifact.
         """
         if self._annotated:
+            # Only the frames flagged ``is_key_frame`` carry annotations. Intermediate 10 Hz sweeps
+            # share the ``sample_token`` of the next keyframe in T4, so filtering on the sample
+            # alone would mark every sweep annotatable (171 frames instead of 18 at 1 Hz).
             keyframe_indices = [
                 idx
                 for idx, frame_record in enumerate(self._frame_records)
                 if getattr(frame_record.get(self._anchor_channel), "sample_token", None)
                 in self._annotated_sample_tokens
+                and getattr(frame_record.get(self._anchor_channel), "is_key_frame", True)
             ]
+            if not keyframe_indices:
+                # Datasets without is_key_frame flags: fall back to the sample-based selection.
+                keyframe_indices = [
+                    idx
+                    for idx, frame_record in enumerate(self._frame_records)
+                    if getattr(frame_record.get(self._anchor_channel), "sample_token", None)
+                    in self._annotated_sample_tokens
+                ]
         else:
             step = get_annotation_step(self._annotation_hz)
             selected_samples = {
