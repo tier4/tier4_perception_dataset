@@ -63,6 +63,7 @@ from perception_dataset.rosbag2.converter_params import (
 )
 from perception_dataset.rosbag2.rosbag2_reader import Rosbag2Reader
 from perception_dataset.t4_dataset.table_handler import TableHandler
+import perception_dataset.utils.image as image_utils
 from perception_dataset.utils.logger import configure_logger
 import perception_dataset.utils.misc as misc_utils
 import perception_dataset.utils.rosbag2 as rosbag2_utils
@@ -192,6 +193,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         self._undistort_image: bool = params.undistort_image
         self._jpeg_quality: int = params.jpeg_quality
         self._jpeg_optimize: bool = params.jpeg_optimize
+        self._video_color_range: Optional[str] = params.video_color_range
+        self._video_colorspace: Optional[str] = params.video_colorspace
 
         # frame_id of coordinate transformation
         self._ego_pose_target_frame: str = params.world_frame_id
@@ -449,7 +452,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         zipped_output_path: str | None = None
         zipped_input_path: str | None = None
         if not self._without_compress:
-            (zipped_output_path, zipped_input_path) = self._compress_directory()
+            zipped_output_path, zipped_input_path = self._compress_directory()
         return Rosbag2ToNonAnnotatedT4ConverterOutputItem(
             uncompressed_output_path=self._output_scene_dir,
             zipped_output_path=zipped_output_path,
@@ -494,6 +497,10 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         if self._jpeg_quality == 95 and not self._jpeg_optimize:
             config_data.pop("_jpeg_quality", None)
             config_data.pop("_jpeg_optimize", None)
+        # record video color settings only when overridden
+        for key in ("_video_color_range", "_video_colorspace"):
+            if config_data.get(key) is None:
+                config_data.pop(key, None)
         config_data = {"rosbag2_to_non_annotated_t4_converter": config_data}
         with open(osp.join(self._output_scene_dir, "status.json"), "w") as f:
             json.dump(
@@ -1015,6 +1022,9 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         """convert image topic to raw image data"""
         sample_data_token_list: List[str] = []
         sample_records: List[Sample] = self._sample_table.to_records()
+        # FFMPEGPacket topics hold an encoded video stream and are decoded with a
+        # dedicated per-topic decoder; CompressedImage topics are handled per message.
+        is_video_topic = "FFMPEGPacket" in self._bag_reader.get_topic_type(topic)
 
         # Get calibrated sensor token
         start_timestamp = (
@@ -1071,15 +1081,12 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                 )
 
             # Get image shape
-            temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
-            image_shape = rosbag2_utils.compressed_msg_to_numpy(temp_image_msg).shape
+            image_shape = self._probe_image_shape(topic, is_video_topic)
 
             # Save image
             sample_data_token_list: List[str] = []
             image_index_counter = -1
-            image_generator = self._bag_reader.read_messages(
-                topics=[topic], start_time=start_time_in_time
-            )
+            image_generator = self._make_image_generator(topic, is_video_topic, start_time_in_time)
             for (
                 image_index,
                 lidar_frame_index,
@@ -1133,11 +1140,8 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             generated_frame_index: int = 0
 
             last_translation: List[float] = [0.0, 0.0, 0.0]
-            for image_msg in self._bag_reader.read_messages(
-                topics=[topic],
-                start_time=start_time_in_time,
-            ):
-                image_msg: CompressedImage
+            for image_msg in self._make_image_generator(topic, is_video_topic, start_time_in_time):
+                image_msg: Union[CompressedImage, image_utils.VideoFrame]
                 if generated_frame_index >= self._num_load_cam_frames:
                     break
 
@@ -1175,8 +1179,13 @@ class _Rosbag2ToNonAnnotatedT4Converter:
                     logger.info(
                         f"frame{generated_frame_index}, image stamp: {image_unix_timestamp}"
                     )
+                    if isinstance(image_msg, CompressedImage):
+                        # decode and re-encode, matching the output of previous versions
+                        image_arr = image_utils.decode_image_msg(image_msg).array
+                    else:
+                        image_arr = image_msg
                     sample_data_token = self._generate_image_data(
-                        rosbag2_utils.compressed_msg_to_numpy(image_msg),
+                        image_arr,
                         image_unix_timestamp,
                         sample_token,
                         calibrated_sensor_token,
@@ -1190,6 +1199,36 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         assert len(sample_data_token_list) > 0
 
         return sample_data_token_list
+
+    def _probe_image_shape(self, topic: str, is_video_topic: bool) -> Tuple[int, int, int]:
+        """Get the image shape from the first message of the topic."""
+        temp_image_msg = next(self._bag_reader.read_messages(topics=[topic]))
+        if is_video_topic:
+            # FFMPEGPacket carries the stream resolution; decoding is not needed
+            # (and would disturb the per-topic decoder state).
+            return (temp_image_msg.height, temp_image_msg.width, 3)
+        return image_utils.decode_image_msg(temp_image_msg).array.shape
+
+    def _make_image_generator(
+        self,
+        topic: str,
+        is_video_topic: bool,
+        start_time_in_time: builtin_interfaces.msg.Time,
+    ):
+        """Iterate camera messages of the topic from start_time.
+
+        For video topics, every packet is fed to a dedicated decoder from the start of
+        the bag (video frames depend on the preceding packets), and only the decoded
+        frames with stamp >= start_time are yielded.
+        """
+        if is_video_topic:
+            return image_utils.decode_ffmpeg_frames(
+                self._bag_reader.read_messages(topics=[topic]),
+                start_time=start_time_in_time,
+                color_range=self._video_color_range,
+                colorspace=self._video_colorspace,
+            )
+        return self._bag_reader.read_messages(topics=[topic], start_time=start_time_in_time)
 
     def _make_file_index_func(self):
         last_synced_lidar_index = 0
@@ -1219,7 +1258,7 @@ class _Rosbag2ToNonAnnotatedT4Converter:
 
     def _generate_image_data(
         self,
-        image_arr: Union[np.ndarray, CompressedImage],
+        image_arr: Union[np.ndarray, CompressedImage, image_utils.VideoFrame],
         image_unix_timestamp: float,
         sample_token: Optional[str],
         calibrated_sensor_token: str,
@@ -1234,10 +1273,55 @@ class _Rosbag2ToNonAnnotatedT4Converter:
             rosbag2_utils.unix_timestamp_to_stamp(image_unix_timestamp)
         )
 
-        fileformat = EXTENSION_ENUM.JPG.value[1:]  # Note: png for all images
-        filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
-        if hasattr(image_arr, "shape"):
+        fileformat = EXTENSION_ENUM.JPG.value[1:]
+        output_image: Optional[np.ndarray] = None
+        output_image_bytes: Optional[bytes] = None
+        legacy_no_params = False
+
+        if isinstance(image_arr, np.ndarray):
             image_shape = image_arr.shape
+            output_image = image_arr
+        elif isinstance(image_arr, image_utils.VideoFrame):
+            output_image = image_arr.array
+            if output_image is None:
+                warnings.warn(
+                    f"video decoder returned no frame for {sensor_channel} frame {frame_index}, "
+                    "writing a blank image"
+                )
+                output_image = np.zeros(
+                    shape=(image_arr.height, image_arr.width, 3), dtype=np.uint8
+                )
+                output_blank_image = True
+                is_key_frame = False
+            elif camera_info is not None and self._undistort_image:
+                output_image = cv2.remap(
+                    output_image, self.undistort_map_x, self.undistort_map_y, cv2.INTER_LINEAR
+                )
+            image_shape = output_image.shape
+        elif isinstance(image_arr, CompressedImage):
+            if camera_info is None or not self._undistort_image:
+                # save compressed image as is
+                fileformat = image_utils.compressed_image_fileformat(image_arr)
+                output_image_bytes = image_arr.data
+            else:
+                # load image and undistort
+                decoded_image = image_utils.decode_image_msg(image_arr)
+                if decoded_image.array is None:
+                    raise ValueError(f"Failed to decode image message: {type(image_arr)}")
+                fileformat = decoded_image.fileformat
+                output_image = cv2.remap(
+                    decoded_image.array,
+                    self.undistort_map_x,
+                    self.undistort_map_y,
+                    cv2.INTER_LINEAR,
+                )
+                image_shape = output_image.shape
+                legacy_no_params = True
+        else:
+            raise TypeError(f"Unsupported image type: {type(image_arr)}")
+
+        filename = misc_utils.get_sample_data_filename(sensor_channel, frame_index, fileformat)
+
         if sample_token is None:
             is_key_frame = False
         sample_data_token = self._sample_data_table.insert_into_table(
@@ -1259,25 +1343,17 @@ class _Rosbag2ToNonAnnotatedT4Converter:
         sample_data_record: SampleData = self._sample_data_table.get_record_from_token(
             sample_data_token
         )
-        if isinstance(image_arr, np.ndarray):
+        if output_image is not None:
             self._write_jpeg(
                 osp.join(self._output_scene_dir, sample_data_record.filename),
-                image_arr,
-                legacy_no_params=False,
+                output_image,
+                legacy_no_params=legacy_no_params,
             )
-        elif isinstance(image_arr, CompressedImage):
+        elif output_image_bytes is not None:
             output_image_path: str = osp.join(self._output_scene_dir, sample_data_record.filename)
-            if camera_info is None or not self._undistort_image:
-                # save compressed image as is
-                with open(output_image_path, "xb") as fw:
-                    fw.write(image_arr.data)
-            else:
-                # load image and undistort
-                image = rosbag2_utils.compressed_msg_to_numpy(image_arr)
-                image = cv2.remap(
-                    image, self.undistort_map_x, self.undistort_map_y, cv2.INTER_LINEAR
-                )
-                self._write_jpeg(output_image_path, image, legacy_no_params=True)
+            # save compressed image as is
+            with open(output_image_path, "xb") as fw:
+                fw.write(output_image_bytes)
 
         return sample_data_token
 
