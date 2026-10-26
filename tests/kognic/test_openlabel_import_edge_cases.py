@@ -3,6 +3,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import shutil
+
 import numpy as np
 import pytest
 from t4_devkit.schema.tables import Category
@@ -14,6 +16,7 @@ from perception_dataset.kognic.openlabel_to_t4_converter import (
     _remap_labels,
 )
 from perception_dataset.t4_dataset.table_handler import TableHandler
+from tests.constants import TEST_DATA_ROOT_DIR
 
 
 def _converter(tmp_path: Path) -> OpenLabelToT4Converter:
@@ -334,3 +337,84 @@ def test_sparse_large_raw_label_is_remapped_without_large_lookup_table():
     labels = np.array([0, 1_000_000_000], dtype=np.int64)
 
     assert _remap_labels(labels, {1_000_000_000: 7}, "0").tolist() == [0, 7]
+
+
+def test_unannotated_frames_become_non_keyframes(tmp_path: Path):
+    """Test that frames without annotations are demoted to non-keyframes.
+
+    Only every other LiDAR frame of the scene carries a cuboid. After the
+    import, the unannotated frames must no longer be samples: their samples are
+    dropped from ``sample.json`` and their ``sample_data`` records become
+    ``is_key_frame=False``, attached to the next annotated sample.
+
+    Args:
+        tmp_path (Path): Pytest directory holding the input scene, the
+            OpenLABEL file and the converted output.
+    """
+    source = TEST_DATA_ROOT_DIR / "t4_sample_0/non_annotated_dataset/sample_bag/annotation"
+    shutil.copytree(source, tmp_path / "input/sample_bag/annotation")
+
+    lidar_records = sorted(
+        (
+            record
+            for record in json.loads((source / "sample_data.json").read_text())
+            if record["filename"].startswith("data/LIDAR_CONCAT/")
+        ),
+        key=lambda record: record["timestamp"],
+    )
+    annotated = lidar_records[::2]
+    frames = {
+        str(i): {
+            "frame_properties": {
+                "streams": {"LIDAR_CONCAT": {"uri": f"{record['timestamp'] * 1000}.csv"}}
+            },
+            "objects": {
+                "car-0": {
+                    "object_data": {
+                        "cuboid": [{"name": "box", "val": [5, 0, 0, 0, 0, 0, 1, 2, 4, 1.5]}]
+                    }
+                }
+            },
+        }
+        for i, record in enumerate(annotated)
+    }
+    (tmp_path / "annotations").mkdir()
+    (tmp_path / "annotations/sample_bag.json").write_text(
+        json.dumps(
+            {
+                "openlabel": {
+                    "metadata": {},
+                    "objects": {"car-0": {"name": "car-0", "type": "car"}},
+                    "frames": frames,
+                }
+            }
+        )
+    )
+
+    _converter(tmp_path).convert()
+
+    anno_dir = tmp_path / "output/sample_bag/annotation"
+    samples = json.loads((anno_dir / "sample.json").read_text())
+    sample_data = json.loads((anno_dir / "sample_data.json").read_text())
+    scene = json.loads((anno_dir / "scene.json").read_text())[0]
+
+    annotated_timestamps = {record["timestamp"] for record in annotated}
+    assert json.loads((anno_dir / "object_ann.json").read_text()) == []
+    assert json.loads((anno_dir / "surface_ann.json").read_text()) == []
+    assert {sample["timestamp"] for sample in samples} == annotated_timestamps
+    assert scene["nbr_samples"] == len(annotated)
+
+    sample_by_token = {sample["token"]: sample for sample in samples}
+    lidar_out = [
+        record for record in sample_data if record["filename"].startswith("data/LIDAR_CONCAT/")
+    ]
+    assert len(lidar_out) == len(lidar_records)
+    for record in lidar_out:
+        assert record["is_key_frame"] == (record["timestamp"] in annotated_timestamps)
+        owner = sample_by_token[record["sample_token"]]
+        if record["is_key_frame"]:
+            assert owner["timestamp"] == record["timestamp"]
+        else:
+            assert owner["timestamp"] == min(
+                ts for ts in annotated_timestamps if ts > record["timestamp"]
+            )

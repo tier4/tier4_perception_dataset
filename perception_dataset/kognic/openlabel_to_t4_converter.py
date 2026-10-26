@@ -31,7 +31,12 @@ with each source sensor's own capture stamp, so those stamps are indexed from
 
 Like ``DeepenToT4Converter``, each scene is first copied from the
 non-annotated dataset (``input_base``) into ``output_base`` and the
-annotations are written into the copy. When ``input_bag_base`` is given, a
+annotations are written into the copy. Kognic imports carry no 2D
+annotations, so empty ``object_ann.json`` and ``surface_ann.json`` are written
+to match the set of tables the Deepen flow emits. Frames left without any annotation
+are then demoted to non-keyframes (``KeyFrameConsistencyResolver``): their
+``sample_data`` get ``is_key_frame=False`` and their samples are dropped from
+``sample.json``. When ``input_bag_base`` is given, a
 time/topic filtered copy of each scene's rosbag is placed next to the
 annotations as ``input_bag`` (same as the Deepen flow).
 
@@ -66,9 +71,11 @@ from t4_devkit.schema.tables import (
     Category,
     Instance,
     LidarSeg,
+    ObjectAnn,
     Sample,
     SampleAnnotation,
     SampleData,
+    SurfaceAnn,
     Visibility,
 )
 
@@ -78,6 +85,9 @@ from perception_dataset.kognic.openlabel import (
     cuboid_val_to_t4_box,
     occlusion_to_visibility_level,
     to_t4_attribute_name,
+)
+from perception_dataset.t4_dataset.resolver.keyframe_consistency_resolver import (
+    KeyFrameConsistencyResolver,
 )
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from perception_dataset.utils.calculate_num_points import calculate_num_points
@@ -162,6 +172,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             logger.warning(f"No T4 scenes found under {input_base}")
             return
 
+        output_dirs: List[Path] = []
         for scene_dir in scenes:
             annotation_paths = self._match_openlabels(scene_dir, openlabels)
             if not annotation_paths:
@@ -173,6 +184,14 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             output_dir = self._prepare_output_scene(scene_dir)
             for openlabel_path in annotation_paths:
                 self._convert_one_scene(output_dir, openlabel_path)
+            self._write_empty_2d_annotation_tables(output_dir)
+            output_dirs.append(output_dir)
+
+        # fix non-keyframe (no-labeled frame) in t4 dataset; runs after every
+        # annotation type is in so a frame labelled by any of them is kept.
+        for output_dir in output_dirs:
+            modifier = KeyFrameConsistencyResolver()
+            modifier.inspect_and_fix_t4_segment(output_dir)
 
         logger.info(f"Elapsed: {time.time() - start:.1f}s")
 
@@ -224,6 +243,26 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
             input_bag_dir = Path(self._input_bag_base) / scene_name
             self._make_rosbag(scene_dir, input_bag_dir, output_dir)
         return output_dir
+
+    @staticmethod
+    def _write_empty_2d_annotation_tables(scene_dir: Path) -> None:
+        """Write empty ``object_ann.json`` and ``surface_ann.json`` when absent.
+
+        Kognic imports carry no 2D annotations, but the output keeps the same
+        set of tables as the Deepen flow (``AnnotationFilesGenerator`` always
+        writes both), which ``KeyFrameConsistencyResolver`` also reads.
+
+        Args:
+            scene_dir (Path): Output T4 scene directory.
+
+        Returns:
+            None
+        """
+        anno_dir = scene_dir / "annotation"
+        for schema in (ObjectAnn, SurfaceAnn):
+            table = TableHandler(schema)
+            if not (anno_dir / f"{table.schema_name}.json").exists():
+                table.save_json(str(anno_dir))
 
     @staticmethod
     def _copy_data(input_dir: Path, output_dir: Path) -> None:
