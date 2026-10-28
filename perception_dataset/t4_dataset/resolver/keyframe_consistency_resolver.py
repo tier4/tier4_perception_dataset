@@ -124,11 +124,11 @@ class KeyFrameConsistencyResolver:
             next_sample_token = self._get_next_closest_keyframe(sample_data, sample_data_list)[
                 "sample_token"
             ]
-            # no keyframe to reassign to: remove the frame, including invalid (dropped) frames,
-            # so that no remaining frame keeps next/prev links to removed frames
-            if next_sample_token == "":
+            # remove the frame if there is no keyframe to reassign to, or if it is invalid
+            # (blank image of a dropped frame)
+            if next_sample_token == "" or not sample_data.get("is_valid", True):
                 sample_data_list.remove(sample_data)
-            elif sample_data.get("is_valid", True):
+            else:
                 sample_data["sample_token"] = next_sample_token
 
     def _cleanup_sample_data_and_annotations(
