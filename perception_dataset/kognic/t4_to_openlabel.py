@@ -142,15 +142,26 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
             return False
         if group in scoped_groups:
             return True
-        return f"{category_name}.{group}" in scoped_groups or f"{mapped_category}.{group}" in scoped_groups
+        return (
+            f"{category_name}.{group}" in scoped_groups
+            or f"{mapped_category}.{group}" in scoped_groups
+        )
 
-    def is_attribute_excluded(self, attribute_name: str, category_name: str, mapped_category: str) -> bool:
+    def is_attribute_excluded(
+        self, attribute_name: str, category_name: str, mapped_category: str
+    ) -> bool:
         """Whether the attribute is left out of the pre-annotation (``exclude_attributes``)."""
-        return self.attribute_in_scoped_groups(attribute_name, category_name, mapped_category, self._exclude_attributes)
+        return self.attribute_in_scoped_groups(
+            attribute_name, category_name, mapped_category, self._exclude_attributes
+        )
 
-    def is_attribute_static(self, attribute_name: str, category_name: str, mapped_category: str) -> bool:
+    def is_attribute_static(
+        self, attribute_name: str, category_name: str, mapped_category: str
+    ) -> bool:
         """Whether the attribute is a per-object (static) Kognic property (``static_attributes``)."""
-        return self.attribute_in_scoped_groups(attribute_name, category_name, mapped_category, self._static_attributes)
+        return self.attribute_in_scoped_groups(
+            attribute_name, category_name, mapped_category, self._static_attributes
+        )
 
     def _check_task_definition_classes(self, category_names, dataset_dir) -> None:
         """Fail fast when a (mapped) T4 category is not a class of the Kognic task definition."""
@@ -243,7 +254,9 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         self._check_task_definition_classes(categories.values(), seq_path)
         instances = {instance.token: instance for instance in t4.get_table("instance")}
         # some sources write the group with a trailing blank ("extremities_state .")
-        attributes = {attribute.token: attribute.name.strip() for attribute in t4.get_table("attribute")}
+        attributes = {
+            attribute.token: attribute.name.strip() for attribute in t4.get_table("attribute")
+        }
         ego_pose_by_token = {pose.token: pose for pose in t4.get_table("ego_pose")}
 
         annotations_by_sample: Dict[str, List[SampleAnnotation]] = {}
@@ -306,13 +319,17 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
                         )
                         if attribute_name != attributes[token]:
                             multi_value_resolved[attributes[token]] = attribute_name
-                        if self.is_attribute_static(attribute_name, category_name, mapped_category):
+                        if self.is_attribute_static(
+                            attribute_name, category_name, mapped_category
+                        ):
                             group, _, value = attribute_name.rpartition(".")
                             static_values.setdefault(object_uuid, {}).setdefault(group, []).append(
                                 normalize_attribute_value(value)
                             )
                             continue
-                        class_properties.append(attribute_to_text(attribute_name, self._attribute_map))
+                        class_properties.append(
+                            attribute_to_text(attribute_name, self._attribute_map)
+                        )
                 for name, value in self._category_attributes.get(category_name, {}).items():
                     class_properties.append(openlabel.Text(name=name, val=str(value)))
 
@@ -385,7 +402,9 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         for original, resolved in sorted(multi_value_resolved.items()):
             logger.info(f"{out_path.name}: multi-valued attribute {original!r} -> {resolved!r}")
         if static_values:
-            groups = sorted({group for per_object in static_values.values() for group in per_object})
+            groups = sorted(
+                {group for per_object in static_values.values() for group in per_object}
+            )
             logger.info(
                 f"{out_path.name}: {len(static_values)} object(s) carry static (per-object) properties {groups}"
             )
@@ -430,9 +449,7 @@ class T4ToOpenLabelConverter(AbstractConverter[None]):
         """
         sequence = load_sequence_artifact(staging_dir)
         if not sequence.frames or not sequence.frames[0].point_clouds:
-            raise FileNotFoundError(
-                f"No lidar resources found in {staging_dir}"
-            )
+            raise FileNotFoundError(f"No lidar resources found in {staging_dir}")
         anchor = sequence.frames[0].point_clouds[0].sensor_name
         timestamps_ns = []
         relative_ms = []

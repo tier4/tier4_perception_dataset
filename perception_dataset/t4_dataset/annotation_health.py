@@ -15,10 +15,10 @@ Usage::
 from __future__ import annotations
 
 import argparse
-import json
-import os
 from collections import Counter
 from dataclasses import asdict, dataclass, field
+import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -36,7 +36,9 @@ class HealthReport:
     num_moving_boxes: int
     offset_histogram: Dict[int, int] = field(default_factory=dict)
     points_by_offset: Dict[int, int] = field(default_factory=dict)
-    instance_offset_histogram: Dict[int, int] = field(default_factory=dict)  # one vote per moving instance (its majority)
+    instance_offset_histogram: Dict[int, int] = field(
+        default_factory=dict
+    )  # one vote per moving instance (its majority)
     num_moving_instances: int = 0
     dominant_offset: Optional[int] = None
     consistent_fraction: Optional[float] = None
@@ -47,7 +49,9 @@ class HealthReport:
         d = asdict(self)
         d["offset_histogram"] = {str(k): v for k, v in self.offset_histogram.items()}
         d["points_by_offset"] = {str(k): v for k, v in self.points_by_offset.items()}
-        d["instance_offset_histogram"] = {str(k): v for k, v in self.instance_offset_histogram.items()}
+        d["instance_offset_histogram"] = {
+            str(k): v for k, v in self.instance_offset_histogram.items()
+        }
         return d
 
 
@@ -104,7 +108,9 @@ class _Dataset:
             if idx is None:
                 continue
             a = dict(a)
-            a["category"] = categories.get(instances[a["instance_token"]]["category_token"], "unknown")
+            a["category"] = categories.get(
+                instances[a["instance_token"]]["category_token"], "unknown"
+            )
             self.boxes_by_instance.setdefault(a["instance_token"], {})[idx] = a
         self._clouds: Dict[int, np.ndarray] = {}
 
@@ -116,16 +122,24 @@ class _Dataset:
         if idx not in self._clouds:
             sd = self.lidar_by_index[idx]
             n = _num_point_fields(self.root, sd)
-            pts = np.fromfile(self.root / sd["filename"], dtype=np.float32).reshape(-1, n)[:, :3].astype(np.float64)
+            pts = (
+                np.fromfile(self.root / sd["filename"], dtype=np.float32)
+                .reshape(-1, n)[:, :3]
+                .astype(np.float64)
+            )
             ego = self.ego_pose[sd["ego_pose_token"]]
-            self._clouds[idx] = _quat_wxyz(ego["rotation"]).apply(pts) + np.asarray(ego["translation"])
+            self._clouds[idx] = _quat_wxyz(ego["rotation"]).apply(pts) + np.asarray(
+                ego["translation"]
+            )
         return self._clouds[idx]
 
     def ego_translation(self, idx: int) -> np.ndarray:
         return np.asarray(self.ego_pose[self.lidar_by_index[idx]["ego_pose_token"]]["translation"])
 
 
-def points_in_box(points: np.ndarray, box: dict, margin: float = 0.15, ground_margin: float = 0.3) -> int:
+def points_in_box(
+    points: np.ndarray, box: dict, margin: float = 0.15, ground_margin: float = 0.3
+) -> int:
     """Lidar points inside ``box`` (with ``margin``), ignoring the bottom ``ground_margin`` metres.
 
     Boxes touch the road, so the footprint of a box also contains ground returns; near the ego those rings are so
@@ -163,13 +177,12 @@ def estimate_annotation_offset(
     """
     root = Path(dataset_dir)
     ds = _Dataset(root)
-    n = len(ds.samples)
     keyframes = sorted(ds.lidar_by_index)
     num_boxes = sum(len(v) for v in ds.boxes_by_instance.values())
     offsets = list(range(-max_offset, max_offset + 1))
     hist: Counter = Counter()
     inst_hist: Counter = Counter()
-    totals: Dict[int, int] = {d: 0 for d in offsets}
+    totals: Dict[int, int] = dict.fromkeys(offsets, 0)
     used = 0
 
     for per_index in ds.boxes_by_instance.values():
@@ -180,12 +193,21 @@ def estimate_annotation_offset(
             prev_box, next_box = per_index.get(k - 1), per_index.get(k + 1)
             if prev_box is None or next_box is None:
                 continue
-            velocity = (np.asarray(next_box["translation"]) - np.asarray(prev_box["translation"])) / 2.0
+            velocity = (
+                np.asarray(next_box["translation"]) - np.asarray(prev_box["translation"])
+            ) / 2.0
             if np.linalg.norm(velocity[:2]) < min_speed_mps:
                 continue
-            if np.linalg.norm(np.asarray(box["translation"]) - ds.ego_translation(k)) > max_range_m:
+            if (
+                np.linalg.norm(np.asarray(box["translation"]) - ds.ego_translation(k))
+                > max_range_m
+            ):
                 continue
-            counts = {d: points_in_box(ds.cloud(k + d), box) for d in offsets if (k + d) in ds.lidar_by_index}
+            counts = {
+                d: points_in_box(ds.cloud(k + d), box)
+                for d in offsets
+                if (k + d) in ds.lidar_by_index
+            }
             if not counts or max(counts.values()) < min_points:
                 continue
             used += 1
@@ -222,7 +244,12 @@ def estimate_annotation_offset(
     report.consistent_fraction = hist[0] / used
     # A shift caused by copying annotations onto other samples moves *every* instance, so it must also win the
     # per-instance majority vote; a single long-lived object (e.g. a lead vehicle) cannot flag a dataset alone.
-    if best_total != 0 and ratio >= shift_ratio and hist[best_total] >= hist[0] and inst_hist[best_total] > inst_hist[0]:
+    if (
+        best_total != 0
+        and ratio >= shift_ratio
+        and hist[best_total] >= hist[0]
+        and inst_hist[best_total] > inst_hist[0]
+    ):
         report.status = "inconsistent"
         report.dominant_offset = int(best_total)
         report.message = (
@@ -230,11 +257,12 @@ def estimate_annotation_offset(
             f"({inst_hist[best_total]}/{report.num_moving_instances} instances) and {ratio:.1f}x the lidar points of offset 0 "
             f"(offset histogram {dict(hist)})"
         )
-    elif report.consistent_fraction >= min_consistent_fraction or totals.get(0, 0) >= 0.8 * totals[best_total]:
+    elif (
+        report.consistent_fraction >= min_consistent_fraction
+        or totals.get(0, 0) >= 0.8 * totals[best_total]
+    ):
         report.status = "ok"
-        report.message = (
-            f"{hist[0]}/{used} moving boxes match their own lidar frame; no offset has >= {shift_ratio:.1f}x its lidar points"
-        )
+        report.message = f"{hist[0]}/{used} moving boxes match their own lidar frame; no offset has >= {shift_ratio:.1f}x its lidar points"
     else:
         report.status = "inconclusive"
         report.message = (
@@ -278,7 +306,9 @@ def compare_points_preserved(
                 failed += 1
                 worst.append((ratio, box["category"], k))
     worst.sort()
-    status = "ok" if checked and failed == 0 else ("inconclusive" if not checked else "inconsistent")
+    status = (
+        "ok" if checked and failed == 0 else ("inconclusive" if not checked else "inconsistent")
+    )
     return {
         "status": status,
         "boxes_checked": checked,
@@ -288,7 +318,9 @@ def compare_points_preserved(
     }
 
 
-def compare_versions(dataset_dir: str, other_version_dir: str, *, min_overlap: float = 0.8) -> Dict:
+def compare_versions(
+    dataset_dir: str, other_version_dir: str, *, min_overlap: float = 0.8
+) -> Dict:
     """Detect annotations copied between dataset versions by sample index instead of by time.
 
     For every sample of ``dataset_dir`` the box set (rounded global translations) is looked up in
@@ -297,6 +329,7 @@ def compare_versions(dataset_dir: str, other_version_dir: str, *, min_overlap: f
     ``skip_timestamp``) while the annotations were copied by index gives a constant non-zero offset.
     Works without moving objects and complements :func:`estimate_annotation_offset`.
     """
+
     def box_sets(root: Path):
         ds = _Dataset(root)
         out: Dict[int, set] = {}
@@ -318,13 +351,21 @@ def compare_versions(dataset_dir: str, other_version_dir: str, *, min_overlap: f
         if overlap < min_overlap:
             unmatched += 1
             continue
-        offsets[round((ds_b.samples[best]["timestamp"] - ds_a.samples[k]["timestamp"]) / 1e6, 1)] += 1
+        offsets[
+            round((ds_b.samples[best]["timestamp"] - ds_a.samples[k]["timestamp"]) / 1e6, 1)
+        ] += 1
     matched = sum(offsets.values())
     dominant = max(offsets, key=offsets.get) if offsets else None
     if matched == 0:
-        status, message = "inconclusive", "no sample box set of the dataset was found in the other version"
+        status, message = (
+            "inconclusive",
+            "no sample box set of the dataset was found in the other version",
+        )
     elif dominant == 0.0 and offsets[0.0] == matched:
-        status, message = "ok", f"all {matched} matched samples carry the same boxes at the same time in both versions"
+        status, message = (
+            "ok",
+            f"all {matched} matched samples carry the same boxes at the same time in both versions",
+        )
     else:
         status = "inconsistent"
         message = (
@@ -342,27 +383,59 @@ def compare_versions(dataset_dir: str, other_version_dir: str, *, min_overlap: f
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("dataset_dir", help="T4 dataset directory (holds annotation/ and data/)")
     parser.add_argument("--max-offset", type=int, default=3)
-    parser.add_argument("--min-speed", type=float, default=1.0, help="min object speed in m/s to count as moving")
-    parser.add_argument("--max-range", type=float, default=40.0, help="max distance from the ego for moving boxes (m)")
-    parser.add_argument("--min-points", type=int, default=15, help="min lidar points a moving box must reach in some frame")
-    parser.add_argument("--compare", metavar="OTHER_VERSION_DIR", help="also match box sets against another version of the same dataset")
+    parser.add_argument(
+        "--min-speed", type=float, default=1.0, help="min object speed in m/s to count as moving"
+    )
+    parser.add_argument(
+        "--max-range",
+        type=float,
+        default=40.0,
+        help="max distance from the ego for moving boxes (m)",
+    )
+    parser.add_argument(
+        "--min-points",
+        type=int,
+        default=15,
+        help="min lidar points a moving box must reach in some frame",
+    )
+    parser.add_argument(
+        "--compare",
+        metavar="OTHER_VERSION_DIR",
+        help="also match box sets against another version of the same dataset",
+    )
     parser.add_argument("--json", action="store_true", help="print the report as JSON")
     args = parser.parse_args()
     report = estimate_annotation_offset(
-        args.dataset_dir, max_offset=args.max_offset, min_speed_mps=args.min_speed, max_range_m=args.max_range, min_points=args.min_points
+        args.dataset_dir,
+        max_offset=args.max_offset,
+        min_speed_mps=args.min_speed,
+        max_range_m=args.max_range,
+        min_points=args.min_points,
     )
     comparison = compare_versions(args.dataset_dir, args.compare) if args.compare else None
     if args.json:
-        print(json.dumps({"moving_objects": report.to_dict(), "version_comparison": comparison}, indent=2))
+        print(
+            json.dumps(
+                {"moving_objects": report.to_dict(), "version_comparison": comparison}, indent=2
+            )
+        )
     else:
         print(f"{report.status.upper()}: {report.message}")
-        print(f"  keyframes={report.num_keyframes} boxes={report.num_boxes} moving boxes used={report.num_moving_boxes}")
-        print(f"  points inside moving boxes by lidar offset (keyframes): {report.points_by_offset}")
+        print(
+            f"  keyframes={report.num_keyframes} boxes={report.num_boxes} moving boxes used={report.num_moving_boxes}"
+        )
+        print(
+            f"  points inside moving boxes by lidar offset (keyframes): {report.points_by_offset}"
+        )
         if comparison:
-            print(f"VERSION COMPARISON {comparison['status'].upper()}: {comparison['message']}  offsets={comparison['offset_histogram_s']}")
+            print(
+                f"VERSION COMPARISON {comparison['status'].upper()}: {comparison['message']}  offsets={comparison['offset_histogram_s']}"
+            )
     statuses = [report.status] + ([comparison["status"]] if comparison else [])
     raise SystemExit(2 if "inconsistent" in statuses else (0 if "ok" in statuses else 3))
 

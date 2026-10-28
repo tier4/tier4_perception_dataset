@@ -219,16 +219,16 @@ Both write to `output_base/<project_external_id>/`.
 
 Config parameters (`conversion`):
 
-| key                   | required                                          | description                                                                                                                                         |
-| --------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| key                   | required                                          | description                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `output_base`         | yes                                               | directory where annotation JSONs are written; project-wide downloads use `<output_base>/<project_external_id>/`, while single-scene downloads write directly under `output_base` |
-| `organization_id`     | yes                                               | Kognic client organization id                                                                                                                       |
-| `workspace_id`        | yes                                               | Kognic workspace id                                                                                                                                 |
-| `project_external_id` | yes                                               | project to download from                                                                                                                            |
-| `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`); optional for a single-scene download, where it filters the scene to just that type |
-| `batch`               | no                                                | restrict download to one batch (omit for all batches); applies to project-wide and to a single-scene download when `annotation_type` is set         |
-| `scene_external_id`   | no                                                | download a single scene by external id instead of the whole project                                                                                 |
-| `scene_id`            | no                                                | download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`                      |
+| `organization_id`     | yes                                               | Kognic client organization id                                                                                                                                                    |
+| `workspace_id`        | yes                                               | Kognic workspace id                                                                                                                                                              |
+| `project_external_id` | yes                                               | project to download from                                                                                                                                                         |
+| `annotation_type`     | yes, unless `scene_external_id`/`scene_id` is set | annotation type to download (e.g. `lidar-cuboid`, `camera-tag`); optional for a single-scene download, where it filters the scene to just that type                              |
+| `batch`               | no                                                | restrict download to one batch (omit for all batches); applies to project-wide and to a single-scene download when `annotation_type` is set                                      |
+| `scene_external_id`   | no                                                | download a single scene by external id instead of the whole project                                                                                                              |
+| `scene_id`            | no                                                | download a single scene by its scene UUID directly (skips the external-id lookup); mutually exclusive with `scene_external_id`                                                   |
 
 ### Kognic annotations to T4 annotation tables
 

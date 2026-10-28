@@ -16,7 +16,6 @@ from perception_dataset.kognic.t4_to_kognic_converter import (
 from perception_dataset.kognic.upload_dataset import (
     KognicDatasetUploader,
     KognicUploadConfig,
-    ProjectTarget,
     SceneInputError,
     SceneUploadResult,
     _exception_report_fields,

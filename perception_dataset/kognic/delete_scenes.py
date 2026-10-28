@@ -43,8 +43,8 @@ from kognic.io.model.scene.scene_entry import SceneStatus
 from requests.exceptions import HTTPError
 import yaml
 
-from perception_dataset.kognic.utils.upload_config import load_upload_config
 from perception_dataset.kognic.utils.scene import resolve_scene_external_ids_to_uuids
+from perception_dataset.kognic.utils.upload_config import load_upload_config
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -127,9 +127,7 @@ def _input_uuids(client: KognicIOClient, scene_uuid: str) -> List[str]:
     return [i.uuid for i in inputs]
 
 
-def _live_scene_uuids(
-    client: KognicIOClient, scene_uuids: List[str]
-) -> List[str]:
+def _live_scene_uuids(client: KognicIOClient, scene_uuids: List[str]) -> List[str]:
     """Filter candidate UUIDs to live scenes.
 
     Args:
@@ -163,9 +161,7 @@ def _live_scene_uuids(
     return live
 
 
-def find_scenes_without_input(
-    client: KognicIOClient, scene_uuids: List[str]
-) -> List[str]:
+def find_scenes_without_input(client: KognicIOClient, scene_uuids: List[str]) -> List[str]:
     """Find live scenes that have no input.
 
     Args:
@@ -278,9 +274,7 @@ def main():
                 external_ids.append(value)
 
     if not scene_uuids and not external_ids:
-        logger.warning(
-            "No candidate scenes found. Provide --scene-uuids or --scene-external-ids."
-        )
+        logger.warning("No candidate scenes found. Provide --scene-uuids or --scene-external-ids.")
         return
 
     client = KognicIOClient(
@@ -382,9 +376,7 @@ def _delete_inputs_and_scenes(
     Returns:
         None
     """
-    logger.info(
-        f"Checking {len(scene_uuids)} candidate scene(s); inputs will be deleted too"
-    )
+    logger.info(f"Checking {len(scene_uuids)} candidate scene(s); inputs will be deleted too")
 
     targets = find_scenes_with_inputs(client, scene_uuids)
     if not targets:
@@ -445,7 +437,9 @@ def _delete_inputs_and_scenes(
         f"{len(invalidated)}/{len(targets)} scene(s)"
     )
     if failed_inputs:
-        logger.warning(f"Failed to delete {len(failed_inputs)} input(s): {', '.join(failed_inputs)}")
+        logger.warning(
+            f"Failed to delete {len(failed_inputs)} input(s): {', '.join(failed_inputs)}"
+        )
     if skipped_scenes:
         logger.warning(
             f"Skipped invalidation for {len(skipped_scenes)} scene(s): "

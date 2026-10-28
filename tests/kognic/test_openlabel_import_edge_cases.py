@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 from unittest.mock import Mock
-
-import shutil
 
 import numpy as np
 import pytest
@@ -11,9 +10,9 @@ from t4_devkit.schema.tables import Category
 
 from perception_dataset.kognic.openlabel_to_t4_converter import (
     OpenLabelToT4Converter,
-    _SampleIndex,
     _decode_rle_labels,
     _remap_labels,
+    _SampleIndex,
 )
 from perception_dataset.t4_dataset.table_handler import TableHandler
 from tests.constants import TEST_DATA_ROOT_DIR
@@ -88,9 +87,9 @@ def test_annotation_selection_skips_ambiguous_type_but_keeps_other_type(tmp_path
     _write_openlabel(boxes_b, "boxes")
     _write_openlabel(segmentation, "segmentation")
 
-    assert converter._select_by_type(
-        tmp_path / "scene", [boxes_a, segmentation, boxes_b]
-    ) == [segmentation]
+    assert converter._select_by_type(tmp_path / "scene", [boxes_a, segmentation, boxes_b]) == [
+        segmentation
+    ]
 
 
 def test_lidar_sample_selection_prefers_exact_sample_timestamp():
@@ -164,7 +163,6 @@ def test_source_lidar_timestamp_maps_to_its_concat_sample(tmp_path: Path):
         tmp_path (Path): Pytest directory used to create the temporary concat
             metadata file.
     """
-
     info_path = tmp_path / "data/LIDAR_CONCAT_INFO/0.json"
     info_path.parent.mkdir(parents=True)
     info_path.write_text(
@@ -178,7 +176,7 @@ def test_source_lidar_timestamp_maps_to_its_concat_sample(tmp_path: Path):
                         "length": 1,
                         "stamp": {"sec": 2, "nanosec": 50_000_000},
                     }
-                ]
+                ],
             }
         )
     )

@@ -21,7 +21,7 @@ conversion:
   # trailer, train, construction_sign, personal_mobility, bus, forklift,
   # pushable_pullable, construction_vehicle, kart, barrier, other_vehicle,
   # pedestrian, emergency_vehicle, bicycle, motorcycle, truck,
-  # vehicle_protruding_object, open_door. 
+  # vehicle_protruding_object, open_door.
   # T4 categories outside that list are mapped to the closest class here;
   # Conversion fails before writing anything when a (mapped) category is not
   # in task_definition_classes, naming the category to add to category_map.
