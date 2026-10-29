@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 from t4_devkit.cli.sanity import sanity_check
@@ -7,8 +8,11 @@ import yaml
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from tests.constants import (
     DB3_FILE_PATTERN,
+    FLOAT_ABS_TOL,
+    FLOAT_REL_TOL,
     INPUT_BAG_DIR_NAME,
     JSON_EXTENSION,
+    MAX_REPORTED_DIFFERENCES,
     METADATA_YAML_FILENAME,
     TOKEN_FIELD_NAMES,
 )
@@ -69,6 +73,35 @@ def _normalize_numeric_values(data):
         return data
 
 
+def _is_number(value) -> bool:
+    """Whether the value is an int or float (bool excluded)."""
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _values_match(target, source) -> bool:
+    """
+    Recursively compare two JSON values, treating floats as equal within FLOAT_REL_TOL / FLOAT_ABS_TOL.
+
+    Platforms (Python version, CPU) can produce floats that differ in the last bits, so
+    floats are compared with math.isclose; every other value must match exactly.
+    """
+    if isinstance(target, dict) and isinstance(source, dict):
+        return target.keys() == source.keys() and all(
+            _values_match(target[key], source[key]) for key in target
+        )
+    if isinstance(target, list) and isinstance(source, list):
+        return len(target) == len(source) and all(
+            _values_match(t, s) for t, s in zip(target, source)
+        )
+    if isinstance(target, float) or isinstance(source, float):
+        return (
+            _is_number(target)
+            and _is_number(source)
+            and math.isclose(target, source, rel_tol=FLOAT_REL_TOL, abs_tol=FLOAT_ABS_TOL)
+        )
+    return target == source
+
+
 def _compare_json_files(target_file: Path, source_file: Path) -> None:
     """Compare two JSON files after removing token fields."""
     target_data = _load_json_file(target_file)
@@ -86,8 +119,25 @@ def _compare_json_files(target_file: Path, source_file: Path) -> None:
     target_set = {json.dumps(x, sort_keys=True) for x in target_normalized}
     source_set = {json.dumps(x, sort_keys=True) for x in source_normalized}
     intersection = target_set & source_set
-    assert len(intersection) == len(target_set) == len(source_set), (
-        f"Differences found in {target_file.name}: " f"Source and target elements are not same"
+
+    # Pair the remaining elements that only differ by float tolerance
+    only_target = sorted(target_set - intersection)
+    only_source = [json.loads(x) for x in sorted(source_set - intersection)]
+    unmatched_target = []
+    for element in only_target:
+        target_element = json.loads(element)
+        match = next(
+            (i for i, s in enumerate(only_source) if _values_match(target_element, s)), None
+        )
+        if match is None:
+            unmatched_target.append(element)
+        else:
+            only_source.pop(match)
+
+    assert not unmatched_target and not only_source, (
+        f"Differences found in {target_file.name}: Source and target elements are not same\n"
+        f"only in target ({len(unmatched_target)}): {unmatched_target[:MAX_REPORTED_DIFFERENCES]}\n"
+        f"only in source ({len(only_source)}): {only_source[:MAX_REPORTED_DIFFERENCES]}"
     )
 
 
@@ -258,13 +308,14 @@ def diff_check_and_validate_t4_datasets(target_dir: Path, source_dir: Path) -> N
 
 def diff_check_folder(target_dir: Path, source_dir: Path) -> None:
     """
-    Recursively compare all files in two directories for byte-level equality.
+    Recursively compare all files in two directories.
 
     This is a generic folder comparison that checks:
     - Both directories exist
     - File counts match
     - All files exist in both directories
-    - File contents are identical byte-by-byte
+    - JSON files hold the same values, with floats compared within tolerance
+    - Other file contents are identical byte-by-byte
     """
     assert target_dir.is_dir(), f"Target directory does not exist: {target_dir}"
     assert source_dir.is_dir(), f"Source directory does not exist: {source_dir}"
@@ -283,6 +334,12 @@ def diff_check_folder(target_dir: Path, source_dir: Path) -> None:
         target_file = target_dir / relative_path
 
         assert target_file.is_file(), f"File {relative_path} exists in source but not in target"
+
+        if source_file.suffix == JSON_EXTENSION:
+            assert _values_match(
+                _load_json_file(target_file), _load_json_file(source_file)
+            ), f"File contents differ: {relative_path}"
+            continue
 
         source_content = source_file.read_bytes()
         target_content = target_file.read_bytes()

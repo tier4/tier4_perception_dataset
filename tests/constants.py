@@ -33,3 +33,10 @@ TOKEN_FIELD_NAMES = [
     "prev",
     "attribute_tokens",
 ]
+
+# Float tolerance for T4 dataset JSON comparisons (math.isclose); absorbs last-bit
+# differences between platforms such as Python 3.10 (humble) and 3.12 (jazzy)
+FLOAT_REL_TOL = 1e-9
+FLOAT_ABS_TOL = 1e-9
+# Number of differing elements shown when a T4 dataset JSON comparison fails
+MAX_REPORTED_DIFFERENCES = 5

@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 1
     steps:
       - name: Cancel previous runs
-        uses: styfle/cancel-workflow-action@0.10.0
+        uses: styfle/cancel-workflow-action@bb6001c4ea612bf59c3abfc4756fbceee4f870c7 # 0.10.0
         with:
           workflow_id: all
           all_but_latest: true

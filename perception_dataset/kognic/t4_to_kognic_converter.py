@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import time
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Set, Tuple
 import uuid
 
 import kognic.io.model as KognicModel

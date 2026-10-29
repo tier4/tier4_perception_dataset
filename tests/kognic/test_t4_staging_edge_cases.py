@@ -184,8 +184,7 @@ def test_save_pointcloud_csv_writes_timestamp_and_first_four_features(tmp_path: 
     save_pointcloud_csv(csv_path, 123456789, points)
 
     assert csv_path.read_text() == (
-        "ts_gps,x,y,z,intensity\n"
-        "123456789,1.250000,-2.000000,3.125000,4.500000\n"
+        "ts_gps,x,y,z,intensity\n" "123456789,1.250000,-2.000000,3.125000,4.500000\n"
     )
 
 

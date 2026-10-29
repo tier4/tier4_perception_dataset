@@ -319,10 +319,10 @@ class KognicDatasetUploader:
                 pre_annotation_uuids = self.create_pre_annotations(
                     scene_uuid, external_id, pre_annotations
                 )
-                for uuid in pre_annotation_uuids.values():
+                for pre_annotation_uuid in pre_annotation_uuids.values():
                     _wait_for_pre_annotation(
                         self.kognic_io_client,
-                        uuid,
+                        pre_annotation_uuid,
                         timeout_s=self.config.pre_annotation_timeout_s,
                         poll_s=self.config.pre_annotation_poll_interval_s,
                         raise_on_timeout=True,

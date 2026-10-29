@@ -16,7 +16,6 @@ from perception_dataset.kognic.t4_to_kognic_converter import (
 from perception_dataset.kognic.upload_dataset import (
     KognicDatasetUploader,
     KognicUploadConfig,
-    ProjectTarget,
     SceneInputError,
     SceneUploadResult,
     _exception_report_fields,
@@ -237,12 +236,11 @@ def test_wait_for_pre_annotation_does_not_attach_after_timeout(pending_status: s
         _wait_for_pre_annotation(client, "pre-1", timeout_s=0, poll_s=0, raise_on_timeout=True)
 
 
-def test_create_pre_annotations_waits_for_availability_before_returning(tmp_path: Path):
-    """Test that uploading checks the server status before returning an ID.
+def test_create_pre_annotations_returns_ids_without_waiting(tmp_path: Path):
+    """Test that uploading returns each created ID without polling its status.
 
-    The create call returns ``pre-1``, but that response alone does not mean the
-    annotation is usable. The status call must occur before the identifier is
-    returned to the later input-creation step.
+    Waiting for availability happens once all pre-annotations are created, in
+    the scene upload flow, so the create step itself must not query the status.
 
     Args:
         tmp_path (Path): Pytest directory used as the uploader input base.
@@ -264,7 +262,7 @@ def test_create_pre_annotations_waits_for_availability_before_returning(tmp_path
     result = uploader.create_pre_annotations("scene-1", "scene", {"pre.json": object()})
 
     assert result == {"pre.json": "pre-1"}
-    assert calls == ["status"]
+    assert calls == []
 
 
 def test_upload_report_preserves_nested_http_error_and_filters_scene_ids(tmp_path: Path):

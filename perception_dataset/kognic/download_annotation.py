@@ -11,9 +11,9 @@ from typing import Dict, Optional
 from kognic.io.client import KognicIOClient
 import yaml
 
+from perception_dataset.kognic.openlabel.openlabel_geometry import KOGNIC_ISO_ROTATED_CUBOIDS
 from perception_dataset.kognic.utils.client import get_kognic_credentials
 from perception_dataset.kognic.utils.scene import resolve_scene_external_ids_to_uuids
-from perception_dataset.kognic.openlabel.openlabel_geometry import KOGNIC_ISO_ROTATED_CUBOIDS
 from perception_dataset.utils.logger import configure_logger
 
 logger = configure_logger(modname=__name__)
@@ -33,6 +33,7 @@ class KognicDownloadConfig:
         scene_external_id (Optional[str]): External ID of one scene to fetch.
         scene_uuid (Optional[str]): UUID of one scene to fetch.
     """
+
     output_base: Path
     organization_id: str
     workspace_id: str

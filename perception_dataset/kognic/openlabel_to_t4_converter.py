@@ -146,7 +146,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
         self._category_map = category_map or {}
         self._include_attributes = include_attributes
         self._attribute_map = None if attribute_map is None else dict(attribute_map)
-        self._occlusion_to_visibility = None if occlusion_to_visibility is None else dict(occlusion_to_visibility)
+        self._occlusion_to_visibility = (
+            None if occlusion_to_visibility is None else dict(occlusion_to_visibility)
+        )
         self._t4_table_cache: Dict[Tuple[Path, str], list] = {}
 
     # ------------------------------------------------------------------
@@ -1037,9 +1039,7 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         for index, name in sorted(reserved.items()):
             token = category_table.get_token_from_field("name", name)
-            description = (
-                UNPAINTED_CATEGORY_DESCRIPTION if name == UNPAINTED_CATEGORY_NAME else ""
-            )
+            description = UNPAINTED_CATEGORY_DESCRIPTION if name == UNPAINTED_CATEGORY_NAME else ""
             if token is None:
                 category_table.insert_into_table(name=name, description=description, index=index)
             else:
@@ -1067,7 +1067,9 @@ class OpenLabelToT4Converter(AbstractConverter[None]):
 
         duplicated = {i: n for i, n in names_by_index.items() if len(n) > 1}
         if duplicated:
-            raise ValueError(f"category.json assigns one index to several categories: {duplicated}")
+            raise ValueError(
+                f"category.json assigns one index to several categories: {duplicated}"
+            )
 
         orphaned = sorted(label for label in emitted_labels if label not in names_by_index)
         if orphaned:
@@ -1728,7 +1730,7 @@ def _remap_labels(labels: np.ndarray, value_map: Dict[int, int], frame_key: str)
     if unmapped:
         logger.warning(
             f"Frame {frame_key}: {len(unmapped)} RLE label value(s) have no ontology/object "
-                f"mapping (e.g. {unmapped[:5]}); mapping them to unpainted (0)"
+            f"mapping (e.g. {unmapped[:5]}); mapping them to unpainted (0)"
         )
     # Remap by the labels actually present rather than a lookup table sized to
     # the largest raw value: a raw class ID is attacker/corruption controlled

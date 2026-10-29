@@ -11,13 +11,23 @@ jobs:
     timeout-minutes: 1
     steps:
       - name: Check out repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
         with:
           fetch-depth: 0
 
-      - name: Run generate-changelog
+      # Inlined from autowarefoundation/autoware-github-actions/generate-changelog, which references actions by tag
+      - name: Set up git-cliff
+        uses: kenji-miyake/setup-git-cliff@2778609c643a39a2576c4bae2e493b855eb4aee8 # v2.0.1
+
+      - name: Generate changelog
         id: generate-changelog
-        uses: autowarefoundation/autoware-github-actions/generate-changelog@v1
+        run: |
+          changelog=$(git cliff --config .github/cliff.toml -vv --strip header --current | tail -n +3)
+
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "changelog<<$EOF" >> $GITHUB_OUTPUT
+          echo "$changelog" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Release to GitHub
         run: |
