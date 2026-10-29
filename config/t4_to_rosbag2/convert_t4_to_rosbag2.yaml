@@ -1,0 +1,20 @@
+task: convert_t4_to_rosbag2
+description:
+  scene: t4_to_rosbag2
+conversion:
+  # directory searched recursively for T4 datasets (dirs containing annotation/sample_data.json)
+  input_base: ./data/t4_dataset
+  output_base: ./data/t4_to_rosbag2
+  storage_id: sqlite3  # sqlite3 or mcap
+  object_topic_name: /ground_truth/objects  # 3D annotations as autoware_perception_msgs/DetectedObjects (world frame)
+  tracked_object_topic_name: /ground_truth/tracked_objects  # same annotations as autoware_perception_msgs/TrackedObjects, object_id from instance token
+  pointcloud_format: default  # default (x,y,z,intensity,ring float32) or xyzi (x,y,z,intensity float32 only)
+  world_frame_id: map
+  base_frame_id: base_link
+  # Optional. Default: read from the dataset's status.json. Set to override or when status.json is missing.
+  # lidar_sensor:
+  #   topic: /sensing/lidar/concatenated/pointcloud
+  #   channel: LIDAR_CONCAT
+  # camera_sensors:
+  #   - channel: CAM_FRONT
+  #     topic: /sensing/camera/camera0/image_raw/compressed
