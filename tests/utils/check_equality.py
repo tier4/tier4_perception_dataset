@@ -7,8 +7,10 @@ import yaml
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from tests.constants import (
     DB3_FILE_PATTERN,
+    FLOAT_SIGNIFICANT_DIGITS,
     INPUT_BAG_DIR_NAME,
     JSON_EXTENSION,
+    MAX_REPORTED_DIFFERENCES,
     METADATA_YAML_FILENAME,
     TOKEN_FIELD_NAMES,
 )
@@ -51,7 +53,8 @@ def _remove_token_and_unused_fields(data):
 def _normalize_numeric_values(data):
     """
     Recursively normalize numeric values to ensure 4.0 and 4 are treated as equal.
-    Converts float values that are equivalent to integers into integers.
+    Floats are rounded to FLOAT_SIGNIFICANT_DIGITS so last-bit differences between
+    platforms do not fail the comparison, then integral floats are converted to integers.
 
     Args:
         data: Dictionary, list, or other data structure to process
@@ -63,8 +66,9 @@ def _normalize_numeric_values(data):
         return {key: _normalize_numeric_values(value) for key, value in data.items()}
     elif isinstance(data, list):
         return [_normalize_numeric_values(item) for item in data]
-    elif isinstance(data, float) and data.is_integer():
-        return int(data)
+    elif isinstance(data, float):
+        data = float(f"{data:.{FLOAT_SIGNIFICANT_DIGITS}g}")
+        return int(data) if data.is_integer() else data
     else:
         return data
 
@@ -86,8 +90,12 @@ def _compare_json_files(target_file: Path, source_file: Path) -> None:
     target_set = {json.dumps(x, sort_keys=True) for x in target_normalized}
     source_set = {json.dumps(x, sort_keys=True) for x in source_normalized}
     intersection = target_set & source_set
+    only_target = sorted(target_set - intersection)[:MAX_REPORTED_DIFFERENCES]
+    only_source = sorted(source_set - intersection)[:MAX_REPORTED_DIFFERENCES]
     assert len(intersection) == len(target_set) == len(source_set), (
-        f"Differences found in {target_file.name}: " f"Source and target elements are not same"
+        f"Differences found in {target_file.name}: Source and target elements are not same\n"
+        f"only in target ({len(target_set - intersection)}): {only_target}\n"
+        f"only in source ({len(source_set - intersection)}): {only_source}"
     )
 
 

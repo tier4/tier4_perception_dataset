@@ -33,3 +33,8 @@ TOKEN_FIELD_NAMES = [
     "prev",
     "attribute_tokens",
 ]
+
+# Float precision for T4 dataset JSON comparisons; absorbs last-bit differences across platforms
+FLOAT_SIGNIFICANT_DIGITS = 9
+# Number of differing elements shown when a T4 dataset JSON comparison fails
+MAX_REPORTED_DIFFERENCES = 5
