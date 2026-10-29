@@ -7,7 +7,6 @@ import yaml
 from perception_dataset.constants import T4_FORMAT_DIRECTORY_NAME
 from tests.constants import (
     DB3_FILE_PATTERN,
-    FLOAT_SIGNIFICANT_DIGITS,
     INPUT_BAG_DIR_NAME,
     JSON_EXTENSION,
     MAX_REPORTED_DIFFERENCES,
@@ -53,8 +52,7 @@ def _remove_token_and_unused_fields(data):
 def _normalize_numeric_values(data):
     """
     Recursively normalize numeric values to ensure 4.0 and 4 are treated as equal.
-    Floats are rounded to FLOAT_SIGNIFICANT_DIGITS so last-bit differences between
-    platforms do not fail the comparison, then integral floats are converted to integers.
+    Converts float values that are equivalent to integers into integers.
 
     Args:
         data: Dictionary, list, or other data structure to process
@@ -66,9 +64,8 @@ def _normalize_numeric_values(data):
         return {key: _normalize_numeric_values(value) for key, value in data.items()}
     elif isinstance(data, list):
         return [_normalize_numeric_values(item) for item in data]
-    elif isinstance(data, float):
-        data = float(f"{data:.{FLOAT_SIGNIFICANT_DIGITS}g}")
-        return int(data) if data.is_integer() else data
+    elif isinstance(data, float) and data.is_integer():
+        return int(data)
     else:
         return data
 
